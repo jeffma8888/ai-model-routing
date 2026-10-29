@@ -366,3 +366,13 @@ def test_zero_prior_score_is_present_and_can_support_cold_start(registry, task_f
     decision = Router(registry, {"judge": task}, Stats(), priors).select("judge")
     assert decision.primary == "fiction/cheap" and decision.fallbacks == ()
     assert decision.basis == "prior" and decision.below_bar
+
+
+@pytest.mark.parametrize("policy", ["refuse", "best_available"])
+def test_empty_registry_raises_no_model_with_empty_candidates(task_factory, policy):
+    from model_routing import Registry
+    task = task_factory(on_no_model=policy, prior_category="judging")
+    router = Router(Registry([]), {"judge": task}, Stats())
+    with pytest.raises(NoModelClearsBar) as caught:
+        router.select("judge")
+    assert caught.value.candidates == ()

@@ -6,7 +6,10 @@ from dataclasses import FrozenInstanceError
 from urllib.error import HTTPError, URLError
 
 import pytest
-from model_routing import Completion, FakeProvider, OpenAICompatibleProvider, ProviderError
+from model_routing import (
+    AllModelsFailed, Completion, Executor, FakeProvider, Monitor, OpenAICompatibleProvider,
+    ProviderError, Registry, Router, Stats,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -98,11 +101,19 @@ def test_openai_provider_unmapped_model_and_default_api_key_env(monkeypatch, mes
 ])
 def test_openai_provider_wraps_every_network_and_http_failure(monkeypatch, messages, error):
     monkeypatch.setenv("OPENAI_API_KEY", "key")
+    calls = []
     def opener(request, timeout):
+        calls.append((request, timeout))
         raise error
     provider = OpenAICompatibleProvider("https://example.org", opener=opener)
-    with pytest.raises(ProviderError):
+    with pytest.raises(ProviderError) as caught:
         provider.complete("fiction/a", messages, 1)
+    assert len(calls) == 1
+    assert type(error).__name__ in str(caught.value)
+    if isinstance(error, HTTPError):
+        assert str(error.code) in str(caught.value)
+    else:
+        assert str(error) in str(caught.value)
 
 
 @pytest.mark.parametrize("payload", [
@@ -116,10 +127,15 @@ def test_openai_provider_wraps_every_network_and_http_failure(monkeypatch, messa
 ])
 def test_openai_provider_wraps_json_and_required_field_parse_failures(monkeypatch, messages, payload):
     monkeypatch.setenv("OPENAI_API_KEY", "key")
-    provider = OpenAICompatibleProvider("https://example.org",
-                                        opener=lambda request, timeout: io.BytesIO(payload))
-    with pytest.raises(ProviderError):
+    calls = []
+    def opener(request, timeout):
+        calls.append((request, timeout))
+        return io.BytesIO(payload)
+    provider = OpenAICompatibleProvider("https://example.org", opener=opener)
+    with pytest.raises(ProviderError) as caught:
         provider.complete("fiction/a", messages, 1)
+    assert len(calls) == 1
+    assert "response" in str(caught.value).lower()
 
 
 def test_openai_provider_wraps_response_read_failure(monkeypatch, messages):
@@ -127,7 +143,83 @@ def test_openai_provider_wraps_response_read_failure(monkeypatch, messages):
     class BrokenResponse(io.BytesIO):
         def read(self, *args, **kwargs):
             raise OSError("truncated response")
-    provider = OpenAICompatibleProvider("https://example.org",
-                                        opener=lambda request, timeout: BrokenResponse())
-    with pytest.raises(ProviderError):
+    calls = []
+    def opener(request, timeout):
+        calls.append((request, timeout))
+        return BrokenResponse()
+    provider = OpenAICompatibleProvider("https://example.org", opener=opener)
+    with pytest.raises(ProviderError) as caught:
         provider.complete("fiction/a", messages, 1)
+    assert len(calls) == 1
+    assert "truncated response" in str(caught.value)
+
+
+def test_openai_provider_redacts_opener_secret_and_suppresses_cause(monkeypatch, messages):
+    fake_key = "fiction-secret-do-not-log-7391"
+    monkeypatch.setenv("FICTION_API_KEY", fake_key)
+    calls = []
+    def opener(request, timeout):
+        calls.append((request, timeout))
+        raise OSError("rejected " + request.get_header("Authorization"))
+    provider = OpenAICompatibleProvider("https://example.org", api_key_env="FICTION_API_KEY",
+                                        opener=opener)
+    with pytest.raises(ProviderError) as caught:
+        provider.complete("fiction/amber", messages, 2.5)
+    assert len(calls) == 1
+    error = caught.value
+    assert "rejected" in str(error) and "[redacted]" in str(error)
+    assert fake_key not in str(error) and fake_key not in repr(error)
+    assert error.__cause__ is None
+    assert error.__suppress_context__ is True
+    assert error.status is None
+
+
+def test_openai_provider_secret_never_reaches_executor_attempt_or_jsonl(
+        monkeypatch, tmp_path, model_factory, task_factory, messages):
+    fake_key = "fiction-secret-do-not-log-8282"
+    monkeypatch.setenv("FICTION_API_KEY", fake_key)
+    calls = []
+    def opener(request, timeout):
+        calls.append((request, timeout))
+        raise OSError("rejected " + request.get_header("Authorization"))
+    provider = OpenAICompatibleProvider("https://example.org", api_key_env="FICTION_API_KEY",
+                                        opener=opener)
+    registry = Registry([model_factory("fiction/amber")])
+    stats = Stats()
+    stats.add("judge", "fiction/amber", 100, 100)
+    router = Router(registry, {"judge": task_factory(max_fallbacks=0)}, stats)
+    path = tmp_path / "calls.jsonl"
+    monitor = Monitor(path)
+    with pytest.raises(AllModelsFailed) as caught:
+        Executor(router, provider, monitor=monitor).call("judge", messages)
+    assert len(calls) == 1
+    assert len(caught.value.attempts) == 1
+    assert "rejected" in caught.value.attempts[0].error
+    assert fake_key not in caught.value.attempts[0].error
+    lines = path.read_text(encoding="utf-8").splitlines()
+    assert len(lines) == 1
+    assert all(fake_key not in line and "rejected" in json.loads(line)["error"] for line in lines)
+
+
+def test_openai_provider_http_status_redacted_body_and_200_character_cap(monkeypatch, messages):
+    fake_key = "fiction-secret-do-not-log-9191"
+    monkeypatch.setenv("FICTION_API_KEY", fake_key)
+    prefix = "begin " + fake_key + " "
+    body = prefix + "x" * (200 - len(prefix)) + "BEYOND_200"
+    calls = []
+    def opener(request, timeout):
+        calls.append((request, timeout))
+        raise HTTPError(request.full_url, 429, "rate limited", {}, io.BytesIO(body.encode()))
+    provider = OpenAICompatibleProvider("https://example.org", api_key_env="FICTION_API_KEY",
+                                        opener=opener)
+    with pytest.raises(ProviderError) as caught:
+        provider.complete("fiction/amber", messages, 4)
+    assert len(calls) == 1
+    error = caught.value
+    assert error.status == 429
+    assert "429" in str(error)
+    assert "begin [redacted]" in str(error)
+    assert fake_key not in str(error) and fake_key not in repr(error)
+    assert "x" * 100 in str(error)
+    assert "BEYOND_200" not in str(error)
+    assert error.__cause__ is None and error.__suppress_context__ is True

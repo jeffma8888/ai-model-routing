@@ -55,11 +55,7 @@ def test_cli_select_missing_priors_means_no_priors_not_bad_input(cli_files, tmp_
 
 def test_cli_select_default_packaged_paths_and_missing_default_stats(tmp_path, monkeypatch, capsys):
     monkeypatch.chdir(tmp_path)
-    code = main(["select", "faithfulness_judge", "--json"])
-    # Defaults may use refuse or best_available; absence of stats is not bad input.
-    assert code in (0, 3)
-    if code == 0:
-        assert json.loads(capsys.readouterr().out)["task"] == "faithfulness_judge"
+    assert main(["select", "faithfulness_judge", "--json"]) == 3
 
 
 @pytest.mark.parametrize("kind", ["missing-registry", "missing-tasks", "bad-json", "unknown-task",
@@ -173,3 +169,71 @@ def test_run_demo_is_deterministic_and_cost_effective_is_cheaper(tmp_path):
         rows = json.loads((directory / "stats.json").read_text())["stats"]
         assert len({row["model"] for row in rows}) == 4
         assert all(row["trials"] == 300 and row["model"].startswith("demo/") for row in rows)
+
+
+@pytest.mark.parametrize("flag", ["--exclude", "--generator"])
+def test_cli_select_unknown_registry_model_returns_two_even_if_other_models_pass(cli_files, flag):
+    assert main(select_args(cli_files, flag, "fiction/unknown-model")) == 2
+
+
+@pytest.mark.parametrize("exists", [False, True])
+def test_cli_calibrate_bad_late_row_does_not_create_or_modify_stats(tmp_path, exists):
+    results = tmp_path / "results.jsonl"
+    stats = tmp_path / "stats.json"
+    write_jsonl(results, [
+        {"task": "judge", "model": "fiction/amber", "correct": True},
+        {"task": "judge", "model": "fiction/amber", "correct": "false"},
+    ])
+    original = b'{"stats": [{"task": "judge", "model": "fiction/amber", "successes": 1, "trials": 2}]}\n'
+    if exists:
+        stats.write_bytes(original)
+    assert main(["calibrate", "--results", str(results), "--stats", str(stats)]) == 2
+    if exists:
+        assert stats.read_bytes() == original
+    else:
+        assert not stats.exists()
+
+
+@pytest.mark.parametrize("lines", ['{}\n\n[]\n', '{}\n{"truncated":\n'])
+def test_cli_report_rejects_malformed_or_nonobject_jsonl(tmp_path, lines):
+    path = tmp_path / "fiction-calls.jsonl"
+    path.write_text(lines, encoding="utf-8")
+    assert main(["report", "--log", str(path)]) == 2
+
+
+@pytest.mark.parametrize("filename", ["calls.jsonl", "stats.json"])
+def test_run_demo_refuses_to_overwrite_user_artifact_without_marker(tmp_path, filename):
+    out = tmp_path / "demo"
+    out.mkdir()
+    artifact = out / filename
+    original = b"user-owned-fictional-data\n\x00"
+    artifact.write_bytes(original)
+    with pytest.raises(FileExistsError):
+        run_demo(out)
+    assert artifact.read_bytes() == original
+    assert not (out / ".model-routing-demo").exists()
+    assert not (out / ("stats.json" if filename == "calls.jsonl" else "calls.jsonl")).exists()
+
+
+@pytest.mark.parametrize("filename", ["calls.jsonl", "stats.json"])
+def test_cli_demo_refuses_user_artifact_and_returns_two(tmp_path, filename):
+    out = tmp_path / "demo"
+    out.mkdir()
+    artifact = out / filename
+    original = b"user-owned-fictional-data\n"
+    artifact.write_bytes(original)
+    assert main(["demo", "--out", str(out)]) == 2
+    assert artifact.read_bytes() == original
+    assert not (out / ".model-routing-demo").exists()
+
+
+def test_run_demo_can_replace_its_own_marked_outputs_deterministically(tmp_path):
+    out = tmp_path / "demo"
+    first = run_demo(out, seed=17)
+    marker = out / ".model-routing-demo"
+    assert marker.is_file() and marker.read_bytes() == b""
+    initial = {name: (out / name).read_bytes() for name in ("calls.jsonl", "stats.json")}
+    second = run_demo(out, seed=17)
+    assert first == second
+    assert marker.read_bytes() == b""
+    assert {name: (out / name).read_bytes() for name in initial} == initial

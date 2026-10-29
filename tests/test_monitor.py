@@ -170,3 +170,14 @@ def test_report_empty_records_returns_empty_list(by):
 def test_report_unknown_group_key_raises_valueerror_even_with_empty_input(by):
     with pytest.raises(ValueError):
         report([], by=by)
+
+
+@pytest.mark.parametrize("lines,number", [
+    ('{}\n\n[]\n', 3), ('{}\n{"truncated":\n', 2),
+])
+def test_load_records_rejects_malformed_or_nonobject_line_with_path_and_number(tmp_path, lines, number):
+    path = tmp_path / "fiction-calls.jsonl"
+    path.write_text(lines, encoding="utf-8")
+    with pytest.raises(ValueError) as caught:
+        load_records(path)
+    assert f"{path.name}:{number}" in str(caught.value)

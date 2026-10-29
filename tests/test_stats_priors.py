@@ -137,3 +137,28 @@ def test_priors_load_category_metadata_and_scores(write_json, prior_categories):
     loaded = Priors.load(write_json("priors.json", {"categories": prior_categories}))
     assert loaded.score("judging", "fiction/best") == 90
     assert loaded.ranked("judging") == ["fiction/best", "fiction/mid", "fiction/cheap"]
+
+
+@pytest.mark.parametrize("correct", ["false", 0, None])
+def test_calibration_rejects_nonboolean_correct(correct):
+    with pytest.raises(ValueError):
+        calibrate_from_results([{"task": "judge", "model": "fiction/amber", "correct": correct}])
+
+
+@pytest.mark.parametrize("row", [None, [], "not-a-row", 0])
+def test_calibration_rejects_non_dict_row(row):
+    with pytest.raises(ValueError):
+        calibrate_from_results([row])
+
+
+@pytest.mark.parametrize("field,value", [
+    ("successes", 30.9), ("trials", 30.9),
+    ("successes", "30"), ("trials", "30"),
+    ("successes", True), ("trials", True),
+])
+def test_stats_load_rejects_counts_that_are_not_nonboolean_integers(write_json, field, value):
+    row = {"task": "judge", "model": "fiction/amber", "successes": 20, "trials": 40}
+    row[field] = value
+    path = write_json("stats.json", {"stats": [row]})
+    with pytest.raises(ValueError):
+        Stats.load(path)
