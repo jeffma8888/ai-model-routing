@@ -1,6 +1,6 @@
 # Research behind the defaults
 
-Public evidence gathered on 2026-10-27 to 2026-10-29. Every claim in these files cites a public URL and a date. Vendor documentation rarely shows a publication date, so those entries record the date the page was opened.
+Public evidence gathered on 2026-10-27 to 2026-10-29. Nearly every claim in these files cites a public URL and a date; the few textbook statistics references cited without a link are flagged as such in the Gaps section of prior-art.md. Vendor documentation rarely shows a publication date, so those entries record the date the page was opened.
 
 | File | Question it answers |
 |---|---|

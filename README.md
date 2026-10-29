@@ -11,7 +11,7 @@ Route every eval and judge call to the cheapest model that clears a measured qua
 - In a team that evaluates seriously, judge calls are a large share of model spend: every candidate output, on every test case, on every rubric, gets graded, often more than once
 - Send every judge call to the strongest model and you can pay 40x to 100x more per call than the cheapest tier (see the cost table below)
 - Send them all to the cheapest model and you silently weaken the evals that every later decision trusts
-- Public leaderboards do not settle it. No public judge benchmark has a row for the current generation of models (see [research/judge-benchmarks.md](research/judge-benchmarks.md)), and general leaderboards disagree with each other: one model ranks first on abstract reasoning and eighth on professional writing
+- Public leaderboards do not settle it. We found no public judge benchmark with a row for the current generation of models (see [research/judge-benchmarks.md](research/judge-benchmarks.md)), and general leaderboards disagree with each other: one model ranks first on abstract reasoning and eighth on professional writing
 - The only number that tells you whether a model can judge *your* task is its agreement with *your* gold labels. This library makes that number the gate
 
 ## Two flavors, one pipeline
@@ -53,7 +53,7 @@ A model is admitted for a task only when the lower end of a two-sided Wilson sco
 
 | Bar | Agreement needed on 50 items | on 100 | on 200 | on 400 |
 |---|---|---|---|---|
-| 0.75 | 44/50 (88%) | 84/100 (84%) | 163/200 (81.5%) | 317/400 (79.3%) |
+| 0.75 | 44/50 (88%) | 84/100 (84%) | 163/200 (81.5%) | 317/400 (79.25%) |
 | 0.80 | 46/50 (92%) | 88/100 (88%) | 172/200 (86%) | 336/400 (84%) |
 | 0.85 | 48/50 (96%) | 92/100 (92%) | 180/200 (90%) | 354/400 (88.5%) |
 
@@ -232,13 +232,42 @@ Expected list cost per call for the `faithfulness_judge` example task (3,000 inp
 | anthropic/claude-opus-5.5, openai/gpt-5.6-sol | 0.015000 | 150.00 |
 | anthropic/claude-fable-5.1, openai/gpt-6-astra | 0.037500 | 375.00 |
 
-The leaderboards behind the cold-start priors (`model_routing/data/priors.json`), top three each:
+### Default capability table
 
-| Category | Leaderboard (as of) | 1st | 2nd | 3rd |
-|---|---|---|---|---|
-| `code` | [Terminal-Bench 4.0, Vals](https://www.vals.ai/benchmarks/terminal-bench-4) (2026-10-27) | claude-opus-5.5, 65.15 | claude-sonnet-5.5, 64.14 | gpt-6-astra, 59.60 |
-| `professional_writing` | [GDPval-AA Elo, Artificial Analysis](https://artificialanalysis.ai/evaluations/gdpval-aa) (2026-10-28) | claude-opus-5.5, 1866 | claude-sonnet-5.5, 1838 | claude-fable-5.1, 1764 |
-| `abstract_reasoning` | [ARC-AGI-3, via BenchLM](https://benchlm.ai/benchmarks/arcagi3) (2026-10-29) | gpt-6-astra, 62.7 | gpt-6.1-sol, 52.7 | claude-sonnet-5.5, 24.3 |
+What ships in `model_routing/data/`: vendor list prices and context windows from `models.json` (2026-10-29), and the three public leaderboards in `priors.json` that order candidates at cold start. Ranks are within each leaderboard; "not listed" means the model has no row there. None of these columns can admit a model for a task; only your calibration counts can.
+
+
+
+| Model | Family | USD per 1M in / out | Context | Terminal-Bench 4.0 (`code`) | GDPval-AA Elo (`professional_writing`) | ARC-AGI-3 (`abstract_reasoning`) |
+|---|---|---|---|---|---|---|
+| anthropic/claude-opus-5.5 | anthropic | 4 / 20 | 1M | 65.15 (#1 of 12) | 1866 (#1 of 12) | not listed |
+| anthropic/claude-sonnet-5.5 | anthropic | 2 / 10 | 1M | 64.14 (#2 of 12) | 1838 (#2 of 12) | 24.3 (#3 of 10) |
+| anthropic/claude-haiku-5.5 | anthropic | 0.1 / 0.5 | 1M | 36.36 (#8 of 12) | 1628 (#5 of 12) | 0.5 (#8 of 10) |
+| anthropic/claude-fable-5.1 | anthropic | 10 / 50 | 1M | 58.08 (#4 of 12) | 1764 (#3 of 12) | not listed |
+| openai/gpt-6.1-sol | openai | 2 / 10 | 1.05M | 55.05 (#5 of 12) | 1608 (#7 of 12) | 52.7 (#2 of 10) |
+| openai/gpt-6-sol | openai | 2 / 10 | 1.05M | 44.44 (#6 of 12) | 1517 (#9 of 12) | 4.6 (#5 of 10) |
+| openai/gpt-6-astra | openai | 10 / 50 | 1.05M | 59.6 (#3 of 12) | 1584 (#8 of 12) | 62.7 (#1 of 10) |
+| openai/gpt-6-luna | openai | 0.1 / 0.5 | 1.05M | 13.64 (#11 of 12) | 1445 (#12 of 12) | 0.1 (#10 of 10) |
+| openai/gpt-5.6-terra | openai | 2 / 12 | 1.05M | 22.73 (#10 of 12) | 1462 (#11 of 12) | 0.8 (#7 of 10) |
+| openai/gpt-5.6-sol | openai | 4 / 20 | 1.05M | 37.88 (#7 of 12) | 1618 (#6 of 12) | 7.8 (#4 of 10) |
+| openai/gpt-5.6-luna | openai | 0.2 / 1.2 | 1.05M | 11.62 (#12 of 12) | 1469 (#10 of 12) | 0.2 (#9 of 10) |
+| xai/grok-4.7 | xai | 2 / 6 | 500K | 28.79 (#9 of 12) | 1722 (#4 of 12) | 1.8 (#6 of 10) |
+
+Sources: [Terminal-Bench 4.0 on Vals](https://www.vals.ai/benchmarks/terminal-bench-4) (2026-10-27, one harness for every model), [GDPval-AA](https://artificialanalysis.ai/evaluations/gdpval-aa) (2026-10-28), [ARC-AGI-3 via BenchLM](https://benchlm.ai/benchmarks/arcagi3) (2026-10-29). Each price row in `models.json` cites its vendor page.
+
+
+
+Pricing notes (the router uses the listed price linearly; see Limitations):
+
+
+
+- claude-haiku-5.5: short-prompt tier, prompts up to 100K tokens; longer prompts cost 0.50 in and 2.50 out
+
+- gpt-6-astra: prompts over 272K input tokens are billed at 2x input and 1.5x output
+
+- gpt-5.6-sol: promotional price, stated through at least 2026-11-21
+
+- grok-4.7: price for context up to 200K tokens; higher beyond that
 
 What this does and does not tell you:
 
@@ -264,6 +293,7 @@ Full survey with sources and dates: [research/prior-art.md](research/prior-art.m
 - No online drift detection. Re-calibrate from audited samples on a schedule, and when a provider ships a new model version
 - No budgets, alerts, async execution or streaming. The OpenAI-compatible adapter covers gateways; there are no native vendor SDK adapters
 - Prices are a dated snapshot. Refresh `models.json` yourself, and check that the model your gateway actually serves matches the ID you calibrated
+- Cost is linear at the listed price. Tiered and promotional pricing (long-prompt tiers, promotional rates; see the notes under the capability table) is not modelled, so long-context tasks on those models are under-costed
 
 ## Layout
 
@@ -286,7 +316,7 @@ DESIGN.md       the spec the tests were written from
 
 ## Development
 
-- The test suite was written from `DESIGN.md` before any implementation code existed, by a different author than the implementation
+- Tests come first. The suite was written from `DESIGN.md` by a separate model before any implementation existed (in `git log`, the test commit comes before the implementation commit), and each review-driven change since then landed as a spec clause plus failing tests before the fix (see `DESIGN.md` section 13)
 - Run `pytest -q`. CI runs the suite and the demo on Python 3.10 to 3.13
 
 ## License

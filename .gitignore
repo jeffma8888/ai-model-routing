@@ -6,7 +6,6 @@ build/
 dist/
 stats.json
 calls.jsonl
-.leakscan-private
 uv.lock
 demo-run/
 model-routing-demo/
