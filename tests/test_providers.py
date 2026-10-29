@@ -223,3 +223,27 @@ def test_openai_provider_http_status_redacted_body_and_200_character_cap(monkeyp
     assert "x" * 100 in str(error)
     assert "BEYOND_200" not in str(error)
     assert error.__cause__ is None and error.__suppress_context__ is True
+
+
+def test_openai_provider_strips_url_credentials_from_errors():
+    calls = []
+
+    def opener(request, timeout):
+        calls.append(request.full_url)
+        raise OSError("connection refused")
+
+    provider = OpenAICompatibleProvider(
+        "https://alice:" + "fiction-pass-5521" + "@" + "gateway.example.org:8443/v1?token=fiction-q-7712#frag",
+        api_key_env="FICTION_UNSET_KEY_ENV",
+        opener=opener,
+    )
+    with pytest.raises(ProviderError) as caught:
+        provider.complete("fiction/a", [{"role": "user", "content": "hi"}], 5.0)
+    assert len(calls) == 1
+    message = str(caught.value) + repr(caught.value)
+    assert "fiction-pass-5521" not in message
+    assert "alice" not in message
+    assert "fiction-q-7712" not in message
+    assert "frag" not in message
+    assert "https://gateway.example.org:8443/v1/chat/completions" in message
+
