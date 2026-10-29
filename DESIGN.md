@@ -146,7 +146,7 @@ The constructor stores its arguments as attributes `.registry`, `.tasks`, `.stat
 - Each row is a dict with key `group` plus the keys above; rows sorted by descending `cost_usd`, then `group`
 
 ## 9. Data files
-- `model_routing/data/models.json`: `{"version": str, "as_of": "YYYY-MM-DD", "currency": "USD", "models": [{"id", "family", "price_in", "price_out", "context_window", "source"}]}`; IDs are provider-neutral (`vendor/model-name`); map them to a provider's IDs with `aliases`
+- `model_routing/data/models.json`: `{"version": str, "as_of": "YYYY-MM-DD", "currency": "USD", "models": [{"id", "family", "price_in", "price_out", "context_window", "source"}]}`; IDs are provider-neutral (`vendor/model-name`); map them to a provider's IDs with `aliases`; extra keys such as `notes` are allowed and ignored by `Registry.load`; `aliases` is optional
 - `model_routing/data/priors.json`: format in 4.4; each category cites one public leaderboard with its date
 - `model_routing/data/example_tasks.json`: three judge tasks (`faithfulness_judge`, `code_correctness_judge`, `pairwise_preference_judge`) whose generator-independence and bars are realistic
 

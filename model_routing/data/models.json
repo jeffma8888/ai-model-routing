@@ -1,0 +1,108 @@
+{
+  "version": "2026.10.29",
+  "as_of": "2026-10-29",
+  "currency": "USD",
+  "note": "Vendor API list prices per 1M tokens, standard tier, read from the vendor pages on the as_of date. Models whose price or context window could not be verified are left out rather than guessed.",
+  "models": [
+    {
+      "id": "anthropic/claude-opus-5.5",
+      "family": "anthropic",
+      "price_in": 4,
+      "price_out": 20,
+      "context_window": 1000000,
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing"
+    },
+    {
+      "id": "anthropic/claude-sonnet-5.5",
+      "family": "anthropic",
+      "price_in": 2,
+      "price_out": 10,
+      "context_window": 1000000,
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing"
+    },
+    {
+      "id": "anthropic/claude-haiku-5.5",
+      "family": "anthropic",
+      "price_in": 0.1,
+      "price_out": 0.5,
+      "context_window": 1000000,
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "notes": "short-prompt tier (prompt up to 100K tokens); longer prompts cost 0.50 in and 2.50 out"
+    },
+    {
+      "id": "anthropic/claude-fable-5.1",
+      "family": "anthropic",
+      "price_in": 10,
+      "price_out": 50,
+      "context_window": 1000000,
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing"
+    },
+    {
+      "id": "openai/gpt-6.1-sol",
+      "family": "openai",
+      "price_in": 2,
+      "price_out": 10,
+      "context_window": 1050000,
+      "source": "https://platform.openai.com/docs/models/gpt-6.1-sol"
+    },
+    {
+      "id": "openai/gpt-6-sol",
+      "family": "openai",
+      "price_in": 2,
+      "price_out": 10,
+      "context_window": 1050000,
+      "source": "https://platform.openai.com/docs/models/gpt-6-sol"
+    },
+    {
+      "id": "openai/gpt-6-astra",
+      "family": "openai",
+      "price_in": 10,
+      "price_out": 50,
+      "context_window": 1050000,
+      "source": "https://platform.openai.com/docs/models/gpt-6-astra",
+      "notes": "prompts over 272K input tokens are billed at 2x input and 1.5x output"
+    },
+    {
+      "id": "openai/gpt-6-luna",
+      "family": "openai",
+      "price_in": 0.1,
+      "price_out": 0.5,
+      "context_window": 1050000,
+      "source": "https://platform.openai.com/docs/models/gpt-6-luna"
+    },
+    {
+      "id": "openai/gpt-5.6-terra",
+      "family": "openai",
+      "price_in": 2,
+      "price_out": 12,
+      "context_window": 1050000,
+      "source": "https://platform.openai.com/docs/models/gpt-5.6-terra"
+    },
+    {
+      "id": "openai/gpt-5.6-sol",
+      "family": "openai",
+      "price_in": 4,
+      "price_out": 20,
+      "context_window": 1050000,
+      "source": "https://platform.openai.com/docs/models/gpt-5.6-sol",
+      "notes": "promotional price, stated through at least 2026-11-21"
+    },
+    {
+      "id": "openai/gpt-5.6-luna",
+      "family": "openai",
+      "price_in": 0.2,
+      "price_out": 1.2,
+      "context_window": 1050000,
+      "source": "https://platform.openai.com/docs/models/gpt-5.6-luna"
+    },
+    {
+      "id": "xai/grok-4.7",
+      "family": "xai",
+      "price_in": 2,
+      "price_out": 6,
+      "context_window": 500000,
+      "source": "https://docs.x.ai/docs/models/grok-4.7",
+      "notes": "price for context up to 200K tokens; higher beyond that"
+    }
+  ]
+}
