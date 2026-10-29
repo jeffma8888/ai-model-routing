@@ -1,6 +1,6 @@
 # Design: ai-model-routing
 
-Status: v1.0 spec, 2026-10-29. This file is the contract that tests are written from. Module paths, names, fields, formats and exit codes below are binding; anything not pinned here is the implementer's choice.
+Status: v1.1 spec, 2026-10-29 (v1.1 tightens input validation, error redaction and demo safety after code review; see section 13). This file is the contract that tests are written from. Module paths, names, fields, formats and exit codes below are binding; anything not pinned here is the implementer's choice.
 
 ## 1. Problem
 - Eval and judge calls are a large share of model spend in a team that evaluates seriously: every candidate output, on every test case, on every rubric, gets judged, often more than once
@@ -69,6 +69,7 @@ tests/            owned by the QA author; the implementer never edits it
   - `Stats.load(path)` and `.save(path)` use `{"stats": [{"task": ..., "model": ..., "successes": int, "trials": int}, ...]}`; save writes rows sorted by (task, model)
   - `.merge(other: Stats) -> Stats` returns a new Stats with summed counts
 - `calibrate_from_results(rows: Iterable[dict]) -> Stats`: each row has `task`, `model`, and either `correct` (bool) or both `prediction` and `gold` (correct when equal with `==`); a row with neither raises `ValueError`. Each row is one trial
+- v1.1 validation: `correct` must be a real boolean (`type(correct) is bool`); a string such as `"false"`, a number or null raises `ValueError`. A row that is not a dict raises `ValueError`. `Stats.load` requires `successes` and `trials` to be integers that are not booleans (`isinstance(v, int) and not isinstance(v, bool)`); floats such as `30.9`, strings and booleans raise `ValueError`, never truncation
 
 ### 4.4 Priors (`priors.py`)
 - Leaderboard numbers are not agreement rates, so priors NEVER clear a bar. They only order candidates when nothing has been measured (cold start) and tell you which models to calibrate first
@@ -111,7 +112,7 @@ The constructor stores its arguments as attributes `.registry`, `.tasks`, `.stat
 - `class ProviderError(Exception)`: any failure a fallback should handle (timeout, rate limit, 5xx, bad response)
 - `class Provider(Protocol)`: `complete(self, model_id: str, messages: list[dict], timeout_s: float) -> Completion`
 - `FakeProvider(script: dict[str, Callable[[list[dict]], Completion]])`: calls `script[model_id](messages)`; an exception raised by the callable propagates unchanged; a model ID not in the script raises `ProviderError`. `.calls` is a list of `(model_id, messages)` in call order
-- `OpenAICompatibleProvider(base_url: str, api_key_env: str = "OPENAI_API_KEY", model_map: dict[str, str] | None = None)`: POSTs `{"model": mapped_id, "messages": messages}` to `base_url.rstrip("/") + "/chat/completions"` with `Authorization: Bearer <key>` via `urllib.request`, reads `choices[0].message.content` and `usage.prompt_tokens` / `usage.completion_tokens`; any network, HTTP or parse failure raises `ProviderError`. Works with any OpenAI-compatible endpoint (vendor APIs, gateways, local servers). Tests must not touch the network: it accepts an optional `opener` callable (default `urllib.request.urlopen`) for injection
+- `OpenAICompatibleProvider(base_url: str, api_key_env: str = "OPENAI_API_KEY", model_map: dict[str, str] | None = None)`: POSTs `{"model": mapped_id, "messages": messages}` to `base_url.rstrip("/") + "/chat/completions"` with `Authorization: Bearer <key>` via `urllib.request`, reads `choices[0].message.content` and `usage.prompt_tokens` / `usage.completion_tokens`; any network, HTTP or parse failure raises `ProviderError`. v1.1 redaction: no `ProviderError` the adapter raises may contain the API key value in `str()`, `repr()` or its exception chain; the adapter replaces every occurrence of the key with `[redacted]` in the message and raises with `from None` (no `__cause__`, `__suppress_context__` True). For an `urllib.error.HTTPError` the message includes the status code and at most the first 200 characters of the response body, after redaction, and the error has attribute `.status` (int, else `None` on non-HTTP failures). `timeout_s` is passed to the opener and bounds each blocking socket operation (urllib semantics), not the total call. Works with any OpenAI-compatible endpoint (vendor APIs, gateways, local servers). Tests must not touch the network: it accepts an optional `opener` callable (default `urllib.request.urlopen`) for injection
 
 ## 7. Execution with fallback (`executor.py`)
 - `@dataclass(frozen=True) class Attempt`: `model: str`, `outcome: str` (`"ok"`, `"error"` or `"invalid"`), `error: str | None` (exception class name and message for errors, `"validation failed"` for invalid), `latency_ms: float`, `input_tokens: int`, `output_tokens: int`, `cost_usd: float`
@@ -136,7 +137,7 @@ The constructor stores its arguments as attributes `.registry`, `.tasks`, `.stat
 
 ### 8.2 `Monitor(path=None)`
 - `.record(rec: dict)` appends to `.records` (a list) and, when `path` is set, appends one JSON line to that file
-- `load_records(path) -> list[dict]` reads a JSONL file, skipping blank lines
+- `load_records(path) -> list[dict]` reads a JSONL file, skipping blank lines. v1.1: a non-blank line that is not valid JSON, or is valid JSON but not an object, raises `ValueError` whose message contains the path and the 1-based line number (for example `calls.jsonl:3`)
 
 ### 8.3 `report(records, by="model") -> list[dict]`
 - `by` is `"model"`, `"task"`, `"flavor"`, `"family"`, or `"tag:<key>"` (records without that tag group under `"(none)"`); anything else raises `ValueError`
@@ -158,14 +159,20 @@ The constructor stores its arguments as attributes `.registry`, `.tasks`, `.stat
 - `demo [--out DIR]`: runs `run_demo` and prints its summary
 - Defaults: `--registry` and `--priors` and `--tasks` point at the packaged files under `model_routing.DATA_DIR`; `--stats stats.json` in the current directory (a missing stats file means empty stats; a missing priors file means no priors)
 - Exit codes: 0 success; 2 bad input (missing file, bad JSON, unknown task or model, invalid value); 3 `NoModelClearsBar` on `select`
+- v1.1: every `--exclude` ID and the `--generator` ID must exist in the loaded registry, else exit 2; `calibrate` validates every result row before writing, so bad input leaves an existing stats file byte-identical and creates no new one
 
 ## 11. Demo (`demo.py`)
 - `run_demo(out_dir: str | Path, seed: int = 7) -> dict` uses `FakeProvider` and clearly fictional models (`demo/` prefix) so no one mistakes simulated accuracy for a real measurement: four judges in two families with different prices and true accuracies, one generator in a third family
 - Steps: build a 300-item synthetic labeled calibration set; calibrate every judge; select in both flavors; run 200 judge calls per flavor with a simulated outage on a fraction of the primary's calls; write `calls.jsonl` and `stats.json` to `out_dir`
 - Returns a summary dict with keys `cost_effective` and `cost_blind`, each holding `primary`, `fallbacks`, `calls`, `fallback_calls`, `cost_usd`; deterministic for a given seed
+- v1.1 safety: `run_demo` writes an empty marker file `.model-routing-demo` into `out_dir`. If `out_dir` already contains `calls.jsonl` or `stats.json` and has no marker, it raises `FileExistsError` and modifies nothing (CLI exit 2). With the marker present it replaces its own previous output
 
 ## 12. Non-goals for v1 (two-way doors, deferred)
 - Native vendor SDK adapters (the OpenAI-compatible adapter covers gateways), async execution, streaming
 - Learned or contextual routers (per-prompt difficulty prediction); v1 routes per task
 - Online drift detection beyond re-calibrating from audited results; budgets and alerts
 - Price refresh automation
+
+## 13. Changelog
+- v1.0 (2026-10-29): initial contract; tests written from it before any code
+- v1.1 (2026-10-29): after cross-model code review: strict boolean `correct` and integer counts (4.3); API key redaction, HTTP status and body snippet, timeout semantics (6); line-numbered JSONL errors (8.2); unknown `--exclude` and `--generator` exit 2, calibrate leaves stats untouched on bad input (10); demo refuses to overwrite files it did not write (11)
