@@ -247,3 +247,116 @@ def test_openai_provider_strips_url_credentials_from_errors():
     assert "frag" not in message
     assert "https://gateway.example.org:8443/v1/chat/completions" in message
 
+
+QUERY_VALUE = "fiction-qv-" + "6402"
+OTHER_PASS = "fiction-op-" + "7713"
+OTHER_TOKEN = "fiction-ot-" + "8824"
+OTHER_URL = ("https://other:" + OTHER_PASS + "@" + "other.example/v2?access_token="
+             + OTHER_TOKEN + "#fiction-frag")
+
+
+def _base_with_query():
+    return "https://gateway.example.org/v1?token=" + QUERY_VALUE + "&mode=standard"
+
+
+def _assert_clean(text):
+    for value in (QUERY_VALUE, OTHER_PASS, OTHER_TOKEN, "fiction-frag", "other:"):
+        assert value not in text, value
+
+
+def test_openai_provider_redacts_standalone_query_values(messages):
+    calls = []
+
+    def opener(request, timeout):
+        calls.append(request.full_url)
+        raise OSError("token " + QUERY_VALUE + " was rejected")
+
+    provider = OpenAICompatibleProvider(_base_with_query(), api_key_env="FICTION_UNSET_KEY_ENV",
+                                        opener=opener)
+    with pytest.raises(ProviderError) as caught:
+        provider.complete("fiction/a", messages, 5.0)
+    assert len(calls) == 1
+    error = caught.value
+    _assert_clean(str(error) + repr(error))
+    assert "token [redacted] was rejected" in str(error)
+    assert error.__cause__ is None and error.__suppress_context__ is True
+
+
+def test_openai_provider_strips_credentials_from_any_url_in_opener_errors(messages):
+    calls = []
+
+    def opener(request, timeout):
+        calls.append(request.full_url)
+        raise OSError("redirect failed " + OTHER_URL)
+
+    provider = OpenAICompatibleProvider("https://example.org/v1", opener=opener)
+    with pytest.raises(ProviderError) as caught:
+        provider.complete("fiction/a", messages, 5.0)
+    assert len(calls) == 1
+    message = str(caught.value) + repr(caught.value)
+    _assert_clean(message)
+    assert "https://other.example/v2" in message
+
+
+def test_openai_provider_strips_credentials_from_urls_in_http_body_and_reason(messages):
+    calls = []
+    body = "moved to " + OTHER_URL + " and token " + QUERY_VALUE
+
+    def opener(request, timeout):
+        calls.append(request.full_url)
+        raise HTTPError(request.full_url, 401, "see " + OTHER_URL, {}, io.BytesIO(body.encode()))
+
+    provider = OpenAICompatibleProvider(_base_with_query(), api_key_env="FICTION_UNSET_KEY_ENV",
+                                        opener=opener)
+    with pytest.raises(ProviderError) as caught:
+        provider.complete("fiction/a", messages, 5.0)
+    assert len(calls) == 1
+    error = caught.value
+    assert error.status == 401
+    _assert_clean(str(error) + repr(error))
+    assert "https://other.example/v2" in str(error)
+
+
+def test_url_and_query_credentials_never_reach_attempt_or_jsonl(
+        tmp_path, model_factory, task_factory, messages):
+    def opener(request, timeout):
+        raise OSError("redirect failed " + OTHER_URL + " token " + QUERY_VALUE)
+
+    provider = OpenAICompatibleProvider(_base_with_query(), api_key_env="FICTION_UNSET_KEY_ENV",
+                                        opener=opener)
+    registry = Registry([model_factory("fiction/amber")])
+    stats = Stats()
+    stats.add("judge", "fiction/amber", 100, 100)
+    router = Router(registry, {"judge": task_factory(max_fallbacks=0)}, stats)
+    path = tmp_path / "calls.jsonl"
+    with pytest.raises(AllModelsFailed) as caught:
+        Executor(router, provider, monitor=Monitor(path)).call("judge", messages)
+    _assert_clean(caught.value.attempts[0].error)
+    _assert_clean(path.read_text(encoding="utf-8"))
+
+
+@pytest.mark.parametrize("base_url", [
+    "not-a-url?token=" + QUERY_VALUE,
+    "ftp://files.example.org/v1?token=" + QUERY_VALUE,
+    "https:///v1?token=" + QUERY_VALUE,
+])
+def test_openai_provider_rejects_malformed_base_url_without_echoing_it(base_url):
+    with pytest.raises(ValueError) as caught:
+        OpenAICompatibleProvider(base_url)
+    assert QUERY_VALUE not in str(caught.value)
+    assert "token=" not in str(caught.value)
+
+
+@pytest.mark.parametrize("base_url", ["https://example.org", "https://example.org/v1/"])
+def test_openai_provider_error_shows_endpoint_url_exactly_once(base_url, messages):
+    def opener(request, timeout):
+        raise OSError("connection refused")
+
+    provider = OpenAICompatibleProvider(base_url, opener=opener)
+    with pytest.raises(ProviderError) as caught:
+        provider.complete("fiction/a", messages, 5.0)
+    message = str(caught.value)
+    expected = base_url.rstrip("/") + "/chat/completions"
+    assert message.count("/chat/completions") == 1, message
+    assert expected + " failed" in message, message
+
