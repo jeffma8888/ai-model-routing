@@ -2,6 +2,7 @@
 
 import io
 import json
+import traceback
 from dataclasses import FrozenInstanceError
 from urllib.error import HTTPError, URLError
 
@@ -377,4 +378,61 @@ def test_short_query_values_do_not_mangle_messages(messages):
     assert "refused by 192.0.2.1 after 1 try" in message, message
     assert long_value not in message
     assert "token [redacted]" in message
+
+
+def test_raw_and_decoded_query_values_are_redacted(messages):
+    raw_a, raw_b = "fiction%2Fqv" + "4410", "fiction+qv" + "5521"
+    forms = (raw_a, "fiction/qv4410", raw_b, "fiction qv5521")
+    body = " | ".join(forms)
+
+    def opener(request, timeout):
+        raise HTTPError(request.full_url, 400, "bad request", {}, io.BytesIO(body.encode()))
+
+    provider = OpenAICompatibleProvider(
+        "https://gateway.example.org/v1?api_key=" + raw_a + "&other=" + raw_b,
+        api_key_env="FICTION_UNSET_KEY_ENV", opener=opener)
+    with pytest.raises(ProviderError) as caught:
+        provider.complete("fiction/a", messages, 5.0)
+    message = str(caught.value) + repr(caught.value)
+    for form in forms:
+        assert form not in message, form
+    assert caught.value.status == 400
+
+
+def test_unprintable_opener_exception_still_becomes_clean_provider_error(monkeypatch, messages):
+    fake_key = "fiction-unprintable-" + "6630"
+    monkeypatch.setenv("FICTION_API_KEY", fake_key)
+
+    class Unprintable(OSError):
+        def __str__(self):
+            raise RuntimeError("cannot format " + fake_key)
+
+    def opener(request, timeout):
+        raise Unprintable(fake_key)
+
+    provider = OpenAICompatibleProvider("https://example.org/v1", api_key_env="FICTION_API_KEY",
+                                        opener=opener)
+    with pytest.raises(ProviderError) as caught:
+        provider.complete("fiction/a", messages, 5.0)
+    error = caught.value
+    text = str(error) + repr(error) + "".join(
+        traceback.format_exception(type(error), error, error.__traceback__))
+    assert fake_key not in text
+    assert "Unprintable" in str(error)
+    assert error.__cause__ is None and error.__suppress_context__ is True
+
+
+def test_base_url_query_is_kept_after_the_endpoint_path(messages):
+    captured = []
+    payload = json.dumps({"choices": [{"message": {"content": "ok"}}],
+                          "usage": {"prompt_tokens": 1, "completion_tokens": 1}}).encode()
+
+    def opener(request, timeout):
+        captured.append(request.full_url)
+        return io.BytesIO(payload)
+
+    provider = OpenAICompatibleProvider("https://gateway.example.org/openai/?api-version=2026-10-01",
+                                        api_key_env="FICTION_UNSET_KEY_ENV", opener=opener)
+    provider.complete("fiction/a", messages, 5.0)
+    assert captured == ["https://gateway.example.org/openai/chat/completions?api-version=2026-10-01"]
 
