@@ -88,8 +88,9 @@ class OpenAICompatibleProvider:
 
     @property
     def url(self) -> str:
-        """The full chat completions URL."""
-        return self.base_url.rstrip("/") + "/chat/completions"
+        """The full chat completions URL, with any base_url query kept after the path."""
+        head, _, query = self.base_url.split("#", 1)[0].partition("?")
+        return head.rstrip("/") + "/chat/completions" + (f"?{query}" if query else "")
 
     @property
     def display_url(self) -> str:
@@ -98,10 +99,12 @@ class OpenAICompatibleProvider:
 
     def _secrets(self, key: str) -> List[str]:
         parts = urllib.parse.urlsplit(self.base_url)
-        secrets = [key, parts.password or ""]
-        secrets += [value for _, value in
-                    urllib.parse.parse_qsl(parts.query, keep_blank_values=True)
-                    if len(value) >= MIN_QUERY_SECRET_CHARS]
+        password = parts.password or ""
+        secrets = [key, password, urllib.parse.unquote(password)]
+        raw = [piece.partition("=")[2] for piece in parts.query.split("&")]
+        decoded = [value for _, value in
+                   urllib.parse.parse_qsl(parts.query, keep_blank_values=True)]
+        secrets += [value for value in raw + decoded if len(value) >= MIN_QUERY_SECRET_CHARS]
         return [x for x in secrets if x]
 
     def _clean(self, text: str, key: str) -> str:
@@ -136,13 +139,14 @@ class OpenAICompatibleProvider:
             snippet = _redacted_prefix(_read_body(exc), self._secrets(key), BODY_SNIPPET_CHARS)
             failure = ProviderError(
                 self._clean(f"request to {self.display_url} failed: HTTPError {exc.code}: "
-                            f"{exc.reason}" + (f": {snippet}" if snippet else ""), key),
+                            + _describe(exc.reason) + (f": {snippet}" if snippet else ""), key),
                 status=exc.code)
         except ProviderError as exc:
-            failure = ProviderError(self._clean(str(exc), key), status=getattr(exc, "status", None))
+            failure = ProviderError(self._clean(_describe(exc, type(exc).__name__), key),
+                                    status=getattr(exc, "status", None))
         except Exception as exc:
             failure = ProviderError(self._clean(f"request to {self.display_url} failed: "
-                                                f"{type(exc).__name__}: {exc}", key))
+                                                + _name_and_detail(exc), key))
         if failure is not None:
             raise failure from None
         try:
@@ -155,7 +159,7 @@ class OpenAICompatibleProvider:
                 and _is_count(output_tokens)
         except Exception as exc:
             failure = ProviderError(self._clean(f"unparseable response from {self.display_url}: "
-                                                f"{type(exc).__name__}: {exc}", key))
+                                                + _name_and_detail(exc), key))
         else:
             if not shape_ok:
                 failure = ProviderError(f"unexpected response shape from {self.display_url}")
@@ -245,6 +249,25 @@ def _redact_values(text: str, secrets: List[str]) -> str:
     if not ordered:
         return text
     return re.sub("|".join(re.escape(x) for x in ordered), REDACTED, text)
+
+
+def _describe(value: object, fallback: str = "") -> str:
+    """Return ``str(value)``, or ``fallback`` when formatting it raises."""
+    try:
+        text = str(value)
+    except Exception:
+        return fallback
+    return text if isinstance(text, str) else fallback
+
+
+def _name_and_detail(exc: BaseException) -> str:
+    """Return ``Class: detail``, or only the class name when the detail cannot be formatted."""
+    name = type(exc).__name__
+    try:
+        detail = str(exc)
+    except Exception:
+        return name
+    return f"{name}: {detail}"
 
 
 def _is_count(value: object) -> bool:
