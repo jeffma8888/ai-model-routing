@@ -80,7 +80,45 @@ model-routing demo --out ./demo-run
 
 The demo uses fictional `demo/` models and a synthetic 300-item labeled set (seeded, deterministic). It calibrates four judges, selects in both flavors, runs 200 judge calls per flavor with a simulated outage on the primary, and writes `calls.jsonl` and `stats.json`.
 
-<!-- FILL:demo-output -->
+```text
+$ model-routing demo --out ./demo-run
+model-routing demo (fictional demo/ models, simulated outages)
+
+cost_effective:
+  primary:        demo/atlas-mid
+  fallbacks:      demo/birch-pro, demo/atlas-max
+  calls:          200
+  fallback calls: 25
+  list-price USD: 0.8650
+
+cost_blind:
+  primary:        demo/atlas-max
+  fallbacks:      demo/atlas-mid, demo/birch-pro
+  calls:          200
+  fallback calls: 30
+  list-price USD: 3.3794
+
+cost_effective spent 26% of what cost_blind spent
+log: demo-run/calls.jsonl
+```
+
+What happened:
+
+- Calibration on 300 synthetic items measured `atlas-max` 286/300, `atlas-mid` 274/300, `birch-pro` 273/300 and `birch-nano` 218/300. At a 0.85 bar the first three clear it (lower bounds 0.923, 0.876, 0.872) and `birch-nano` does not (0.674)
+- `cost_effective` routes to `atlas-mid`, the cheapest admitted judge; `cost_blind` routes to `atlas-max`, the best measured one. Same bar, same fallback logic, about a quarter of the spend
+- When the primary hit a simulated outage (about 15% of its calls), the call fell back to the next admitted judge, and every attempt landed in the log
+- `atlas-mid` (true accuracy 0.91) edged out `birch-pro` (0.93) by one item on this sample. A gap that small is noise, which is why the bar is a lower bound and why the fallback order should not be read as a quality ranking
+
+Then slice the log:
+
+```text
+$ model-routing report --log demo-run/calls.jsonl --by flavor
+flavor          calls  attempts  errors  invalid  fallback_calls  fallback_rate  cost_usd  routing_cost_usd  p50_ms  p95_ms
+cost_blind      200    230       30      0        30              0.150          3.379358  0.000000          1497.4  2368.0
+cost_effective  200    225       25      0        25              0.125          0.864982  0.864982          1425.5  2376.7
+```
+
+`cost_blind` logs `routing_cost_usd` as 0 because the router ignored price, but `cost_usd` still shows what the calls cost at list price.
 
 ## Calibrate your own task
 
