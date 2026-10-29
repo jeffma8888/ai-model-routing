@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -68,11 +69,18 @@ class OpenAICompatibleProvider:
     when that variable is unset no Authorization header is sent, which suits
     local servers. ``opener`` defaults to ``urllib.request.urlopen`` and
     exists so tests never touch the network.
+
+    ``base_url`` must be an http or https URL with a host, else the
+    constructor raises ``ValueError`` (the message never echoes the URL).
+    Error messages show every URL as ``scheme://host[:port]/path`` and replace
+    the API key, the base URL password and every base URL query parameter
+    value of at least 8 characters with ``[redacted]``.
     """
 
     def __init__(self, base_url: str, api_key_env: str = "OPENAI_API_KEY",
                  model_map: Optional[Dict[str, str]] = None,
                  opener: Optional[Callable] = None):
+        _validate_base_url(base_url)
         self.base_url = base_url
         self.api_key_env = api_key_env
         self.model_map = dict(model_map or {})
@@ -86,25 +94,18 @@ class OpenAICompatibleProvider:
     @property
     def display_url(self) -> str:
         """The chat completions URL without userinfo, query string or fragment."""
+        return _strip_url(self.base_url).rstrip("/") + "/chat/completions"
+
+    def _secrets(self, key: str) -> List[str]:
         parts = urllib.parse.urlsplit(self.base_url)
-        host = parts.hostname or ""
-        if ":" in host:
-            host = f"[{host}]"
-        try:
-            port = parts.port
-        except ValueError:
-            port = None
-        netloc = host + (f":{port}" if port is not None else "")
-        base = urllib.parse.urlunsplit((parts.scheme, netloc, parts.path.rstrip("/"), "", ""))
-        return base + "/chat/completions"
+        secrets = [key, parts.password or ""]
+        secrets += [value for _, value in
+                    urllib.parse.parse_qsl(parts.query, keep_blank_values=True)
+                    if len(value) >= MIN_QUERY_SECRET_CHARS]
+        return [x for x in secrets if x]
 
     def _clean(self, text: str, key: str) -> str:
-        text = text.replace(self.url, self.display_url).replace(self.base_url, self.display_url)
-        parts = urllib.parse.urlsplit(self.base_url)
-        secrets = [key, parts.password or "", parts.query]
-        for secret in sorted((x for x in secrets if x), key=len, reverse=True):
-            text = text.replace(secret, REDACTED)
-        return text
+        return _redact_values(_strip_urls(text), self._secrets(key))
 
     def complete(self, model_id: str, messages: List[dict], timeout_s: float) -> Completion:
         """POST the messages and parse the first choice and the token usage.
@@ -132,7 +133,7 @@ class OpenAICompatibleProvider:
                 if close is not None:
                     close()
         except urllib.error.HTTPError as exc:
-            snippet = _redacted_prefix(_read_body(exc), key, BODY_SNIPPET_CHARS)
+            snippet = _redacted_prefix(_read_body(exc), self._secrets(key), BODY_SNIPPET_CHARS)
             failure = ProviderError(
                 self._clean(f"request to {self.display_url} failed: HTTPError {exc.code}: "
                             f"{exc.reason}" + (f": {snippet}" if snippet else ""), key),
@@ -165,6 +166,8 @@ class OpenAICompatibleProvider:
 
 BODY_SNIPPET_CHARS = 200
 REDACTED = "[redacted]"
+# Shorter base_url query values (v=1, beta=true) cannot carry a credential.
+MIN_QUERY_SECRET_CHARS = 8
 
 
 def _read_body(error: "urllib.error.HTTPError") -> str:
@@ -179,21 +182,69 @@ def _read_body(error: "urllib.error.HTTPError") -> str:
     return str(raw)
 
 
-def _redacted_prefix(text: str, key: str, limit: int) -> str:
-    """Return the first ``limit`` characters of ``text`` with every key occurrence
-    that starts inside them replaced whole, so no partial key survives the cut."""
-    if not key:
-        return text[:limit]
+def _redacted_prefix(text: str, secrets: List[str], limit: int) -> str:
+    """Return the first ``limit`` characters of ``text`` with every secret occurrence
+    that starts inside them replaced whole, so no partial secret survives the cut."""
+    ordered = sorted(set(x for x in secrets if x), key=len, reverse=True)
     out = []
     i = 0
     while i < min(limit, len(text)):
-        if text.startswith(key, i):
-            out.append(REDACTED)
-            i += len(key)
+        for secret in ordered:
+            if text.startswith(secret, i):
+                out.append(REDACTED)
+                i += len(secret)
+                break
         else:
             out.append(text[i])
             i += 1
     return "".join(out)
+
+
+_URL_TOKEN = re.compile(r"[A-Za-z][A-Za-z0-9+.\-]*://[^\s'\"<>`]+")
+_TRAILING = ".,;:!?)]}"
+
+
+def _validate_base_url(base_url: object) -> None:
+    ok = False
+    if isinstance(base_url, str):
+        try:
+            parts = urllib.parse.urlsplit(base_url)
+            parts.port
+            ok = parts.scheme in ("http", "https") and bool(parts.hostname)
+        except ValueError:
+            ok = False
+    if not ok:
+        raise ValueError("base_url must be an http or https URL with a host") from None
+
+
+def _strip_url(url: str) -> str:
+    """Return ``url`` as ``scheme://host[:port]/path``."""
+    scheme = url.split("://", 1)[0]
+    try:
+        parts = urllib.parse.urlsplit(url)
+        host = parts.hostname or ""
+        port = parts.port
+    except ValueError:
+        return f"{scheme}://{REDACTED}"
+    if ":" in host:
+        host = f"[{host}]"
+    netloc = host + (f":{port}" if port is not None else "")
+    return f"{parts.scheme}://{netloc}{parts.path}"
+
+
+def _strip_urls(text: str) -> str:
+    def rewrite(match: "re.Match[str]") -> str:
+        token = match.group(0)
+        stripped = token.rstrip(_TRAILING)
+        return _strip_url(stripped) + token[len(stripped):]
+    return _URL_TOKEN.sub(rewrite, text)
+
+
+def _redact_values(text: str, secrets: List[str]) -> str:
+    ordered = sorted(set(x for x in secrets if x), key=len, reverse=True)
+    if not ordered:
+        return text
+    return re.sub("|".join(re.escape(x) for x in ordered), REDACTED, text)
 
 
 def _is_count(value: object) -> bool:
