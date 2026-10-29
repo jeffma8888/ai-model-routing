@@ -2,7 +2,7 @@
 
 Route every eval and judge call to the cheapest model that clears a measured quality bar, with fallback, monitoring and cost attribution. Or, if your team has decided spend does not matter, route to the best measured model with the exact same machinery.
 
-- Python 3.10+, standard library only, about a thousand lines you can read in an afternoon
+- Python 3.10+, standard library only, about 1,400 lines you can read in an afternoon
 - Works with any OpenAI-compatible endpoint (vendor APIs, gateways, local servers) or your own provider class
 - Ships with a fully offline demo, so you can see the whole loop without an API key
 
