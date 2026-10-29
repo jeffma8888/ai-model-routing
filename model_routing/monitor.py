@@ -29,12 +29,24 @@ class Monitor:
 
 
 def load_records(path: PathLike) -> List[dict]:
-    """Read a JSONL attempt log, skipping blank lines."""
+    """Read a JSONL file of objects, skipping blank lines.
+
+    A line that is not valid JSON, or not a JSON object, raises ``ValueError``
+    naming ``<path>:<line number>``.
+    """
     records = []
     with Path(path).open(encoding="utf-8") as handle:
-        for line in handle:
-            if line.strip():
-                records.append(json.loads(line))
+        for number, line in enumerate(handle, start=1):
+            if not line.strip():
+                continue
+            try:
+                value = json.loads(line)
+            except ValueError as exc:
+                raise ValueError(f"{path}:{number}: invalid JSON: {exc}") from None
+            if not isinstance(value, dict):
+                raise ValueError(f"{path}:{number}: expected a JSON object, "
+                                 f"got {type(value).__name__}")
+            records.append(value)
     return records
 
 

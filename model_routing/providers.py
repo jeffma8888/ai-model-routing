@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import os
+import urllib.error
+import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from typing import Callable, Dict, List, Optional, Protocol, Tuple
@@ -19,7 +21,15 @@ class Completion:
 
 
 class ProviderError(Exception):
-    """A failure that a fallback should handle: timeout, rate limit, 5xx, bad response."""
+    """A failure that a fallback should handle: timeout, rate limit, 5xx, bad response.
+
+    ``status`` is the HTTP status code when the failure was an HTTP error,
+    else ``None``.
+    """
+
+    def __init__(self, message: str = "", status: Optional[int] = None):
+        super().__init__(message)
+        self.status = status
 
 
 class Provider(Protocol):
@@ -73,16 +83,46 @@ class OpenAICompatibleProvider:
         """The full chat completions URL."""
         return self.base_url.rstrip("/") + "/chat/completions"
 
+    @property
+    def display_url(self) -> str:
+        """The chat completions URL without userinfo, query string or fragment."""
+        parts = urllib.parse.urlsplit(self.base_url)
+        host = parts.hostname or ""
+        if ":" in host:
+            host = f"[{host}]"
+        try:
+            port = parts.port
+        except ValueError:
+            port = None
+        netloc = host + (f":{port}" if port is not None else "")
+        base = urllib.parse.urlunsplit((parts.scheme, netloc, parts.path.rstrip("/"), "", ""))
+        return base + "/chat/completions"
+
+    def _clean(self, text: str, key: str) -> str:
+        text = text.replace(self.url, self.display_url).replace(self.base_url, self.display_url)
+        parts = urllib.parse.urlsplit(self.base_url)
+        secrets = [key, parts.password or "", parts.query]
+        for secret in sorted((x for x in secrets if x), key=len, reverse=True):
+            text = text.replace(secret, REDACTED)
+        return text
+
     def complete(self, model_id: str, messages: List[dict], timeout_s: float) -> Completion:
-        """POST the messages and parse the first choice and the token usage."""
+        """POST the messages and parse the first choice and the token usage.
+
+        Every :class:`ProviderError` raised here has the API key value
+        replaced with ``[redacted]``, shows URLs without userinfo, query string
+        or fragment, and carries no exception chain.
+        ``timeout_s`` bounds each blocking socket operation, not the total call.
+        """
         body = json.dumps({"model": self.model_map.get(model_id, model_id),
                            "messages": messages}).encode("utf-8")
         headers = {"Content-Type": "application/json"}
-        key = os.environ.get(self.api_key_env)
+        key = os.environ.get(self.api_key_env) or ""
         if key:
             headers["Authorization"] = f"Bearer {key}"
         request = urllib.request.Request(self.url, data=body, headers=headers, method="POST")
         opener = self.opener if self.opener is not None else urllib.request.urlopen
+        failure: Optional[ProviderError] = None
         try:
             response = opener(request, timeout=timeout_s)
             try:
@@ -91,24 +131,69 @@ class OpenAICompatibleProvider:
                 close = getattr(response, "close", None)
                 if close is not None:
                     close()
-        except ProviderError:
-            raise
+        except urllib.error.HTTPError as exc:
+            snippet = _redacted_prefix(_read_body(exc), key, BODY_SNIPPET_CHARS)
+            failure = ProviderError(
+                self._clean(f"request to {self.display_url} failed: HTTPError {exc.code}: "
+                            f"{exc.reason}" + (f": {snippet}" if snippet else ""), key),
+                status=exc.code)
+        except ProviderError as exc:
+            failure = ProviderError(self._clean(str(exc), key), status=getattr(exc, "status", None))
         except Exception as exc:
-            raise ProviderError(f"request to {self.url} failed: "
-                                f"{type(exc).__name__}: {exc}") from exc
+            failure = ProviderError(self._clean(f"request to {self.display_url} failed: "
+                                                f"{type(exc).__name__}: {exc}", key))
+        if failure is not None:
+            raise failure from None
         try:
             data = json.loads(payload)
             text = data["choices"][0]["message"]["content"]
             usage = data["usage"]
             input_tokens = usage["prompt_tokens"]
             output_tokens = usage["completion_tokens"]
+            shape_ok = isinstance(text, str) and _is_count(input_tokens) \
+                and _is_count(output_tokens)
         except Exception as exc:
-            raise ProviderError(f"unparseable response from {self.url}: "
-                                f"{type(exc).__name__}: {exc}") from exc
-        if not isinstance(text, str) or not _is_count(input_tokens) \
-                or not _is_count(output_tokens):
-            raise ProviderError(f"unexpected response shape from {self.url}")
+            failure = ProviderError(self._clean(f"unparseable response from {self.display_url}: "
+                                                f"{type(exc).__name__}: {exc}", key))
+        else:
+            if not shape_ok:
+                failure = ProviderError(f"unexpected response shape from {self.display_url}")
+        if failure is not None:
+            raise failure from None
         return Completion(text, input_tokens, output_tokens)
+
+
+BODY_SNIPPET_CHARS = 200
+REDACTED = "[redacted]"
+
+
+def _read_body(error: "urllib.error.HTTPError") -> str:
+    try:
+        raw = error.read()
+    except Exception:
+        return ""
+    if not raw:
+        return ""
+    if isinstance(raw, bytes):
+        return raw.decode("utf-8", errors="replace")
+    return str(raw)
+
+
+def _redacted_prefix(text: str, key: str, limit: int) -> str:
+    """Return the first ``limit`` characters of ``text`` with every key occurrence
+    that starts inside them replaced whole, so no partial key survives the cut."""
+    if not key:
+        return text[:limit]
+    out = []
+    i = 0
+    while i < min(limit, len(text)):
+        if text.startswith(key, i):
+            out.append(REDACTED)
+            i += len(key)
+        else:
+            out.append(text[i])
+            i += 1
+    return "".join(out)
 
 
 def _is_count(value: object) -> bool:

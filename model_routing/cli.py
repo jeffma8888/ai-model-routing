@@ -86,6 +86,9 @@ def _cmd_select(args) -> int:
     tasks = load_tasks(args.tasks)
     stats = Stats.load(args.stats) if Path(args.stats).exists() else Stats()
     priors = Priors.load(args.priors) if Path(args.priors).exists() else None
+    for model_id in [args.generator, *args.exclude]:
+        if model_id is not None:
+            registry.get(model_id)
     router = Router(registry, tasks, stats, priors)
     try:
         decision = router.select(args.task, flavor=args.flavor,

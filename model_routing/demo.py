@@ -20,6 +20,8 @@ GENERATOR = "demo/cedar-writer"
 CALIBRATION_ITEMS = 300
 CALLS_PER_FLAVOR = 200
 OUTAGE_RATE = 0.15
+MARKER = ".model-routing-demo"
+OUTPUTS = ("calls.jsonl", "stats.json")
 
 JUDGES = (
     (Model("demo/atlas-max", "atlas", 10.0, 50.0, 200_000), 0.96),
@@ -84,9 +86,22 @@ def run_demo(out_dir: Union[str, Path], seed: int = 7) -> dict:
     judge calls with a simulated outage on a share of the primary's calls.
     Returns ``{flavor: {primary, fallbacks, calls, fallback_calls, cost_usd}}``;
     the result is deterministic for a given seed.
+
+    An empty marker file ``.model-routing-demo`` records that the folder holds
+    demo output. If ``calls.jsonl`` or ``stats.json`` already exist without
+    that marker, ``FileExistsError`` is raised and nothing is modified; with
+    the marker, the previous demo output is replaced.
     """
     out = Path(out_dir)
+    marker = out / MARKER
+    if not marker.exists():
+        existing = [name for name in OUTPUTS if (out / name).exists()]
+        if existing:
+            raise FileExistsError(
+                f"{out} already contains {', '.join(existing)} not written by the demo; "
+                f"choose an empty folder")
     out.mkdir(parents=True, exist_ok=True)
+    marker.write_bytes(b"")
     log_path = out / "calls.jsonl"
     if log_path.exists():
         log_path.unlink()

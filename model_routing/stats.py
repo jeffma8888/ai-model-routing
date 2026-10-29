@@ -11,6 +11,10 @@ from typing import Dict, Iterable, Tuple, Union
 PathLike = Union[str, Path]
 
 
+def _is_int(value: object) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
 def _check_counts(successes: int, trials: int) -> None:
     if successes < 0 or trials < 0 or successes > trials:
         raise ValueError(
@@ -69,11 +73,16 @@ class Stats:
             raise ValueError(f"{path}: expected an object with a 'stats' list")
         stats = cls()
         for row in raw["stats"]:
+            if not isinstance(row, dict):
+                raise ValueError(f"{path}: each stats row must be an object, got {row!r}")
             try:
-                stats.add(str(row["task"]), str(row["model"]),
-                          int(row["successes"]), int(row["trials"]))
-            except (KeyError, TypeError) as exc:
-                raise ValueError(f"{path}: invalid stats row {row!r}") from exc
+                task, model_id = row["task"], row["model"]
+                successes, trials = row["successes"], row["trials"]
+            except KeyError as exc:
+                raise ValueError(f"{path}: stats row missing {exc}: {row!r}") from None
+            if not (_is_int(successes) and _is_int(trials)):
+                raise ValueError(f"{path}: successes and trials must be integers: {row!r}")
+            stats.add(str(task), str(model_id), successes, trials)
         return stats
 
     def save(self, path: PathLike) -> None:
@@ -84,11 +93,19 @@ class Stats:
 
 
 def calibrate_from_results(rows: Iterable[dict]) -> Stats:
-    """Count one trial per row; a row is correct by ``correct`` or ``prediction == gold``."""
+    """Count one trial per row; a row is correct by ``correct`` or ``prediction == gold``.
+
+    ``correct`` must be a real boolean. Every row is validated before the
+    returned Stats exists, so a bad row anywhere raises ``ValueError``.
+    """
     stats = Stats()
     for row in rows:
+        if not isinstance(row, dict):
+            raise ValueError(f"result row must be an object, got {row!r}")
         if "correct" in row:
-            correct = bool(row["correct"])
+            correct = row["correct"]
+            if type(correct) is not bool:
+                raise ValueError(f"'correct' must be true or false, got {correct!r}")
         elif "prediction" in row and "gold" in row:
             correct = row["prediction"] == row["gold"]
         else:
