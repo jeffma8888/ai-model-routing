@@ -1,0 +1,103 @@
+"""Small fictional fixtures shared by contract tests."""
+
+import json
+from dataclasses import asdict
+
+import pytest
+
+from model_routing import Model, Priors, Registry, Router, Stats, Task
+
+
+@pytest.fixture
+def model_factory():
+    def make(model_id="fiction/cheap", family="small", price_in=1.0,
+             price_out=2.0, context_window=8000, **kwargs):
+        return Model(id=model_id, family=family, price_in=price_in,
+                     price_out=price_out, context_window=context_window, **kwargs)
+    return make
+
+
+@pytest.fixture
+def registry(model_factory):
+    return Registry([
+        model_factory("fiction/cheap", "small", 1.0, 2.0),
+        model_factory("fiction/mid", "medium", 3.0, 6.0),
+        model_factory("fiction/best", "large", 10.0, 20.0),
+    ])
+
+
+@pytest.fixture
+def task_factory():
+    def make(**overrides):
+        fields = {"name": "judge", "bar": 0.7, "min_samples": 10,
+                  "expected_input_tokens": 1000, "expected_output_tokens": 200}
+        fields.update(overrides)
+        return Task(**fields)
+    return make
+
+
+@pytest.fixture
+def measured_stats():
+    stats = Stats()
+    for model_id, successes in [("fiction/cheap", 90), ("fiction/mid", 95),
+                                ("fiction/best", 100)]:
+        stats.add("judge", model_id, successes, 100)
+    return stats
+
+
+@pytest.fixture
+def router(registry, task_factory, measured_stats):
+    task = task_factory()
+    return Router(registry, {task.name: task}, measured_stats)
+
+
+@pytest.fixture
+def prior_categories():
+    return {"judging": {"metric": "fictional score", "source": "https://example.org/scores",
+                        "as_of": "2026-01-01", "scores": {
+                            "fiction/best": 90, "fiction/cheap": 80, "fiction/mid": 90}}}
+
+
+@pytest.fixture
+def priors(prior_categories):
+    return Priors(prior_categories)
+
+
+@pytest.fixture
+def write_json(tmp_path):
+    def write(name, value):
+        path = tmp_path / name
+        path.write_text(json.dumps(value), encoding="utf-8")
+        return path
+    return write
+
+
+@pytest.fixture
+def cli_files(write_json, registry, task_factory, measured_stats, tmp_path,
+              prior_categories):
+    models = [dict(asdict(model), source="https://example.org/prices")
+              for model in registry.models]
+    registry_path = write_json("models.json", {
+        "version": "1", "as_of": "2026-01-01", "currency": "USD", "models": models})
+    tasks_path = write_json("tasks.json", {"tasks": [asdict(task_factory())]})
+    stats_path = tmp_path / "stats.json"
+    measured_stats.save(stats_path)
+    priors_path = write_json("priors.json", {"categories": prior_categories})
+    return {"registry": registry_path, "tasks": tasks_path,
+            "stats": stats_path, "priors": priors_path}
+
+
+@pytest.fixture
+def record_factory():
+    def make(**overrides):
+        record = {
+            "ts": "2026-01-01T00:00:00Z", "call_id": "call-1", "task": "judge",
+            "flavor": "cost_effective", "model": "fiction/cheap", "family": "small",
+            "attempt": 0, "final": True, "outcome": "ok", "error": None,
+            "latency_ms": 10.0, "input_tokens": 100, "output_tokens": 10,
+            "cost_usd": 0.00012, "routing_cost_usd": 0.00012,
+            "below_bar": False, "basis": "measured", "tags": {},
+        }
+        record.update(overrides)
+        return record
+    return make
