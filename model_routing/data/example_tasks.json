@@ -1,0 +1,40 @@
+{
+  "tasks": [
+    {
+      "name": "faithfulness_judge",
+      "bar": 0.85,
+      "min_samples": 50,
+      "independent_of_generator": true,
+      "expected_input_tokens": 3000,
+      "expected_output_tokens": 150,
+      "on_no_model": "refuse",
+      "max_fallbacks": 2,
+      "prior_category": "professional_writing",
+      "timeout_s": 60.0
+    },
+    {
+      "name": "code_correctness_judge",
+      "bar": 0.8,
+      "min_samples": 50,
+      "independent_of_generator": true,
+      "expected_input_tokens": 4000,
+      "expected_output_tokens": 200,
+      "on_no_model": "refuse",
+      "max_fallbacks": 2,
+      "prior_category": "code",
+      "timeout_s": 90.0
+    },
+    {
+      "name": "pairwise_preference_judge",
+      "bar": 0.75,
+      "min_samples": 100,
+      "independent_of_generator": true,
+      "expected_input_tokens": 2500,
+      "expected_output_tokens": 100,
+      "on_no_model": "best_available",
+      "max_fallbacks": 2,
+      "prior_category": "professional_writing",
+      "timeout_s": 60.0
+    }
+  ]
+}

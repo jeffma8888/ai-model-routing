@@ -1,0 +1,59 @@
+{
+  "categories": {
+    "code": {
+      "metric": "Terminal-Bench 4.0 accuracy, one harness for every model (mini-swe-agent, bash only, avg@3)",
+      "source": "https://www.vals.ai/benchmarks/terminal-bench-4",
+      "as_of": "2026-10-27",
+      "scores": {
+        "anthropic/claude-opus-5.5": 65.15,
+        "anthropic/claude-sonnet-5.5": 64.14,
+        "openai/gpt-6-astra": 59.6,
+        "anthropic/claude-fable-5.1": 58.08,
+        "openai/gpt-6.1-sol": 55.05,
+        "openai/gpt-6-sol": 44.44,
+        "openai/gpt-5.6-sol": 37.88,
+        "anthropic/claude-haiku-5.5": 36.36,
+        "xai/grok-4.7": 28.79,
+        "openai/gpt-5.6-terra": 22.73,
+        "openai/gpt-6-luna": 13.64,
+        "openai/gpt-5.6-luna": 11.62
+      }
+    },
+    "professional_writing": {
+      "metric": "GDPval-AA v2.1 Elo (graded professional deliverables), max effort",
+      "source": "https://artificialanalysis.ai/evaluations/gdpval-aa",
+      "as_of": "2026-10-28",
+      "scores": {
+        "anthropic/claude-opus-5.5": 1866,
+        "anthropic/claude-sonnet-5.5": 1838,
+        "anthropic/claude-fable-5.1": 1764,
+        "xai/grok-4.7": 1722,
+        "anthropic/claude-haiku-5.5": 1628,
+        "openai/gpt-5.6-sol": 1618,
+        "openai/gpt-6.1-sol": 1608,
+        "openai/gpt-6-astra": 1584,
+        "openai/gpt-6-sol": 1517,
+        "openai/gpt-5.6-luna": 1469,
+        "openai/gpt-5.6-terra": 1462,
+        "openai/gpt-6-luna": 1445
+      }
+    },
+    "abstract_reasoning": {
+      "metric": "ARC-AGI-3 semi-private score, max effort where listed (ARC Prize results as mirrored by BenchLM)",
+      "source": "https://benchlm.ai/benchmarks/arcagi3",
+      "as_of": "2026-10-29",
+      "scores": {
+        "openai/gpt-6-astra": 62.7,
+        "openai/gpt-6.1-sol": 52.7,
+        "anthropic/claude-sonnet-5.5": 24.3,
+        "openai/gpt-5.6-sol": 7.8,
+        "openai/gpt-6-sol": 4.6,
+        "xai/grok-4.7": 1.8,
+        "openai/gpt-5.6-terra": 0.8,
+        "anthropic/claude-haiku-5.5": 0.5,
+        "openai/gpt-5.6-luna": 0.2,
+        "openai/gpt-6-luna": 0.1
+      }
+    }
+  }
+}
