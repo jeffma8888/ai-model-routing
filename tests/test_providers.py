@@ -360,3 +360,21 @@ def test_openai_provider_error_shows_endpoint_url_exactly_once(base_url, message
     assert message.count("/chat/completions") == 1, message
     assert expected + " failed" in message, message
 
+
+def test_short_query_values_do_not_mangle_messages(messages):
+    long_value = "fiction-lv-" + "93017"
+
+    def opener(request, timeout):
+        raise OSError("refused by 192.0.2.1 after 1 try, token " + long_value)
+
+    provider = OpenAICompatibleProvider(
+        "https://gateway.example.org:8443/v1?v=1&beta=true&token=" + long_value,
+        api_key_env="FICTION_UNSET_KEY_ENV", opener=opener)
+    with pytest.raises(ProviderError) as caught:
+        provider.complete("fiction/a", messages, 5.0)
+    message = str(caught.value)
+    assert "https://gateway.example.org:8443/v1/chat/completions failed" in message, message
+    assert "refused by 192.0.2.1 after 1 try" in message, message
+    assert long_value not in message
+    assert "token [redacted]" in message
+
