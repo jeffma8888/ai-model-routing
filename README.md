@@ -332,7 +332,7 @@ Held-out success is the share of held-out prompts answered correctly over all ev
 
 | Baseline | Held-out success | Cost (USD) |
 |---|---|---|
-| Per-prompt oracle: on each prompt, the cheapest model that got it right | 0.959 | 1.9634 |
+| Per-prompt oracle: on each prompt, the cheapest model that got it right, or the cheapest model, counted wrong, when none did | 0.959 | 1.9634 |
 | Best single model (`openai/gpt-4-1106-preview`) | 0.821 | 26.2358 |
 | Best model on the calibration half, per eval | 0.819 | 25.0029 |
 | Cheapest model on the calibration half, per eval | 0.276 | 0.4662 |
@@ -349,7 +349,7 @@ Limits:
 - The models date from 2023, and the costs are the ones the dataset recorded at that time's prices, not today's list prices
 - Routing here is per task (one eval), not per prompt
 - Most evals are MMLU subjects (count above), so the overall rows mostly measure MMLU
-- Only evals scored 0 or 1 are kept by default, which drops graded evals such as `grade-school-math`; RESULTS.md has a sensitivity run that keeps them at a stated pass score
+- By default the converter drops graded evals (scores other than 0 and 1, such as `grade-school-math`) and evals with fewer than 100 prompts, keeping 65 of the 86; RESULTS.md has a sensitivity run that keeps the graded ones at a stated pass score
 
 Regenerate (about 70 seconds for the evaluate step on one laptop core; the dataset downloads into a cache folder outside the repo):
 

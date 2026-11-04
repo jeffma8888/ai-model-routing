@@ -320,7 +320,8 @@ def readme_tables(results):
                          f"| {r['cost_usd'] / cheapest['cost_usd']:.1f} "
                          f"| {r['cleared_rate']:.3f} | {r['bar_violation_rate']:.3f} |")
     baselines = [
-        ("Per-prompt oracle: on each prompt, the cheapest model that got it right", "oracle"),
+        ("Per-prompt oracle: on each prompt, the cheapest model that got it right, "
+         "or the cheapest model, counted wrong, when none did", "oracle"),
         (f"Best single model (`{best['strategy'][len('model:'):]}`)", best["strategy"]),
         ("Best model on the calibration half, per eval", "best_on_calibration"),
         ("Cheapest model on the calibration half, per eval", "cheapest")]
@@ -331,30 +332,37 @@ def readme_tables(results):
     return "\n".join(lines) + "\n"
 
 
+def routerbench_subsection():
+    readme = README.read_text(encoding="utf-8")
+    heading = "\n## Evidence: held-out results on public data\n"
+    assert readme.count(heading) == 1
+    section = readme.split(heading, 1)[1].split("\n## ", 1)[0]
+    assert section.count("\n### RouterBench\n") == 1
+    return section.split("\n### RouterBench\n", 1)[1].split("\n### ", 1)[0]
+
+
 def test_readme_evidence_tables_are_the_committed_results():
     results = json.loads((FOLDER / "results.json").read_text(encoding="utf-8"))
-    readme = README.read_text(encoding="utf-8")
-    assert "\n## Evidence: held-out results on public data\n" in readme
-    section = readme.split("\n## Evidence: held-out results on public data\n", 1)[1]
-    section = section.split("\n## ", 1)[0]
-    assert "\n### RouterBench\n" in section
+    section = routerbench_subsection()
     assert "\n" + readme_tables(results) in section
-    tasks = results["tasks"]
+    tasks, config = results["tasks"], results["config"]
     models = {m for t in tasks.values() for m in t["models"]}
     mmlu = sum(1 for task in tasks if task.startswith("mmlu"))
     items = sum(t["items"] for t in tasks.values())
     counts = (f"{len(models)} models, {len(tasks)} evals ({mmlu} of them MMLU subjects), "
-              f"{items:,} prompts, {len(results['config']['seeds'])} seeds")
+              f"{items:,} prompts, {len(config['seeds'])} seeds")
     assert counts in section
+    assert f"routed at bars {config['bars'][0]} to {config['bars'][-1]} in both flavors" in section
+    assert f"keeping {len(tasks)} of the 86;" in section
+    assert "from 86 evals" in (FOLDER / "README.md").read_text(encoding="utf-8")
 
 
 def test_readme_evidence_links_source_revision_results_and_commands():
-    readme = README.read_text(encoding="utf-8")
-    section = readme.split("\n## Evidence: held-out results on public data\n", 1)[1]
-    section = section.split("\n## ", 1)[0]
+    section = routerbench_subsection()
     revision = load_convert().REVISION
     for needle in ("https://huggingface.co/datasets/withmartian/routerbench",
-                   f"https://huggingface.co/datasets/withmartian/routerbench/tree/{revision}",
+                   f"[`{revision[:7]}`](https://huggingface.co/datasets/withmartian/routerbench"
+                   f"/tree/{revision})",
                    "https://github.com/withmartian/routerbench",
                    "(evidence/routerbench/RESULTS.md)", "(evidence/routerbench/results.json)",
                    "(evidence/routerbench/README.md)"):
