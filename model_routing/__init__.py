@@ -1,4 +1,4 @@
-"""Route each eval and judge call to the cheapest model that clears a measured bar.
+"""Route each repeated kind of model call to the cheapest model that clears a measured bar.
 
 ``cost_effective`` picks the cheapest passing model; ``cost_blind`` picks the
 highest-quality passing model. Both share fallback, monitoring and cost

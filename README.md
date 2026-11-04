@@ -1,24 +1,30 @@
 # ai-model-routing
 
-Route every eval and judge call to the cheapest model that clears a measured quality bar, with fallback, monitoring and cost attribution. Or, if your team has decided spend does not matter, route to the best measured model with the exact same machinery.
+Route every repeated kind of model call (ticket triage, field extraction, code generation, eval and judge calls) to the cheapest model that clears a quality bar you measured on that task, with fallback, monitoring and cost attribution. Or, if your team has decided spend does not matter, route to the best measured model with the exact same machinery.
 
 - Python 3.10+, standard library only, about 1,400 lines you can read in an afternoon
 - Works with any OpenAI-compatible endpoint (vendor APIs, gateways, local servers) or your own provider class
 - Ships with a fully offline demo, so you can see the whole loop without an API key
 
-## Why judge calls need their own router
+## Why route per task
+
+- Most model spend in a product is a handful of call types repeated thousands of times: classify this ticket, pull these fields, write this test, grade this answer. Each one is a **task**: a repeated call with an **acceptance check** that says whether one output is right
+- Send every call to the strongest model and you can pay 40x to 100x more per call than the cheapest tier (see the cost table below). Send them all to the cheapest and quality drops without a single error in the logs
+- Public leaderboards do not settle it. They disagree with each other (one model ranks first on abstract reasoning and eighth on professional writing), and none of them is your task
+- The number that tells you whether a model can do *your* task is its success rate on *your* acceptance check: agreement with gold labels, exact match on extracted fields, generated tests passing. This library makes that number the gate, per task. Nothing in the routing rules knows about a domain; a task is a name, a bar and the counts you measured
+
+### Judge and eval calls, the first-class case
 
 - In a team that evaluates seriously, judge calls are a large share of model spend: every candidate output, on every test case, on every rubric, gets graded, often more than once
-- Send every judge call to the strongest model and you can pay 40x to 100x more per call than the cheapest tier (see the cost table below)
-- Send them all to the cheapest model and you silently weaken the evals that every later decision trusts
-- Public leaderboards do not settle it. We found no public judge benchmark with a row for the current generation of models (see [research/judge-benchmarks.md](research/judge-benchmarks.md)), and general leaderboards disagree with each other: one model ranks first on abstract reasoning and eighth on professional writing
-- The only number that tells you whether a model can judge *your* task is its agreement with *your* gold labels. This library makes that number the gate
+- A cheap judge that is wrong does more damage than a cheap model on any other task, because it silently weakens the evals that every later decision trusts
+- We found no public judge benchmark with a row for the current generation of models (see [research/judge-benchmarks.md](research/judge-benchmarks.md))
+- A judge must not grade its own family's output, so judge tasks turn on generator isolation (below)
 
 ## Two flavors, one pipeline
 
 | | `cost_effective` | `cost_blind` |
 |---|---|---|
-| Who it is for | Teams paying per token | Teams that have decided token cost is not the constraint (credits, flat-rate contracts, quality-critical evals) |
+| Who it is for | Teams paying per token | Teams that have decided token cost is not the constraint (credits, flat-rate contracts, quality-critical work) |
 | Among models that clear the bar, pick | the cheapest expected cost per call; ties go to higher measured quality | the highest measured quality |
 | Bar, sample minimum, generator isolation | same | same |
 | Fallback chain, validation, monitoring | same | same |
@@ -30,7 +36,7 @@ The flavor changes exactly one value: the `routing_cost` used to rank passing ca
 
 ```mermaid
 flowchart TD
-    A[Judge call for task T] --> B{For each registered model}
+    A[Call for task T] --> B{For each registered model}
     B --> C{Excluded, or same model or family as the generator?}
     C -- yes --> X[Ineligible]
     C -- no --> D{Context window fits the task?}
@@ -49,22 +55,22 @@ flowchart TD
 
 ### The quality bar is a confidence bound, not an average
 
-A model is admitted for a task only when the lower end of a two-sided Wilson score interval on its measured agreement with gold labels is at or above the task's bar, and only after at least `min_samples` trials. At 95% confidence:
+A model is admitted for a task only when the lower end of a two-sided Wilson score interval on its measured success rate against the task's acceptance check is at or above the task's bar, and only after at least `min_samples` trials. At 95% confidence:
 
-| Bar | Agreement needed on 50 items | on 100 | on 200 | on 400 |
+| Bar | Successes needed on 50 items | on 100 | on 200 | on 400 |
 |---|---|---|---|---|
 | 0.75 | 44/50 (88%) | 84/100 (84%) | 163/200 (81.5%) | 317/400 (79.25%) |
 | 0.80 | 46/50 (92%) | 88/100 (88%) | 172/200 (86%) | 336/400 (84%) |
 | 0.85 | 48/50 (96%) | 92/100 (92%) | 180/200 (90%) | 354/400 (88.5%) |
 
-- A judge that agrees 90% of the time on 50 items does not clear an 85% bar (its lower bound is 0.786). It might be fine; you have not shown it yet
-- More labels buy you a cheaper judge: the same 90% agreement clears 0.85 at 200 items
-- This is deliberately conservative. A wrong judge corrupts every decision downstream of it, so the burden of proof is on the cheap model
+- A model that succeeds on 90% of 50 items does not clear an 85% bar (its lower bound is 0.786). It might be fine; you have not shown it yet
+- More labeled items buy you a cheaper model: the same 90% clears 0.85 at 200 items
+- This is deliberately conservative. A model below the bar lowers quality on every call of the task, and a wrong judge also corrupts every decision downstream of it, so the burden of proof is on the cheap model
 
-### Rules that protect the eval
+### Rules that protect quality
 
-- **Generator isolation.** By default a judge may not share a model or a family with the model that produced the output it grades. Self-preference in LLM judges is well documented (see [research/prior-art.md](research/prior-art.md)), so this is on unless a task turns it off
-- **Priors never admit.** Leaderboard scores (`model_routing/data/priors.json`) only order candidates when nothing has been measured, and tell you which models to calibrate first. A leaderboard score is not an agreement rate on your task
+- **Generator isolation, for tasks that check another model's output.** When a judge, reviewer or verifier call names the model that produced the output it checks (`generator_model`), the router excludes that model and its family. Self-preference in LLM judges is well documented (see [research/prior-art.md](research/prior-art.md)), so this is on by default. It has no effect when no generator is named, and the non-judge example tasks set `independent_of_generator` to `false` to say so
+- **Priors never admit.** Leaderboard scores (`model_routing/data/priors.json`) only order candidates when nothing has been measured, and tell you which models to calibrate first. A leaderboard score is not a success rate on your task
 - **Every decision explains itself.** Each candidate carries a reason code (`excluded_model`, `excluded_family`, `generator`, `generator_family`, `context_too_small`, `insufficient_samples`, `below_bar`, `passes`), its measured counts and lower bound, and the decision says whether it rests on measurements or priors (`basis`) and whether it is below the bar
 
 ## Quickstart
@@ -78,7 +84,7 @@ pytest -q
 model-routing demo --out ./demo-run
 ```
 
-The demo uses fictional `demo/` models and a synthetic 300-item labeled set (seeded, deterministic). It calibrates four judges, selects in both flavors, runs 200 judge calls per flavor with a simulated outage on the primary, and writes `calls.jsonl` and `stats.json`.
+The demo routes one judge task with fictional `demo/` models and a synthetic 300-item labeled set (seeded, deterministic). It calibrates four judges, selects in both flavors, runs 200 judge calls per flavor with a simulated outage on the primary, and writes `calls.jsonl` and `stats.json`.
 
 ```text
 $ model-routing demo --out ./demo-run
@@ -123,7 +129,7 @@ cost_effective  200    225       25      0        25              0.125         
 
 ## Calibrate your own task
 
-1. **Define the task** in a tasks file (see `model_routing/data/example_tasks.json`):
+1. **Define the task** in a tasks file. `model_routing/data/example_tasks.json` ships three judge tasks and three from other domains (`support_ticket_triage`, `invoice_field_extraction`, `unit_test_codegen`):
 
    ```json
    {"tasks": [{
@@ -139,12 +145,14 @@ cost_effective  200    225       25      0        25              0.125         
    }]}
    ```
 
-2. **Run each candidate judge over a gold-labeled set** and write one JSON line per item. Either give the verdict and the label, or say whether it was correct:
+2. **Run each candidate model over a labeled set for the task** and write one JSON line per item. Either give the output and the label (compared with `==`), or say whether the output passed the task's acceptance check:
 
    ```json
    {"task": "faithfulness_judge", "model": "anthropic/claude-haiku-5.5", "prediction": "unfaithful", "gold": "unfaithful"}
-   {"task": "faithfulness_judge", "model": "openai/gpt-6-luna", "correct": false}
+   {"task": "unit_test_codegen", "model": "openai/gpt-6-luna", "correct": false}
    ```
+
+   For `unit_test_codegen`, `correct` means the generated tests ran and passed; for an extraction task it might mean every field matched exactly. The library only counts.
 
 3. **Fold the results into the stats file** (counts accumulate across runs):
 
@@ -152,11 +160,12 @@ cost_effective  200    225       25      0        25              0.125         
    model-routing calibrate --results results.jsonl --stats stats.json
    ```
 
-4. **Ask for a route**, naming the model that generated the outputs so its family is excluded:
+4. **Ask for a route.** For a task that checks another model's output, name that model so its family is excluded; other tasks need no `--generator`:
 
    ```bash
    model-routing select faithfulness_judge --flavor cost_effective --generator openai/gpt-6.1-sol --stats stats.json
    model-routing select faithfulness_judge --flavor cost_blind --generator openai/gpt-6.1-sol --stats stats.json --json
+   model-routing select support_ticket_triage --flavor cost_effective --stats stats.json
    ```
 
    Exit codes: 0 routed, 2 bad input, 3 no model clears the bar (for a `refuse` task).
@@ -195,6 +204,7 @@ result = executor.call(
 print(result.model, result.text)
 ```
 
+- For a task that checks nothing, leave out `generator_model`: `executor.call("invoice_field_extraction", messages=..., flavor="cost_blind")`
 - The executor tries the primary, then each fallback in order
 - It falls back on a `ProviderError` (timeout, rate limit, 5xx, unparseable response) or when `validate` rejects the output; any other exception is a bug and propagates
 - Every attempt, including the failed ones, is logged; if all of them fail it raises `AllModelsFailed` with the attempts attached
@@ -273,7 +283,7 @@ Pricing notes (the router uses the listed price linearly; see Limitations):
 What this does and does not tell you:
 
 - The spread in cost is large (100x between the cheapest and most expensive judge), so measuring whether the cheap tier clears your bar pays for itself quickly
-- Rankings flip by category: gpt-6-astra is first on ARC-AGI-3 and eighth of twelve on GDPval-AA. There is no single best judge
+- Rankings flip by category: gpt-6-astra is first on ARC-AGI-3 and eighth of twelve on GDPval-AA. There is no single best model, for judging or anything else
 - Some gaps are too small to act on: on Terminal-Bench 4.0, Opus 5.5 and Sonnet 5.5 are about one point apart, and one leaderboard cannot tell them apart. That is why priors may order candidates but never admit them
 - None of these are judge benchmarks. Public judge evidence for current models is thin, and what exists argues for measuring rather than trusting: frontier judges still miss deliberately planted errors at maximum reasoning effort, a rubric judge in one study passed its own failed outputs up to about 20x more often than other models' failures, and rubric edits that raised judge-to-judge agreement left agreement with experts flat. Details and sources: [research/judge-benchmarks.md](research/judge-benchmarks.md)
 
@@ -282,7 +292,7 @@ What this does and does not tell you:
 Routing on cost and quality, fallbacks and spend attribution are standard. FrugalGPT and RouteLLM route per prompt, gateways such as LiteLLM, Portkey and OpenRouter handle fallback and per-tag spend, and excluding the generator from judging follows directly from the self-preference literature. What this library adds is small and specific:
 
 - **A per-task admission rule.** A candidate must clear the task's agreement bar with a Wilson lower bound over at least `min_samples` gold-labeled trials before it can be chosen, and leaderboard numbers can only order candidates, never admit them. The surveyed routers optimize an expected tradeoff or a per-prompt prediction; none of the ones opened gate on a conservative bound with a minimum sample count per task
-- **Judge and eval calls as the workload,** rather than end-user prompts
+- **Repeated task types as the unit, in any domain,** with judge and eval calls (and generator isolation) as the first-class case, rather than individual end-user prompts
 - **Two flavors on one pipeline,** so a team that chooses quality over cost still sees what it spends
 
 Full survey with sources and dates: [research/prior-art.md](research/prior-art.md).
