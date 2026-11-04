@@ -1,10 +1,9 @@
-"""v1.4 delegation contract with the v1.8 cost accounting (DESIGN section 13), written
-before the module exists.
+"""v1.4 delegation contract with the v1.8 cost accounting and the v1.9 demo files
+(DESIGN sections 11 and 13), written before the module existed.
 
 An autouse fixture imports ``model_routing.delegation`` before any other fixture or
-test code runs, so until it exists each test fails with ModuleNotFoundError and the
-strict xfail below keeps the suite green. The implementing commit removes
-``pytestmark`` (DESIGN 13.8).
+test code runs. The strict xfail these tests were committed under was removed by the
+implementing commit (DESIGN 13.8), so any failure here now fails the suite.
 """
 
 import dataclasses
@@ -17,10 +16,6 @@ import pytest
 import model_routing
 from model_routing import Model, NoModelClearsBar, Priors, Registry, Router, Stats, Task, main
 from model_routing.stats import wilson_lower_bound
-
-pytestmark = pytest.mark.xfail(
-    strict=True, raises=ModuleNotFoundError,
-    reason="D2: model_routing.delegation is specified (DESIGN 13) but not implemented yet")
 
 S_IN, S_OUT = 2000, 500
 WORK = {"context_tokens": 20_000, "brief_tokens": 300, "result_tokens": 200}

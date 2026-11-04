@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import random
+from dataclasses import fields
 from pathlib import Path
 from typing import Dict, List, Union
 
@@ -21,7 +22,7 @@ CALIBRATION_ITEMS = 300
 CALLS_PER_FLAVOR = 200
 OUTAGE_RATE = 0.15
 MARKER = ".model-routing-demo"
-OUTPUTS = ("calls.jsonl", "stats.json", "outcomes.jsonl")
+OUTPUTS = ("calls.jsonl", "stats.json", "outcomes.jsonl", "models.json", "tasks.json")
 
 JUDGES = (
     (Model("demo/atlas-max", "atlas", 10.0, 50.0, 200_000), 0.96),
@@ -81,6 +82,21 @@ def _outcome_lines(calibration_rows: List[dict], task: Task) -> str:
     return "".join(lines)
 
 
+def _registry_json(registry: Registry) -> str:
+    """The demo's registry in the models.json format (DESIGN 9, 11 v1.9)."""
+    rows = [{"id": m.id, "family": m.family, "price_in": m.price_in, "price_out": m.price_out,
+             "context_window": m.context_window} for m in registry.models]
+    return json.dumps({"note": "Fictional demo models; the prices are made up.",
+                       "currency": "USD", "models": rows}, indent=2) + "\n"
+
+
+def _tasks_json(task: Task) -> str:
+    """The demo's task in the tasks file format (DESIGN 4.2, 11 v1.9)."""
+    row = {f.name: getattr(task, f.name) for f in fields(Task)}
+    row["exclude_families"] = list(task.exclude_families)
+    return json.dumps({"tasks": [row]}, indent=2) + "\n"
+
+
 def _script(registry: Registry, rng: random.Random, clock: _SimulatedClock,
             state: Dict[str, str]):
     def judge(model_id: str):
@@ -97,18 +113,19 @@ def _script(registry: Registry, rng: random.Random, clock: _SimulatedClock,
 
 
 def run_demo(out_dir: Union[str, Path], seed: int = 7) -> dict:
-    """Run the offline demo; write ``calls.jsonl``, ``stats.json`` and ``outcomes.jsonl``.
+    """Run the offline demo and write its output files (``OUTPUTS``) to ``out_dir``.
 
     Four fictional judges in two families are calibrated on a 300-item
     synthetic labeled set, routed in both flavors, and each flavor runs 200
     judge calls with a simulated outage on a share of the primary's calls.
     ``outcomes.jsonl`` holds the calibration set as an outcome matrix for
-    ``model-routing evaluate``.
+    ``model-routing evaluate``; ``models.json`` and ``tasks.json`` hold the demo's
+    registry and task, so ``select`` and ``delegate`` can run on the output.
     Returns ``{flavor: {primary, fallbacks, calls, fallback_calls, cost_usd}}``;
     the result is deterministic for a given seed.
 
     An empty marker file ``.model-routing-demo`` records that the folder holds
-    demo output. If any of those three files already exists without
+    demo output. If any of those files already exists without
     that marker, ``FileExistsError`` is raised and nothing is modified; with
     the marker, the previous demo output is replaced.
     """
@@ -135,6 +152,8 @@ def run_demo(out_dir: Union[str, Path], seed: int = 7) -> dict:
     stats.save(out / "stats.json")
     (out / "outcomes.jsonl").write_text(_outcome_lines(calibration_rows, task),
                                         encoding="utf-8")
+    (out / "models.json").write_text(_registry_json(registry), encoding="utf-8")
+    (out / "tasks.json").write_text(_tasks_json(task), encoding="utf-8")
     router = Router(registry, {task.name: task}, stats)
 
     clock = _SimulatedClock()

@@ -2,9 +2,10 @@
 
 Route every repeated kind of model call (ticket triage, field extraction, code generation, eval and judge calls) to the cheapest model that clears a quality bar you measured on that task, with fallback, monitoring and cost attribution. Or, if your team has decided spend does not matter, route to the best measured model with the exact same machinery.
 
-- Python 3.10+, standard library only, about 1,400 lines you can read in an afternoon
+- Python 3.10+, standard library only, about 2,100 lines you can read in an afternoon
 - Works with any OpenAI-compatible endpoint (vendor APIs, gateways, local servers) or your own provider class
 - Ships with a fully offline demo, so you can see the whole loop without an API key
+- Also decides whether an agent should do one piece of work itself or hand it to a sub-agent on the routed model (`model-routing delegate`), in both flavors
 
 ## Why route per task
 
@@ -84,7 +85,7 @@ pytest -q
 model-routing demo --out ./demo-run
 ```
 
-The demo routes one judge task with fictional `demo/` models and a synthetic 300-item labeled set (seeded, deterministic). It calibrates four judges, selects in both flavors, runs 200 judge calls per flavor with a simulated outage on the primary, and writes `calls.jsonl`, `stats.json` and `outcomes.jsonl` (the calibration set as an outcome matrix, used below).
+The demo routes one judge task with fictional `demo/` models and a synthetic 300-item labeled set (seeded, deterministic). It calibrates four judges, selects in both flavors, runs 200 judge calls per flavor with a simulated outage on the primary, and writes `calls.jsonl`, `stats.json`, `outcomes.jsonl` (the calibration set as an outcome matrix, used below), and its registry and task as `models.json` and `tasks.json`.
 
 ```text
 $ model-routing demo --out ./demo-run
@@ -165,6 +166,43 @@ Reading it:
 - `cheapest` (`birch-nano`) is below the bar on every split. `oracle` is right whenever any judge is right and pays the cheapest right judge's price, so it is a bound that per-prompt routing could at most approach, not something task-level routing can reach
 - The routed `cost_effective` success (0.910) is below both judges it mostly picks between (0.916 and 0.913). The two halves are complementary, so a judge that drew a lucky calibration half drew an unlucky held-out half, and the router picks the lucky one. That selection effect is why the bar is a lower bound and why `bar_violation_rate` should be read next to the held-out size, never against zero (`DESIGN.md` 12.3)
 - `success` and `cost_usd` are means over seeds; `below_bar_rate` is the share of (task, seed) cells under the bar; `cleared_rate` and `bar_violation_rate` apply to `routed` only. `--json` prints the full result without per-cell rows, small enough to commit next to the data it came from
+
+### Inline or sub-agent
+
+An agent that reaches one call of a task can do it itself (inline) or hand it to a fresh sub-agent on the model the router picks. `model-routing delegate` holds both paths to the task's bar and prices what each one adds to the parent's calls: the parent's context (`--context-tokens`), the brief it writes (`--brief-tokens`), the result it reads back (`--result-tokens`), and later parent calls that re-read them (`--carry-turns`, default 0). The demo's output is a ready input. Here an `atlas-max` parent 60,000 tokens into a session reaches one faithfulness check:
+
+```text
+$ model-routing delegate demo_faithfulness_judge --parent demo/atlas-max --context-tokens 60000 --brief-tokens 400 --result-tokens 60 --generator demo/cedar-writer --registry demo-run/models.json --tasks demo-run/tasks.json --stats demo-run/stats.json
+mode:                delegate
+model:               demo/atlas-mid
+reason:              delegate_cheaper
+below_bar:           false
+inline_cost_usd:     0.632000
+delegate_cost_usd:   0.029400
+parent_quality_lb:   0.923
+delegate_quality_lb: 0.876
+```
+
+The same check from an `atlas-mid` parent that would fold it into its next reply (`--fold-inline`):
+
+```text
+$ model-routing delegate demo_faithfulness_judge --parent demo/atlas-mid --context-tokens 60000 --brief-tokens 400 --result-tokens 60 --fold-inline --generator demo/cedar-writer --registry demo-run/models.json --tasks demo-run/tasks.json --stats demo-run/stats.json
+mode:                inline
+model:               demo/atlas-mid
+reason:              inline_cheaper
+below_bar:           false
+inline_cost_usd:     0.004000
+delegate_cost_usd:   0.009720
+parent_quality_lb:   0.876
+delegate_quality_lb: 0.876
+```
+
+Reading it:
+
+- Inline, `atlas-max` would re-read its 60,000-token context in a call of its own at 10 USD per 1M input tokens: 0.632 USD. Delegating pays for the 400-token brief, one `atlas-mid` call on the brief and the 1,000-token input, and the next parent call re-reading the brief and the 60-token result: 0.0294 USD, about 5% of inline. `atlas-mid` clears the 0.85 bar (lower bound 0.876), so the hand-off keeps the bar
+- Folded into the next reply, inline work never re-reads the context, so it costs only the work's own tokens at the parent's price (0.0040 USD). Delegating, even to `atlas-mid` itself, adds the brief and the re-read (0.0097 USD), so the parent keeps the work: `inline_cheaper`
+- `cost_blind` ignores price, so the first parent stays inline (`inline_as_good`): its best delegate is `atlas-max` itself, and equal-quality ties go inline because a brief can drop detail. A parent below the bar (`birch-nano`, lower bound 0.674) hands off to a delegate that clears it (`parent_below_bar`), whatever inline would cost
+- Inline is blocked outright when the task excludes the parent's family, when the parent is the generator or in its family on an `independent_of_generator` task, or when the work does not fit the parent's context. `--json` prints the full decision, including the delegate's route (`DESIGN.md` 13)
 
 ## Calibrate your own task
 
@@ -343,6 +381,7 @@ Full survey with sources and dates: [research/prior-art.md](research/prior-art.m
 - No online drift detection. Re-calibrate from audited samples on a schedule, and when a provider ships a new model version
 - No budgets, alerts, async execution or streaming. The OpenAI-compatible adapter covers gateways; there are no native vendor SDK adapters
 - Prices are a dated snapshot. Refresh `models.json` yourself, and check that the model your gateway actually serves matches the ID you calibrated
+- The inline-or-delegate cost is a list-price approximation for one call per path: work that takes several calls, prompt-caching discounts and the wall-clock gain of running sub-agents side by side are not modelled (`DESIGN.md` 13.2 and 13.8)
 - Cost is linear at the listed price. Tiered and promotional pricing (long-prompt tiers, promotional rates; see the notes under the capability table) is not modelled, so long-context tasks on those models are under-costed
 
 ## Layout
@@ -359,7 +398,8 @@ model_routing/
   monitor.py    JSONL attempt log and cost reports
   demo.py       offline end-to-end demo
   evaluate.py   offline evaluation on an outcome matrix, held-out split, baselines
-  cli.py        model-routing select | calibrate | report | demo | evaluate
+  delegation.py inline or sub-agent for one piece of work, in both flavors
+  cli.py        model-routing select | calibrate | report | demo | evaluate | delegate
   data/         models.json, priors.json, example_tasks.json
 research/       public evidence behind the defaults
 evidence/       public datasets turned into outcome matrices, with committed results

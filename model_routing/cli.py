@@ -1,4 +1,4 @@
-"""Command line interface: ``model-routing select|calibrate|report|demo|evaluate``."""
+"""Command line interface: ``model-routing select|calibrate|report|demo|evaluate|delegate``."""
 
 from __future__ import annotations
 
@@ -74,6 +74,29 @@ def _build_parser() -> argparse.ArgumentParser:
     ev.add_argument("--confidence", type=float, default=0.95)
     ev.add_argument("--registry", default=str(DATA_DIR / "models.json"))
     ev.add_argument("--json", action="store_true")
+
+    dg = sub.add_parser("delegate",
+                        help="do one call of a task inline in the parent or hand it to a sub-agent")
+    dg.add_argument("task")
+    dg.add_argument("--parent", required=True, help="the model of the agent doing the work")
+    dg.add_argument("--context-tokens", required=True, type=int,
+                    help="tokens already in the parent's context")
+    dg.add_argument("--brief-tokens", required=True, type=int,
+                    help="tokens the parent writes to hand the work off")
+    dg.add_argument("--result-tokens", required=True, type=int,
+                    help="tokens the parent reads back from the sub-agent")
+    dg.add_argument("--carry-turns", type=int, default=0,
+                    help="parent calls after the next one that still re-read this work")
+    dg.add_argument("--fold-inline", action="store_true",
+                    help="inline work goes into the parent's next call, not a call of its own")
+    dg.add_argument("--flavor", default="cost_effective", help="cost_effective or cost_blind")
+    dg.add_argument("--generator", default=None)
+    dg.add_argument("--exclude", nargs="+", action="extend", default=[])
+    dg.add_argument("--registry", default=str(DATA_DIR / "models.json"))
+    dg.add_argument("--tasks", default=str(DATA_DIR / "example_tasks.json"))
+    dg.add_argument("--stats", default="stats.json")
+    dg.add_argument("--priors", default=str(DATA_DIR / "priors.json"))
+    dg.add_argument("--json", action="store_true")
     return parser
 
 
@@ -202,8 +225,44 @@ def _cmd_evaluate(args) -> int:
     return EXIT_OK
 
 
-_COMMANDS = {"select": _cmd_select, "calibrate": _cmd_calibrate,
-             "report": _cmd_report, "demo": _cmd_demo, "evaluate": _cmd_evaluate}
+def _cmd_delegate(args) -> int:
+    registry = Registry.load(args.registry)
+    tasks = load_tasks(args.tasks)
+    stats = Stats.load(args.stats) if Path(args.stats).exists() else Stats()
+    priors = Priors.load(args.priors) if Path(args.priors).exists() else None
+    for model_id in [args.parent, args.generator, *args.exclude]:
+        if model_id is not None:
+            registry.get(model_id)
+    router = Router(registry, tasks, stats, priors)
+    try:
+        decision = router.decide_delegation(
+            args.task, args.parent, args.flavor, context_tokens=args.context_tokens,
+            brief_tokens=args.brief_tokens, result_tokens=args.result_tokens,
+            carry_turns=args.carry_turns, inline_separate_call=not args.fold_inline,
+            generator_model=args.generator, exclude_models=tuple(args.exclude))
+    except NoModelClearsBar as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        print(_candidate_table(exc.candidates), file=sys.stderr)
+        return EXIT_NO_MODEL
+    if args.json:
+        print(json.dumps(decision.to_dict(), indent=2))
+        return EXIT_OK
+
+    def fmt(value, digits):
+        return "-" if value is None else f"{value:.{digits}f}"
+    print(f"mode:                {decision.mode}")
+    print(f"model:               {decision.model}")
+    print(f"reason:              {decision.reason}")
+    print(f"below_bar:           {str(decision.below_bar).lower()}")
+    print(f"inline_cost_usd:     {fmt(decision.inline_cost_usd, 6)}")
+    print(f"delegate_cost_usd:   {fmt(decision.delegate_cost_usd, 6)}")
+    print(f"parent_quality_lb:   {fmt(decision.parent_quality_lb, 3)}")
+    print(f"delegate_quality_lb: {fmt(decision.delegate_quality_lb, 3)}")
+    return EXIT_OK
+
+
+_COMMANDS = {"select": _cmd_select, "calibrate": _cmd_calibrate, "report": _cmd_report,
+             "demo": _cmd_demo, "evaluate": _cmd_evaluate, "delegate": _cmd_delegate}
 
 
 def main(argv: Optional[List[str]] = None) -> int:

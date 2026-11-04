@@ -135,6 +135,28 @@ class Router:
         raise NoModelClearsBar(
             f"no eligible measured or prior-scored model for task {task.name!r}", candidates)
 
+    def decide_delegation(self, task_name: str, parent_model: str,
+                          flavor: str = "cost_effective", *, context_tokens: int,
+                          brief_tokens: int, result_tokens: int, carry_turns: int = 0,
+                          inline_separate_call: bool = True,
+                          generator_model: Optional[str] = None,
+                          exclude_models: Iterable[str] = ()):
+        """Decide whether ``parent_model`` does one call of the task inline or delegates it.
+
+        Returns a :class:`~model_routing.delegation.DelegationDecision`; the delegate
+        is this router's ``select`` with the brief added to the task's input. Raises
+        ``KeyError`` for an unknown task, parent or generator, ``ValueError`` for an
+        unknown flavor or an invalid token count, and :class:`NoModelClearsBar` when
+        neither path is allowed (DESIGN section 13).
+        """
+        from .delegation import decide_delegation
+        return decide_delegation(self, task_name, parent_model, flavor,
+                                 context_tokens=context_tokens, brief_tokens=brief_tokens,
+                                 result_tokens=result_tokens, carry_turns=carry_turns,
+                                 inline_separate_call=inline_separate_call,
+                                 generator_model=generator_model,
+                                 exclude_models=exclude_models)
+
     def _candidate(self, task: Task, model, flavor: str, excluded: set,
                    generator_model: Optional[str],
                    generator_family: Optional[str]) -> Candidate:
