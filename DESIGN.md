@@ -1,6 +1,6 @@
 # Design: ai-model-routing
 
-Status: v1.12 spec, 2026-11-04 (v1.12 has the demo make one inline-or-sub-agent decision per flavor and run the delegated one through `Executor.call_delegated`; v1.11 adds `Executor.call_delegated`, which runs the hand-off of a delegate decision; v1.10 puts the RouterBench held-out results in the README, checked against the committed file; v1.9 makes the demo's output a ready input for `select` and `delegate`; v1.5 to v1.8 pin the evaluator text output, the public evidence scripts and the delegation cost accounting; v1.4 adds the delegation decision, inline or sub-agent, in section 13; v1.3 adds the offline evaluator contract in section 12; v1.2 states the scope as any repeated kind of model call, with judge calls as one use case; v1.1 tightened input validation, error redaction and demo safety after code review; see section 15). This file is the contract that tests are written from. Module paths, names, fields, formats and exit codes below are binding; anything not pinned here is the implementer's choice.
+Status: v1.13 spec, 2026-11-04 (v1.13 checks the README's line count, module list and subcommand list against the repo; v1.12 has the demo make one inline-or-sub-agent decision per flavor and run the delegated one through `Executor.call_delegated`; v1.11 adds `Executor.call_delegated`, which runs the hand-off of a delegate decision; v1.10 puts the RouterBench held-out results in the README, checked against the committed file; v1.9 makes the demo's output a ready input for `select` and `delegate`; v1.5 to v1.8 pin the evaluator text output, the public evidence scripts and the delegation cost accounting; v1.4 adds the delegation decision, inline or sub-agent, in section 13; v1.3 adds the offline evaluator contract in section 12; v1.2 states the scope as any repeated kind of model call, with judge calls as one use case; v1.1 tightened input validation, error redaction and demo safety after code review; see section 15). This file is the contract that tests are written from. Module paths, names, fields, formats and exit codes below are binding; anything not pinned here is the implementer's choice.
 
 ## 1. Problem
 - A product or pipeline makes the same kind of model call many times: triage a support ticket, extract invoice fields, write a unit test, grade an answer against a rubric. Each such kind of call is a **task**: a repeated call with an **acceptance check** that says whether one output is right (agreement with a gold label, exact match on extracted fields, generated tests passing, a rubric pass)
@@ -17,6 +17,7 @@ Status: v1.12 spec, 2026-11-04 (v1.12 has the demo make one inline-or-sub-agent 
 ```
 model_routing/
   __init__.py     re-exports every public name below
+  __main__.py     `python -m model_routing` runs `cli.main`
   registry.py     Model, Registry
   tasks.py        Task, load_tasks
   stats.py        wilson_lower_bound, Stats, calibrate_from_results
@@ -37,6 +38,11 @@ tests/            owned by the QA author; the implementer never edits it
 ```
 - `json_validator` (section 7) lives in `executor.py`
 - `model_routing.DATA_DIR` is the `pathlib.Path` of the packaged `data/` folder
+- v1.13: what the README claims about the package is checked against the repo by `tests/test_readme.py`, so a new module, data file or subcommand fails the suite until the README names it:
+  - README.md says `about N lines` exactly once, and N is within 10% of the total line count of `model_routing/*.py`, counted as `wc -l` counts (newline characters)
+  - README.md has a `## Layout` section whose fenced block holds a `model_routing/` line followed by one entry per line indented two spaces (name, then description). The `.py` entries are every `model_routing/*.py` file, `__init__.py` and `__main__.py` included, each named once, and no other file
+  - the `data/` entry names every file in `model_routing/data/` (hidden files such as `.DS_Store` aside) and no other file
+  - the `cli.py` entry reads `model-routing` followed by the subcommands separated by ` | `, and that list is exactly the subcommands `cli.py` defines, each once
 
 ## 4. Data model
 
@@ -377,3 +383,4 @@ The parent clears the bar when its measured trials on the task are at least `tas
 - v1.11 (2026-11-04): `Executor.call_delegated` runs a `delegate` decision on the route it was decided with, falls back and validates as `call` does, and tags every record `delegated: "true"` and `parent: <parent model>`; an inline decision or a caller tag named `delegated` or `parent` raises `ValueError` before any call (7, 8.1, 13.6). New method only; no change to existing APIs
 - v1.11 (2026-11-04, review): a `delegate` decision with no route raises `ValueError`; `.call` keeps looking its task up under the caller's key; tests added for a below-bar route reaching the records, a fresh `select` that would move the call, the caller's tags left untouched on failure, and the order of `select`, `id_factory` and the provider in `.call` (7)
 - v1.12 (2026-11-04): the demo makes one inline-or-sub-agent decision per flavor for an `atlas-max` parent at 60,000 context tokens, runs the delegated one through `Executor.call_delegated` after the judge calls, and prints both with the cost of each path; each flavor's summary gains `delegation` (11, 13.8). The earlier `calls.jsonl` records, `stats.json` and the existing summary values are unchanged; the README report transcript counts the hand-off under its flavor. Additive: no change to existing APIs
+- v1.13 (2026-11-04): the README's claims about the package are checked against the repo (3): the stated line count within 10% of the `model_routing/*.py` total, every module in the Layout block once and no stale one, every data file, and exactly the parser's subcommands on the `cli.py` line; section 3 now names `__main__.py`. Docs and tests only: no change to the package API
