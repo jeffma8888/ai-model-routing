@@ -153,10 +153,55 @@ def test_packaged_data_dir_and_models_load_with_positive_prices_and_source_urls(
         assert url.scheme in {"https", "http"} and url.netloc
 
 
-def test_packaged_example_tasks_have_the_three_named_judges():
+JUDGE_TASKS = {"faithfulness_judge", "code_correctness_judge", "pairwise_preference_judge"}
+NON_JUDGE_TASKS = {"support_ticket_triage", "invoice_field_extraction", "unit_test_codegen"}
+
+
+def test_packaged_example_tasks_cover_judge_and_non_judge_domains():
     tasks = load_tasks(DATA_DIR / "example_tasks.json")
-    assert set(tasks) == {"faithfulness_judge", "code_correctness_judge",
-                          "pairwise_preference_judge"}
+    assert set(tasks) == JUDGE_TASKS | NON_JUDGE_TASKS
+    for name in JUDGE_TASKS:
+        assert tasks[name].independent_of_generator is True
+    for name in NON_JUDGE_TASKS:
+        assert tasks[name].independent_of_generator is False
+
+
+def _all_passing_stats(tasks, registry):
+    from model_routing import Stats
+    stats = Stats()
+    for task in tasks.values():
+        for model in registry.models:
+            stats.add(task.name, model.id, 1000, 1000)
+    return stats
+
+
+def test_every_packaged_task_routes_in_both_flavors():
+    from model_routing import Router
+    registry = Registry.load(DATA_DIR / "models.json")
+    tasks = load_tasks(DATA_DIR / "example_tasks.json")
+    router = Router(registry, tasks, _all_passing_stats(tasks, registry),
+                    Priors.load(DATA_DIR / "priors.json"))
+    for name, task in tasks.items():
+        for flavor in ("cost_effective", "cost_blind"):
+            decision = router.select(name, flavor=flavor)
+            assert decision.basis == "measured" and decision.below_bar is False
+            assert len(decision.fallbacks) == min(task.max_fallbacks, len(registry.models) - 1)
+        cheapest = min(registry.models,
+                       key=lambda m: (m.cost(task.expected_input_tokens,
+                                             task.expected_output_tokens), m.id))
+        assert router.select(name, flavor="cost_effective").primary == cheapest.id
+
+
+def test_non_judge_task_does_not_exclude_the_generator_family():
+    from model_routing import Router
+    registry = Registry.load(DATA_DIR / "models.json")
+    tasks = load_tasks(DATA_DIR / "example_tasks.json")
+    router = Router(registry, tasks, _all_passing_stats(tasks, registry))
+    generator = registry.models[0]
+    decision = router.select("unit_test_codegen", generator_model=generator.id)
+    reasons = {c.model_id: c.reason for c in decision.candidates}
+    assert reasons[generator.id] == "passes"
+    assert all(reason == "passes" for reason in reasons.values())
 
 
 def test_packaged_priors_load_with_public_source_date_and_metric():

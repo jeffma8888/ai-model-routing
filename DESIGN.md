@@ -1,11 +1,12 @@
 # Design: ai-model-routing
 
-Status: v1.1 spec, 2026-10-29 (v1.1 tightens input validation, error redaction and demo safety after code review; see section 13). This file is the contract that tests are written from. Module paths, names, fields, formats and exit codes below are binding; anything not pinned here is the implementer's choice.
+Status: v1.2 spec, 2026-11-04 (v1.2 states the scope as any repeated kind of model call, with judge calls as one use case; v1.1 tightened input validation, error redaction and demo safety after code review; see section 13). This file is the contract that tests are written from. Module paths, names, fields, formats and exit codes below are binding; anything not pinned here is the implementer's choice.
 
 ## 1. Problem
-- Eval and judge calls are a large share of model spend in a team that evaluates seriously: every candidate output, on every test case, on every rubric, gets judged, often more than once
-- Sending every judge call to the strongest model wastes money; sending it to the cheapest model silently weakens the evals that every later decision trusts
-- The fix is to route per task: measure each candidate model on a labeled calibration set for that task, and pick the cheapest model whose measured quality clears the task's bar with statistical confidence, with fallback when a call fails, a log of every attempt, and cost rolled up by any tag
+- A product or pipeline makes the same kind of model call many times: triage a support ticket, extract invoice fields, write a unit test, grade an answer against a rubric. Each such kind of call is a **task**: a repeated call with an **acceptance check** that says whether one output is right (agreement with a gold label, exact match on extracted fields, generated tests passing, a rubric pass)
+- Sending every call of a task to the strongest model wastes money; sending it to the cheapest model silently lowers quality, and nothing in the logs says so
+- The fix is to route per task: measure each candidate model's **success rate** against the task's acceptance check on a calibration set, and pick the cheapest model whose measured rate clears the task's bar with statistical confidence, with fallback when a call fails, a log of every attempt, and cost rolled up by any tag
+- Judge and eval calls are the first-class use case, because a wrong judge corrupts every decision downstream of it and because a judge must not grade its own family's output (generator isolation, 5.2). Nothing in the routing rules is specific to judging: the library has no notion of a domain beyond a task name, its bar and its acceptance counts
 
 ## 2. Two flavors, one algorithm
 - `cost_effective`: among models that clear the bar, pick the one with the lowest expected cost per call; ties go to higher quality
@@ -29,7 +30,7 @@ model_routing/
   data/
     models.json         public list prices and context windows (section 9)
     priors.json         leaderboard-derived priors (section 9)
-    example_tasks.json  three judge tasks used by the CLI defaults and docs
+    example_tasks.json  judge and non-judge example tasks used by the CLI defaults and docs
 tests/            owned by the QA author; the implementer never edits it
 ```
 - `json_validator` (section 7) lives in `executor.py`
@@ -45,10 +46,10 @@ tests/            owned by the QA author; the implementer never edits it
 ### 4.2 Task (`tasks.py`)
 - `@dataclass(frozen=True) class Task` fields and defaults:
   - `name: str`
-  - `bar: float` (required, in [0, 1]; the minimum acceptable agreement with gold labels)
+  - `bar: float` (required, in [0, 1]; the minimum acceptable success rate against the task's acceptance check, for a judge its agreement with gold labels)
   - `min_samples: int = 30` (fewer measured trials than this can never clear the bar)
   - `confidence: float = 0.95`
-  - `independent_of_generator: bool = True` (exclude the generator's model AND its family)
+  - `independent_of_generator: bool = True` (when a call checks another model's output and the caller names that model as `generator_model`, exclude the generator's model AND its family; it has no effect when no `generator_model` is given, so tasks that check nothing may leave it at the default or set it to `false` to document intent)
   - `exclude_families: tuple[str, ...] = ()`
   - `expected_input_tokens: int = 1000`, `expected_output_tokens: int = 200`
   - `on_no_model: str = "refuse"` (or `"best_available"`)
@@ -149,7 +150,7 @@ The constructor stores its arguments as attributes `.registry`, `.tasks`, `.stat
 ## 9. Data files
 - `model_routing/data/models.json`: `{"version": str, "as_of": "YYYY-MM-DD", "currency": "USD", "models": [{"id", "family", "price_in", "price_out", "context_window", "source"}]}`; IDs are provider-neutral (`vendor/model-name`); map them to a provider's IDs with `aliases`; extra keys such as `notes` are allowed and ignored by `Registry.load`; `aliases` is optional
 - `model_routing/data/priors.json`: format in 4.4; each category cites one public leaderboard with its date
-- `model_routing/data/example_tasks.json`: three judge tasks (`faithfulness_judge`, `code_correctness_judge`, `pairwise_preference_judge`) whose generator-independence and bars are realistic
+- `model_routing/data/example_tasks.json`: three judge tasks (`faithfulness_judge`, `code_correctness_judge`, `pairwise_preference_judge`) whose generator-independence and bars are realistic, and, from v1.2, three non-judge tasks from different domains that check nothing and so set `independent_of_generator` to `false`: `support_ticket_triage` (classification), `invoice_field_extraction` (structured extraction) and `unit_test_codegen` (code generation, accepted when the generated tests pass). Every packaged task routes in both flavors against the packaged registry once its candidates have passing stats
 
 ## 10. CLI (`model-routing`, entry point `model_routing.cli:main(argv=None) -> int`)
 - `select TASK [--flavor cost_effective|cost_blind] [--generator MODEL] [--exclude MODEL ...] [--registry PATH] [--tasks PATH] [--stats PATH] [--priors PATH] [--json]`
@@ -178,3 +179,4 @@ The constructor stores its arguments as attributes `.registry`, `.tasks`, `.stat
 - v1.1 (2026-10-29): after cross-model code review: strict boolean `correct` and integer counts (4.3); API key and URL-credential redaction, HTTP status and body snippet, timeout semantics (6); line-numbered JSONL errors (8.2); unknown `--exclude` and `--generator` exit 2, calibrate leaves stats untouched on bad input (10); demo refuses to overwrite files it did not write (11)
 - v1.1 (2026-10-29, fix verification): redaction extended to standalone `base_url` query values and to every URL in a message, not only the configured one; malformed `base_url` rejected at construction (6)
 - v1.1 (2026-10-29, redaction red-team): raw and decoded forms of base_url query values and password redacted; unprintable exceptions still become ProviderError; base_url query string kept after the endpoint path (6)
+- v1.2 (2026-11-04): scope stated as any repeated kind of model call with an acceptance check, judge calls as the first-class case (1); `bar` defined as a success rate and `independent_of_generator` documented as a no-op without a `generator_model` (4.2); three non-judge example tasks (9). No API change
