@@ -201,10 +201,37 @@ def test_model_ids_are_provider_neutral_and_distinct(cv):
     assert len(set(ids)) == 11 and all(i.count("/") == 1 for i in ids)
 
 
-@pytest.mark.parametrize("bad", ["mystery-model", "", "llama-2"])
+@pytest.mark.parametrize("bad", ["mystery-model", "", "llama-2", "/", "meta/", "/llama", "a/b/c"])
 def test_an_unknown_column_is_an_error_not_a_guess(cv, bad):
     with pytest.raises(ValueError):
         cv.model_id(bad)
+
+
+def test_load_frame_reports_anything_but_a_refusal_as_value_error(cv, tmp_path):
+    empty = tmp_path / "empty.pkl"
+    empty.write_bytes(b"")
+    with pytest.raises(ValueError, match="empty.pkl"):
+        cv.load_frame(empty)
+    bad_args = tmp_path / "bad.pkl"
+    bad_args.write_bytes(b"\x80\x04cbuiltins\nslice\n(K\x01K\x02K\x03K\x04tR.")
+    with pytest.raises(ValueError, match="bad.pkl"):
+        cv.load_frame(bad_args)
+    refused = tmp_path / "refused.pkl"
+    refused.write_bytes(b"\x80\x02cos\nsystem\n)R.")
+    with pytest.raises(pickle.UnpicklingError, match="os.system"):
+        cv.load_frame(refused)
+
+
+def test_a_non_frame_is_a_value_error(cv):
+    with pytest.raises(ValueError, match="slice"):
+        cv.frame_columns(slice(1, 2))
+
+
+def test_negative_zero_cost_is_written_as_zero(cv):
+    src = columns(binary_task("alpha", 2))
+    src["claude-v2|total_cost"][0] = -0.0
+    rows, _ = cv.convert(src, min_items=1)
+    assert json.dumps(rows[0]["cost_usd"]) == "0.0"
 
 
 # Conversion ------------------------------------------------------------------
@@ -385,6 +412,50 @@ def test_cli_bad_options_exit_2_with_one_error_line(cv, args, tmp_path, capsys, 
     assert not (tmp_path / "m.jsonl").exists()
 
 
+def pinned_to(cv, monkeypatch, blob):
+    monkeypatch.setattr(cv, "SIZE", len(blob))
+    monkeypatch.setattr(cv, "SHA256", hashlib.sha256(blob).hexdigest())
+
+
+@pytest.mark.parametrize("blob", [b"", pickle.dumps(slice(1, 2), protocol=5),
+                                  pickle.dumps([1, 2], protocol=5),
+                                  b"\x80\x04cbuiltins\nslice\n(K\x01K\x02K\x03K\x04tR."],
+                         ids=["empty", "slice", "list", "bad-arguments"])
+def test_cli_a_verified_file_that_is_not_a_frame_exits_2(cv, blob, tmp_path, capsys, monkeypatch):
+    pinned_to(cv, monkeypatch, blob)
+    (tmp_path / cv.FILENAME).write_bytes(blob)
+    out = tmp_path / "m.jsonl"
+    assert cv.main(["--out", str(out), "--cache", str(tmp_path)]) == 2
+    captured = capsys.readouterr()
+    err = captured.err.strip().splitlines()
+    assert len(err) == 1 and err[0].startswith("error:") and captured.out == ""
+    assert not out.exists() and not (tmp_path / "m.jsonl.part").exists()
+
+
+def test_cli_a_failed_rename_leaves_no_part_file(cv, tmp_path, capsys, monkeypatch):
+    monkeypatch.setattr(cv, "fetch", lambda cache=None: tmp_path / "unused")
+    monkeypatch.setattr(cv, "load_frame", lambda path: "frame")
+    monkeypatch.setattr(cv, "frame_columns", lambda frame: columns(binary_task("alpha", 3)))
+    out = tmp_path / "out-is-a-folder"
+    out.mkdir()
+    assert cv.main(["--out", str(out), "--min-items", "1"]) == 2
+    captured = capsys.readouterr()
+    assert captured.out == "" and len(captured.err.strip().splitlines()) == 1
+    assert out.is_dir() and not (tmp_path / "out-is-a-folder.part").exists()
+
+
+def test_cli_success_writes_the_matrix_and_prints_the_report(cv, tmp_path, capsys, monkeypatch):
+    monkeypatch.setattr(cv, "fetch", lambda cache=None: tmp_path / "unused")
+    monkeypatch.setattr(cv, "load_frame", lambda path: "frame")
+    monkeypatch.setattr(cv, "frame_columns", lambda frame: columns(binary_task("alpha", 3)))
+    out = tmp_path / "m.jsonl"
+    assert cv.main(["--out", str(out), "--min-items", "1"]) == 0
+    rows, report = cv.convert(columns(binary_task("alpha", 3)), min_items=1)
+    assert capsys.readouterr().out == json.dumps(report, indent=2) + "\n"
+    assert [json.loads(line) for line in out.read_text(encoding="utf-8").splitlines()] == rows
+    assert not (tmp_path / "m.jsonl.part").exists()
+
+
 def test_cli_a_cached_file_that_fails_verify_exits_2_and_is_not_replaced(cv, tmp_path, capsys,
                                                                          monkeypatch):
     def no_network(*a, **k):
@@ -405,11 +476,13 @@ def test_the_pinned_file_converts(cv):
     pytest.importorskip("pandas")
     path = Path(os.environ["ROUTERBENCH_PKL"])
     cv.verify(path)
-    with path.open("rb") as f:
-        frame = cv.restricted_load(f)
+    frame = cv.load_frame(path)
+    assert len(frame) == 36497 and frame["eval_name"].nunique() == 86
     rows, report = cv.convert(cv.frame_columns(frame))
-    assert len(report["models"]) == 11 and report["rows"] == len(rows)
-    assert report["rows"] == 11 * sum(report["kept"].values())
-    assert set(report["dropped_graded"]) == {"chinese_idioms", "consensus_summary",
-                                             "grade-school-math", "mtbench", "mtbench-math",
-                                             "mtbench-reference"}
+    assert len(report["models"]) == 11 and report["rows"] == len(rows) == 311091
+    assert len(report["kept"]) == 65 and sum(report["kept"].values()) == 28281
+    assert report["dropped_graded"] == {"chinese_idioms": 15, "consensus_summary": 362,
+                                        "grade-school-math": 7450, "mtbench": 41,
+                                        "mtbench-math": 20, "mtbench-reference": 19}
+    assert len(report["dropped_small"]) == 15
+    assert max(report["dropped_small"].values()) < 100 <= min(report["kept"].values())

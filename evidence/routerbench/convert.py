@@ -101,10 +101,25 @@ def restricted_load(fileobj):
     return RestrictedUnpickler(fileobj, fix_imports=False).load()
 
 
+def load_frame(path):
+    """restricted_load on a file; only UnpicklingError (a refusal) and ValueError leave it."""
+    path = Path(path)
+    with path.open("rb") as f:
+        try:
+            return restricted_load(f)
+        except pickle.UnpicklingError:
+            raise
+        except Exception as exc:
+            raise ValueError(f"{path.name} does not unpickle: {type(exc).__name__}: {exc}") from exc
+
+
 def model_id(column: str) -> str:
     if not isinstance(column, str) or not column:
         raise ValueError(f"model column {column!r} is not a non-empty string")
     if "/" in column:
+        vendor, _, model = column.partition("/")
+        if not vendor or not model or "/" in model:
+            raise ValueError(f"model column {column!r} is not of the form vendor/model")
         return column
     for prefix, vendor in VENDOR_PREFIXES:
         if column.startswith(prefix):
@@ -117,6 +132,8 @@ def _model_columns(names) -> list[str]:
 
 
 def frame_columns(frame) -> dict[str, list]:
+    if not hasattr(frame, "columns"):
+        raise ValueError(f"loaded a {type(frame).__name__}, not a frame")
     names = list(frame.columns)
     for key in ("sample_id", "eval_name"):
         if key not in names:
@@ -197,11 +214,10 @@ def convert(columns: dict, pass_score=None, min_items: int = 100) -> tuple[list[
         kept[task] = len(index)
         for i in sorted(index, key=lambda j: ids[j]):
             for m in sorted(models, key=lambda c: names[c]):
-                score = columns[m][i]
+                score, cost = columns[m][i], float(columns[m + COST_SUFFIX][i])
                 correct = score >= pass_score if pass_score is not None else score == 1
                 rows.append({"task": task, "item": ids[i], "model": names[m],
-                             "correct": bool(correct),
-                             "cost_usd": float(columns[m + COST_SUFFIX][i])})
+                             "correct": bool(correct), "cost_usd": 0.0 if cost == 0 else cost})
     report = {"models": sorted(names.values()), "kept": kept, "dropped_graded": dropped_graded,
               "dropped_small": dropped_small, "rows": len(rows)}
     return rows, report
@@ -237,21 +253,23 @@ def _min_items(text: str) -> int:
 def main(argv=None) -> int:
     parser = _Parser(prog="convert.py", description="RouterBench 0-shot to an outcome matrix")
     parser.add_argument("--out", required=True, help="output JSONL path")
-    parser.add_argument("--cache", default=None, help="download folder (default: %(default)s)")
+    parser.add_argument("--cache", default=None,
+                        help=f"download folder (default: {default_cache_dir()})")
     parser.add_argument("--pass-score", type=_pass_score, default=None,
                         help="keep graded tasks, correct when score >= this (0, 1]")
     parser.add_argument("--min-items", type=_min_items, default=100,
                         help="drop tasks with fewer items (default: %(default)s)")
     try:
         args = parser.parse_args(argv)
-        path = fetch(args.cache)
-        with path.open("rb") as f:
-            frame = restricted_load(f)
+        frame = load_frame(fetch(args.cache))
         rows, report = convert(frame_columns(frame), args.pass_score, args.min_items)
         out = Path(args.out)
         part = out.with_name(out.name + ".part")
-        write_jsonl(rows, part)
-        part.replace(out)
+        try:
+            write_jsonl(rows, part)
+            part.replace(out)
+        finally:
+            part.unlink(missing_ok=True)
     except (_UsageError, ValueError, OSError, pickle.UnpicklingError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
