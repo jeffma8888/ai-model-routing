@@ -590,3 +590,78 @@ def test_cli_bad_input_exits_2(tmp_path, capsys, case):
         row_.update(model="fiction/not-in-registry", input_tokens=1, output_tokens=1)
         args[2] = str(write_jsonl(tmp_path / "tokens.jsonl", [row_]))
     assert main(args) == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err.strip().splitlines()[-1].startswith("error: ")
+
+
+# v1.5 text layout (12.4)
+
+def _layout(headers, rows):
+    cells = [headers] + rows
+    widths = [max(len(r[i]) for r in cells) for i in range(len(headers))]
+    lines = ["  ".join(c.ljust(w) for c, w in zip(r, widths)).rstrip() for r in cells]
+    lines.insert(1, "  ".join("-" * w for w in widths))
+    return lines
+
+
+def test_cli_text_layout_follows_the_summary(tmp_path, capsys):
+    ev = load_ev()
+    path = write_jsonl(tmp_path / "outcomes.jsonl", known_rows())
+    code = main(["evaluate", "--outcomes", str(path), "--bar", "0.8", "0.9", "--seeds", "2"])
+    out = capsys.readouterr().out
+    assert code == 0
+    result = ev.evaluate(ev.load_outcomes(path), bars=[0.8, 0.9], seeds=range(2))
+
+    def fmt(v):
+        return "-" if v is None else f"{v:.3f}"
+    expected = []
+    for bar in (0.8, 0.9):
+        for flavor in ("cost_effective", "cost_blind"):
+            if expected:
+                expected.append("")
+            expected.append(f"bar {bar}, {flavor}")
+            rows = [[r["strategy"], fmt(r["success"]), f"{r['cost_usd']:.4f}",
+                     fmt(r["below_bar_rate"]), fmt(r["cleared_rate"]),
+                     fmt(r["bar_violation_rate"])]
+                    for r in result["summary"] if (r["bar"], r["flavor"]) == (bar, flavor)]
+            assert [r[0] for r in rows] == STRATEGIES
+            expected += _layout(["strategy", "success", "cost_usd", "below_bar_rate",
+                                 "cleared_rate", "bar_violation_rate"], rows)
+    assert out == "\n".join(expected) + "\n"
+
+
+# v1.5 demo outcome matrix (11)
+
+def test_demo_writes_its_calibration_set_as_an_outcome_matrix(tmp_path):
+    ev = load_ev()
+    from model_routing import demo
+    out = tmp_path / "demo"
+    summary = demo.run_demo(out)
+    outcomes = ev.load_outcomes(out / "outcomes.jsonl")
+    judges = [model for model, _ in demo.JUDGES]
+    items = [f"item-{i:03d}" for i in range(demo.CALIBRATION_ITEMS)]
+    assert len(outcomes) == len(judges) * len(items) == 1200
+    assert [(o.model, o.item) for o in outcomes] == [(m.id, i) for m in judges for i in items]
+    assert {o.task for o in outcomes} == {demo.DEMO_TASK}
+    stats = Stats.load(out / "stats.json")
+    for model in judges:
+        mine = [o for o in outcomes if o.model == model.id]
+        assert (sum(o.correct for o in mine), len(mine)) == stats.get(demo.DEMO_TASK, model.id)
+        assert all(o.cost_usd == model.cost(1000, 200) for o in mine)
+    assert summary == demo.run_demo(tmp_path / "again")
+    result = ev.evaluate(outcomes, bars=[0.85], seeds=range(3))
+    assert result["tasks"] == {demo.DEMO_TASK: {"items": 300,
+                                                "models": sorted(m.id for m in judges)}}
+
+
+def test_demo_refuses_an_outcome_file_it_did_not_write(tmp_path):
+    load_ev()
+    from model_routing import demo
+    out = tmp_path / "mine"
+    out.mkdir()
+    (out / "outcomes.jsonl").write_text("keep\n", encoding="utf-8")
+    with pytest.raises(FileExistsError, match="outcomes.jsonl"):
+        demo.run_demo(out)
+    assert sorted(p.name for p in out.iterdir()) == ["outcomes.jsonl"]
+    assert (out / "outcomes.jsonl").read_text(encoding="utf-8") == "keep\n"
