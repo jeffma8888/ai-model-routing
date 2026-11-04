@@ -8,6 +8,7 @@ synthetic matrix, on hand-made results with known answers, and on the committed
 ``results.json`` and ``RESULTS.md``.
 """
 
+import hashlib
 import importlib.util
 import json
 from pathlib import Path
@@ -20,6 +21,14 @@ FOLDER = Path(__file__).resolve().parents[1] / "evidence" / "routerbench"
 SCRIPT = FOLDER / "results.py"
 TABLE_COMMAND = ("$ python evidence/routerbench/results.py --table "
                  "evidence/routerbench/results.json")
+MODELS = [
+    "WizardLM/WizardLM-13B-V1.2", "anthropic/claude-instant-v1", "anthropic/claude-v1",
+    "anthropic/claude-v2", "meta/code-llama-instruct-34b-chat", "meta/llama-2-70b-chat",
+    "mistralai/mistral-7b-chat", "mistralai/mixtral-8x7b-chat", "openai/gpt-3.5-turbo-1106",
+    "openai/gpt-4-1106-preview", "zero-one-ai/Yi-34B-Chat"]
+# sha256 of json.dumps({task: items}, sort_keys=True) for the converter's default output;
+# equal to the converter's "kept" report on the pinned file when results.json was made
+TASK_ITEMS_SHA256 = "79113be5a8ef336b9e398c59fa8ec6b5fb5ab10eadfeff193d7f56e516a3193b"
 
 def load_rs():
     if not SCRIPT.is_file():
@@ -119,6 +128,9 @@ def test_table_known_answer_and_best_model_tie_by_cost(rs):
 
 
 def test_table_ratio_uses_the_best_model_cost(rs):
+    # v/a and v/b tie on success and cost here, so either one gives the same ratios: this
+    # checks the denominator, not the name tie-break, which no table output can show.
+    # The known-answer test above checks that a success tie goes to the lower cost.
     results = hand_results(best_cost=5.0)
     lines = rs.table(results).splitlines()
     assert lines[2].split()[4] == "0.200"
@@ -204,6 +216,51 @@ def test_cli_errors_exit_2_with_one_error_line(rs, args, tmp_path, capsys, monke
     assert not (tmp_path / "x.json").exists()
 
 
+@pytest.mark.parametrize("fail_at", ["write", "rename"])
+@pytest.mark.parametrize("existing", [True, False])
+def test_cli_a_failed_write_leaves_out_alone_and_no_part_file(rs, fail_at, existing, tmp_path,
+                                                              capsys, monkeypatch):
+    full = small_result()
+    full.pop("cells")
+    src = tmp_path / "full.json"
+    src.write_text(json.dumps(full), encoding="utf-8")
+    out = tmp_path / "results.json"
+    if existing:
+        out.write_text("previous results\n", encoding="utf-8")
+    if fail_at == "write":
+        real_write_text = Path.write_text
+
+        def partial_write_text(self, data, *args, **kwargs):
+            real_write_text(self, data[:10], *args, **kwargs)
+            raise OSError("disk full")
+        monkeypatch.setattr(Path, "write_text", partial_write_text)
+    else:
+        def failing_replace(self, target):
+            raise OSError("rename failed")
+        monkeypatch.setattr(Path, "replace", failing_replace)
+    assert rs.main(["--evaluate", str(src), "--out", str(out)]) == 2
+    monkeypatch.undo()
+    captured = capsys.readouterr()
+    assert captured.out == "" and len(captured.err.splitlines()) == 1
+    assert captured.err.startswith("error: ")
+    if existing:
+        assert out.read_text(encoding="utf-8") == "previous results\n"
+    else:
+        assert not out.exists()
+    assert sorted(p.name for p in tmp_path.iterdir()) == sorted(
+        ["full.json"] + (["results.json"] if existing else []))
+
+
+def test_cli_a_line_break_in_a_path_stays_on_one_error_line(rs, tmp_path, capsys):
+    bad = tmp_path / "bad\ninput.json"
+    bad.write_text("{not json", encoding="utf-8")
+    assert rs.main(["--table", str(bad)]) == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    lines = captured.err.splitlines()
+    assert len(lines) == 1 and lines[0].startswith("error: ") and "bad\\ninput.json" in lines[0]
+
+
 def test_committed_results_are_small_reduced_and_pinned(rs):
     path = FOLDER / "results.json"
     assert path.stat().st_size < 300_000
@@ -215,9 +272,18 @@ def test_committed_results_are_small_reduced_and_pinned(rs):
         "flavors": ["cost_effective", "cost_blind"], "calibration_fraction": 0.5,
         "min_samples": 30, "confidence": 0.95}
     assert len(results["tasks"]) == 65
-    assert sum(t["items"] for t in results["tasks"].values()) == 28281
-    assert len(results["summary"]) == 4 * 2 * (4 + 11)
-    assert len(results["per_task"]) == 4 * 2 * 65
+    assert all(t["models"] == MODELS for t in results["tasks"].values())
+    items = {task: t["items"] for task, t in results["tasks"].items()}
+    assert sum(items.values()) == 28281 and min(items.values()) >= 100
+    digest = hashlib.sha256(json.dumps(items, sort_keys=True).encode("utf-8")).hexdigest()
+    assert digest == TASK_ITEMS_SHA256
+    summary_keys = {(r["bar"], r["flavor"], r["strategy"]) for r in results["summary"]}
+    assert len(results["summary"]) == len(summary_keys) == 4 * 2 * (4 + 11)
+    task_keys = {(r["bar"], r["flavor"], r["task"]) for r in results["per_task"]}
+    assert len(results["per_task"]) == len(task_keys) == 4 * 2 * 65
+    assert {task for _, _, task in task_keys} == set(items)
+    assert all(sum(r["routed_models"].values()) == 50 and set(r["routed_models"]) <= set(MODELS)
+               for r in results["per_task"])
 
 
 def test_results_md_shows_the_table_of_the_committed_results(rs):

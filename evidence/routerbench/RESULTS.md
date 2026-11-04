@@ -1,6 +1,6 @@
 # RouterBench results
 
-What `model-routing evaluate` measures on the public RouterBench outcome matrix: 11 models, 65 evals (one task each), 28,281 prompts, each with every model's recorded correctness and cost. For each eval and each of 50 seeds the prompts are split in half by a seeded hash; the router calibrates on one half at a bar and is scored on the other half, next to the oracle, the best model on the calibration half, the cheapest model and every single model (DESIGN 12.3). The file behind every number here is [results.json](results.json): the summary rows and the routed per-task rows, including which model each task was routed to in each seed.
+What `model-routing evaluate` measures on the public RouterBench outcome matrix: 11 models, 65 evals (one task each), 28,281 prompts, each with every model's recorded correctness and cost. For each eval and each of 50 seeds the prompts are split in half by a seeded hash; the router calibrates on one half at a bar and is scored on the other half, next to the oracle, the best model on the calibration half, the cheapest model and every single model (DESIGN 12.3). The file behind every number here is [results.json](results.json): the summary rows and the routed per-task rows, including, for each task, how many of the 50 seeds routed it to each model.
 
 ## Results
 

@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from pathlib import Path
 
 KEYS = ("config", "tasks", "summary", "per_task")
 
@@ -106,12 +107,18 @@ def main(argv=None) -> int:
             raise _UsageError("--out is only used with --evaluate")
         if args.evaluate is not None:
             text = json.dumps(reduce(_read_object(args.evaluate)), indent=2) + "\n"
-            with open(args.out, "w", encoding="utf-8") as fh:
-                fh.write(text)
+            out = Path(args.out)
+            part = out.with_name(out.name + ".part")
+            try:
+                part.write_text(text, encoding="utf-8")
+                part.replace(out)
+            finally:
+                part.unlink(missing_ok=True)
             return 0
         text = table(_read_object(args.table))
     except (_UsageError, ValueError, KeyError, TypeError, OSError) as exc:
-        print(f"error: {exc}", file=sys.stderr)
+        message = str(exc).replace("\r", "\\r").replace("\n", "\\n")
+        print(f"error: {message}", file=sys.stderr)
         return 2
     print(text)
     return 0
