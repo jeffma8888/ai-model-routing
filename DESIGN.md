@@ -132,11 +132,15 @@ The constructor stores its arguments as attributes `.registry`, `.tasks`, `.stat
   4. no `ok` attempt: raise `AllModelsFailed`
 - `cost_usd` of an attempt is the list-price cost of its actual tokens: `registry.get(model).cost(input_tokens, output_tokens)`
 - Helper `json_validator(*required_keys) -> Callable[[str], bool]`: True when the text parses as a JSON object containing every key
+- v1.11: `.call_delegated(decision, messages, tags=None, validate=None) -> CallResult` runs the hand-off of a `DelegationDecision` (13.6) whose `mode` is `"delegate"`. `messages` is the brief the parent wrote. Steps 2 to 4 of `.call` run over `(decision.route.primary, *decision.route.fallbacks)` with the `timeout_s` of the task named `decision.task` in this executor's router (an unknown task raises `KeyError`), and `CallResult.decision` and `AllModelsFailed.decision` are `decision.route`. The route is used as decided: `select` is not called again, so a stats change after the decision does not move the call
+  - Every record's `flavor`, `below_bar` and `basis` come from `decision.route`, and its `tags` are the caller's tags plus `"delegated": "true"` and `"parent": decision.parent`, so `report --by tag:delegated` and `--by tag:parent` split the spend. The caller's dict is not modified
+  - `ValueError`, raised before any provider call and any record: a decision whose `mode` is not `"delegate"` (inline work happens in the parent's own call, so there is nothing to run), and a caller tag named `delegated` or `parent`
+  - The records cover the delegate's calls only. The parent's share of `delegate_cost_usd` (writing the brief, re-reading it and the result, 13.2) is spent in the parent's own calls, which this executor does not see
 
 ## 8. Monitoring and cost attribution (`monitor.py`)
 
 ### 8.1 Record schema (one JSON object per attempt)
-`ts` (str), `call_id` (str), `task` (str), `flavor` (str), `model` (str), `family` (str), `attempt` (int, 0-based index within the call), `final` (bool, True on the call's last attempt), `outcome` (str), `error` (str or null), `latency_ms` (float), `input_tokens` (int), `output_tokens` (int), `cost_usd` (float, list price, recorded in both flavors), `routing_cost_usd` (float: equals `cost_usd` in `cost_effective`, `0.0` in `cost_blind`), `below_bar` (bool), `basis` (str), `tags` (object of string to string; `{}` when none)
+`ts` (str), `call_id` (str), `task` (str), `flavor` (str), `model` (str), `family` (str), `attempt` (int, 0-based index within the call), `final` (bool, True on the call's last attempt), `outcome` (str), `error` (str or null), `latency_ms` (float), `input_tokens` (int), `output_tokens` (int), `cost_usd` (float, list price, recorded in both flavors), `routing_cost_usd` (float: equals `cost_usd` in `cost_effective`, `0.0` in `cost_blind`), `below_bar` (bool), `basis` (str), `tags` (object of string to string; `{}` when none; v1.11: `call_delegated` adds `delegated` and `parent`, 7)
 
 ### 8.2 `Monitor(path=None)`
 - `.record(rec: dict)` appends to `.records` (a list) and, when `path` is set, appends one JSON line to that file
@@ -325,6 +329,7 @@ The parent clears the bar when its measured trials on the task are at least `tas
 - `.to_dict()` returns plain JSON-able types, keys in the field order above, with `route` as `route.to_dict()` or `None`
 - Module constants with these exact values: `INLINE = "inline"`, `DELEGATE = "delegate"`, and reason codes whose values are their names in lower case: `PARENT_EXCLUDED_FAMILY`, `PARENT_NOT_INDEPENDENT`, `PARENT_CONTEXT_FULL`, `PARENT_BELOW_BAR`, `DELEGATE_CHEAPER`, `INLINE_CHEAPER`, `DELEGATE_BETTER`, `INLINE_AS_GOOD`, `ONLY_PARENT_CLEARS`, `NONE_CLEAR`
 - `DelegationDecision` is re-exported from `model_routing` and listed in `__all__`; the constants stay in `model_routing.delegation`
+- v1.11: `Executor.call_delegated(decision, messages, ...)` runs a `delegate` decision on its route, with fallback and logging as for any call (7)
 
 ### 13.7 CLI
 - `model-routing delegate TASK --parent MODEL --context-tokens N --brief-tokens N --result-tokens N [--carry-turns N] [--fold-inline] [--flavor cost_effective|cost_blind] [--generator MODEL] [--exclude MODEL ...] [--registry PATH] [--tasks PATH] [--stats PATH] [--priors PATH] [--json]`, with the defaults of section 10; `--fold-inline` passes `inline_separate_call=False`
@@ -363,3 +368,4 @@ The parent clears the bar when its measured trials on the task are at least `tas
 - v1.8 (2026-11-04, review): the two ways delegating to the parent's own model saves are both stated, the parent context and a short brief and result, and when each `inline_separate_call` value fits (13.2); the context-isolation test now shows a large context flipping the decision against a small one, with the short-result saving tested on its own
 - v1.9 (2026-11-04): the demo also writes its registry as `models.json` and its task as `tasks.json`, so `select` and `delegate` run on its output, and it refuses a folder that holds either file without its marker (11); the README shows a `delegate` transcript where delegating is cheaper and one where inline is (13.8). Tests added for both; the delegation implementation lands against the v1.4 contract with the v1.8 accounting. No change to existing APIs
 - v1.10 (2026-11-04): the README evidence section (12.8): the RouterBench held-out results as two tables rebuilt from the committed `results.json` by the test suite, with the dataset and revision links, the licence, the regenerate commands and the limits. No change to the package API
+- v1.11 (2026-11-04): `Executor.call_delegated` runs a `delegate` decision on the route it was decided with, falls back and validates as `call` does, and tags every record `delegated: "true"` and `parent: <parent model>`; an inline decision or a caller tag named `delegated` or `parent` raises `ValueError` before any call (7, 8.1, 13.6). New method only; no change to existing APIs
