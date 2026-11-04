@@ -1,6 +1,6 @@
 # Design: ai-model-routing
 
-Status: v1.2 spec, 2026-11-04 (v1.2 states the scope as any repeated kind of model call, with judge calls as one use case; v1.1 tightened input validation, error redaction and demo safety after code review; see section 13). This file is the contract that tests are written from. Module paths, names, fields, formats and exit codes below are binding; anything not pinned here is the implementer's choice.
+Status: v1.3 spec, 2026-11-04 (v1.3 adds the offline evaluator contract in section 12, implementation pending; v1.2 states the scope as any repeated kind of model call, with judge calls as one use case; v1.1 tightened input validation, error redaction and demo safety after code review; see section 14). This file is the contract that tests are written from. Module paths, names, fields, formats and exit codes below are binding; anything not pinned here is the implementer's choice.
 
 ## 1. Problem
 - A product or pipeline makes the same kind of model call many times: triage a support ticket, extract invoice fields, write a unit test, grade an answer against a rubric. Each such kind of call is a **task**: a repeated call with an **acceptance check** that says whether one output is right (agreement with a gold label, exact match on extracted fields, generated tests passing, a rubric pass)
@@ -25,6 +25,7 @@ model_routing/
   providers.py    Completion, ProviderError, Provider, FakeProvider, OpenAICompatibleProvider
   executor.py     Attempt, CallResult, Executor, AllModelsFailed
   monitor.py      Monitor, load_records, report
+  evaluate.py     Outcome, outcomes_from_rows, load_outcomes, split_items, evaluate (v1.3, section 12)
   demo.py         run_demo
   cli.py          main
   data/
@@ -158,6 +159,7 @@ The constructor stores its arguments as attributes `.registry`, `.tasks`, `.stat
 - `calibrate --results PATH --stats PATH`: reads results JSONL (section 4.3 rows), merges into the stats file (created if missing), prints per (task, model) counts and lower bounds
 - `report --log PATH [--by KEY] [--json]`
 - `demo [--out DIR]`: runs `run_demo` and prints its summary
+- `evaluate --outcomes PATH ...` (v1.3): offline evaluation; options, output and exit codes in 12.4
 - Defaults: `--registry` and `--priors` and `--tasks` point at the packaged files under `model_routing.DATA_DIR`; `--stats stats.json` in the current directory (a missing stats file means empty stats; a missing priors file means no priors)
 - Exit codes: 0 success; 2 bad input (missing file, bad JSON, unknown task or model, invalid value); 3 `NoModelClearsBar` on `select`
 - v1.1: every `--exclude` ID and the `--generator` ID must exist in the loaded registry, else exit 2; `calibrate` validates every result row before writing, so bad input leaves an existing stats file byte-identical and creates no new one
@@ -168,15 +170,60 @@ The constructor stores its arguments as attributes `.registry`, `.tasks`, `.stat
 - Returns a summary dict with keys `cost_effective` and `cost_blind`, each holding `primary`, `fallbacks`, `calls`, `fallback_calls`, `cost_usd`; deterministic for a given seed
 - v1.1 safety: `run_demo` writes an empty marker file `.model-routing-demo` into `out_dir`. If `out_dir` already contains `calls.jsonl` or `stats.json` and has no marker, it raises `FileExistsError` and modifies nothing (CLI exit 2). With the marker present it replaces its own previous output
 
-## 12. Non-goals for v1 (two-way doors, deferred)
+## 12. Offline evaluation (`evaluate.py`, v1.3)
+Purpose: show from a public outcome matrix, with no API key, whether routing at a bar holds that bar on items it never saw, and what it costs next to simple baselines. The evaluator routes through `Router.select`, so the evidence exercises the shipped rules (min_samples, the Wilson admission rule, the 5.3 sort keys) and not a re-implementation of them.
+
+### 12.1 Outcome matrix
+- JSONL, one object per (task, item, model): `task` (str), `item` (str), `model` (str), `correct` (bool, strict as in 4.3), and the cost of that one call as either `cost_usd` (an int or float that is not a bool, finite and `>= 0`) or both `input_tokens` and `output_tokens` (integers `>= 0` that are not bools), priced with `registry.get(model).cost(input_tokens, output_tokens)`. When `cost_usd` is present it is used and token counts are ignored. Extra keys are ignored
+- `@dataclass(frozen=True) class Outcome`: `task: str`, `item: str`, `model: str`, `correct: bool`, `cost_usd: float`
+- `outcomes_from_rows(rows: Iterable[dict], registry: Registry | None = None) -> tuple[Outcome, ...]`, in input order. `ValueError` for: a row that is not a dict; `task`, `item` or `model` missing or not a non-empty string; `correct` missing or not a bool; neither `cost_usd` nor both token counts; an invalid cost or token value; a token-form row when `registry` is `None` or does not contain the model; a repeated (task, item, model)
+- `load_outcomes(path, registry: Registry | None = None) -> tuple[Outcome, ...]` reads JSONL and skips blank lines; a non-blank line that is not valid JSON, or is not an object, raises `ValueError` whose message contains `<path>:<line>` (1-based) as in 8.2; rows are then validated as above
+
+### 12.2 Split
+- `split_items(items: Iterable[str], seed: int, calibration_fraction: float = 0.5) -> tuple[tuple[str, ...], tuple[str, ...]]` returns `(calibration, held_out)`, each sorted ascending with duplicates collapsed. An item is in calibration exactly when `int.from_bytes(hashlib.sha256(f"{seed}:{item}".encode("utf-8")).digest()[:8], "big") < calibration_fraction * 2**64`; otherwise it is held out. The split depends only on the seed and the item ID, so it is the same on every machine and for every row order
+- `calibration_fraction` outside the open interval (0, 1) raises `ValueError`
+
+### 12.3 `evaluate(outcomes, bars, seeds=range(10), flavors=("cost_effective", "cost_blind"), calibration_fraction=0.5, min_samples=30, confidence=0.95) -> dict`
+- Checked before any work, each a `ValueError`: no outcomes; no bars, or a bar outside [0, 1]; no seeds; no flavors, or a name not in 5.1; `min_samples < 1`; confidence outside (0, 1); `calibration_fraction` as in 12.2; an incomplete matrix (every model that appears anywhere must have a row for every (task, item) pair that appears anywhere; the message names one missing (task, item, model)); a (task, seed) whose calibration or held-out split is empty (the message names the task and the seed)
+- One **cell** per (bar, flavor, seed, task), nested in that order: bars, flavors and seeds in the order given, tasks ascending. In a cell, C and H are the task's calibration and held-out items from `split_items(task_items, seed, calibration_fraction)`
+  - calibration counts per model: successes = correct rows in C, trials = |C|; mean calibration cost = total cost over C divided by |C|
+  - `routed`: the primary of `Router.select(task, flavor)` for a task with this `bar`, `min_samples` and `confidence` and `on_no_model="best_available"`, over a registry in which each model's list cost per call equals its mean calibration cost (so `cost_effective` ranks by measured cost) and no model is excluded by rules 1 to 5 of 5.2. `cleared` is `not decision.below_bar`
+  - `cheapest`: the model with the lowest mean calibration cost, ties by model ID
+  - `best_on_calibration`: the model with the highest calibration success rate, ties by lower mean calibration cost, then model ID (no bar and no confidence bound)
+  - `oracle`: on each held-out item it is correct when any model is correct, and its cost is the lowest cost among the correct models on that item, or the lowest cost among all models when none is correct
+  - `model:<id>` for every model in the matrix: that model on every held-out item
+  - for every strategy, `success` = correct held-out items / |H| and `cost_usd` = total cost over H
+- Strategy order everywhere: `routed`, `oracle`, `best_on_calibration`, `cheapest`, then `model:<id>` by ascending ID
+- Cell keys: `bar`, `flavor`, `seed`, `task`, `calibration_items` (int), `held_out_items` (int), `cleared` (bool), `models` (`{"routed": id, "best_on_calibration": id, "cheapest": id}`), and `success` and `cost_usd`, each a dict keyed by strategy name in strategy order
+- Return value keys:
+  - `config`: `bars`, `seeds` and `flavors` (lists, in the order given), `calibration_fraction`, `min_samples`, `confidence`
+  - `tasks`: `{task: {"items": int, "models": [ids ascending]}}`
+  - `cells`: the cells above, in cell order
+  - `summary`: one row per (bar, flavor, strategy), in that order, with keys `bar`, `flavor`, `strategy`, `success` (mean over seeds of that seed's item-weighted held-out success across all tasks: total correct held-out items / total held-out items), `cost_usd` (mean over seeds of that seed's total held-out cost across all tasks), `below_bar_rate` (fraction of that strategy's (task, seed) cells whose held-out success is below the bar), `cleared_rate` (for `routed`, the fraction of cells with `cleared`) and `bar_violation_rate` (for `routed`, among cleared cells the fraction whose held-out success is below the bar, `None` when no cell cleared); the last two are `None` for every other strategy
+  - `per_task`: one row per (bar, flavor, task, strategy), in that order, with the summary keys plus `task` and `routed_models`; `success` and `cost_usd` are means over seeds of that task's cell values, the three rates count that task's cells only, and `routed_models` is `{id: number of seeds routed to it}` for `routed` and `None` otherwise
+- Deterministic: the same outcomes in any row order with the same arguments give an equal dict, and `json.dumps(result, sort_keys=True)` is byte-identical
+- Reading the numbers: the Wilson rule bounds the chance of admitting a model whose true rate is below the bar. `bar_violation_rate` also contains held-out sampling noise, so a model whose true rate sits just above the bar can miss it on a small held-out set often; compare the rate with `1 - confidence` and the held-out size, not with zero
+
+### 12.4 CLI
+- `model-routing evaluate --outcomes PATH [--bar B [B ...]] [--seeds K] [--calibration-fraction F] [--min-samples N] [--confidence C] [--registry PATH] [--json]`
+  - `--bar` takes one or more values and may be repeated (default `0.8`); `--seeds K` means seeds `0` to `K - 1` (default 10, `K >= 1`); `--registry` defaults to the packaged models.json and is only used to price token-form rows; both flavors always run
+  - prints one table per (bar, flavor) with a row per strategy and the columns success, cost_usd, below_bar_rate, cleared_rate and bar_violation_rate; `--json` prints the result without `cells` (keys `config`, `tasks`, `summary`, `per_task`) so a committed results file stays small
+  - exit codes: 0 success; 2 bad input (missing or unreadable file, bad JSON, invalid row, incomplete matrix, empty split, invalid option value)
+
+### 12.5 Exports and test status
+- `Outcome`, `outcomes_from_rows`, `load_outcomes`, `split_items` and `evaluate` are re-exported from `model_routing` and listed in `__all__`
+- The v1.3 contract tests (`tests/test_evaluate.py`) were committed before `evaluate.py` exists, under a module-level `pytest.mark.xfail(strict=True, raises=ModuleNotFoundError)`, so the suite stays green while they fail for the one expected reason. The implementing commit removes that marker; from then on any failure in them fails the suite
+
+## 13. Non-goals for v1 (two-way doors, deferred)
 - Native vendor SDK adapters (the OpenAI-compatible adapter covers gateways), async execution, streaming
 - Learned or contextual routers (per-prompt difficulty prediction); v1 routes per task
 - Online drift detection beyond re-calibrating from audited results; budgets and alerts
 - Price refresh automation
 
-## 13. Changelog
+## 14. Changelog
 - v1.0 (2026-10-29): initial contract; tests written from it before any code
 - v1.1 (2026-10-29): after cross-model code review: strict boolean `correct` and integer counts (4.3); API key and URL-credential redaction, HTTP status and body snippet, timeout semantics (6); line-numbered JSONL errors (8.2); unknown `--exclude` and `--generator` exit 2, calibrate leaves stats untouched on bad input (10); demo refuses to overwrite files it did not write (11)
 - v1.1 (2026-10-29, fix verification): redaction extended to standalone `base_url` query values and to every URL in a message, not only the configured one; malformed `base_url` rejected at construction (6)
 - v1.1 (2026-10-29, redaction red-team): raw and decoded forms of base_url query values and password redacted; unprintable exceptions still become ProviderError; base_url query string kept after the endpoint path (6)
 - v1.2 (2026-11-04): scope stated as any repeated kind of model call with an acceptance check, judge calls as the first-class case (1); `bar` defined as a success rate and `independent_of_generator` documented as a no-op without a `generator_model` (4.2); three non-judge example tasks (9). No API change
+- v1.3 (2026-11-04): offline evaluator contract (12): outcome matrix format, seeded sha256 split, routed choice through `Router.select` against oracle, best-on-calibration, cheapest and single-model baselines, bar-violation rate across seeds, and the `evaluate` CLI (10, 12.4). Contract tests committed as strict xfail ahead of the implementation. Non-goals and changelog renumbered to 13 and 14. No change to existing APIs

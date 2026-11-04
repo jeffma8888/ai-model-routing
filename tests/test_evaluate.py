@@ -1,0 +1,487 @@
+"""v1.3 offline evaluator contract (DESIGN section 12), written before the module exists.
+
+Every test imports ``model_routing.evaluate`` first, so until it exists each one
+fails with ModuleNotFoundError and the strict xfail below keeps the suite green.
+The implementing commit removes ``pytestmark`` (DESIGN 12.5).
+"""
+
+import hashlib
+import importlib
+import json
+from math import fsum
+
+import pytest
+
+from model_routing import Registry, Router, Stats, Task, main
+
+pytestmark = pytest.mark.xfail(
+    strict=True, raises=ModuleNotFoundError,
+    reason="E1b: model_routing.evaluate is specified (DESIGN 12) but not implemented yet")
+
+MODELS = ("fiction/best", "fiction/cheap", "fiction/mid")
+COST = {"fiction/cheap": 0.001, "fiction/mid": 0.01, "fiction/best": 0.1}
+STRATEGIES = ["routed", "oracle", "best_on_calibration", "cheapest",
+              "model:fiction/best", "model:fiction/cheap", "model:fiction/mid"]
+EASY = [f"easy-{i:03d}" for i in range(100)]
+HARD = [f"hard-{i:03d}" for i in range(100)]
+
+
+def load_ev():
+    return importlib.import_module("model_routing.evaluate")
+
+
+def in_calibration(item, seed, fraction=0.5):
+    digest = hashlib.sha256(f"{seed}:{item}".encode("utf-8")).digest()
+    return int.from_bytes(digest[:8], "big") < fraction * 2 ** 64
+
+
+def rows_for(task, items, rule):
+    """``rule[model](item)`` says whether that model is correct on that item."""
+    return [{"task": task, "item": item, "model": model,
+             "correct": bool(rule[model](item)), "cost_usd": COST[model]}
+            for item in items for model in MODELS]
+
+
+def always(value):
+    return lambda item: value
+
+
+def known_rows():
+    """easy: every model always right. hard: cheap always wrong, mid and best always right."""
+    return (rows_for("easy", EASY, {m: always(True) for m in MODELS})
+            + rows_for("hard", HARD, {"fiction/cheap": always(False),
+                                      "fiction/mid": always(True),
+                                      "fiction/best": always(True)}))
+
+
+def cell(result, bar, flavor, seed, task):
+    found = [c for c in result["cells"] if (c["bar"], c["flavor"], c["seed"], c["task"])
+             == (bar, flavor, seed, task)]
+    assert len(found) == 1
+    return found[0]
+
+
+def row(rows, **key):
+    found = [r for r in rows if all(r[k] == v for k, v in key.items())]
+    assert len(found) == 1, key
+    return found[0]
+
+
+def write_jsonl(path, rows):
+    path.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    return path
+
+
+# 12.2 split
+
+def test_split_matches_the_pinned_sha256_rule():
+    ev = load_ev()
+    for seed in (0, 1, 7):
+        calibration, held_out = ev.split_items(EASY, seed)
+        assert calibration == tuple(sorted(i for i in EASY if in_calibration(i, seed)))
+        assert held_out == tuple(sorted(i for i in EASY if not in_calibration(i, seed)))
+        assert calibration and held_out
+    assert ev.split_items(EASY, 0) != ev.split_items(EASY, 1)
+
+
+def test_split_ignores_input_order_and_collapses_duplicates():
+    ev = load_ev()
+    shuffled = list(reversed(EASY)) + EASY[:5]
+    assert ev.split_items(shuffled, 3) == ev.split_items(EASY, 3)
+
+
+def test_split_fraction_sets_the_threshold():
+    ev = load_ev()
+    small, _ = ev.split_items(EASY, 4, calibration_fraction=0.2)
+    large, _ = ev.split_items(EASY, 4, calibration_fraction=0.8)
+    assert small == tuple(sorted(i for i in EASY if in_calibration(i, 4, 0.2)))
+    assert set(small) < set(large)
+
+
+@pytest.mark.parametrize("fraction", [0.0, 1.0, -0.1, 1.5])
+def test_split_fraction_must_be_inside_the_open_unit_interval(fraction):
+    ev = load_ev()
+    with pytest.raises(ValueError):
+        ev.split_items(EASY, 0, calibration_fraction=fraction)
+
+
+# 12.1 outcome matrix
+
+def test_rows_become_outcomes_in_input_order():
+    ev = load_ev()
+    outcomes = ev.outcomes_from_rows(known_rows())
+    assert isinstance(outcomes, tuple) and len(outcomes) == 600
+    assert outcomes[0] == ev.Outcome("easy", "easy-000", "fiction/best", True, 0.1)
+    assert outcomes[-1] == ev.Outcome("hard", "hard-099", "fiction/mid", True, 0.01)
+
+
+def test_token_rows_are_priced_with_the_registry(registry):
+    ev = load_ev()
+    rows = [{"task": "t", "item": "a", "model": "fiction/cheap", "correct": True,
+             "input_tokens": 1000, "output_tokens": 500, "note": "extra keys are ignored"}]
+    (outcome,) = ev.outcomes_from_rows(rows, registry)
+    assert outcome.cost_usd == pytest.approx(registry.get("fiction/cheap").cost(1000, 500))
+    assert outcome.cost_usd == pytest.approx(0.002)
+
+
+def test_cost_usd_wins_over_token_counts(registry):
+    ev = load_ev()
+    rows = [{"task": "t", "item": "a", "model": "fiction/cheap", "correct": False,
+             "cost_usd": 0.5, "input_tokens": 1000, "output_tokens": 500}]
+    assert ev.outcomes_from_rows(rows, registry)[0].cost_usd == pytest.approx(0.5)
+
+
+def test_token_rows_need_a_registry_that_knows_the_model(registry):
+    ev = load_ev()
+    base = {"task": "t", "item": "a", "correct": True, "input_tokens": 1, "output_tokens": 1}
+    with pytest.raises(ValueError):
+        ev.outcomes_from_rows([dict(base, model="fiction/cheap")])
+    with pytest.raises(ValueError):
+        ev.outcomes_from_rows([dict(base, model="fiction/unknown")], registry)
+
+
+GOOD = {"task": "t", "item": "a", "model": "fiction/cheap", "correct": True, "cost_usd": 0.1}
+
+
+@pytest.mark.parametrize("bad", [
+    ["not a dict"],
+    [dict(GOOD, correct="true")],
+    [dict(GOOD, correct=1)],
+    [{k: v for k, v in GOOD.items() if k != "correct"}],
+    [{k: v for k, v in GOOD.items() if k != "task"}],
+    [dict(GOOD, model="")],
+    [dict(GOOD, item=5)],
+    [dict(GOOD, cost_usd=-0.1)],
+    [dict(GOOD, cost_usd=True)],
+    [dict(GOOD, cost_usd="0.1")],
+    [dict(GOOD, cost_usd=float("inf"))],
+    [{k: v for k, v in GOOD.items() if k != "cost_usd"}],
+    [dict({k: v for k, v in GOOD.items() if k != "cost_usd"}, input_tokens=10)],
+    [dict({k: v for k, v in GOOD.items() if k != "cost_usd"}, input_tokens=1.5, output_tokens=1)],
+    [dict({k: v for k, v in GOOD.items() if k != "cost_usd"}, input_tokens=-1, output_tokens=1)],
+    [dict({k: v for k, v in GOOD.items() if k != "cost_usd"}, input_tokens=True, output_tokens=1)],
+    [GOOD, dict(GOOD, correct=False)],
+], ids=["not-dict", "correct-str", "correct-int", "no-correct", "no-task", "empty-model",
+        "item-int", "cost-negative", "cost-bool", "cost-str", "cost-inf", "no-cost",
+        "one-token-count", "tokens-float", "tokens-negative", "tokens-bool", "duplicate"])
+def test_invalid_rows_raise_value_error(bad, registry):
+    ev = load_ev()
+    with pytest.raises(ValueError):
+        ev.outcomes_from_rows(bad, registry)
+
+
+def test_load_outcomes_skips_blank_lines_and_matches_from_rows(tmp_path):
+    ev = load_ev()
+    rows = known_rows()[:6]
+    path = tmp_path / "outcomes.jsonl"
+    path.write_text(json.dumps(rows[0]) + "\n\n" + "".join(json.dumps(r) + "\n" for r in rows[1:]),
+                    encoding="utf-8")
+    assert ev.load_outcomes(path) == ev.outcomes_from_rows(rows)
+
+
+@pytest.mark.parametrize("bad_line", ["{not json", "[1, 2]"])
+def test_load_outcomes_names_path_and_line(tmp_path, bad_line):
+    ev = load_ev()
+    path = tmp_path / "outcomes.jsonl"
+    path.write_text(json.dumps(GOOD) + "\n\n" + bad_line + "\n", encoding="utf-8")
+    with pytest.raises(ValueError, match=r"outcomes\.jsonl:3"):
+        ev.load_outcomes(path)
+
+
+# 12.3 evaluate: validation
+
+def test_incomplete_matrix_names_the_missing_cell():
+    ev = load_ev()
+    rows = [r for r in known_rows()
+            if not (r["task"] == "hard" and r["item"] == "hard-042" and r["model"] == "fiction/mid")]
+    with pytest.raises(ValueError, match="hard-042") as info:
+        ev.evaluate(ev.outcomes_from_rows(rows), bars=[0.8], seeds=[0])
+    assert "fiction/mid" in str(info.value)
+
+
+@pytest.mark.parametrize("kwargs", [
+    {"bars": []}, {"bars": [1.1]}, {"bars": [-0.1]}, {"seeds": []},
+    {"flavors": ()}, {"flavors": ("cheap",)}, {"min_samples": 0},
+    {"confidence": 1.0}, {"confidence": 0.0}, {"calibration_fraction": 0.0},
+    {"calibration_fraction": 1.0},
+], ids=lambda kw: next(iter(kw)) + "=" + repr(next(iter(kw.values()))))
+def test_invalid_arguments_raise_value_error(kwargs):
+    ev = load_ev()
+    args = dict(bars=[0.8], seeds=[0])
+    args.update(kwargs)
+    with pytest.raises(ValueError):
+        ev.evaluate(ev.outcomes_from_rows(known_rows()), **args)
+
+
+def test_no_outcomes_raise_value_error():
+    ev = load_ev()
+    with pytest.raises(ValueError):
+        ev.evaluate((), bars=[0.8], seeds=[0])
+
+
+def test_a_split_with_an_empty_side_names_task_and_seed():
+    ev = load_ev()
+    rows = rows_for("tiny", ["only-item"], {m: always(True) for m in MODELS})
+    with pytest.raises(ValueError, match="tiny") as info:
+        ev.evaluate(ev.outcomes_from_rows(rows), bars=[0.8], seeds=[5])
+    assert "5" in str(info.value)
+
+
+# 12.3 evaluate: known answers
+
+def test_config_tasks_and_cell_order():
+    ev = load_ev()
+    result = ev.evaluate(ev.outcomes_from_rows(known_rows()), bars=[0.9, 0.8], seeds=range(2))
+    assert result["config"] == {"bars": [0.9, 0.8], "seeds": [0, 1],
+                                "flavors": ["cost_effective", "cost_blind"],
+                                "calibration_fraction": 0.5, "min_samples": 30,
+                                "confidence": 0.95}
+    assert result["tasks"] == {"easy": {"items": 100, "models": list(MODELS)},
+                               "hard": {"items": 100, "models": list(MODELS)}}
+    order = [(c["bar"], c["flavor"], c["seed"], c["task"]) for c in result["cells"]]
+    assert order == [(b, f, s, t) for b in (0.9, 0.8) for f in ("cost_effective", "cost_blind")
+                     for s in (0, 1) for t in ("easy", "hard")]
+    first = result["cells"][0]
+    assert set(first) == {"bar", "flavor", "seed", "task", "calibration_items", "held_out_items",
+                          "cleared", "models", "success", "cost_usd"}
+    assert list(first["success"]) == STRATEGIES and list(first["cost_usd"]) == STRATEGIES
+    assert set(first["models"]) == {"routed", "best_on_calibration", "cheapest"}
+
+
+def test_default_seeds_are_zero_to_nine():
+    ev = load_ev()
+    result = ev.evaluate(ev.outcomes_from_rows(known_rows()), bars=[0.8])
+    assert result["config"]["seeds"] == list(range(10))
+
+
+@pytest.mark.parametrize("flavor,task,routed", [
+    ("cost_effective", "easy", "fiction/cheap"),
+    ("cost_effective", "hard", "fiction/mid"),
+    ("cost_blind", "easy", "fiction/best"),
+    ("cost_blind", "hard", "fiction/best"),
+])
+def test_routed_model_follows_the_router_rules(flavor, task, routed):
+    # cost_blind ties on quality_lb break by model ID (5.3), so fiction/best wins
+    ev = load_ev()
+    result = ev.evaluate(ev.outcomes_from_rows(known_rows()), bars=[0.8], seeds=[0, 1, 2])
+    for seed in (0, 1, 2):
+        c = cell(result, 0.8, flavor, seed, task)
+        assert c["models"]["routed"] == routed
+        assert c["cleared"] is True
+        assert c["success"]["routed"] == 1.0
+        assert c["cost_usd"]["routed"] == pytest.approx(c["held_out_items"] * COST[routed])
+
+
+def test_routed_choice_matches_router_select_on_the_calibration_split():
+    ev = load_ev()
+    calibration, _ = ev.split_items(HARD, 0)
+    stats = Stats()
+    stats.add("hard", "fiction/cheap", 0, len(calibration))
+    stats.add("hard", "fiction/mid", len(calibration), len(calibration))
+    stats.add("hard", "fiction/best", len(calibration), len(calibration))
+    from model_routing import Model
+    registry = Registry([Model(m, m.split("/")[0], COST[m] * 1_000_000, 0.0, 10 ** 9)
+                         for m in MODELS])
+    task = Task(name="hard", bar=0.8, min_samples=30, expected_input_tokens=1,
+                expected_output_tokens=0, independent_of_generator=False,
+                on_no_model="best_available")
+    expected = Router(registry, {"hard": task}, stats).select("hard").primary
+    result = ev.evaluate(ev.outcomes_from_rows(known_rows()), bars=[0.8], seeds=[0],
+                         flavors=("cost_effective",))
+    assert cell(result, 0.8, "cost_effective", 0, "hard")["models"]["routed"] == expected
+
+
+def test_baselines_on_known_matrix():
+    ev = load_ev()
+    result = ev.evaluate(ev.outcomes_from_rows(known_rows()), bars=[0.8], seeds=[0, 1])
+    for c in result["cells"]:
+        n = c["held_out_items"]
+        items = EASY if c["task"] == "easy" else HARD
+        assert c["calibration_items"] == sum(in_calibration(i, c["seed"]) for i in items)
+        assert c["calibration_items"] + n == 100
+        assert c["models"]["cheapest"] == "fiction/cheap"
+        if c["task"] == "easy":
+            assert c["models"]["best_on_calibration"] == "fiction/cheap"  # tie, cheaper wins
+            assert c["success"]["cheapest"] == 1.0
+            assert c["cost_usd"]["oracle"] == pytest.approx(n * 0.001)
+        else:
+            assert c["models"]["best_on_calibration"] == "fiction/mid"
+            assert c["success"]["cheapest"] == 0.0
+            assert c["success"]["model:fiction/cheap"] == 0.0
+            assert c["cost_usd"]["oracle"] == pytest.approx(n * 0.01)
+        assert c["success"]["oracle"] == 1.0
+        assert c["success"]["model:fiction/best"] == 1.0
+        assert c["cost_usd"]["model:fiction/best"] == pytest.approx(n * 0.1)
+
+
+def test_oracle_pays_the_cheapest_cost_when_no_model_is_right():
+    ev = load_ev()
+    rows = rows_for("none", EASY, {m: always(False) for m in MODELS})
+    result = ev.evaluate(ev.outcomes_from_rows(rows), bars=[0.5], seeds=[0],
+                         flavors=("cost_effective",))
+    c = cell(result, 0.5, "cost_effective", 0, "none")
+    assert c["success"]["oracle"] == 0.0
+    assert c["cost_usd"]["oracle"] == pytest.approx(c["held_out_items"] * 0.001)
+
+
+def test_summary_rows_on_known_matrix():
+    ev = load_ev()
+    seeds = [0, 1, 2]
+    result = ev.evaluate(ev.outcomes_from_rows(known_rows()), bars=[0.8], seeds=seeds)
+    held = {(s, t): cell(result, 0.8, "cost_effective", s, t)["held_out_items"]
+            for s in seeds for t in ("easy", "hard")}
+    keys = [(r["bar"], r["flavor"], r["strategy"]) for r in result["summary"]]
+    assert keys == [(0.8, f, s) for f in ("cost_effective", "cost_blind") for s in STRATEGIES]
+    routed = row(result["summary"], flavor="cost_effective", strategy="routed")
+    assert set(routed) == {"bar", "flavor", "strategy", "success", "cost_usd",
+                           "below_bar_rate", "cleared_rate", "bar_violation_rate"}
+    assert routed["success"] == pytest.approx(1.0)
+    assert routed["cleared_rate"] == 1.0 and routed["bar_violation_rate"] == 0.0
+    assert routed["below_bar_rate"] == 0.0
+    assert routed["cost_usd"] == pytest.approx(
+        fsum(held[s, "easy"] * 0.001 + held[s, "hard"] * 0.01 for s in seeds) / len(seeds))
+    cheapest = row(result["summary"], flavor="cost_effective", strategy="cheapest")
+    assert cheapest["success"] == pytest.approx(
+        fsum(held[s, "easy"] / (held[s, "easy"] + held[s, "hard"]) for s in seeds) / len(seeds))
+    assert cheapest["below_bar_rate"] == 0.5
+    assert cheapest["cleared_rate"] is None and cheapest["bar_violation_rate"] is None
+
+
+def test_per_task_rows_count_routed_models_per_seed():
+    ev = load_ev()
+    result = ev.evaluate(ev.outcomes_from_rows(known_rows()), bars=[0.8], seeds=[0, 1, 2])
+    keys = [(r["bar"], r["flavor"], r["task"], r["strategy"]) for r in result["per_task"]]
+    assert keys == [(0.8, f, t, s) for f in ("cost_effective", "cost_blind")
+                    for t in ("easy", "hard") for s in STRATEGIES]
+    hard = row(result["per_task"], flavor="cost_effective", task="hard", strategy="routed")
+    assert hard["routed_models"] == {"fiction/mid": 3}
+    assert hard["success"] == 1.0 and hard["bar_violation_rate"] == 0.0
+    cheap = row(result["per_task"], flavor="cost_effective", task="hard", strategy="cheapest")
+    assert cheap["routed_models"] is None
+    assert cheap["success"] == 0.0 and cheap["below_bar_rate"] == 1.0
+
+
+def test_a_model_that_only_fits_the_calibration_split_is_a_bar_violation():
+    ev = load_ev()
+    items = [f"leaky-{i:03d}" for i in range(100)]
+    calibration = [i for i in items if in_calibration(i, 0)]
+    assert len(calibration) >= 30 and len(calibration) < len(items)
+    rows = rows_for("leaky", items, {"fiction/cheap": lambda i: in_calibration(i, 0),
+                                     "fiction/mid": always(True), "fiction/best": always(True)})
+    result = ev.evaluate(ev.outcomes_from_rows(rows), bars=[0.8], seeds=[0],
+                         flavors=("cost_effective",))
+    c = cell(result, 0.8, "cost_effective", 0, "leaky")
+    assert c["models"]["routed"] == "fiction/cheap" and c["cleared"] is True
+    assert c["success"]["routed"] == 0.0
+    routed = row(result["summary"], strategy="routed")
+    assert routed["bar_violation_rate"] == 1.0 and routed["below_bar_rate"] == 1.0
+    assert c["success"]["oracle"] == 1.0
+
+
+def test_no_model_clears_serves_best_available_and_is_not_a_violation():
+    # 100% on about 50 calibration items has a Wilson lower bound near 0.93, below 0.99
+    ev = load_ev()
+    rows = rows_for("easy", EASY, {m: always(True) for m in MODELS})
+    result = ev.evaluate(ev.outcomes_from_rows(rows), bars=[0.99], seeds=[0])
+    effective = cell(result, 0.99, "cost_effective", 0, "easy")
+    blind = cell(result, 0.99, "cost_blind", 0, "easy")
+    assert effective["cleared"] is False and blind["cleared"] is False
+    assert effective["models"]["routed"] == "fiction/cheap"
+    assert blind["models"]["routed"] == "fiction/best"
+    summary = row(result["summary"], flavor="cost_effective", strategy="routed")
+    assert summary["cleared_rate"] == 0.0 and summary["bar_violation_rate"] is None
+    assert summary["below_bar_rate"] == 0.0
+
+
+def test_min_samples_above_the_calibration_size_never_clears():
+    ev = load_ev()
+    result = ev.evaluate(ev.outcomes_from_rows(known_rows()), bars=[0.8], seeds=[0],
+                         min_samples=1000)
+    assert all(c["cleared"] is False for c in result["cells"])
+    assert cell(result, 0.8, "cost_effective", 0, "hard")["models"]["routed"] == "fiction/mid"
+
+
+def test_evaluate_is_deterministic_and_independent_of_row_order():
+    ev = load_ev()
+    rows = known_rows()
+    first = ev.evaluate(ev.outcomes_from_rows(rows), bars=[0.8, 0.9], seeds=[0, 1])
+    again = ev.evaluate(ev.outcomes_from_rows(list(reversed(rows))), bars=[0.8, 0.9],
+                        seeds=[0, 1])
+    assert first == again
+    assert json.dumps(first, sort_keys=True) == json.dumps(again, sort_keys=True)
+
+
+# 12.5 exports
+
+def test_names_are_reexported_from_the_package():
+    ev = load_ev()
+    import model_routing
+    for name in ("Outcome", "outcomes_from_rows", "load_outcomes", "split_items", "evaluate"):
+        assert name in model_routing.__all__
+        assert getattr(model_routing, name) is getattr(ev, name)
+
+
+# 12.4 CLI
+
+def test_cli_json_matches_the_api_without_cells(tmp_path, capsys):
+    ev = load_ev()
+    path = write_jsonl(tmp_path / "outcomes.jsonl", known_rows())
+    code = main(["evaluate", "--outcomes", str(path), "--bar", "0.8", "--bar", "0.9",
+                 "--seeds", "2", "--json"])
+    out = json.loads(capsys.readouterr().out)
+    assert code == 0
+    assert set(out) == {"config", "tasks", "summary", "per_task"}
+    expected = ev.evaluate(ev.load_outcomes(path), bars=[0.8, 0.9], seeds=range(2))
+    expected = json.loads(json.dumps(expected))
+    assert out["config"] == expected["config"]
+    assert out["summary"] == expected["summary"]
+    assert out["per_task"] == expected["per_task"]
+
+
+def test_cli_table_names_every_flavor_and_strategy(tmp_path, capsys):
+    load_ev()
+    path = write_jsonl(tmp_path / "outcomes.jsonl", known_rows())
+    code = main(["evaluate", "--outcomes", str(path), "--seeds", "1"])
+    out = capsys.readouterr().out
+    assert code == 0
+    for word in ["cost_effective", "cost_blind", "bar_violation_rate", *STRATEGIES]:
+        assert word in out
+
+
+def test_cli_prices_token_rows_with_the_registry_option(tmp_path, capsys, cli_files):
+    load_ev()
+    rows = [{k: v for k, v in r.items() if k != "cost_usd"} for r in known_rows()]
+    for r in rows:
+        r.update(input_tokens=1000, output_tokens=0)
+    path = write_jsonl(tmp_path / "outcomes.jsonl", rows)
+    code = main(["evaluate", "--outcomes", str(path), "--seeds", "1", "--json",
+                 "--registry", str(cli_files["registry"])])
+    out = json.loads(capsys.readouterr().out)
+    assert code == 0
+    effective = row(out["summary"], flavor="cost_effective", strategy="routed")
+    assert effective["cost_usd"] > 0
+
+
+@pytest.mark.parametrize("case", ["missing-file", "bad-row", "incomplete", "bar", "seeds",
+                                  "fraction", "unpriced-tokens"])
+def test_cli_bad_input_exits_2(tmp_path, capsys, case):
+    load_ev()
+    good = write_jsonl(tmp_path / "good.jsonl", known_rows())
+    args = ["evaluate", "--outcomes", str(good), "--seeds", "1"]
+    if case == "missing-file":
+        args[2] = str(tmp_path / "absent.jsonl")
+    elif case == "bad-row":
+        args[2] = str(write_jsonl(tmp_path / "bad.jsonl", [dict(GOOD, correct="yes")]))
+    elif case == "incomplete":
+        args[2] = str(write_jsonl(tmp_path / "gap.jsonl", known_rows()[:-1]))
+    elif case == "bar":
+        args += ["--bar", "1.5"]
+    elif case == "seeds":
+        args[-1] = "0"
+    elif case == "fraction":
+        args += ["--calibration-fraction", "1.0"]
+    elif case == "unpriced-tokens":
+        row_ = {k: v for k, v in GOOD.items() if k != "cost_usd"}
+        row_.update(model="fiction/not-in-registry", input_tokens=1, output_tokens=1)
+        args[2] = str(write_jsonl(tmp_path / "tokens.jsonl", [row_]))
+    assert main(args) == 2
