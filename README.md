@@ -362,6 +362,8 @@ model_routing/
   cli.py        model-routing select | calibrate | report | demo | evaluate
   data/         models.json, priors.json, example_tasks.json
 research/       public evidence behind the defaults
+evidence/       public datasets turned into outcome matrices, with committed results
+                (RouterBench: evidence/routerbench/RESULTS.md)
 DESIGN.md       the spec the tests were written from
 ```
 

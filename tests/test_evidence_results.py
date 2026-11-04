@@ -1,9 +1,11 @@
-"""v1.7 RouterBench results contract (DESIGN 12.7), written before the script exists.
+"""v1.7 RouterBench results contract (DESIGN 12.7), written before the script existed.
 
 ``evidence/routerbench/results.py`` is a standard-library script outside the package,
-loaded from its path by an autouse fixture before any other test code runs. These tests
-need no pandas and no download: they run on a small synthetic matrix, on hand-made
-results with known answers, and on the committed ``results.json`` and ``RESULTS.md``.
+loaded from its path by an autouse fixture before any other test code runs. The tests
+were held under a module-level strict xfail until the script landed; the implementing
+commit removed that marker. They need no pandas and no download: they run on a small
+synthetic matrix, on hand-made results with known answers, and on the committed
+``results.json`` and ``RESULTS.md``.
 """
 
 import importlib.util
@@ -18,10 +20,6 @@ FOLDER = Path(__file__).resolve().parents[1] / "evidence" / "routerbench"
 SCRIPT = FOLDER / "results.py"
 TABLE_COMMAND = ("$ python evidence/routerbench/results.py --table "
                  "evidence/routerbench/results.json")
-
-pytestmark = pytest.mark.xfail(strict=True, raises=ModuleNotFoundError,
-                               reason="red until evidence/routerbench/results.py lands")
-
 
 def load_rs():
     if not SCRIPT.is_file():

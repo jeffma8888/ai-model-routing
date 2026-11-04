@@ -23,6 +23,8 @@ model-routing evaluate --outcomes routerbench-matrix.jsonl --bar 0.8
 
 The converter prints a JSON report of what it kept and dropped. With the default options on the pinned file it keeps 65 of the 86 evals, 28,281 prompts, and writes 311,091 rows (11 models per prompt). Checked with Python 3.10, pandas 2.3.3 and numpy 2.2.6; numpy 2 prints a `DeprecationWarning` about `numpy.core`, because the file was written by an older numpy.
 
+Results of `model-routing evaluate` on this matrix at bars 0.6 to 0.9 over 50 seeds, with the commands that regenerate them: [RESULTS.md](RESULTS.md) and [results.json](results.json).
+
 ## What is dropped, and why
 
 - Graded evals: six evals have scores other than 0 and 1 (`grade-school-math`, 7,450 prompts, scored in steps of 0.25; `consensus_summary`, 362; `mtbench`, 41; `mtbench-math`, 20; `mtbench-reference`, 19; `chinese_idioms`, 15). The dataset does not document what a partial score means, so they are left out by default. `--pass-score T` keeps them, counting a call as correct when its score is at least `T`; that threshold is your choice and should be reported with any result
