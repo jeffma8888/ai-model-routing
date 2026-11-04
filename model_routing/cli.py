@@ -66,6 +66,7 @@ def _build_parser() -> argparse.ArgumentParser:
     ev = sub.add_parser("evaluate",
                         help="score routing on a held-out split of an outcome matrix")
     ev.add_argument("--outcomes", required=True)
+    # default None, not [0.8]: "extend" would append the given bars to a list default
     ev.add_argument("--bar", type=float, nargs="+", action="extend", default=None)
     ev.add_argument("--seeds", type=int, default=10)
     ev.add_argument("--calibration-fraction", type=float, default=0.5)

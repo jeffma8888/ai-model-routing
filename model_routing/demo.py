@@ -67,6 +67,8 @@ def _outcome_lines(calibration_rows: List[dict], task: Task) -> str:
     """The calibration set as an outcome matrix (DESIGN 11, 12.1); draws no random numbers."""
     cost = {model.id: model.cost(task.expected_input_tokens, task.expected_output_tokens)
             for model, _ in JUDGES}
+    # _calibration_rows emits each judge's items in gold-label order, so a per-judge
+    # counter gives item IDs that line up across judges
     seen: Dict[str, int] = {}
     lines = []
     for row in calibration_rows:
