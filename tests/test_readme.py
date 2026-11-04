@@ -41,8 +41,7 @@ def test_readme_transcripts_match_a_fresh_run(tmp_path, monkeypatch, capsys):
 ROOT = Path(__file__).resolve().parent.parent
 PACKAGE = ROOT / "model_routing"
 SIZE = re.compile(r"about ([0-9][0-9,]*) lines")
-LAYOUT = re.compile(r"^## Layout\n\n```\n(.*?)^```", re.S | re.M)
-FILE_NAME = re.compile(r"[\w.-]+\.\w+")
+LAYOUT = re.compile(r"^## Layout\n\s*```[\w-]*\n(.*?)^```", re.S | re.M)
 
 
 def package_lines(package):
@@ -96,11 +95,18 @@ def claim_problems(text, line_count, modules, data_files, commands):
                  for n in sorted(set(named) - set(modules))]
     problems += [f"Layout block names {n} more than once"
                  for n in sorted({n for n in named if named.count(n) > 1})]
+    data_entries = [rest for name, rest in entries if name == "data/"]
+    if len(data_entries) != 1:
+        problems.append(f"expected one data/ entry in the Layout block, found {len(data_entries)}")
+    else:
+        listed = [n.strip() for n in data_entries[0].split(",") if n.strip()]
+        problems += [f"data file {n} missing from the data/ entry"
+                     for n in sorted(set(data_files) - set(listed))]
+        problems += [f"data/ entry names {n}, not a file in model_routing/data/"
+                     for n in sorted(set(listed) - set(data_files))]
+        problems += [f"data/ entry names {n} more than once"
+                     for n in sorted({n for n in listed if listed.count(n) > 1})]
     described = dict(entries)
-    listed = FILE_NAME.findall(described.get("data/", ""))
-    problems += [f"data file {n} missing from the data/ entry" for n in sorted(set(data_files) - set(listed))]
-    problems += [f"data/ entry names {n}, not a file in model_routing/data/"
-                 for n in sorted(set(listed) - set(data_files))]
     head, sep, tail = described.get("cli.py", "").partition("model-routing ")
     if not sep:
         problems.append("the cli.py entry does not list the subcommands after 'model-routing'")
@@ -201,6 +207,32 @@ def test_claim_problems_catches_missing_and_stale_data_files():
         "data file priors.json missing from the data/ entry"]
     assert claim_problems(SAMPLE, line_count, modules, ["models.json"], commands) == [
         "data/ entry names tasks.json, not a file in model_routing/data/"]
+
+
+def test_claim_problems_reads_data_names_without_a_dot():
+    line_count, modules, data_files, commands = SAMPLE_ARGS
+    stale = SAMPLE.replace("models.json, tasks.json", "models.json, tasks.json, LICENSE")
+    assert claim_problems(stale, *SAMPLE_ARGS) == [
+        "data/ entry names LICENSE, not a file in model_routing/data/"]
+    assert claim_problems(stale, line_count, modules, data_files + ["LICENSE"], commands) == []
+
+
+def test_claim_problems_catches_a_repeated_data_name_and_extra_data_entries():
+    twice = SAMPLE.replace("models.json, tasks.json", "models.json, tasks.json, models.json")
+    assert claim_problems(twice, *SAMPLE_ARGS) == ["data/ entry names models.json more than once"]
+    extra = SAMPLE.replace("  data/ ", "  data/         old.json\n  data/ ")
+    assert claim_problems(extra, *SAMPLE_ARGS) == [
+        "expected one data/ entry in the Layout block, found 2"]
+    gone = SAMPLE.replace("  data/         models.json, tasks.json\n", "")
+    assert claim_problems(gone, *SAMPLE_ARGS) == [
+        "expected one data/ entry in the Layout block, found 0"]
+
+
+def test_claim_problems_allows_a_fence_tag_and_blank_lines_before_the_layout_block():
+    tagged = SAMPLE.replace("## Layout\n\n```\n", "## Layout\n\n```text\n")
+    assert claim_problems(tagged, *SAMPLE_ARGS) == []
+    spaced = SAMPLE.replace("## Layout\n\n```\n", "## Layout\n\n\n```\n")
+    assert claim_problems(spaced, *SAMPLE_ARGS) == []
 
 
 def test_claim_problems_catches_missing_stale_and_repeated_subcommands():
