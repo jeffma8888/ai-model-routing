@@ -1,8 +1,9 @@
 """v1.4 delegation contract (DESIGN section 13), written before the module exists.
 
-Every test imports ``model_routing.delegation`` first, so until it exists each one
-fails with ModuleNotFoundError and the strict xfail below keeps the suite green.
-The implementing commit removes ``pytestmark`` (DESIGN 13.8).
+An autouse fixture imports ``model_routing.delegation`` before any other fixture or
+test code runs, so until it exists each test fails with ModuleNotFoundError and the
+strict xfail below keeps the suite green. The implementing commit removes
+``pytestmark`` (DESIGN 13.8).
 """
 
 import dataclasses
@@ -24,6 +25,8 @@ S_IN, S_OUT = 2000, 500
 WORK = {"context_tokens": 20_000, "brief_tokens": 300, "result_tokens": 200}
 MEASURED = {"fiction/cheap": (70, 100), "fiction/mid": (95, 100), "fiction/best": (99, 100)}
 ALL_BELOW = {"fiction/cheap": (70, 100), "fiction/mid": (75, 100), "fiction/best": (78, 100)}
+TEXT_KEYS = ["mode", "model", "reason", "below_bar", "inline_cost_usd", "delegate_cost_usd",
+             "parent_quality_lb", "delegate_quality_lb"]
 FIELDS = ["task", "flavor", "parent", "mode", "model", "reason", "below_bar", "inline_allowed",
           "inline_cost_usd", "delegate_cost_usd", "parent_quality_lb", "delegate_quality_lb",
           "route"]
@@ -34,6 +37,11 @@ REASONS = ["PARENT_EXCLUDED_FAMILY", "PARENT_NOT_INDEPENDENT", "PARENT_CONTEXT_F
 
 def load_dl():
     return importlib.import_module("model_routing.delegation")
+
+
+@pytest.fixture(autouse=True)
+def _import_the_module_under_test_first():
+    return load_dl()
 
 
 def models(window=100_000, free=False, extra=()):
@@ -118,10 +126,21 @@ def test_costs_follow_the_pinned_formulas():
     router = make_router()
     decision = decide(router, "fiction/best")
     assert decision.inline_cost_usd == pytest.approx(0.23, rel=1e-12)
-    assert decision.inline_cost_usd == pytest.approx(inline_cost(router, "fiction/best"), rel=1e-12)
+    assert decision.inline_cost_usd == inline_cost(router, "fiction/best")
     assert decision.delegate_cost_usd == pytest.approx(0.0179, rel=1e-12)
-    assert decision.delegate_cost_usd == pytest.approx(
-        delegate_cost(router, "fiction/best", "fiction/mid"), rel=1e-12)
+    assert decision.delegate_cost_usd == delegate_cost(router, "fiction/best", "fiction/mid")
+
+
+def test_costs_are_evaluated_left_to_right_as_written():
+    router = make_router()
+    decision = decide(router, "fiction/mid", exclude_models=("fiction/mid",), context_tokens=4925,
+                      brief_tokens=3, result_tokens=203, carry_turns=1)
+    write_and_read = cost(router, "fiction/mid", 203, 3)
+    delegate_call = cost(router, "fiction/best", 3 + S_IN, S_OUT)
+    carried = 1 * cost(router, "fiction/mid", 3 + 203, 0)
+    assert write_and_read + (delegate_call + carried) != (write_and_read + delegate_call) + carried
+    assert decision.delegate_cost_usd == (write_and_read + delegate_call) + carried
+    assert decision.inline_cost_usd == inline_cost(router, "fiction/mid", 4925, carry=1)
 
 
 def test_carry_turns_charge_each_path_for_what_it_leaves_in_the_parent_context():
@@ -147,9 +166,8 @@ def test_costs_are_list_price_in_cost_blind_too():
     router = make_router()
     blind = decide(router, "fiction/mid", "cost_blind")
     assert blind.route.primary == "fiction/best"
-    assert blind.inline_cost_usd == pytest.approx(inline_cost(router, "fiction/mid"), rel=1e-12)
-    assert blind.delegate_cost_usd == pytest.approx(
-        delegate_cost(router, "fiction/mid", "fiction/best"), rel=1e-12)
+    assert blind.inline_cost_usd == inline_cost(router, "fiction/mid")
+    assert blind.delegate_cost_usd == delegate_cost(router, "fiction/mid", "fiction/best")
 
 
 def test_a_large_context_can_make_delegating_to_the_parents_own_model_cheaper():
@@ -339,6 +357,44 @@ def test_a_cost_effective_tie_goes_to_quality_then_inline():
     assert (same.mode, same.reason, same.model) == ("inline", "inline_as_good", "fiction/best")
 
 
+def test_an_exact_nonzero_cost_tie_goes_to_quality_then_inline():
+    router = make_router()
+    better = decide(router, "fiction/mid", exclude_models=("fiction/mid",), context_tokens=4925,
+                    brief_tokens=3, result_tokens=203, carry_turns=1)
+    assert better.inline_cost_usd == better.delegate_cost_usd > 0
+    assert (better.mode, better.reason, better.model) == (
+        "delegate", "delegate_better", "fiction/best")
+    same = decide(router, "fiction/best", context_tokens=11, brief_tokens=710, result_tokens=1134,
+                  carry_turns=1)
+    assert same.inline_cost_usd == same.delegate_cost_usd > 0
+    assert same.delegate_quality_lb < same.parent_quality_lb
+    assert (same.mode, same.reason, same.model) == ("inline", "inline_as_good", "fiction/best")
+
+
+def test_costs_that_differ_only_by_rounding_are_compared_without_a_tolerance():
+    router = make_router()
+    cheaper = decide(router, "fiction/best", context_tokens=19, brief_tokens=410,
+                     result_tokens=1176)
+    assert 0 < cheaper.inline_cost_usd - cheaper.delegate_cost_usd < 1e-15
+    assert cheaper.delegate_quality_lb < cheaper.parent_quality_lb
+    assert (cheaper.mode, cheaper.reason, cheaper.model) == (
+        "delegate", "delegate_cheaper", "fiction/mid")
+    dearer = decide(router, "fiction/mid", exclude_models=("fiction/mid",), context_tokens=7023,
+                    brief_tokens=3, result_tokens=7)
+    assert 0 < dearer.delegate_cost_usd - dearer.inline_cost_usd < 1e-15
+    assert dearer.delegate_quality_lb > dearer.parent_quality_lb
+    assert (dearer.mode, dearer.reason, dearer.model) == ("inline", "inline_cheaper", "fiction/mid")
+
+
+def test_cost_blind_admission_comes_before_the_bound_comparison():
+    stats = {"fiction/cheap": (29, 29), "fiction/mid": (90, 100), "fiction/best": (88, 100)}
+    decision = decide(make_router(stats=stats), "fiction/cheap", "cost_blind", context_tokens=1000)
+    assert decision.route.primary == "fiction/mid" and decision.route.below_bar is False
+    assert decision.parent_quality_lb > decision.delegate_quality_lb
+    assert (decision.mode, decision.reason, decision.model) == (
+        "delegate", "parent_below_bar", "fiction/mid")
+
+
 def test_exclude_models_limits_the_delegate_and_never_the_parent():
     router = make_router()
     away = decide(router, "fiction/mid", exclude_models=("fiction/mid",))
@@ -396,6 +452,24 @@ def test_neither_clears_an_unmeasured_parent_takes_a_measured_route():
     assert decision.parent_quality_lb == 0.0
     assert (decision.mode, decision.reason, decision.model, decision.below_bar) == (
         "delegate", "none_clear", "fiction/best", True)
+
+
+def test_neither_clears_a_measured_parent_with_no_route_stays_inline():
+    router = make_router(stats=ALL_BELOW, on_no_model="best_available")
+    decision = decide(router, "fiction/best",
+                      exclude_models=("fiction/cheap", "fiction/mid", "fiction/best"))
+    assert decision.route is None and decision.delegate_cost_usd is None
+    assert (decision.mode, decision.reason, decision.model, decision.below_bar) == (
+        "inline", "none_clear", "fiction/best", True)
+
+
+def test_neither_clears_a_measured_parent_keeps_a_higher_bound_than_a_measured_route():
+    router = make_router(stats=ALL_BELOW, on_no_model="best_available")
+    decision = decide(router, "fiction/best", exclude_models=("fiction/best",))
+    assert decision.route.basis == "measured" and decision.route.primary == "fiction/mid"
+    assert decision.delegate_quality_lb < decision.parent_quality_lb
+    assert (decision.mode, decision.reason, decision.model, decision.below_bar) == (
+        "inline", "none_clear", "fiction/best", True)
 
 
 def prior_router(stats):
@@ -517,6 +591,7 @@ def test_cli_text_prints_one_line_per_key(delegate_files, capsys):
     load_dl()
     assert main(delegate_args(delegate_files, "fiction/best")) == 0
     text = capsys.readouterr().out
+    assert [line.split(":", 1)[0] for line in text.splitlines()] == TEXT_KEYS
     for key, value in [("mode", "delegate"), ("model", "fiction/mid"),
                        ("reason", "delegate_cheaper"), ("below_bar", "false"),
                        ("inline_cost_usd", "0.230000"), ("delegate_cost_usd", "0.017900"),
@@ -538,7 +613,8 @@ def test_cli_text_prints_a_dash_for_none(delegate_files, capsys):
 @pytest.mark.parametrize("change", [
     ("--parent", "fiction/nope"), ("--generator", "fiction/nope"), ("--exclude", "fiction/nope"),
     ("--context-tokens", "-1"), ("--brief-tokens", "1.5"), ("--result-tokens", "many"),
-    ("--carry-turns", "-2"), ("--flavor", "cheapest"), ("task", "nope"), ("drop", "--brief-tokens"),
+    ("--carry-turns", "-2"), ("--flavor", "cheapest"), ("task", "nope"), ("drop", "--parent"),
+    ("drop", "--context-tokens"), ("drop", "--brief-tokens"), ("drop", "--result-tokens"),
 ])
 def test_cli_bad_input_exits_two_with_one_error_line(delegate_files, capsys, change):
     load_dl()
@@ -554,8 +630,9 @@ def test_cli_bad_input_exits_two_with_one_error_line(delegate_files, capsys, cha
     else:
         args += [flag, value]
     assert main(args) == 2
-    err = capsys.readouterr().err
-    assert re.search(r"^error: ", err, re.MULTILINE)
+    lines = capsys.readouterr().err.splitlines()
+    assert lines[-1].startswith("error: ")
+    assert sum(line.startswith("error: ") for line in lines) == 1
 
 
 def test_cli_no_model_clears_bar_exits_three_with_candidates_on_stderr(tmp_path, delegate_files,
