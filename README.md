@@ -86,7 +86,7 @@ pytest -q
 model-routing demo --out ./demo-run
 ```
 
-The demo routes one judge task with fictional `demo/` models and a synthetic 300-item labeled set (seeded, deterministic). It calibrates four judges, selects in both flavors, runs 200 judge calls per flavor with a simulated outage on the primary, and writes `calls.jsonl`, `stats.json`, `outcomes.jsonl` (the calibration set as an outcome matrix, used below), and its registry and task as `models.json` and `tasks.json`.
+The demo routes one judge task with fictional `demo/` models and a synthetic 300-item labeled set (seeded, deterministic). It calibrates four judges, selects in both flavors, runs 200 judge calls per flavor with a simulated outage on the primary, then asks in each flavor whether an `atlas-max` parent 60,000 tokens into a session should do one more check itself or hand it to a sub-agent, and runs the hand-off it chose. It writes `calls.jsonl`, `stats.json`, `outcomes.jsonl` (the calibration set as an outcome matrix, used below), and its registry and task as `models.json` and `tasks.json`.
 
 ```text
 $ model-routing demo --out ./demo-run
@@ -107,6 +107,11 @@ cost_blind:
   list-price USD: 3.3794
 
 cost_effective spent 26% of what cost_blind spent
+
+inline or sub-agent, a demo/atlas-max parent at 60,000 context tokens:
+  cost_effective: delegate to demo/atlas-mid (delegate_cheaper), inline 0.632000 vs delegate 0.029400 USD
+  cost_blind:     inline on demo/atlas-max (inline_as_good), inline 0.632000 vs delegate 0.048600 USD
+  hand-off calls: 1, list-price USD 0.0036
 log: demo-run/calls.jsonl
 ```
 
@@ -116,6 +121,7 @@ What happened:
 - `cost_effective` routes to `atlas-mid`, the cheapest admitted judge; `cost_blind` routes to `atlas-max`, the best measured one. Same bar, same fallback logic, about a quarter of the spend
 - When the primary hit a simulated outage (about 15% of its calls), the call fell back to the next admitted judge, and every attempt landed in the log
 - `atlas-mid` (true accuracy 0.91) edged out `birch-pro` (0.93) by one item on this sample. A gap that small is noise, which is why the bar is a lower bound and why the fallback order should not be read as a quality ranking
+- Inline or sub-agent: in `cost_effective` the parent hands the check to `atlas-mid`, because re-reading its 60,000-token context would cost 0.632 USD and the hand-off 0.0294 USD with the bar still held; in `cost_blind` it keeps the check, because its best delegate is `atlas-max` itself. The hand-off ran through `Executor.call_delegated` as one more call in the log, tagged `delegated` and `parent`. That call cost 0.0036 USD on its simulated tokens, where the estimate priced it at the task's expected tokens plus the brief (0.0048 USD); the other 0.0246 USD of the estimate is the parent writing the brief and reading the result in its own calls, which the log does not see ([Inline or sub-agent](#inline-or-sub-agent) explains the arithmetic)
 
 Then slice the log:
 
@@ -124,10 +130,18 @@ $ model-routing report --log demo-run/calls.jsonl --by flavor
 flavor          calls  attempts  errors  invalid  fallback_calls  fallback_rate  cost_usd  routing_cost_usd  p50_ms  p95_ms
 --------------  -----  --------  ------  -------  --------------  -------------  --------  ----------------  ------  ------
 cost_blind      200    230       30      0        30              0.150          3.379358  0.000000          1497.4  2368.0
-cost_effective  200    225       25      0        25              0.125          0.864982  0.864982          1425.5  2376.7
+cost_effective  201    226       25      0        25              0.124          0.868590  0.868590          1429.9  2376.7
 ```
 
-`cost_blind` logs `routing_cost_usd` as 0 because the router ignored price, but `cost_usd` still shows what the calls cost at list price.
+`cost_blind` logs `routing_cost_usd` as 0 because the router ignored price, but `cost_usd` still shows what the calls cost at list price. `cost_effective` counts 201 calls: its 200 judge calls and the hand-off. The hand-off's tags split it out:
+
+```text
+$ model-routing report --log demo-run/calls.jsonl --by tag:delegated
+tag:delegated  calls  attempts  errors  invalid  fallback_calls  fallback_rate  cost_usd  routing_cost_usd  p50_ms  p95_ms
+-------------  -----  --------  ------  -------  --------------  -------------  --------  ----------------  ------  ------
+(none)         400    455       55      0        55              0.138          4.244340  0.864982          1485.2  2376.7
+true           1      1         0       0        0               0.000          0.003608  0.003608          1579.4  1579.4
+```
 
 ### Check the choice on items the router never saw
 

@@ -8,6 +8,7 @@ from dataclasses import fields
 from pathlib import Path
 from typing import Dict, List, Union
 
+from .delegation import DELEGATE
 from .executor import AllModelsFailed, Executor, json_validator
 from .monitor import Monitor
 from .providers import Completion, FakeProvider, ProviderError
@@ -23,6 +24,8 @@ CALLS_PER_FLAVOR = 200
 OUTAGE_RATE = 0.15
 MARKER = ".model-routing-demo"
 OUTPUTS = ("calls.jsonl", "stats.json", "outcomes.jsonl", "models.json", "tasks.json")
+DELEGATION_PARENT = "demo/atlas-max"
+DELEGATION_CONTEXT_TOKENS = 60_000
 
 JUDGES = (
     (Model("demo/atlas-max", "atlas", 10.0, 50.0, 200_000), 0.96),
@@ -112,6 +115,42 @@ def _script(registry: Registry, rng: random.Random, clock: _SimulatedClock,
     return {model.id: judge(model.id) for model in registry.models}
 
 
+def _hand_off(router: Router, provider: FakeProvider, monitor: Monitor,
+              clock: _SimulatedClock, state: Dict[str, str], validate, flavor: str) -> dict:
+    """One inline-or-sub-agent decision, its hand-off run when it delegates (DESIGN 11 v1.12)."""
+    decision = router.decide_delegation(
+        DEMO_TASK, DELEGATION_PARENT, flavor, context_tokens=DELEGATION_CONTEXT_TOKENS,
+        brief_tokens=400, result_tokens=60, generator_model=GENERATOR)
+    first = len(monitor.records)
+    if decision.mode == DELEGATE:
+        state["primary"] = decision.route.primary
+        executor = Executor(router, provider, monitor=monitor, clock=clock,
+                            now=clock.timestamp, id_factory=lambda: f"{flavor}-delegated-0001")
+        brief = [
+            {"role": "system", "content": "Judge whether the answer is faithful "
+                                          "to the source. Reply in JSON with a verdict."},
+            {"role": "user", "content": "Brief from the parent: one synthetic item."},
+        ]
+        try:
+            executor.call_delegated(decision, brief,
+                                    tags={"suite": "demo", "dataset": "synthetic"},
+                                    validate=validate)
+        except AllModelsFailed:
+            pass
+    records = monitor.records[first:]
+    return {
+        "parent": decision.parent,
+        "context_tokens": DELEGATION_CONTEXT_TOKENS,
+        "mode": decision.mode,
+        "model": decision.model,
+        "reason": decision.reason,
+        "inline_cost_usd": decision.inline_cost_usd,
+        "delegate_cost_usd": decision.delegate_cost_usd,
+        "hand_off_calls": sum(1 for r in records if r["final"]),
+        "hand_off_cost_usd": round(sum(r["cost_usd"] for r in records), 6),
+    }
+
+
 def run_demo(out_dir: Union[str, Path], seed: int = 7) -> dict:
     """Run the offline demo and write its output files (``OUTPUTS``) to ``out_dir``.
 
@@ -121,8 +160,13 @@ def run_demo(out_dir: Union[str, Path], seed: int = 7) -> dict:
     ``outcomes.jsonl`` holds the calibration set as an outcome matrix for
     ``model-routing evaluate``; ``models.json`` and ``tasks.json`` hold the demo's
     registry and task, so ``select`` and ``delegate`` can run on the output.
-    Returns ``{flavor: {primary, fallbacks, calls, fallback_calls, cost_usd}}``;
-    the result is deterministic for a given seed.
+    Then a ``demo/atlas-max`` parent 60,000 tokens into a session asks, in each
+    flavor, whether to do one more check inline or hand it to a sub-agent; a
+    delegated check runs through ``Executor.call_delegated`` and its records,
+    tagged ``delegated`` and ``parent``, follow the judge calls in ``calls.jsonl``.
+    Returns ``{flavor: {primary, fallbacks, calls, fallback_calls, cost_usd,
+    delegation}}``, where the first five count the 200 judge calls only; the
+    result is deterministic for a given seed.
 
     An empty marker file ``.model-routing-demo`` records that the folder holds
     demo output. If any of those files already exists without
@@ -192,4 +236,8 @@ def run_demo(out_dir: Union[str, Path], seed: int = 7) -> dict:
             "fallback_calls": sum(1 for r in finals if r["attempt"] > 0),
             "cost_usd": round(sum(r["cost_usd"] for r in records), 6),
         }
+    # after every judge call, so their records and random draws are unchanged (v1.12)
+    for flavor in summary:
+        summary[flavor]["delegation"] = _hand_off(router, provider, monitor, clock, state,
+                                                  validate, flavor)
     return summary

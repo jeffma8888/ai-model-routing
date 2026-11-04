@@ -192,6 +192,17 @@ def _cmd_demo(args) -> int:
     ce, cb = summary["cost_effective"]["cost_usd"], summary["cost_blind"]["cost_usd"]
     if cb > 0:
         print(f"\ncost_effective spent {ce / cb:.0%} of what cost_blind spent")
+    hand_offs = [s["delegation"] for s in summary.values()]
+    print(f"\ninline or sub-agent, a {hand_offs[0]['parent']} parent at "
+          f"{hand_offs[0]['context_tokens']:,} context tokens:")
+    for flavor, d in zip(summary, hand_offs):
+        where = (f"delegate to {d['model']}" if d["mode"] == "delegate"
+                 else f"inline on {d['model']}")
+        delegate = "-" if d["delegate_cost_usd"] is None else f"{d['delegate_cost_usd']:.6f}"
+        print(f"  {flavor + ':':<15} {where} ({d['reason']}), "
+              f"inline {d['inline_cost_usd']:.6f} vs delegate {delegate} USD")
+    print(f"  hand-off calls: {sum(d['hand_off_calls'] for d in hand_offs)}, "
+          f"list-price USD {sum(d['hand_off_cost_usd'] for d in hand_offs):.4f}")
     print(f"log: {Path(args.out) / 'calls.jsonl'}")
     return EXIT_OK
 
