@@ -24,6 +24,7 @@ from .providers import (  # noqa: E402
 from .executor import AllModelsFailed, Attempt, CallResult, Executor, json_validator  # noqa: E402
 from .monitor import Monitor, load_records, report  # noqa: E402
 from .demo import run_demo  # noqa: E402
+from .evaluate import Outcome, evaluate, load_outcomes, outcomes_from_rows, split_items  # noqa: E402
 
 __version__ = "0.1.0"
 
@@ -35,6 +36,7 @@ __all__ = [
     "BELOW_BAR", "PASSES", "Completion", "ProviderError", "Provider", "FakeProvider",
     "OpenAICompatibleProvider", "Attempt", "CallResult", "Executor", "AllModelsFailed",
     "json_validator", "Monitor", "load_records", "report", "run_demo", "main",
+    "Outcome", "outcomes_from_rows", "load_outcomes", "split_items", "evaluate",
 ]
 
 

@@ -84,7 +84,7 @@ pytest -q
 model-routing demo --out ./demo-run
 ```
 
-The demo routes one judge task with fictional `demo/` models and a synthetic 300-item labeled set (seeded, deterministic). It calibrates four judges, selects in both flavors, runs 200 judge calls per flavor with a simulated outage on the primary, and writes `calls.jsonl` and `stats.json`.
+The demo routes one judge task with fictional `demo/` models and a synthetic 300-item labeled set (seeded, deterministic). It calibrates four judges, selects in both flavors, runs 200 judge calls per flavor with a simulated outage on the primary, and writes `calls.jsonl`, `stats.json` and `outcomes.jsonl` (the calibration set as an outcome matrix, used below).
 
 ```text
 $ model-routing demo --out ./demo-run
@@ -126,6 +126,45 @@ cost_effective  200    225       25      0        25              0.125         
 ```
 
 `cost_blind` logs `routing_cost_usd` as 0 because the router ignored price, but `cost_usd` still shows what the calls cost at list price.
+
+### Check the choice on items the router never saw
+
+`model-routing evaluate` takes an outcome matrix (one JSON object per task, item and model, with `correct` and either `cost_usd` or token counts; `DESIGN.md` 12.1), splits each task's items in half by a seeded hash of the item ID, calibrates on one half, routes both flavors through the same `Router.select`, and scores the routed model on the other half next to simple baselines. It repeats this over 10 seeds by default. The demo's `outcomes.jsonl` is a ready input:
+
+```text
+$ model-routing evaluate --outcomes demo-run/outcomes.jsonl --bar 0.85
+bar 0.85, cost_effective
+strategy               success  cost_usd  below_bar_rate  cleared_rate  bar_violation_rate
+---------------------  -------  --------  --------------  ------------  ------------------
+routed                 0.910    0.9620    0.000           1.000         0.000
+oracle                 1.000    0.2063    0.000           -             -
+best_on_calibration    0.954    3.0440    0.000           -             -
+cheapest               0.732    0.0304    1.000           -             -
+model:demo/atlas-max   0.954    3.0440    0.000           -             -
+model:demo/atlas-mid   0.916    0.6088    0.000           -             -
+model:demo/birch-nano  0.732    0.0304    1.000           -             -
+model:demo/birch-pro   0.913    1.2176    0.000           -             -
+
+bar 0.85, cost_blind
+strategy               success  cost_usd  below_bar_rate  cleared_rate  bar_violation_rate
+---------------------  -------  --------  --------------  ------------  ------------------
+routed                 0.954    3.0440    0.000           1.000         0.000
+oracle                 1.000    0.2063    0.000           -             -
+best_on_calibration    0.954    3.0440    0.000           -             -
+cheapest               0.732    0.0304    1.000           -             -
+model:demo/atlas-max   0.954    3.0440    0.000           -             -
+model:demo/atlas-mid   0.916    0.6088    0.000           -             -
+model:demo/birch-nano  0.732    0.0304    1.000           -             -
+model:demo/birch-pro   0.913    1.2176    0.000           -             -
+```
+
+Reading it:
+
+- `routed` held the 0.85 bar on every held-out half in both flavors (`bar_violation_rate` 0.000 over 10 seeds, about 150 held-out items each). `cost_effective` spent about a third of what `cost_blind` spent (0.96 vs 3.04 USD) for about 4.5 points less held-out success
+- `cost_effective` routed to `atlas-mid` on 7 seeds, `birch-pro` on 2 and `atlas-max` on 1, the split where neither cheaper judge's lower bound cleared the bar on its calibration half. `cost_blind` routed to `atlas-max` every time, which is also `best_on_calibration` here
+- `cheapest` (`birch-nano`) is below the bar on every split. `oracle` is right whenever any judge is right and pays the cheapest right judge's price, so it is a bound that per-prompt routing could at most approach, not something task-level routing can reach
+- The routed `cost_effective` success (0.910) is below both judges it mostly picks between (0.916 and 0.913). The two halves are complementary, so a judge that drew a lucky calibration half drew an unlucky held-out half, and the router picks the lucky one. That selection effect is why the bar is a lower bound and why `bar_violation_rate` should be read next to the held-out size, never against zero (`DESIGN.md` 12.3)
+- `success` and `cost_usd` are means over seeds; `below_bar_rate` is the share of (task, seed) cells under the bar; `cleared_rate` and `bar_violation_rate` apply to `routed` only. `--json` prints the full result without per-cell rows, small enough to commit next to the data it came from
 
 ## Calibrate your own task
 
@@ -319,7 +358,8 @@ model_routing/
   executor.py   fallback execution and output validation
   monitor.py    JSONL attempt log and cost reports
   demo.py       offline end-to-end demo
-  cli.py        model-routing select | calibrate | report | demo
+  evaluate.py   offline evaluation on an outcome matrix, held-out split, baselines
+  cli.py        model-routing select | calibrate | report | demo | evaluate
   data/         models.json, priors.json, example_tasks.json
 research/       public evidence behind the defaults
 DESIGN.md       the spec the tests were written from

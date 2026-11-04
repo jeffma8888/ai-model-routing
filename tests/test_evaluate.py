@@ -1,8 +1,7 @@
 """v1.3 offline evaluator contract (DESIGN section 12), written before the module exists.
 
-Every test imports ``model_routing.evaluate`` first, so until it exists each one
-fails with ModuleNotFoundError and the strict xfail below keeps the suite green.
-The implementing commit removes ``pytestmark`` (DESIGN 12.5).
+They were held under a module-level strict xfail until ``evaluate.py`` landed;
+the implementing commit removed that marker (DESIGN 12.5).
 """
 
 import hashlib
@@ -14,10 +13,6 @@ from math import fsum
 import pytest
 
 from model_routing import Model, Registry, Router, Stats, Task, main, wilson_lower_bound
-
-pytestmark = pytest.mark.xfail(
-    strict=True, raises=ModuleNotFoundError,
-    reason="E1b: model_routing.evaluate is specified (DESIGN 12) but not implemented yet")
 
 MODELS = ("fiction/best", "fiction/cheap", "fiction/mid")
 COST = {"fiction/cheap": 0.001, "fiction/mid": 0.01, "fiction/best": 0.1}

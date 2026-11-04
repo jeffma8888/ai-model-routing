@@ -21,7 +21,7 @@ CALIBRATION_ITEMS = 300
 CALLS_PER_FLAVOR = 200
 OUTAGE_RATE = 0.15
 MARKER = ".model-routing-demo"
-OUTPUTS = ("calls.jsonl", "stats.json")
+OUTPUTS = ("calls.jsonl", "stats.json", "outcomes.jsonl")
 
 JUDGES = (
     (Model("demo/atlas-max", "atlas", 10.0, 50.0, 200_000), 0.96),
@@ -63,6 +63,22 @@ def _calibration_rows(rng: random.Random) -> List[dict]:
     return rows
 
 
+def _outcome_lines(calibration_rows: List[dict], task: Task) -> str:
+    """The calibration set as an outcome matrix (DESIGN 11, 12.1); draws no random numbers."""
+    cost = {model.id: model.cost(task.expected_input_tokens, task.expected_output_tokens)
+            for model, _ in JUDGES}
+    seen: Dict[str, int] = {}
+    lines = []
+    for row in calibration_rows:
+        n = seen.get(row["model"], 0)
+        seen[row["model"]] = n + 1
+        lines.append(json.dumps({"task": row["task"], "item": f"item-{n:03d}",
+                                 "model": row["model"],
+                                 "correct": row["prediction"] == row["gold"],
+                                 "cost_usd": cost[row["model"]]}) + "\n")
+    return "".join(lines)
+
+
 def _script(registry: Registry, rng: random.Random, clock: _SimulatedClock,
             state: Dict[str, str]):
     def judge(model_id: str):
@@ -79,16 +95,18 @@ def _script(registry: Registry, rng: random.Random, clock: _SimulatedClock,
 
 
 def run_demo(out_dir: Union[str, Path], seed: int = 7) -> dict:
-    """Run the offline demo and write ``calls.jsonl`` and ``stats.json`` to ``out_dir``.
+    """Run the offline demo; write ``calls.jsonl``, ``stats.json`` and ``outcomes.jsonl``.
 
     Four fictional judges in two families are calibrated on a 300-item
     synthetic labeled set, routed in both flavors, and each flavor runs 200
     judge calls with a simulated outage on a share of the primary's calls.
+    ``outcomes.jsonl`` holds the calibration set as an outcome matrix for
+    ``model-routing evaluate``.
     Returns ``{flavor: {primary, fallbacks, calls, fallback_calls, cost_usd}}``;
     the result is deterministic for a given seed.
 
     An empty marker file ``.model-routing-demo`` records that the folder holds
-    demo output. If ``calls.jsonl`` or ``stats.json`` already exist without
+    demo output. If any of those three files already exists without
     that marker, ``FileExistsError`` is raised and nothing is modified; with
     the marker, the previous demo output is replaced.
     """
@@ -110,8 +128,11 @@ def run_demo(out_dir: Union[str, Path], seed: int = 7) -> dict:
     registry = Registry([model for model, _ in JUDGES] + [GENERATOR_MODEL])
     task = Task(DEMO_TASK, bar=0.85, min_samples=50, expected_input_tokens=1000,
                 expected_output_tokens=200, max_fallbacks=2, timeout_s=30.0)
-    stats = calibrate_from_results(_calibration_rows(rng))
+    calibration_rows = _calibration_rows(rng)
+    stats = calibrate_from_results(calibration_rows)
     stats.save(out / "stats.json")
+    (out / "outcomes.jsonl").write_text(_outcome_lines(calibration_rows, task),
+                                        encoding="utf-8")
     router = Router(registry, {task.name: task}, stats)
 
     clock = _SimulatedClock()

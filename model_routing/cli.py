@@ -1,4 +1,4 @@
-"""Command line interface: ``model-routing select|calibrate|report|demo``."""
+"""Command line interface: ``model-routing select|calibrate|report|demo|evaluate``."""
 
 from __future__ import annotations
 
@@ -62,6 +62,17 @@ def _build_parser() -> argparse.ArgumentParser:
 
     demo = sub.add_parser("demo", help="run the offline demo with fictional models")
     demo.add_argument("--out", default="model-routing-demo")
+
+    ev = sub.add_parser("evaluate",
+                        help="score routing on a held-out split of an outcome matrix")
+    ev.add_argument("--outcomes", required=True)
+    ev.add_argument("--bar", type=float, nargs="+", action="extend", default=None)
+    ev.add_argument("--seeds", type=int, default=10)
+    ev.add_argument("--calibration-fraction", type=float, default=0.5)
+    ev.add_argument("--min-samples", type=int, default=30)
+    ev.add_argument("--confidence", type=float, default=0.95)
+    ev.add_argument("--registry", default=str(DATA_DIR / "models.json"))
+    ev.add_argument("--json", action="store_true")
     return parser
 
 
@@ -161,8 +172,37 @@ def _cmd_demo(args) -> int:
     return EXIT_OK
 
 
+def _cmd_evaluate(args) -> int:
+    from .evaluate import evaluate, load_outcomes
+    if args.seeds < 1:
+        raise ValueError("--seeds must be >= 1")
+    registry = Registry.load(args.registry)
+    result = evaluate(load_outcomes(args.outcomes, registry), bars=args.bar or [0.8],
+                      seeds=range(args.seeds), calibration_fraction=args.calibration_fraction,
+                      min_samples=args.min_samples, confidence=args.confidence)
+    result.pop("cells")
+    if args.json:
+        print(json.dumps(result, indent=2))
+        return EXIT_OK
+
+    def fmt(value):
+        return "-" if value is None else f"{value:.3f}"
+    blocks = []
+    for bar in result["config"]["bars"]:
+        for flavor in result["config"]["flavors"]:
+            rows = [[r["strategy"], fmt(r["success"]), f"{r['cost_usd']:.4f}",
+                     fmt(r["below_bar_rate"]), fmt(r["cleared_rate"]),
+                     fmt(r["bar_violation_rate"])]
+                    for r in result["summary"] if r["bar"] == bar and r["flavor"] == flavor]
+            blocks.append(f"bar {bar}, {flavor}\n" + _table(
+                ["strategy", "success", "cost_usd", "below_bar_rate", "cleared_rate",
+                 "bar_violation_rate"], rows))
+    print("\n\n".join(blocks))
+    return EXIT_OK
+
+
 _COMMANDS = {"select": _cmd_select, "calibrate": _cmd_calibrate,
-             "report": _cmd_report, "demo": _cmd_demo}
+             "report": _cmd_report, "demo": _cmd_demo, "evaluate": _cmd_evaluate}
 
 
 def main(argv: Optional[List[str]] = None) -> int:
