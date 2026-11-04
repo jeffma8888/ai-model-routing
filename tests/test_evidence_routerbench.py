@@ -1,10 +1,10 @@
 """v1.6 RouterBench converter contract (DESIGN 12.6), written before the converter exists.
 
 The converter is a script outside the package (``evidence/routerbench/convert.py``),
-so it is loaded from its path. An autouse fixture loads it before any other test
-code runs; until it exists each test fails with ModuleNotFoundError and the strict
-xfail below keeps the suite green. The implementing commit removes ``pytestmark``.
-Only the tests that build a real frame need pandas; they skip without it.
+so it is loaded from its path by an autouse fixture before any other test code runs.
+The tests were held under a module-level strict xfail until the converter landed;
+the implementing commit removed that marker. Only the tests that build a real frame
+need pandas; they skip without it.
 """
 
 import hashlib
@@ -20,10 +20,6 @@ from pathlib import Path
 import pytest
 
 from model_routing import evaluate, outcomes_from_rows
-
-pytestmark = pytest.mark.xfail(
-    strict=True, raises=ModuleNotFoundError,
-    reason="E2a: evidence/routerbench/convert.py is specified (DESIGN 12.6) but not written yet")
 
 SCRIPT = Path(__file__).resolve().parents[1] / "evidence" / "routerbench" / "convert.py"
 REAL_COLUMNS = [
@@ -178,7 +174,14 @@ def test_dangerous_and_lookalike_globals_are_refused(cv, module, name):
 
 
 def test_an_allowed_global_loads(cv):
-    assert cv.restricted_load(io.BytesIO(pickle.dumps(slice(1, 9, 2), protocol=2))) == slice(1, 9, 2)
+    assert cv.restricted_load(io.BytesIO(pickle.dumps(slice(1, 9, 2), protocol=5))) == slice(1, 9, 2)
+
+
+def test_python2_names_are_not_mapped_onto_allowed_ones(cv):
+    blob = pickle.dumps(slice(1, 9, 2), protocol=2)
+    assert b"__builtin__" in blob
+    with pytest.raises(pickle.UnpicklingError, match="__builtin__"):
+        cv.restricted_load(io.BytesIO(blob))
 
 
 def test_persistent_ids_are_refused(cv):
