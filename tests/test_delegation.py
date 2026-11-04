@@ -740,3 +740,84 @@ def test_cli_no_model_clears_bar_exits_three_with_candidates_on_stderr(tmp_path,
     assert err.startswith("error: ")
     for model_id in ALL_BELOW:
         assert model_id in err
+
+
+# v1.9: the demo's output is a ready input for delegate (DESIGN 11, 13.8)
+
+def demo_args(out, parent, *extra):
+    from model_routing import demo
+    args = ["delegate", demo.DEMO_TASK, "--parent", parent, "--context-tokens", "60000",
+            "--brief-tokens", "400", "--result-tokens", "60", "--generator", demo.GENERATOR]
+    for flag, name in (("--registry", "models.json"), ("--tasks", "tasks.json"),
+                       ("--stats", "stats.json")):
+        args += [flag, str(out / name)]
+    return args + list(extra)
+
+
+def test_demo_writes_its_registry_and_task_and_they_load_back_equal(tmp_path):
+    from model_routing import demo, load_tasks
+    load_dl()
+    out = tmp_path / "demo"
+    demo.run_demo(out)
+    assert {"models.json", "tasks.json"} <= set(demo.OUTPUTS)
+    registry = Registry.load(out / "models.json")
+    assert list(registry.models) == [model for model, _ in demo.JUDGES] + [demo.GENERATOR_MODEL]
+    assert load_tasks(out / "tasks.json") == {demo.DEMO_TASK: Task(
+        demo.DEMO_TASK, bar=0.85, min_samples=50, expected_input_tokens=1000,
+        expected_output_tokens=200, max_fallbacks=2, timeout_s=30.0)}
+
+
+def test_delegate_on_the_demo_output_delegates_from_a_long_session_and_folds_a_short_check(
+        tmp_path, capsys):
+    from model_routing import demo
+    load_dl()
+    out = tmp_path / "demo"
+    demo.run_demo(out)
+    capsys.readouterr()
+    registry = Registry.load(out / "models.json")
+
+    def c(model_id, input_tokens, output_tokens):
+        return registry.get(model_id).cost(input_tokens, output_tokens)
+
+    assert main(demo_args(out, "demo/atlas-max", "--json")) == 0
+    data = json.loads(capsys.readouterr().out)
+    assert (data["mode"], data["model"], data["reason"]) == (
+        "delegate", "demo/atlas-mid", "delegate_cheaper")
+    assert data["inline_cost_usd"] == c("demo/atlas-max", 61_000, 200) + c("demo/atlas-max", 1200, 0)
+    assert data["delegate_cost_usd"] == (c("demo/atlas-max", 0, 400) + c("demo/atlas-mid", 1400, 200)
+                                         + c("demo/atlas-max", 460, 0))
+    assert main(demo_args(out, "demo/atlas-mid", "--json", "--fold-inline")) == 0
+    data = json.loads(capsys.readouterr().out)
+    assert (data["mode"], data["model"], data["reason"]) == (
+        "inline", "demo/atlas-mid", "inline_cheaper")
+    assert data["inline_cost_usd"] == c("demo/atlas-mid", 1000, 200)
+    assert data["delegate_cost_usd"] == (c("demo/atlas-mid", 0, 400) + c("demo/atlas-mid", 1400, 200)
+                                         + c("demo/atlas-mid", 460, 0))
+
+
+@pytest.mark.parametrize("filename", ["models.json", "tasks.json"])
+def test_demo_refuses_a_models_or_tasks_file_it_did_not_write(tmp_path, filename):
+    from model_routing import demo
+    load_dl()
+    out = tmp_path / "demo"
+    out.mkdir()
+    (out / filename).write_text("keep\n", encoding="utf-8")
+    with pytest.raises(FileExistsError, match=filename):
+        demo.run_demo(out)
+    assert sorted(p.name for p in out.iterdir()) == [filename]
+    assert (out / filename).read_text(encoding="utf-8") == "keep\n"
+
+
+def test_readme_shows_an_inline_and_a_delegated_transcript_after_the_demo():
+    from pathlib import Path
+    load_dl()
+    readme = Path(__file__).resolve().parent.parent / "README.md"
+    if not readme.exists():
+        pytest.skip("README.md is not next to the tests")
+    text = readme.read_text(encoding="utf-8")
+    commands = [line.split()[2] for line in re.findall(r"```text\n(\$ model-routing [^\n]*)", text)]
+    assert "demo" in commands and commands.count("delegate") >= 2
+    assert commands.index("demo") < commands.index("delegate")
+    blocks = re.findall(r"```text\n(\$ model-routing delegate [^\n]*\n.*?)```", text, re.S)
+    modes = {m for block in blocks for m in re.findall(r"^mode:\s+(\w+)$", block, re.M)}
+    assert modes == {"inline", "delegate"}
