@@ -1,5 +1,7 @@
 """Executor.call_delegated: run a delegate decision on its route (DESIGN 7, v1.11)."""
 
+from dataclasses import replace
+
 import pytest
 from model_routing import (
     AllModelsFailed, Completion, Executor, FakeProvider, Monitor, ProviderError, Router,
@@ -89,6 +91,8 @@ def test_call_delegated_uses_the_decided_route_without_selecting_again(router, m
     provider = FakeProvider({"fiction/cheap": lambda m: Completion("ok", 10, 2)})
     result = make_executor(router, provider).call_delegated(decision, BRIEF)
     assert result.model == decision.route.primary == "fiction/cheap"
+    monkeypatch.undo()
+    assert router.select("judge").primary != "fiction/cheap"
 
 
 def test_call_delegated_passes_the_timeout_of_the_routers_task(registry, task_factory,
@@ -120,12 +124,14 @@ def test_call_delegated_all_failed_carries_the_route_and_tags(router, make_execu
     order = order_of(decision)
     provider = FakeProvider({model_id: fail() for model_id in order})
     monitor = Monitor()
+    tags = {"suite": "tiny"}
     with pytest.raises(AllModelsFailed) as info:
-        make_executor(router, provider, monitor).call_delegated(decision, BRIEF)
+        make_executor(router, provider, monitor).call_delegated(decision, BRIEF, tags=tags)
+    assert tags == {"suite": "tiny"}
     assert info.value.decision is decision.route
     assert [a.model for a in info.value.attempts] == list(order)
     assert [r["final"] for r in monitor.records] == [False] * (len(order) - 1) + [True]
-    assert all(r["tags"] == {"delegated": "true", "parent": "fiction/best"}
+    assert all(r["tags"] == {"suite": "tiny", "delegated": "true", "parent": "fiction/best"}
                for r in monitor.records)
 
 
@@ -159,9 +165,11 @@ def test_call_delegated_rejects_caller_tags_it_sets_itself(router, make_executor
     decision = delegate_decision(router)
     provider = FakeProvider({})
     monitor = Monitor()
-    with pytest.raises(ValueError, match="delegated|parent"):
+    before = dict(tags)
+    with pytest.raises(ValueError, match="tag names"):
         make_executor(router, provider, monitor).call_delegated(decision, BRIEF, tags=tags)
     assert provider.calls == [] and monitor.records == []
+    assert tags == before
 
 
 def test_call_delegated_unknown_task_in_this_router_raises_keyerror(registry, task_factory,
@@ -173,3 +181,48 @@ def test_call_delegated_unknown_task_in_this_router_raises_keyerror(registry, ta
     with pytest.raises(KeyError):
         make_executor(other, provider).call_delegated(decision, BRIEF)
     assert provider.calls == []
+
+
+def test_call_delegated_below_bar_route_reaches_every_record(registry, task_factory,
+                                                             measured_stats, make_executor):
+    task = task_factory(bar=0.99, on_no_model="best_available")
+    router = Router(registry, {task.name: task}, measured_stats)
+    decision = router.decide_delegation("judge", "fiction/cheap", context_tokens=0,
+                                        brief_tokens=100, result_tokens=20)
+    assert (decision.mode, decision.reason, decision.below_bar) == ("delegate", "none_clear", True)
+    assert decision.route.below_bar is True
+    provider = FakeProvider({decision.route.primary: lambda m: Completion("ok", 10, 2)})
+    monitor = Monitor()
+    make_executor(router, provider, monitor).call_delegated(decision, BRIEF)
+    (record,) = monitor.records
+    assert (record["below_bar"], record["basis"]) == (True, decision.route.basis)
+
+
+def test_call_delegated_refuses_a_delegate_decision_without_a_route(router, make_executor):
+    decision = replace(delegate_decision(router), route=None)
+    provider = FakeProvider({})
+    monitor = Monitor()
+    with pytest.raises(ValueError, match="no route"):
+        make_executor(router, provider, monitor).call_delegated(decision, BRIEF)
+    assert provider.calls == [] and monitor.records == []
+
+
+def test_call_keeps_the_callers_task_key_and_its_order_of_steps(registry, task_factory,
+                                                                measured_stats, monkeypatch):
+    router = Router(registry, {"alias": task_factory()}, measured_stats)
+    log = []
+    real_select = router.select
+
+    def select(*args, **kwargs):
+        log.append("select")
+        return real_select(*args, **kwargs)
+    monkeypatch.setattr(router, "select", select)
+
+    def respond(messages):
+        log.append("provider")
+        raise ProviderError("outage")
+    provider = FakeProvider({m.id: respond for m in registry.models})
+    executor = Executor(router, provider, id_factory=lambda: log.append("id") or "fixed-call")
+    with pytest.raises(AllModelsFailed, match="'alias'"):
+        executor.call("alias", BRIEF)
+    assert log[:3] == ["select", "id", "provider"] and log.count("id") == 1

@@ -302,9 +302,9 @@ if decision.mode == "delegate":
     )
 ```
 
-- Here the parent wrote the answer being checked, so on this `independent_of_generator` task inline is blocked (`parent_not_independent`) and the check goes to a judge from another family
+- Here the parent wrote the answer being checked, so on this `independent_of_generator` task (with stats that admit a judge from another family) inline is blocked (`parent_not_independent`) and the check goes to a judge from another family
 - An inline decision raises `ValueError`, because the parent does that work in its own call; so does a caller tag named `delegated` or `parent`
-- `model-routing report --log calls.jsonl --by tag:delegated` splits the spend between hand-offs and other calls. The parent's share of a hand-off (writing the brief, reading the result) is spent in the parent's own calls, not in these records
+- `model-routing report --log calls.jsonl --by tag:delegated` splits the spend between hand-offs (group `true`) and other calls (group `(none)`). The parent's share of a hand-off (writing the brief, reading the result) is spent in the parent's own calls, not in these records
 
 ## Monitoring and cost attribution
 
