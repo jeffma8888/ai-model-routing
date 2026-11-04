@@ -77,7 +77,7 @@ def cost(router, model_id, input_tokens, output_tokens):
     return router.registry.get(model_id).cost(input_tokens, output_tokens)
 
 
-def inline_cost(router, parent, context=20_000, carry=0, separate=True):
+def inline_cost(router, parent, context=WORK["context_tokens"], carry=0, separate=True):
     if separate:
         return (cost(router, parent, context + S_IN, S_OUT)
                 + (1 + carry) * cost(router, parent, S_IN + S_OUT, 0))
@@ -196,15 +196,32 @@ def test_costs_are_list_price_in_cost_blind_too():
 
 def test_a_large_context_can_make_delegating_to_the_parents_own_model_cheaper():
     router = make_router()
-    decision = decide(router, "fiction/mid")
-    assert (decision.mode, decision.reason) == ("delegate", "delegate_cheaper")
-    assert decision.model == decision.parent == "fiction/mid"
-    assert decision.inline_cost_usd == pytest.approx(0.069 + 0.0075, rel=1e-12)
-    assert decision.delegate_cost_usd == pytest.approx(0.0132, rel=1e-12)
-    folded = decide(router, "fiction/mid", inline_separate_call=False)
+    small = decide(router, "fiction/mid", context_tokens=0, result_tokens=2000)
+    assert (small.mode, small.reason, small.model) == ("inline", "inline_cheaper", "fiction/mid")
+    assert small.route.primary == "fiction/mid"
+    assert small.inline_cost_usd == pytest.approx(0.0165, rel=1e-12)
+    assert small.delegate_cost_usd == pytest.approx(0.0186, rel=1e-12)
+    large = decide(router, "fiction/mid", context_tokens=20_000, result_tokens=2000)
+    assert (large.mode, large.reason) == ("delegate", "delegate_cheaper")
+    assert large.model == large.parent == "fiction/mid"
+    assert large.inline_cost_usd == pytest.approx(0.069 + 0.0075, rel=1e-12)
+    assert large.delegate_cost_usd == small.delegate_cost_usd
+    folded = decide(router, "fiction/mid", context_tokens=20_000, result_tokens=2000,
+                    inline_separate_call=False)
     assert (folded.mode, folded.reason, folded.model) == ("inline", "inline_cheaper", "fiction/mid")
     assert folded.inline_cost_usd == pytest.approx(0.009, rel=1e-12)
-    assert folded.delegate_cost_usd == decision.delegate_cost_usd
+    assert folded.delegate_cost_usd == small.delegate_cost_usd
+
+
+def test_a_short_result_can_make_delegating_to_the_parents_own_model_cheaper_with_no_context():
+    router = make_router()
+    decision = decide(router, "fiction/mid", context_tokens=0)
+    assert (decision.mode, decision.reason) == ("delegate", "delegate_cheaper")
+    assert decision.model == decision.parent == "fiction/mid"
+    assert decision.inline_cost_usd == pytest.approx(0.0165, rel=1e-12)
+    assert decision.delegate_cost_usd == pytest.approx(0.0132, rel=1e-12)
+    folded = decide(router, "fiction/mid", context_tokens=0, inline_separate_call=False)
+    assert (folded.mode, folded.reason) == ("inline", "inline_cheaper")
 
 
 def test_the_parent_context_is_charged_only_in_a_separate_inline_call():
@@ -265,8 +282,7 @@ def test_the_cost_effective_delegate_minimises_delegate_cost_among_passing_model
     assert decision.model == "fiction/cheap"
     for c in decision.route.candidates:
         if c.passes:
-            assert decision.delegate_cost_usd <= delegate_cost(
-                router, "fiction/best", c.model_id) + 1e-15
+            assert decision.delegate_cost_usd <= delegate_cost(router, "fiction/best", c.model_id)
 
 
 # 13.4 and 13.5 row 1: inline blocked, the parent must delegate
@@ -575,9 +591,15 @@ def test_inline_separate_call_must_be_a_bool(value):
 
 
 def test_zero_token_counts_are_allowed():
-    decision = decide(make_router(), "fiction/best", context_tokens=0, brief_tokens=0,
+    router = make_router()
+    decision = decide(router, "fiction/best", context_tokens=0, brief_tokens=0,
                       result_tokens=0, carry_turns=0)
-    assert decision.mode in ("inline", "delegate")
+    assert decision.route.primary == "fiction/mid"
+    assert decision.delegate_cost_usd == delegate_cost(router, "fiction/best", "fiction/mid",
+                                                       brief=0, result=0)
+    assert decision.delegate_cost_usd == pytest.approx(0.009, rel=1e-12)
+    assert decision.inline_cost_usd == pytest.approx(0.03 + 0.025, rel=1e-12)
+    assert (decision.mode, decision.reason) == ("delegate", "delegate_cheaper")
 
 
 def test_unknown_task_parent_or_generator_raise_key_error_and_unknown_flavor_value_error():
@@ -659,6 +681,15 @@ def test_cli_text_prints_one_line_per_key(delegate_files, capsys):
                        ("inline_cost_usd", "0.255000"), ("delegate_cost_usd", "0.020900"),
                        ("parent_quality_lb", "0.946"), ("delegate_quality_lb", "0.888")]:
         assert re.search(rf"^{key}:\s+{re.escape(value)}$", text, re.MULTILINE), key
+
+
+def test_cli_text_fold_inline_prints_the_folded_inline_cost(delegate_files, capsys):
+    load_dl()
+    assert main(delegate_args(delegate_files, "fiction/best", "--fold-inline")) == 0
+    text = capsys.readouterr().out
+    assert [line.split(":", 1)[0] for line in text.splitlines()] == TEXT_KEYS
+    assert re.search(r"^inline_cost_usd:\s+0\.030000$", text, re.MULTILINE)
+    assert re.search(r"^delegate_cost_usd:\s+0\.020900$", text, re.MULTILINE)
 
 
 def test_cli_text_prints_a_dash_for_none(delegate_files, capsys):
