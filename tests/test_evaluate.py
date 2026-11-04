@@ -8,11 +8,12 @@ The implementing commit removes ``pytestmark`` (DESIGN 12.5).
 import hashlib
 import importlib
 import json
+import re
 from math import fsum
 
 import pytest
 
-from model_routing import Registry, Router, Stats, Task, main
+from model_routing import Model, Registry, Router, Stats, Task, main, wilson_lower_bound
 
 pytestmark = pytest.mark.xfail(
     strict=True, raises=ModuleNotFoundError,
@@ -82,6 +83,13 @@ def test_split_matches_the_pinned_sha256_rule():
         assert held_out == tuple(sorted(i for i in EASY if not in_calibration(i, seed)))
         assert calibration and held_out
     assert ev.split_items(EASY, 0) != ev.split_items(EASY, 1)
+
+
+def test_split_known_vector():
+    ev = load_ev()
+    items = list("abcdefghij")
+    assert ev.split_items(items, 0) == (("d", "f", "g", "h"), ("a", "b", "c", "e", "i", "j"))
+    assert ev.split_items(items, 1) == (("a", "b", "d", "e", "f", "g", "i", "j"), ("c", "h"))
 
 
 def test_split_ignores_input_order_and_collapses_duplicates():
@@ -203,7 +211,10 @@ def test_incomplete_matrix_names_the_missing_cell():
     {"bars": []}, {"bars": [1.1]}, {"bars": [-0.1]}, {"seeds": []},
     {"flavors": ()}, {"flavors": ("cheap",)}, {"min_samples": 0},
     {"confidence": 1.0}, {"confidence": 0.0}, {"calibration_fraction": 0.0},
-    {"calibration_fraction": 1.0},
+    {"calibration_fraction": 1.0}, {"bars": [float("nan")]}, {"bars": [True]},
+    {"bars": ["0.8"]}, {"bars": [0.8, 0.8]}, {"seeds": [0, 0]}, {"seeds": [True]},
+    {"seeds": [1.5]}, {"seeds": ["0"]},
+    {"flavors": ("cost_effective", "cost_effective")},
 ], ids=lambda kw: next(iter(kw)) + "=" + repr(next(iter(kw.values()))))
 def test_invalid_arguments_raise_value_error(kwargs):
     ev = load_ev()
@@ -224,7 +235,7 @@ def test_a_split_with_an_empty_side_names_task_and_seed():
     rows = rows_for("tiny", ["only-item"], {m: always(True) for m in MODELS})
     with pytest.raises(ValueError, match="tiny") as info:
         ev.evaluate(ev.outcomes_from_rows(rows), bars=[0.8], seeds=[5])
-    assert "5" in str(info.value)
+    assert re.search(r"\b5\b", str(info.value))
 
 
 # 12.3 evaluate: known answers
@@ -279,7 +290,6 @@ def test_routed_choice_matches_router_select_on_the_calibration_split():
     stats.add("hard", "fiction/cheap", 0, len(calibration))
     stats.add("hard", "fiction/mid", len(calibration), len(calibration))
     stats.add("hard", "fiction/best", len(calibration), len(calibration))
-    from model_routing import Model
     registry = Registry([Model(m, m.split("/")[0], COST[m] * 1_000_000, 0.0, 10 ** 9)
                          for m in MODELS])
     task = Task(name="hard", bar=0.8, min_samples=30, expected_input_tokens=1,
@@ -378,6 +388,86 @@ def test_a_model_that_only_fits_the_calibration_split_is_a_bar_violation():
     assert c["success"]["oracle"] == 1.0
 
 
+def test_bar_violation_rate_counts_cleared_cells_only():
+    # three tasks, one seed: leaky clears and misses, steady clears and holds,
+    # dead never clears and misses; cleared 2/3, violations 1 of the 2 cleared
+    ev = load_ev()
+    leaky = [f"leaky-{i:03d}" for i in range(100)]
+    steady = [f"steady-{i:03d}" for i in range(100)]
+    dead = [f"dead-{i:03d}" for i in range(100)]
+    for items in (leaky, steady):
+        assert sum(in_calibration(i, 0) for i in items) >= 30
+    rows = (rows_for("leaky", leaky, {"fiction/cheap": lambda i: in_calibration(i, 0),
+                                      "fiction/mid": always(True), "fiction/best": always(True)})
+            + rows_for("steady", steady, {m: always(True) for m in MODELS})
+            + rows_for("dead", dead, {m: always(False) for m in MODELS}))
+    result = ev.evaluate(ev.outcomes_from_rows(rows), bars=[0.8], seeds=[0],
+                         flavors=("cost_effective",))
+    assert [cell(result, 0.8, "cost_effective", 0, t)["cleared"]
+            for t in ("dead", "leaky", "steady")] == [False, True, True]
+    routed = row(result["summary"], strategy="routed")
+    assert routed["cleared_rate"] == pytest.approx(2 / 3)
+    assert routed["bar_violation_rate"] == 0.5
+    assert routed["below_bar_rate"] == pytest.approx(2 / 3)
+    per = {t: row(result["per_task"], task=t, strategy="routed") for t in ("dead", "leaky", "steady")}
+    assert (per["dead"]["cleared_rate"], per["dead"]["bar_violation_rate"]) == (0.0, None)
+    assert per["dead"]["below_bar_rate"] == 1.0
+    assert (per["leaky"]["cleared_rate"], per["leaky"]["bar_violation_rate"]) == (1.0, 1.0)
+    assert (per["steady"]["cleared_rate"], per["steady"]["bar_violation_rate"]) == (1.0, 0.0)
+
+
+def test_routing_cost_is_the_mean_calibration_cost():
+    # cheap costs little on seed-0 calibration items and a lot on held-out ones:
+    # ranking by its overall mean would pick mid, ranking by calibration mean picks cheap
+    ev = load_ev()
+    items = [f"varied-{i:03d}" for i in range(100)]
+    rows = rows_for("varied", items, {m: always(True) for m in MODELS})
+    for r in rows:
+        if r["model"] == "fiction/cheap":
+            r["cost_usd"] = 0.001 if in_calibration(r["item"], 0) else 1.0
+    held = [i for i in items if not in_calibration(i, 0)]
+    result = ev.evaluate(ev.outcomes_from_rows(rows), bars=[0.8], seeds=[0],
+                         flavors=("cost_effective",))
+    c = cell(result, 0.8, "cost_effective", 0, "varied")
+    assert c["models"]["routed"] == "fiction/cheap"
+    assert c["models"]["cheapest"] == "fiction/cheap"
+    assert c["models"]["best_on_calibration"] == "fiction/cheap"
+    assert c["cost_usd"]["routed"] == pytest.approx(len(held) * 1.0)
+    assert c["cost_usd"]["oracle"] == pytest.approx(len(held) * 0.01)
+
+
+def test_ties_break_by_model_id():
+    ev = load_ev()
+    rows = [{"task": "tie", "item": f"tie-{i:03d}", "model": m, "correct": True, "cost_usd": 0.01}
+            for i in range(100) for m in ("fiction/b", "fiction/a")]
+    result = ev.evaluate(ev.outcomes_from_rows(rows), bars=[0.8], seeds=[0],
+                         flavors=("cost_effective",))
+    c = cell(result, 0.8, "cost_effective", 0, "tie")
+    assert c["models"] == {"routed": "fiction/a", "best_on_calibration": "fiction/a",
+                           "cheapest": "fiction/a"}
+
+
+def test_confidence_reaches_the_admission_rule():
+    ev = load_ev()
+    n = sum(in_calibration(i, 0) for i in EASY)
+    bar = (wilson_lower_bound(n, n, 0.95) + wilson_lower_bound(n, n, 0.99)) / 2
+    rows = rows_for("easy", EASY, {m: always(True) for m in MODELS})
+    loose = ev.evaluate(ev.outcomes_from_rows(rows), bars=[bar], seeds=[0], confidence=0.95)
+    tight = ev.evaluate(ev.outcomes_from_rows(rows), bars=[bar], seeds=[0], confidence=0.99)
+    assert cell(loose, bar, "cost_effective", 0, "easy")["cleared"] is True
+    assert cell(tight, bar, "cost_effective", 0, "easy")["cleared"] is False
+    assert tight["config"]["confidence"] == 0.99
+
+
+def test_calibration_fraction_reaches_the_split():
+    ev = load_ev()
+    result = ev.evaluate(ev.outcomes_from_rows(known_rows()), bars=[0.8], seeds=[0],
+                         calibration_fraction=0.2)
+    c = cell(result, 0.8, "cost_effective", 0, "easy")
+    assert c["calibration_items"] == sum(in_calibration(i, 0, 0.2) for i in EASY)
+    assert result["config"]["calibration_fraction"] == 0.2
+
+
 def test_no_model_clears_serves_best_available_and_is_not_a_violation():
     # 100% on about 50 calibration items has a Wilson lower bound near 0.93, below 0.99
     ev = load_ev()
@@ -434,8 +524,20 @@ def test_cli_json_matches_the_api_without_cells(tmp_path, capsys):
     expected = ev.evaluate(ev.load_outcomes(path), bars=[0.8, 0.9], seeds=range(2))
     expected = json.loads(json.dumps(expected))
     assert out["config"] == expected["config"]
+    assert out["tasks"] == expected["tasks"]
     assert out["summary"] == expected["summary"]
     assert out["per_task"] == expected["per_task"]
+
+
+def test_cli_multi_value_bar_and_admission_options_reach_config(tmp_path, capsys):
+    load_ev()
+    path = write_jsonl(tmp_path / "outcomes.jsonl", known_rows())
+    code = main(["evaluate", "--outcomes", str(path), "--bar", "0.8", "0.9", "--seeds", "1",
+                 "--min-samples", "20", "--confidence", "0.9", "--json"])
+    out = json.loads(capsys.readouterr().out)
+    assert code == 0
+    assert out["config"]["bars"] == [0.8, 0.9]
+    assert (out["config"]["min_samples"], out["config"]["confidence"]) == (20, 0.9)
 
 
 def test_cli_table_names_every_flavor_and_strategy(tmp_path, capsys):
@@ -458,8 +560,11 @@ def test_cli_prices_token_rows_with_the_registry_option(tmp_path, capsys, cli_fi
                  "--registry", str(cli_files["registry"])])
     out = json.loads(capsys.readouterr().out)
     assert code == 0
+    # conftest registry: cheap 1.0, mid 3.0 USD per 1M input tokens, so 0.001 and 0.003 a call
+    held_easy = sum(not in_calibration(i, 0) for i in EASY)
+    held_hard = sum(not in_calibration(i, 0) for i in HARD)
     effective = row(out["summary"], flavor="cost_effective", strategy="routed")
-    assert effective["cost_usd"] > 0
+    assert effective["cost_usd"] == pytest.approx(held_easy * 0.001 + held_hard * 0.003)
 
 
 @pytest.mark.parametrize("case", ["missing-file", "bad-row", "incomplete", "bar", "seeds",
