@@ -114,6 +114,7 @@ Then slice the log:
 ```text
 $ model-routing report --log demo-run/calls.jsonl --by flavor
 flavor          calls  attempts  errors  invalid  fallback_calls  fallback_rate  cost_usd  routing_cost_usd  p50_ms  p95_ms
+--------------  -----  --------  ------  -------  --------------  -------------  --------  ----------------  ------  ------
 cost_blind      200    230       30      0        30              0.150          3.379358  0.000000          1497.4  2368.0
 cost_effective  200    225       25      0        25              0.125          0.864982  0.864982          1425.5  2376.7
 ```
