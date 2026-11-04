@@ -41,9 +41,9 @@ flowchart TD
     C -- yes --> X[Ineligible]
     C -- no --> D{Context window fits the task?}
     D -- no --> X
-    D -- yes --> E{At least min_samples gold-labeled trials?}
+    D -- yes --> E{At least min_samples labeled trials?}
     E -- no --> P[Eligible, not admitted: cold start only]
-    E -- yes --> F{"Wilson lower bound of agreement >= bar?"}
+    E -- yes --> F{"Wilson lower bound of success rate >= bar?"}
     F -- no --> P
     F -- yes --> G[Admitted]
     G --> H[Rank admitted models by flavor]
@@ -69,7 +69,7 @@ A model is admitted for a task only when the lower end of a two-sided Wilson sco
 
 ### Rules that protect quality
 
-- **Generator isolation, for tasks that check another model's output.** When a judge, reviewer or verifier call names the model that produced the output it checks (`generator_model`), the router excludes that model and its family. Self-preference in LLM judges is well documented (see [research/prior-art.md](research/prior-art.md)), so this is on by default. It has no effect when no generator is named, and the non-judge example tasks set `independent_of_generator` to `false` to say so
+- **Generator isolation, for tasks that check another model's output.** When a judge, reviewer or verifier call names the model that produced the output it checks (`generator_model`), the router excludes that model and its family while the task's `independent_of_generator` is on (the default). Self-preference in LLM judges is well documented (see [research/prior-art.md](research/prior-art.md)), so this is on by default. It has no effect when no generator is named, and the non-judge example tasks set `independent_of_generator` to `false` to say so
 - **Priors never admit.** Leaderboard scores (`model_routing/data/priors.json`) only order candidates when nothing has been measured, and tell you which models to calibrate first. A leaderboard score is not a success rate on your task
 - **Every decision explains itself.** Each candidate carries a reason code (`excluded_model`, `excluded_family`, `generator`, `generator_family`, `context_too_small`, `insufficient_samples`, `below_bar`, `passes`), its measured counts and lower bound, and the decision says whether it rests on measurements or priors (`basis`) and whether it is below the bar
 
@@ -291,7 +291,7 @@ What this does and does not tell you:
 
 Routing on cost and quality, fallbacks and spend attribution are standard. FrugalGPT and RouteLLM route per prompt, gateways such as LiteLLM, Portkey and OpenRouter handle fallback and per-tag spend, and excluding the generator from judging follows directly from the self-preference literature. What this library adds is small and specific:
 
-- **A per-task admission rule.** A candidate must clear the task's agreement bar with a Wilson lower bound over at least `min_samples` gold-labeled trials before it can be chosen, and leaderboard numbers can only order candidates, never admit them. The surveyed routers optimize an expected tradeoff or a per-prompt prediction; none of the ones opened gate on a conservative bound with a minimum sample count per task
+- **A per-task admission rule.** A candidate must clear the task's bar on success rate with a Wilson lower bound over at least `min_samples` labeled trials before it can be chosen, and leaderboard numbers can only order candidates, never admit them. The surveyed routers optimize an expected tradeoff or a per-prompt prediction; none of the ones opened gate on a conservative bound with a minimum sample count per task
 - **Repeated task types as the unit, in any domain,** with judge and eval calls (and generator isolation) as the first-class case, rather than individual end-user prompts
 - **Two flavors on one pipeline,** so a team that chooses quality over cost still sees what it spends
 
@@ -300,7 +300,7 @@ Full survey with sources and dates: [research/prior-art.md](research/prior-art.m
 ## Limitations and non-goals (v1)
 
 - Routes per task, not per prompt. No difficulty prediction or confidence-based cascade
-- Agreement is measured as is. Position and verbosity bias present in your calibration set flow into the measured rate; the library does not debias the judge
+- The success rate is measured as is. Position and verbosity bias in a judge's calibration set flow into the measured rate; the library does not debias the judge
 - No online drift detection. Re-calibrate from audited samples on a schedule, and when a provider ships a new model version
 - No budgets, alerts, async execution or streaming. The OpenAI-compatible adapter covers gateways; there are no native vendor SDK adapters
 - Prices are a dated snapshot. Refresh `models.json` yourself, and check that the model your gateway actually serves matches the ID you calibrated

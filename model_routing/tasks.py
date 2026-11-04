@@ -16,7 +16,8 @@ ON_NO_MODEL_CHOICES = ("refuse", "best_available")
 class Task:
     """A routing task.
 
-    ``bar`` is the minimum acceptable agreement with gold labels, judged on
+    ``bar`` is the minimum acceptable success rate against the task's
+    acceptance check (for a judge, agreement with gold labels), judged on
     the Wilson lower bound at ``confidence``. Invalid values raise
     ``ValueError`` at construction.
     """

@@ -34,8 +34,8 @@ class _Parser(argparse.ArgumentParser):
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = _Parser(prog="model-routing",
-                     description="Route judge calls to the cheapest model that clears a "
-                                 "measured bar, or the best one.")
+                     description="Route each repeated kind of model call to the cheapest "
+                                 "model that clears a measured bar, or the best one.")
     sub = parser.add_subparsers(dest="command", parser_class=_Parser)
     sub.required = True
 

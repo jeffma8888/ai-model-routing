@@ -192,6 +192,42 @@ def test_every_packaged_task_routes_in_both_flavors():
         assert router.select(name, flavor="cost_effective").primary == cheapest.id
 
 
+def test_new_task_bars_are_reachable_exactly_at_min_samples():
+    from model_routing import Router, Stats
+    registry = Registry.load(DATA_DIR / "models.json")
+    tasks = load_tasks(DATA_DIR / "example_tasks.json")
+    model = registry.models[0].id
+    for name in NON_JUDGE_TASKS:
+        n = tasks[name].min_samples
+        short = Stats()
+        short.add(name, model, n - 1, n - 1)
+        candidates = _candidates_or_refusal(Router(registry, tasks, short), name)
+        assert {c.model_id: c.reason for c in candidates}[model] == "insufficient_samples"
+        full = Stats()
+        full.add(name, model, n, n)
+        decision = Router(registry, tasks, full).select(name)
+        assert {c.model_id: c.reason for c in decision.candidates}[model] == "passes"
+        assert decision.primary == model
+
+
+def _candidates_or_refusal(router, name):
+    from model_routing import NoModelClearsBar
+    try:
+        return router.select(name).candidates
+    except NoModelClearsBar as exc:
+        return exc.candidates
+
+
+def test_judge_task_isolation_is_a_no_op_without_a_generator():
+    from model_routing import Router
+    registry = Registry.load(DATA_DIR / "models.json")
+    tasks = load_tasks(DATA_DIR / "example_tasks.json")
+    assert tasks["faithfulness_judge"].independent_of_generator is True
+    decision = Router(registry, tasks, _all_passing_stats(tasks, registry)).select(
+        "faithfulness_judge")
+    assert all(c.reason == "passes" for c in decision.candidates)
+
+
 def test_non_judge_task_does_not_exclude_the_generator_family():
     from model_routing import Router
     registry = Registry.load(DATA_DIR / "models.json")

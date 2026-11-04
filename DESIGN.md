@@ -49,7 +49,7 @@ tests/            owned by the QA author; the implementer never edits it
   - `bar: float` (required, in [0, 1]; the minimum acceptable success rate against the task's acceptance check, for a judge its agreement with gold labels)
   - `min_samples: int = 30` (fewer measured trials than this can never clear the bar)
   - `confidence: float = 0.95`
-  - `independent_of_generator: bool = True` (when a call checks another model's output and the caller names that model as `generator_model`, exclude the generator's model AND its family; it has no effect when no `generator_model` is given, so tasks that check nothing may leave it at the default or set it to `false` to document intent)
+  - `independent_of_generator: bool = True` (exclude the generator's model AND its family when the caller names a `generator_model`; no effect otherwise)
   - `exclude_families: tuple[str, ...] = ()`
   - `expected_input_tokens: int = 1000`, `expected_output_tokens: int = 200`
   - `on_no_model: str = "refuse"` (or `"best_available"`)
@@ -150,7 +150,7 @@ The constructor stores its arguments as attributes `.registry`, `.tasks`, `.stat
 ## 9. Data files
 - `model_routing/data/models.json`: `{"version": str, "as_of": "YYYY-MM-DD", "currency": "USD", "models": [{"id", "family", "price_in", "price_out", "context_window", "source"}]}`; IDs are provider-neutral (`vendor/model-name`); map them to a provider's IDs with `aliases`; extra keys such as `notes` are allowed and ignored by `Registry.load`; `aliases` is optional
 - `model_routing/data/priors.json`: format in 4.4; each category cites one public leaderboard with its date
-- `model_routing/data/example_tasks.json`: three judge tasks (`faithfulness_judge`, `code_correctness_judge`, `pairwise_preference_judge`) whose generator-independence and bars are realistic, and, from v1.2, three non-judge tasks from different domains that check nothing and so set `independent_of_generator` to `false`: `support_ticket_triage` (classification), `invoice_field_extraction` (structured extraction) and `unit_test_codegen` (code generation, accepted when the generated tests pass). Every packaged task routes in both flavors against the packaged registry once its candidates have passing stats
+- `model_routing/data/example_tasks.json`: three judge tasks (`faithfulness_judge`, `code_correctness_judge`, `pairwise_preference_judge`) whose generator-independence and bars are realistic, and, from v1.2, three non-judge tasks from different domains that check no other model's output and set `independent_of_generator` to `false` to document that intent: `support_ticket_triage` (classification), `invoice_field_extraction` (structured extraction) and `unit_test_codegen` (code generation, accepted when the generated tests pass). For `invoice_field_extraction` an item is accepted only when every field matches exactly, which is why its bar is 0.95. `support_ticket_triage` uses `professional_writing` as the closest packaged prior; priors only order cold-start candidates (4.4). Every packaged task routes in both flavors against the packaged registry once its candidates have passing stats
 
 ## 10. CLI (`model-routing`, entry point `model_routing.cli:main(argv=None) -> int`)
 - `select TASK [--flavor cost_effective|cost_blind] [--generator MODEL] [--exclude MODEL ...] [--registry PATH] [--tasks PATH] [--stats PATH] [--priors PATH] [--json]`
