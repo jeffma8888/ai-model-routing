@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Callable, Dict, Iterable, List, Optional, Tuple
 
+from .delegation import DELEGATE
 from .providers import Provider, ProviderError
 from .router import RouteDecision, Router
 
@@ -81,10 +82,34 @@ class Executor:
         decision = self.router.select(task_name, flavor=flavor,
                                       generator_model=generator_model,
                                       exclude_models=exclude_models)
-        task = self.router.tasks[task_name]
+        return self._execute(decision, messages, dict(tags or {}), validate)
+
+    def call_delegated(self, decision, messages: List[dict],
+                       tags: Optional[Dict[str, str]] = None,
+                       validate: Optional[Callable[[str], object]] = None) -> CallResult:
+        """Run the hand-off of a ``delegate`` :class:`DelegationDecision` on its route.
+
+        ``messages`` is the brief. The route is used as decided, with fallback and
+        validation as in :meth:`call`; every record is tagged ``delegated`` and
+        ``parent``. An inline decision, or a caller tag with either name, raises
+        ``ValueError`` before any call (DESIGN 7, v1.11).
+        """
+        if decision.mode != DELEGATE:
+            raise ValueError(f"decision mode is {decision.mode!r}: inline work happens in the "
+                             f"parent's own call, so there is no hand-off to run")
+        call_tags = dict(tags or {})
+        reserved = sorted(key for key in ("delegated", "parent") if key in call_tags)
+        if reserved:
+            raise ValueError(f"tags {reserved} are set by call_delegated; pass other names")
+        call_tags["delegated"] = "true"
+        call_tags["parent"] = decision.parent
+        return self._execute(decision.route, messages, call_tags, validate)
+
+    def _execute(self, decision: RouteDecision, messages: List[dict], call_tags: Dict[str, str],
+                 validate: Optional[Callable[[str], object]]) -> CallResult:
+        task = self.router.tasks[decision.task]
         registry = self.router.registry
         call_id = self.id_factory()
-        call_tags = dict(tags or {})
         order = (decision.primary, *decision.fallbacks)
         attempts: List[Attempt] = []
         for index, model_id in enumerate(order):
@@ -115,7 +140,7 @@ class Executor:
             if text is not None:
                 return CallResult(call_id, text, model_id, tuple(attempts), decision)
         raise AllModelsFailed(
-            f"all {len(attempts)} routed models failed for task {task_name!r}",
+            f"all {len(attempts)} routed models failed for task {decision.task!r}",
             tuple(attempts), decision)
 
     def _record(self, call_id: str, decision: RouteDecision, registry, index: int,

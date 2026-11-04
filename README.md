@@ -287,6 +287,25 @@ print(result.model, result.text)
 - It falls back on a `ProviderError` (timeout, rate limit, 5xx, unparseable response) or when `validate` rejects the output; any other exception is a bug and propagates
 - Every attempt, including the failed ones, is logged; if all of them fail it raises `AllModelsFailed` with the attempts attached
 
+To act on an [inline or sub-agent](#inline-or-sub-agent) decision, run the hand-off with `call_delegated`. It sends the brief to the route the decision was made with, falls back and validates as `call` does, and tags every attempt `delegated` and `parent`:
+
+```python
+decision = router.decide_delegation(
+    "faithfulness_judge", "openai/gpt-6.1-sol", "cost_effective",
+    context_tokens=60_000, brief_tokens=400, result_tokens=60,
+    generator_model="openai/gpt-6.1-sol",
+)
+if decision.mode == "delegate":
+    result = executor.call_delegated(
+        decision, messages=[{"role": "user", "content": "..."}],
+        tags={"team": "search-quality"},
+    )
+```
+
+- Here the parent wrote the answer being checked, so on this `independent_of_generator` task inline is blocked (`parent_not_independent`) and the check goes to a judge from another family
+- An inline decision raises `ValueError`, because the parent does that work in its own call; so does a caller tag named `delegated` or `parent`
+- `model-routing report --log calls.jsonl --by tag:delegated` splits the spend between hand-offs and other calls. The parent's share of a hand-off (writing the brief, reading the result) is spent in the parent's own calls, not in these records
+
 ## Monitoring and cost attribution
 
 Each attempt is one JSON line with the task, flavor, model, family, attempt index, outcome, latency, tokens, list-price `cost_usd`, `routing_cost_usd` (0 in `cost_blind`), `below_bar`, `basis` and your tags. Roll it up any way you need:
