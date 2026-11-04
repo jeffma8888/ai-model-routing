@@ -5,6 +5,7 @@ Route every repeated kind of model call (ticket triage, field extraction, code g
 - Python 3.10+, standard library only, about 2,100 lines you can read in an afternoon
 - Works with any OpenAI-compatible endpoint (vendor APIs, gateways, local servers) or your own provider class
 - Ships with a fully offline demo, so you can see the whole loop without an API key
+- Tested on public data that already holds each model's answers, correctness and cost, so no API key is needed: see [Evidence](#evidence-held-out-results-on-public-data)
 - Also decides whether an agent should do one piece of work itself or hand it to a sub-agent on the routed model (`model-routing delegate`), in both flavors
 
 ## Why route per task
@@ -304,6 +305,61 @@ for row in report(monitor.records, by="tag:team"):
 - Costs and token counts are summed per attempt, so a failed attempt that still burned tokens is charged to the model that burned them
 - Call counts, failures and the fallback rate are attributed by each call's final attempt
 - Latency percentiles are nearest-rank over successful attempts
+
+## Evidence: held-out results on public data
+
+Each dataset here already holds every model's answer, a correctness label and the cost of each call, so the router is tested offline with no API key: for each task and seed, calibrate on one half of the items, route at a bar, and score the routed model on the other half, next to fixed baselines (`model-routing evaluate`, `DESIGN.md` 12). The test suite rebuilds every number in these tables from the committed results file, so they cannot drift from it.
+
+### RouterBench
+
+- Dataset: [withmartian/routerbench](https://huggingface.co/datasets/withmartian/routerbench) on Hugging Face, pinned at revision [`7840214`](https://huggingface.co/datasets/withmartian/routerbench/tree/784021482c3f320c6619ed4b3bb3b41a21424fcb), file `routerbench_0shot.pkl`, checked by size and sha256 before it is loaded
+- Licence: the [RouterBench code](https://github.com/withmartian/routerbench) is MIT licensed; the dataset card states no licence for the data. This repo commits no part of the dataset, only numbers derived from it
+- What was run: 11 models, 65 evals (57 of them MMLU subjects), 28,281 prompts, 50 seeds; each eval is one task, split in half per seed and routed at bars 0.6 to 0.9 in both flavors
+- Full results with per-eval rows: [RESULTS.md](evidence/routerbench/RESULTS.md) and [results.json](evidence/routerbench/results.json); source, safety checks and what the converter drops: [evidence/routerbench/README.md](evidence/routerbench/README.md)
+
+Held-out success is the share of held-out prompts answered correctly over all evals, and cost is the recorded cost of answering them, both averaged over the seeds. The two ratios divide that cost by the cost of the best single model and of the cheapest model in the baseline table. Cleared rate is the share of (eval, seed) cells where some model cleared the bar on the calibration half; bar-violation rate is the share of cleared cells whose held-out success fell below the bar.
+
+| Bar | Flavor | Held-out success | Cost (USD) | Cost / best single model | Cost / cheapest model | Cleared rate | Bar-violation rate |
+|---|---|---|---|---|---|---|---|
+| 0.6 | `cost_effective` | 0.735 | 8.9478 | 0.341 | 19.2 | 0.804 | 0.013 |
+| 0.6 | `cost_blind` | 0.819 | 25.2675 | 0.963 | 54.2 | 0.804 | 0.004 |
+| 0.7 | `cost_effective` | 0.761 | 11.7482 | 0.448 | 25.2 | 0.616 | 0.032 |
+| 0.7 | `cost_blind` | 0.819 | 25.2675 | 0.963 | 54.2 | 0.616 | 0.010 |
+| 0.8 | `cost_effective` | 0.808 | 23.2560 | 0.886 | 49.9 | 0.371 | 0.031 |
+| 0.8 | `cost_blind` | 0.819 | 25.2675 | 0.963 | 54.2 | 0.371 | 0.016 |
+| 0.9 | `cost_effective` | 0.819 | 24.9963 | 0.953 | 53.6 | 0.111 | 0.022 |
+| 0.9 | `cost_blind` | 0.819 | 25.2675 | 0.963 | 54.2 | 0.111 | 0.022 |
+
+| Baseline | Held-out success | Cost (USD) |
+|---|---|---|
+| Per-prompt oracle: on each prompt, the cheapest model that got it right | 0.959 | 1.9634 |
+| Best single model (`openai/gpt-4-1106-preview`) | 0.821 | 26.2358 |
+| Best model on the calibration half, per eval | 0.819 | 25.0029 |
+| Cheapest model on the calibration half, per eval | 0.276 | 0.4662 |
+
+Reading it:
+
+- `cost_effective` buys the cheapest model that clears the bar on each eval, not the best answer. At the lower bars it gives up held-out success for a large cut in cost; as the bar rises, fewer evals clear it, the router falls back to the best available model on the rest, and its cost approaches that of the best single model
+- `cost_blind` routes each eval to the model with the highest lower bound, so at every bar its held-out success is level with that of the best model on the calibration half
+- The bar-violation rate is a resampling estimate for this matrix, to be read next to the nominal one-sided 0.025 of a 95% Wilson bound on one model, never as a guarantee (`DESIGN.md` 12.3, "Reading the numbers")
+- The per-prompt oracle is a hindsight bound. Routing per task gets nowhere near it
+
+Limits:
+
+- The models date from 2023, and the costs are the ones the dataset recorded at that time's prices, not today's list prices
+- Routing here is per task (one eval), not per prompt
+- Most evals are MMLU subjects (count above), so the overall rows mostly measure MMLU
+- Only evals scored 0 or 1 are kept by default, which drops graded evals such as `grade-school-math`; RESULTS.md has a sensitivity run that keeps them at a stated pass score
+
+Regenerate (about 70 seconds for the evaluate step on one laptop core; the dataset downloads into a cache folder outside the repo):
+
+```bash
+python -m pip install -e ".[evidence]"
+python evidence/routerbench/convert.py --out routerbench-matrix.jsonl
+model-routing evaluate --outcomes routerbench-matrix.jsonl --bar 0.6 0.7 0.8 0.9 --seeds 50 --json > routerbench-evaluate.json
+python evidence/routerbench/results.py --evaluate routerbench-evaluate.json --out evidence/routerbench/results.json
+python evidence/routerbench/results.py --table evidence/routerbench/results.json
+```
 
 ## What the public evidence says (October 2026)
 

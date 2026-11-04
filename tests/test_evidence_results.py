@@ -18,6 +18,7 @@ import pytest
 from model_routing import evaluate, outcomes_from_rows
 
 FOLDER = Path(__file__).resolve().parents[1] / "evidence" / "routerbench"
+README = Path(__file__).resolve().parents[1] / "README.md"
 SCRIPT = FOLDER / "results.py"
 TABLE_COMMAND = ("$ python evidence/routerbench/results.py --table "
                  "evidence/routerbench/results.json")
@@ -290,3 +291,75 @@ def test_results_md_shows_the_table_of_the_committed_results(rs):
     results = json.loads((FOLDER / "results.json").read_text(encoding="utf-8"))
     block = "```text\n" + TABLE_COMMAND + "\n" + rs.table(results) + "\n```\n"
     assert block in (FOLDER / "RESULTS.md").read_text(encoding="utf-8")
+
+
+def load_convert():
+    spec = importlib.util.spec_from_file_location("routerbench_convert", FOLDER / "convert.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def readme_tables(results):
+    """The two RouterBench tables of the README evidence section (DESIGN 12.8, v1.10)."""
+    config = results["config"]
+    rows = {(r["bar"], r["flavor"], r["strategy"]): r for r in results["summary"]}
+    first = (config["bars"][0], config["flavors"][0])
+    models = [r for (bar, flavor, strategy), r in rows.items()
+              if (bar, flavor) == first and strategy.startswith("model:")]
+    best = min(models, key=lambda r: (-r["success"], r["cost_usd"], r["strategy"]))
+    cheapest = rows[first + ("cheapest",)]
+    lines = ["| Bar | Flavor | Held-out success | Cost (USD) | Cost / best single model "
+             "| Cost / cheapest model | Cleared rate | Bar-violation rate |",
+             "|---|---|---|---|---|---|---|---|"]
+    for bar in config["bars"]:
+        for flavor in config["flavors"]:
+            r = rows[(bar, flavor, "routed")]
+            lines.append(f"| {bar} | `{flavor}` | {r['success']:.3f} | {r['cost_usd']:.4f} "
+                         f"| {r['cost_usd'] / best['cost_usd']:.3f} "
+                         f"| {r['cost_usd'] / cheapest['cost_usd']:.1f} "
+                         f"| {r['cleared_rate']:.3f} | {r['bar_violation_rate']:.3f} |")
+    baselines = [
+        ("Per-prompt oracle: on each prompt, the cheapest model that got it right", "oracle"),
+        (f"Best single model (`{best['strategy'][len('model:'):]}`)", best["strategy"]),
+        ("Best model on the calibration half, per eval", "best_on_calibration"),
+        ("Cheapest model on the calibration half, per eval", "cheapest")]
+    lines += ["", "| Baseline | Held-out success | Cost (USD) |", "|---|---|---|"]
+    for label, strategy in baselines:
+        r = rows[first + (strategy,)]
+        lines.append(f"| {label} | {r['success']:.3f} | {r['cost_usd']:.4f} |")
+    return "\n".join(lines) + "\n"
+
+
+def test_readme_evidence_tables_are_the_committed_results():
+    results = json.loads((FOLDER / "results.json").read_text(encoding="utf-8"))
+    readme = README.read_text(encoding="utf-8")
+    assert "\n## Evidence: held-out results on public data\n" in readme
+    section = readme.split("\n## Evidence: held-out results on public data\n", 1)[1]
+    section = section.split("\n## ", 1)[0]
+    assert "\n### RouterBench\n" in section
+    assert "\n" + readme_tables(results) in section
+    tasks = results["tasks"]
+    models = {m for t in tasks.values() for m in t["models"]}
+    mmlu = sum(1 for task in tasks if task.startswith("mmlu"))
+    items = sum(t["items"] for t in tasks.values())
+    counts = (f"{len(models)} models, {len(tasks)} evals ({mmlu} of them MMLU subjects), "
+              f"{items:,} prompts, {len(results['config']['seeds'])} seeds")
+    assert counts in section
+
+
+def test_readme_evidence_links_source_revision_results_and_commands():
+    readme = README.read_text(encoding="utf-8")
+    section = readme.split("\n## Evidence: held-out results on public data\n", 1)[1]
+    section = section.split("\n## ", 1)[0]
+    revision = load_convert().REVISION
+    for needle in ("https://huggingface.co/datasets/withmartian/routerbench",
+                   f"https://huggingface.co/datasets/withmartian/routerbench/tree/{revision}",
+                   "https://github.com/withmartian/routerbench",
+                   "(evidence/routerbench/RESULTS.md)", "(evidence/routerbench/results.json)",
+                   "(evidence/routerbench/README.md)"):
+        assert needle in section, needle
+    results_md = (FOLDER / "RESULTS.md").read_text(encoding="utf-8")
+    regenerate = results_md.split("## Regenerate\n\n```bash\n", 1)[1].split("```", 1)[0]
+    assert regenerate.count("\n") == 5
+    assert "```bash\n" + regenerate + "```" in section
