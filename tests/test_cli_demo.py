@@ -150,17 +150,22 @@ def test_run_demo_is_deterministic_and_cost_effective_is_cheaper(tmp_path):
     assert set(first) == {"cost_effective", "cost_blind"}
     assert first["cost_effective"]["cost_usd"] < first["cost_blind"]["cost_usd"]
     for flavor, summary in first.items():
-        assert set(summary) == {"primary", "fallbacks", "calls", "fallback_calls", "cost_usd"}
+        assert set(summary) == {"primary", "fallbacks", "calls", "fallback_calls", "cost_usd",
+                                "delegation"}
         assert summary["primary"].startswith("demo/")
         assert all(model.startswith("demo/") for model in summary["fallbacks"])
         assert summary["calls"] == 200
         assert 0 < summary["fallback_calls"] < 200
         assert summary["cost_usd"] > 0
     for directory in (tmp_path / "one", tmp_path / "two"):
-        records = load_records(directory / "calls.jsonl")
+        # v1.12: the hand-off records tagged delegated are not judge calls (DESIGN 11)
+        everything = load_records(directory / "calls.jsonl")
+        records = [record for record in everything if "delegated" not in record["tags"]]
+        assert len(everything) - len(records) >= sum(
+            first[flavor]["delegation"]["hand_off_calls"] for flavor in first)
         finals = [record for record in records if record["final"]]
         assert len(finals) == 400
-        assert all(record["model"].startswith("demo/") for record in records)
+        assert all(record["model"].startswith("demo/") for record in everything)
         for flavor in first:
             group = [record for record in records if record["flavor"] == flavor]
             assert sum(record["final"] for record in group) == first[flavor]["calls"]
