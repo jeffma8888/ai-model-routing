@@ -1,6 +1,6 @@
 # Design: ai-model-routing
 
-Status: v1.3 spec, 2026-11-04 (v1.3 adds the offline evaluator contract in section 12, implementation pending; v1.2 states the scope as any repeated kind of model call, with judge calls as one use case; v1.1 tightened input validation, error redaction and demo safety after code review; see section 14). This file is the contract that tests are written from. Module paths, names, fields, formats and exit codes below are binding; anything not pinned here is the implementer's choice.
+Status: v1.4 spec, 2026-11-04 (v1.4 adds the delegation decision, inline or sub-agent, in section 13, implementation pending; v1.3 adds the offline evaluator contract in section 12, implementation pending; v1.2 states the scope as any repeated kind of model call, with judge calls as one use case; v1.1 tightened input validation, error redaction and demo safety after code review; see section 15). This file is the contract that tests are written from. Module paths, names, fields, formats and exit codes below are binding; anything not pinned here is the implementer's choice.
 
 ## 1. Problem
 - A product or pipeline makes the same kind of model call many times: triage a support ticket, extract invoice fields, write a unit test, grade an answer against a rubric. Each such kind of call is a **task**: a repeated call with an **acceptance check** that says whether one output is right (agreement with a gold label, exact match on extracted fields, generated tests passing, a rubric pass)
@@ -26,6 +26,7 @@ model_routing/
   executor.py     Attempt, CallResult, Executor, AllModelsFailed
   monitor.py      Monitor, load_records, report
   evaluate.py     Outcome, outcomes_from_rows, load_outcomes, split_items, evaluate (v1.3, section 12)
+  delegation.py   DelegationDecision, mode and reason constants, the logic of Router.decide_delegation (v1.4, section 13)
   demo.py         run_demo
   cli.py          main
   data/
@@ -160,8 +161,9 @@ The constructor stores its arguments as attributes `.registry`, `.tasks`, `.stat
 - `report --log PATH [--by KEY] [--json]`
 - `demo [--out DIR]`: runs `run_demo` and prints its summary
 - `evaluate --outcomes PATH ...` (v1.3): offline evaluation; options, output and exit codes in 12.4
+- `delegate TASK --parent MODEL ...` (v1.4): inline or sub-agent for one piece of work; options, output and exit codes in 13.7
 - Defaults: `--registry` and `--priors` and `--tasks` point at the packaged files under `model_routing.DATA_DIR`; `--stats stats.json` in the current directory (a missing stats file means empty stats; a missing priors file means no priors)
-- Exit codes: 0 success; 2 bad input (missing file, bad JSON, unknown task or model, invalid value); 3 `NoModelClearsBar` on `select`
+- Exit codes: 0 success; 2 bad input (missing file, bad JSON, unknown task or model, invalid value); 3 `NoModelClearsBar` on `select` and `delegate`
 - v1.1: every `--exclude` ID and the `--generator` ID must exist in the loaded registry, else exit 2; `calibrate` validates every result row before writing, so bad input leaves an existing stats file byte-identical and creates no new one
 
 ## 11. Demo (`demo.py`)
@@ -217,13 +219,75 @@ Purpose: show from a public outcome matrix, with no API key, whether routing at 
 - `Outcome`, `outcomes_from_rows`, `load_outcomes`, `split_items` and `evaluate` are re-exported from `model_routing` and listed in `__all__`
 - The v1.3 contract tests (`tests/test_evaluate.py`) were committed before `evaluate.py` exists, under a module-level `pytest.mark.xfail(strict=True, raises=ModuleNotFoundError)`, so the suite stays green while they fail for the one expected reason. The implementing commit removes that marker; from then on any failure in them fails the suite
 
-## 13. Non-goals for v1 (two-way doors, deferred)
+## 13. Delegation: inline or sub-agent (`delegation.py`, v1.4)
+Purpose: an agent (the **parent**: a model already running with its own context) reaches a piece of work that is one call of a task. It can do the work itself (**inline**) or hand it to a fresh sub-agent running the model the router picks (**delegate**). The decision weighs what routing weighs, the measured success rate against the task's bar and list-price cost, plus what each path does to the parent's context. The delegate is chosen by `Router.select`, so the 5.2 rules, the Wilson admission rule and both flavors apply unchanged.
+
+### 13.1 Inputs
+`Router.decide_delegation(task_name, parent_model, flavor="cost_effective", *, context_tokens, brief_tokens, result_tokens, carry_turns=0, generator_model=None, exclude_models=()) -> DelegationDecision`
+- `parent_model`: the parent's model ID. An unknown task, parent or `generator_model` raises `KeyError`; an unknown flavor raises `ValueError` (5.1)
+- `context_tokens` (C): tokens already in the parent's context
+- The work is one call of the task: it reads S_in = `task.expected_input_tokens` and writes S_out = `task.expected_output_tokens`
+- `brief_tokens` (B): what the parent writes to hand the work off. `result_tokens` (R): what the parent reads back
+- `carry_turns` (T): later parent calls that re-read whatever this work leaves in the parent's context. When the work is one of several sibling subtasks that the parent would otherwise do one after another, each later sibling done inline re-reads this one, so those calls count in T
+- `generator_model` and `exclude_models` mean what they mean in 5.2 and are passed to the delegate's `select`. `exclude_models` limits the delegate only; it never stops the parent working inline
+- `context_tokens`, `brief_tokens`, `result_tokens` and `carry_turns` must be integers `>= 0` that are not bools, else `ValueError`
+- The router is not modified: `router.tasks` is the same after the call
+
+### 13.2 Cost of each path (list price, reported in both flavors)
+Both paths start from the parent turn that is making the decision; each cost is what that path adds after it. P is the parent's model and D the delegate:
+- `inline_cost_usd = P.cost(C + S_in, S_out) + T * P.cost(S_in + S_out, 0)`: one more parent call over its whole context, after which the work's input and output stay in the parent's context for T calls
+- `delegate_cost_usd = P.cost(R, B) + D.cost(B + S_in, S_out) + T * P.cost(B + R, 0)`: the parent writes the brief and reads the result, the delegate reads the brief and the work's input in a fresh context, and only the brief and the result stay in the parent's context
+- C appears only on the inline side, so a parent with a large context can save by delegating even to its own model (D = P): the context-isolation case
+- Each expression is evaluated left to right as written. `delegate_cost_usd` is `None` when there is no delegate
+
+### 13.3 The delegate
+- The delegate is the primary of `Router.select(task_name, flavor, generator_model, exclude_models)` run with the same registry, stats and priors on a copy of the task whose `expected_input_tokens` is `S_in + B`, so the context rule (5.2 rule 5) and the `cost_effective` ranking see the brief the delegate actually reads. It may be the parent's own model
+- `route` is that `RouteDecision`, or `None` when that `select` raises `NoModelClearsBar`. `delegate_quality_lb` is the `quality_lb` of the route's primary candidate. The delegate clears the bar when `route.below_bar` is False
+- The parent's share of `delegate_cost_usd` is the same for every delegate, so the `cost_effective` primary of this `select` is also the passing delegate with the lowest `delegate_cost_usd`
+
+### 13.4 Is inline allowed?
+The first rule that applies blocks inline (the parent must delegate) and becomes the reason:
+1. the parent's family is in `task.exclude_families`: `parent_excluded_family`
+2. `task.independent_of_generator`, `generator_model` is given, and the parent is that model or in its family: `parent_not_independent` (the parent cannot check its own family's output)
+3. `P.context_window < C + S_in + S_out`: `parent_context_full`
+
+The parent clears the bar when its measured trials on the task are at least `task.min_samples` and `parent_quality_lb = wilson_lower_bound(successes, trials, task.confidence)` is at least `task.bar`: the admission test of 5.2 rules 6 and 7. `parent_quality_lb` is 0.0 when the parent is unmeasured; the parent is measured when it has `trials > 0`, as in 5.3
+
+### 13.5 Choosing (the first row that applies wins)
+1. Inline blocked: delegate, with the blocking reason and `below_bar = route.below_bar`. With no route, raise `NoModelClearsBar`
+2. The delegate clears the bar and the parent does not: delegate, `parent_below_bar`
+3. Both clear, `cost_effective`: delegate when `delegate_cost_usd < inline_cost_usd` (`delegate_cheaper`); inline when it is greater (`inline_cheaper`); on an exact tie, delegate when `delegate_quality_lb > parent_quality_lb` (`delegate_better`), else inline (`inline_as_good`)
+4. Both clear, `cost_blind`: delegate when `delegate_quality_lb > parent_quality_lb` (`delegate_better`), else inline (`inline_as_good`). Cost is not compared
+5. Only the parent clears: inline, `only_parent_clears`
+6. Neither clears and `task.on_no_model` is `"refuse"`: raise `NoModelClearsBar`
+7. Neither clears and `task.on_no_model` is `"best_available"`: reason `none_clear`, `below_bar` True. Delegate when the route's basis is `measured` and the parent is unmeasured or `delegate_quality_lb > parent_quality_lb`; else inline when the parent is measured; else delegate when there is a route (its basis is `prior`); else raise `NoModelClearsBar`
+- `below_bar` is False in rows 2 to 5. A raised `NoModelClearsBar` carries the `.candidates` of the failed `select`
+- Ties go inline, because a hand-off has costs the model does not price: a brief can drop detail, and the parent has to trust a result it did not produce
+- A model below the bar is chosen only under `best_available`, in row 1 or row 7, and then `below_bar` is True
+
+### 13.6 `DelegationDecision`
+- `@dataclass(frozen=True) class DelegationDecision`, fields in this order: `task: str`, `flavor: str`, `parent: str`, `mode: str` (`"inline"` or `"delegate"`), `model: str` (the parent for inline, `route.primary` for delegate), `reason: str`, `below_bar: bool`, `inline_allowed: bool`, `inline_cost_usd: float`, `delegate_cost_usd: float | None`, `parent_quality_lb: float`, `delegate_quality_lb: float | None`, `route: RouteDecision | None`
+- `.to_dict()` returns plain JSON-able types, with `route` as `route.to_dict()` or `None`
+- Module constants with these exact values: `INLINE = "inline"`, `DELEGATE = "delegate"`, and reason codes whose values are their names in lower case: `PARENT_EXCLUDED_FAMILY`, `PARENT_NOT_INDEPENDENT`, `PARENT_CONTEXT_FULL`, `PARENT_BELOW_BAR`, `DELEGATE_CHEAPER`, `INLINE_CHEAPER`, `DELEGATE_BETTER`, `INLINE_AS_GOOD`, `ONLY_PARENT_CLEARS`, `NONE_CLEAR`
+- `DelegationDecision` is re-exported from `model_routing` and listed in `__all__`; the constants stay in `model_routing.delegation`
+
+### 13.7 CLI
+- `model-routing delegate TASK --parent MODEL --context-tokens N --brief-tokens N --result-tokens N [--carry-turns N] [--flavor cost_effective|cost_blind] [--generator MODEL] [--exclude MODEL ...] [--registry PATH] [--tasks PATH] [--stats PATH] [--priors PATH] [--json]`, with the defaults of section 10
+- Prints one line per key, the key, a colon, spaces, then the value, for `mode`, `model`, `reason`, `below_bar` (`true` or `false`), `inline_cost_usd` and `delegate_cost_usd` (6 decimals), `parent_quality_lb` and `delegate_quality_lb` (3 decimals); a `None` value prints as `-`. `--json` prints `DelegationDecision.to_dict()`
+- Exit codes: 0 success; 2 bad input (as for `select`, plus a `--parent` that is not in the registry and a token option that is not an integer `>= 0`), with a one-line `error: ...` on stderr; 3 `NoModelClearsBar`, with the candidate table on stderr as for `select`
+
+### 13.8 Limits and test status
+- One call per path. A piece of work that takes several calls, prompt-caching discounts, and the wall-clock gain of running sibling sub-agents at the same time are not modelled (14)
+- The contract tests (`tests/test_delegation.py`) were committed before `delegation.py` exists, under a module-level `pytest.mark.xfail(strict=True, raises=ModuleNotFoundError)`, as in 12.5. The implementing commit removes that marker
+
+## 14. Non-goals for v1 (two-way doors, deferred)
 - Native vendor SDK adapters (the OpenAI-compatible adapter covers gateways), async execution, streaming
 - Learned or contextual routers (per-prompt difficulty prediction); v1 routes per task
 - Online drift detection beyond re-calibrating from audited results; budgets and alerts
 - Price refresh automation
+- In the delegation cost model (13): multi-call work, prompt-caching discounts, and latency, including the speed-up of parallel sub-agents
 
-## 14. Changelog
+## 15. Changelog
 - v1.0 (2026-10-29): initial contract; tests written from it before any code
 - v1.1 (2026-10-29): after cross-model code review: strict boolean `correct` and integer counts (4.3); API key and URL-credential redaction, HTTP status and body snippet, timeout semantics (6); line-numbered JSONL errors (8.2); unknown `--exclude` and `--generator` exit 2, calibrate leaves stats untouched on bad input (10); demo refuses to overwrite files it did not write (11)
 - v1.1 (2026-10-29, fix verification): redaction extended to standalone `base_url` query values and to every URL in a message, not only the configured one; malformed `base_url` rejected at construction (6)
@@ -231,3 +295,4 @@ Purpose: show from a public outcome matrix, with no API key, whether routing at 
 - v1.2 (2026-11-04): scope stated as any repeated kind of model call with an acceptance check, judge calls as the first-class case (1); `bar` defined as a success rate and `independent_of_generator` documented as a no-op without a `generator_model` (4.2); three non-judge example tasks (9). No API change
 - v1.3 (2026-11-04): offline evaluator contract (12): outcome matrix format, seeded sha256 split, routed choice through `Router.select` against oracle, best-on-calibration, cheapest and single-model baselines, bar-violation rate across seeds, and the `evaluate` CLI (10, 12.4). Contract tests committed as strict xfail ahead of the implementation. Non-goals and changelog renumbered to 13 and 14. No change to existing APIs
 - v1.3 (2026-11-04, review): "Reading the numbers" corrected (one-sided `(1 - confidence) / 2`, selection among passing models, correlated seeds); bars, seeds and flavors must be distinct, bars finite non-bool numbers, seeds non-bool ints; the empty-split rule stated as deliberate with remedies; `math.fsum` and integer-ratio arithmetic pinned so results agree to the last digit; rate granularity stated; CLI errors on stderr (12.3, 12.4)
+- v1.4 (2026-11-04): delegation decision (13): inline or sub-agent for one piece of work in both flavors; list-price cost of each path including the brief, the result and what stays in the parent's context; inline blocked by an excluded family, generator independence or a full parent context; the delegate routed through `Router.select` with the brief added to its input; ties go inline; `DelegationDecision` and the `delegate` CLI (10, 13.7). Contract tests committed as strict xfail ahead of the implementation. Non-goals and changelog renumbered to 14 and 15. No change to existing APIs
