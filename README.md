@@ -442,7 +442,7 @@ Pricing notes (the router uses the listed price linearly; see Limitations):
 
 - gpt-6-astra: prompts over 272K input tokens are billed at 2x input and 1.5x output
 
-- gpt-5.6-sol: promotional price, stated through at least 2026-11-21
+- gpt-5.6-sol: promotional price, stated through at least 2026-11-21; its `models.json` row sets `price_valid_until`, so `select` and `delegate` print a warning on stderr from 2026-11-22 until the row is refreshed
 
 - grok-4.7: price for context up to 200K tokens; higher beyond that
 
@@ -469,7 +469,7 @@ Full survey with sources and dates: [research/prior-art.md](research/prior-art.m
 - The success rate is measured as is. Position and verbosity bias in a judge's calibration set flow into the measured rate; the library does not debias the judge
 - No online drift detection. Re-calibrate from audited samples on a schedule, and when a provider ships a new model version
 - No budgets, alerts, async execution or streaming. The OpenAI-compatible adapter covers gateways; there are no native vendor SDK adapters
-- Prices are a dated snapshot. Refresh `models.json` yourself, and check that the model your gateway actually serves matches the ID you calibrated
+- Prices are a dated snapshot. Refresh `models.json` yourself, and check that the model your gateway actually serves matches the ID you calibrated. A row whose vendor states an end date for the price can carry it as `price_valid_until` (`YYYY-MM-DD`, the last valid day); after that day `select` and `delegate` print one `warning:` line per such model on stderr, and stdout does not change
 - The inline-or-delegate cost is a list-price approximation for one call per path: work that takes several calls, prompt-caching discounts and the wall-clock gain of running sub-agents side by side are not modelled (`DESIGN.md` 13.2 and 13.8)
 - Cost is linear at the listed price. Tiered and promotional pricing (long-prompt tiers, promotional rates; see the notes under the capability table) is not modelled, so long-context tasks on those models are under-costed
 

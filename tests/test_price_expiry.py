@@ -56,7 +56,7 @@ def test_today_that_is_not_a_date_raises_typeerror(model_factory, today):
 
 @pytest.mark.parametrize("value", [
     "2026-11-31", "2026-02-30", "0000-01-01", "2026/11/21", "20261121", "2026-11-21T00:00",
-    " 2026-11-21", "2026-11-21\n", "2026-1-21", "", "\uff12\uff10\uff12\uff16-11-21",
+    " 2026-11-21", "2026-11-21\n", "2026-1-21", "", "\uff12\uff10\uff12\uff16-11-21", "2026-W47-6",
     date(2026, 11, 21), 20261121, 2026.1121, True, ["2026-11-21"],
 ])
 def test_an_invalid_price_valid_until_raises_valueerror(model_factory, value):
@@ -256,6 +256,15 @@ def test_cli_today_defaults_to_the_real_date(cli_files, write_json, capsys, buil
         "version": "1", "as_of": "2026-01-01", "currency": "USD", "models": models})
     assert main(build(cli_files)) == 0
     assert capsys.readouterr().err.splitlines() == [warning("fiction/cheap", "2000-01-01")]
+
+
+@pytest.mark.parametrize("today", ["2026-11-22", 20261122])
+def test_cli_today_that_is_not_a_date_raises_typeerror_before_any_output(
+        dated_files, capsys, today):
+    with pytest.raises(TypeError):
+        main(select_args(dated_files), today=today)
+    captured = capsys.readouterr()
+    assert captured.out == "" and captured.err == ""
 
 
 def test_other_commands_do_not_take_a_registry_warning(tmp_path, capsys, record_factory):

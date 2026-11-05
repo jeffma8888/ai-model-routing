@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from datetime import date
 from pathlib import Path
 from typing import List, Optional
 
@@ -109,6 +110,18 @@ def _table(headers: List[str], rows: List[List[object]]) -> str:
     return "\n".join(lines)
 
 
+def _warn_expired_prices(registry: Registry, today: date) -> None:
+    """One stderr line per registry model whose stated price end date has passed (DESIGN 10)."""
+    expired = registry.expired_prices(today)
+    if not expired:
+        return
+    sys.stdout.flush()
+    for model in expired:
+        print(f"warning: list price of {model.id} is stated only through "
+              f"{model.price_valid_until}; check the vendor page and update the registry",
+              file=sys.stderr)
+
+
 def _candidate_table(candidates) -> str:
     rows = [[c.model_id, c.family, f"{c.successes}/{c.trials}", f"{c.quality_lb:.3f}",
              f"{c.list_cost:.6f}", f"{c.routing_cost:.6f}", c.reason] for c in candidates]
@@ -132,9 +145,11 @@ def _cmd_select(args) -> int:
     except NoModelClearsBar as exc:
         print(f"error: {exc}", file=sys.stderr)
         print(_candidate_table(exc.candidates), file=sys.stderr)
+        _warn_expired_prices(registry, args.today)
         return EXIT_NO_MODEL
     if args.json:
         print(json.dumps(decision.to_dict(), indent=2))
+        _warn_expired_prices(registry, args.today)
         return EXIT_OK
     print(f"task:      {decision.task}")
     print(f"flavor:    {decision.flavor}")
@@ -144,6 +159,7 @@ def _cmd_select(args) -> int:
     print(f"below_bar: {str(decision.below_bar).lower()}")
     print()
     print(_candidate_table(decision.candidates))
+    _warn_expired_prices(registry, args.today)
     return EXIT_OK
 
 
@@ -254,9 +270,11 @@ def _cmd_delegate(args) -> int:
     except NoModelClearsBar as exc:
         print(f"error: {exc}", file=sys.stderr)
         print(_candidate_table(exc.candidates), file=sys.stderr)
+        _warn_expired_prices(registry, args.today)
         return EXIT_NO_MODEL
     if args.json:
         print(json.dumps(decision.to_dict(), indent=2))
+        _warn_expired_prices(registry, args.today)
         return EXIT_OK
 
     def fmt(value, digits):
@@ -269,6 +287,7 @@ def _cmd_delegate(args) -> int:
     print(f"delegate_cost_usd:   {fmt(decision.delegate_cost_usd, 6)}")
     print(f"parent_quality_lb:   {fmt(decision.parent_quality_lb, 3)}")
     print(f"delegate_quality_lb: {fmt(decision.delegate_quality_lb, 3)}")
+    _warn_expired_prices(registry, args.today)
     return EXIT_OK
 
 
@@ -276,11 +295,20 @@ _COMMANDS = {"select": _cmd_select, "calibrate": _cmd_calibrate, "report": _cmd_
              "demo": _cmd_demo, "evaluate": _cmd_evaluate, "delegate": _cmd_delegate}
 
 
-def main(argv: Optional[List[str]] = None) -> int:
-    """Run the CLI and return its exit code: 0 ok, 2 bad input, 3 no model clears the bar."""
+def main(argv: Optional[List[str]] = None, *, today: Optional[date] = None) -> int:
+    """Run the CLI and return its exit code: 0 ok, 2 bad input, 3 no model clears the bar.
+
+    ``today`` dates the price expiry check of ``select`` and ``delegate``; ``None``
+    means ``datetime.date.today()``.
+    """
+    if today is None:
+        today = date.today()
+    elif not isinstance(today, date):
+        raise TypeError(f"today must be a datetime.date, got {type(today).__name__}")
     parser = _build_parser()
     try:
         args = parser.parse_args(argv)
+        args.today = today
         return _COMMANDS[args.command](args)
     except _BadInput as exc:
         print(f"error: {exc}", file=sys.stderr)

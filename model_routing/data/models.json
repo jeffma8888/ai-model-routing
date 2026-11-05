@@ -85,6 +85,7 @@
       "price_out": 20,
       "context_window": 1050000,
       "source": "https://platform.openai.com/docs/models/gpt-5.6-sol",
+      "price_valid_until": "2026-11-21",
       "notes": "promotional price, stated through at least 2026-11-21"
     },
     {
