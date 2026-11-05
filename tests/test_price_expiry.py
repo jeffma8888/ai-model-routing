@@ -18,7 +18,7 @@ README = Path(__file__).resolve().parent.parent / "README.md"
 
 
 def warning(model_id, day):
-    return (f"warning: list price of {model_id} is stated only through {day}; "
+    return (f"warning: list price of {model_id} was stated valid through {day}; "
             "check the vendor page and update the registry")
 
 
@@ -122,14 +122,23 @@ def test_asdict_rows_round_trip_through_json_and_registry_load(tmp_path, model_f
 # 9: the packaged registry
 
 
-def test_the_packaged_promotional_row_carries_its_end_date():
+DATED_NOTE = re.compile(r"through (?:at least )?([0-9]{4}-[0-9]{2}-[0-9]{2})")
+
+
+def test_each_packaged_row_carries_the_end_date_its_notes_state():
     raw = json.loads((DATA_DIR / "models.json").read_text(encoding="utf-8"))
-    dated = {r["id"]: r["price_valid_until"] for r in raw["models"] if "price_valid_until" in r}
-    assert dated == {"openai/gpt-5.6-sol": "2026-11-21"}
+    for r in raw["models"]:
+        stated = DATED_NOTE.findall(r.get("notes", ""))
+        assert len(stated) <= 1, r["id"]
+        assert r.get("price_valid_until") == (stated[0] if stated else None), r["id"]
     registry = Registry.load(DATA_DIR / "models.json")
-    assert registry.get("openai/gpt-5.6-sol").price_valid_until == "2026-11-21"
-    assert registry.expired_prices(ON) == ()
-    assert [m.id for m in registry.expired_prices(AFTER)] == ["openai/gpt-5.6-sol"]
+    assert registry.expired_prices(date.fromisoformat(raw["as_of"])) == ()
+
+
+def test_dated_note_reads_the_promotional_wording():
+    assert DATED_NOTE.findall("promotional price, stated through at least 2026-11-21") == [
+        "2026-11-21"]
+    assert DATED_NOTE.findall("price for context up to 200K tokens") == []
 
 
 def test_the_readme_pricing_note_names_the_same_end_date():

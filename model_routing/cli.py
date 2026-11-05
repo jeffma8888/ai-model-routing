@@ -117,7 +117,7 @@ def _warn_expired_prices(registry: Registry, today: date) -> None:
         return
     sys.stdout.flush()
     for model in expired:
-        print(f"warning: list price of {model.id} is stated only through "
+        print(f"warning: list price of {model.id} was stated valid through "
               f"{model.price_valid_until}; check the vendor page and update the registry",
               file=sys.stderr)
 

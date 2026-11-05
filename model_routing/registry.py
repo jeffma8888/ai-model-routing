@@ -43,7 +43,7 @@ class Model:
 
     def price_expired(self, today: date) -> bool:
         """Return True when the stated price end date is before ``today``."""
-        if isinstance(today, datetime):
+        if isinstance(today, datetime):  # before the date check: datetime is a date subclass
             today = today.date()
         elif not isinstance(today, date):
             raise TypeError(f"today must be a datetime.date, got {type(today).__name__}")
