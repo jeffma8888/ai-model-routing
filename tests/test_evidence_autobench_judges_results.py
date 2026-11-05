@@ -663,7 +663,7 @@ def test_real_routed_judge_has_the_highest_lower_bound(jm, tmp_path):
         grid.setdefault(o.model, {})[o.item] = o
     assert sorted(grid) == CANDIDATES
     items = sorted(grid[CANDIDATES[0]])
-    counts, fallback, highest = Counter(), 0, 0
+    counts, not_cheapest = Counter(), Counter()
     for cell in result["cells"]:
         where = (cell["bar"], cell["flavor"], cell["seed"])
         half = calibration_half(items, cell["seed"], config["calibration_fraction"])
@@ -679,14 +679,18 @@ def test_real_routed_judge_has_the_highest_lower_bound(jm, tmp_path):
             want = min(passing, key=lambda m: (cost[m], -lb[m], m))
         else:
             want = min(CANDIDATES, key=lambda m: (-lb[m], cost[m], m))
-            fallback += 1
         assert cell["cleared"] == bool(passing), where
         assert cell["models"]["routed"] == want, where
-        if not passing or cell["flavor"] == "cost_blind":
+        claim = ("cost_blind" if cell["flavor"] == "cost_blind"
+                 else "fallback" if not passing else None)
+        if claim:
+            # The bullets' words; this follows from the two sorts above, so the check that
+            # carries weight is routed == want, cell by cell.
             assert lb[want] == max(lb.values()), where
-            highest += want != min(CANDIDATES, key=lambda m: (mean[m], m))
+            not_cheapest[claim] += want != min(CANDIDATES, key=lambda m: (mean[m], m))
         counts[(cell["bar"], cell["flavor"], want)] += 1
-    assert fallback and highest, "the claim cells must include some where the cheapest loses"
+    # Each claim must be tested on cells where the cheapest judge is not the one it names.
+    assert not_cheapest["fallback"] and not_cheapest["cost_blind"], not_cheapest
     for bar in CONFIG["bars"]:
         for flavor in CONFIG["flavors"]:
             got = {m: n for (b, f, m), n in counts.items() if (b, f) == (bar, flavor)}
