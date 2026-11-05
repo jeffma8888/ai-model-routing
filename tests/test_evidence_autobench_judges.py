@@ -422,6 +422,20 @@ def test_invalid_token_counts(jm, field, value):
         jm.judge_matrix([row], POOL, candidates=["Alpha-1"])
 
 
+@pytest.mark.parametrize("bad, answer_tokens, named", [
+    (("input_tokens", "output_tokens"), "output", "input_tokens"),
+    (("input_tokens", "output_tokens"), "visible", "input_tokens"),
+    (("input_tokens", "output_tokens", "reasoning_tokens"), "visible", "input_tokens"),
+    (("output_tokens", "reasoning_tokens"), "visible", "output_tokens"),
+])
+def test_a_row_with_several_bad_counts_names_the_first_in_input_output_reasoning_order(jm, bad, answer_tokens, named):
+    row = cell("q7", "Zeta-6", committee(**{"Alpha-1": 4}))
+    for field in bad:
+        row[field] = "y"
+    with pytest.raises(ValueError, match=rf"q7, Zeta-6: {named} 'y'"):
+        jm.judge_matrix([row], POOL, candidates=["Alpha-1"], answer_tokens=answer_tokens)
+
+
 def test_invalid_matrix_rows(jm):
     with pytest.raises(ValueError, match="repeated"):
         jm.judge_matrix(GOOD + GOOD, POOL, candidates=["Alpha-1"])
@@ -598,7 +612,8 @@ def test_main_needs_out(jm, folder, capsys):
 # The evidence README's judge counts as written (DESIGN 12.11); test_pinned_readme_counts builds
 # the same phrases from the report on the pinned files
 README_JUDGE_COUNTS = [
-    "707 of the 756 kept answers report some, and their `reasoning_tokens` sum to 0.738 of their `output_tokens` "
+    "707 of the 756 kept answers report some reasoning tokens, and their `reasoning_tokens` sum to 0.738 of their "
+    "`output_tokens` "
     "(on 14 of them `reasoning_tokens` is above `output_tokens`, by at most 10%, so the two counts are not exact)",
     "the floor gives those 14 an answer of 0 tokens. By default the judges read 1,218,584 input tokens per "
     "candidate over the kept answers, 0.406 of the 3,001,074 that `--answer-tokens output` counts",
@@ -721,7 +736,8 @@ def test_pinned_readme_counts(jm):
     out = report["dropped_out_of_pool"]
     ids = [f"`{c}`" for c in report["candidates"]]
     built = [
-        f"{sum(1 for x in reasoning if x > 0):,} of the {len(kept):,} kept answers report some, and their "
+        f"{sum(1 for x in reasoning if x > 0):,} of the {len(kept):,} kept answers report some reasoning tokens, "
+        f"and their "
         f"`reasoning_tokens` sum to {math.fsum(reasoning) / math.fsum(output):.3f} of their `output_tokens` "
         f"(on {len(over)} of them `reasoning_tokens` is above `output_tokens`, by at most "
         f"{math.ceil(100 * (max(over) - 1))}%, so the two counts are not exact)",

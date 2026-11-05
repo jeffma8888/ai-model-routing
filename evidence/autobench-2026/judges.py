@@ -139,10 +139,11 @@ def judge_matrix(matrix, pool, tolerance=DEFAULT_TOLERANCE, candidates=None, siz
             unscored += 1
             continue
         graders = parse_grades(r.get("judges_json"), pid, model)
+        prompt = convert._count(r.get("input_tokens"), "input_tokens", pid, model)
         read = convert._count(r.get("output_tokens"), "output_tokens", pid, model)
         if answer_tokens == "visible":
             read = max(read - convert._count(r.get("reasoning_tokens"), "reasoning_tokens", pid, model), 0)
-        tokens = convert._count(r.get("input_tokens"), "input_tokens", pid, model) + read
+        tokens = prompt + read
         cells.append((pid, model, graders, tokens))
     if candidates is None:
         judges = sorted({j for _, _, graders, _ in cells for j in graders if j in names})
@@ -177,7 +178,8 @@ def judge_matrix(matrix, pool, tolerance=DEFAULT_TOLERANCE, candidates=None, siz
     rows.sort(key=lambda x: (x["task"], x["item"], x["model"]))
     report = {"candidates": sorted(names[c] for c in chosen), "candidates_by": by, "tolerance": tolerance,
               "min_committee": min_committee, "rubric_tokens": rubric_tokens, "grade_tokens": grade_tokens,
-              "answer_tokens": answer_tokens, "task_by": task_by, "scored_cells": len(cells), "kept": dict(sorted(kept.items())),
+              "answer_tokens": answer_tokens, "task_by": task_by, "scored_cells": len(cells),
+              "kept": dict(sorted(kept.items())),
               "dropped_self_graded": dropped["self_graded"],
               "dropped_missing_candidate": dropped["missing_candidate"],
               "dropped_small_committee": dropped["small_committee"], "self_graded_cells": self_graded_cells,
