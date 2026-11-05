@@ -373,9 +373,9 @@ Held-out success is the share of held-out prompts answered correctly over all ev
 Reading it:
 
 - `cost_effective` buys the cheapest model that clears the bar on each eval, not the best answer. At the lower bars it gives up held-out success for a large cut in cost; as the bar rises, fewer evals clear it, the router falls back to the best available model on the rest, and its cost approaches that of the best single model
-- `cost_blind` routes each eval to the model with the highest lower bound, so at every bar its held-out success is level with that of the best model on the calibration half
+- `cost_blind` routes each eval to the model with the highest lower bound, and at every bar it reaches held-out success 0.819 at 25.2675 USD against 0.819 at 25.0029 USD for the best model on the calibration half: the same success to three decimals at 1.1% more cost
 - The bar-violation rate is a resampling estimate for this matrix, to be read next to the nominal one-sided 0.025 of a 95% Wilson bound on one model, never as a guarantee (`DESIGN.md` 12.3, "Reading the numbers")
-- The per-prompt oracle is a hindsight bound. Routing per task gets nowhere near it
+- The per-prompt oracle is a hindsight bound (0.959 held-out success at 1.9634 USD, against at most 0.819 for a routed row). Routing per task gets nowhere near it
 
 Limits:
 

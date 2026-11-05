@@ -40,8 +40,8 @@ model:zero-one-ai/Yi-34B-Chat            0.680    1.8655
 ## Reading it
 
 - `cost_effective` buys the cheapest model that clears the bar on each eval, not the best answer. At bar 0.6 it cleared 80.4% of cells and spent 0.341 of the best single model's cost for an overall success of 0.735 against that model's 0.821; at 0.9 only 11.1% of cells clear, the router falls back to the best available model elsewhere, and the cost ratio rises to 0.953
-- `cost_blind` routes each eval to the model with the highest lower bound: success 0.819 at 0.963 of the best single model's cost at every bar, level with `best_on_calibration`
-- `bar_violation_rate` for `cost_effective` runs from 0.013 to 0.032 across the four bars, next to a nominal one-sided 0.025 for a 95% Wilson bound on one model. It is a resampling estimate for this matrix (the routed model is picked among several that passed, held-out halves are about 50 prompts for the smallest evals, and the 50 seeds re-split one pool), not a guarantee (DESIGN 12.3, "Reading the numbers")
+- `cost_blind` routes each eval to the model with the highest lower bound: success 0.819 at 0.963 of the best single model's cost at every bar, close to `best_on_calibration` (0.819 at 0.953): the same success to three decimals at 1.1% more cost
+- `bar_violation_rate` for `cost_effective` runs from 0.013 to 0.032 across the four bars, next to a nominal one-sided 0.025 for a 95% Wilson bound on one model. It is a resampling estimate for this matrix (the routed model is picked among several that passed, 11 evals hold only 100 prompts, and their held-out halves run from 36 to 66 prompts over the 50 seeds, and the 50 seeds re-split one pool), not a guarantee (DESIGN 12.3, "Reading the numbers")
 - The per-prompt oracle reaches 0.959 at 1.9634 USD. Routing per eval gets nowhere near it; whether per-prompt routing can is an open question this file does not answer
 
 ## Sensitivity: graded evals
