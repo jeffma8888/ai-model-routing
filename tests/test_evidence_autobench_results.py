@@ -243,16 +243,19 @@ def autobench_subsection():
     assert readme.count(heading) == 1
     section = readme.split(heading, 1)[1].split("\n## ", 1)[0]
     assert re.findall(r"^### (.*)$", section, re.M) == ["RouterBench", "AutoBench",
+                                                        "AutoBench judges",
                                                         "Delegation on AutoBench"]
     return section.split("\n### AutoBench\n", 1)[1].split("\n### ", 1)[0]
 
 
-def test_readme_evidence_intro_names_both_labels():
+def test_readme_evidence_intro_names_the_three_labels():
     readme = README.read_text(encoding="utf-8")
     section = readme.split("\n## Evidence: held-out results on public data\n", 1)[1]
     intro = section.split("\n### ", 1)[0]
     assert ("(right or wrong on RouterBench, a Delta-Hit from a judge committee's scores on "
-            "AutoBench)") in intro
+            "AutoBench, and agreement with the other judges' grades for a judge model's grade "
+            "in AutoBench judges)") in intro
+    assert "and the cost of each call or the token counts to estimate it at list prices" in intro
 
 
 def readme_tables(results):

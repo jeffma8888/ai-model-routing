@@ -7,11 +7,14 @@ download: they check the committed file and RESULTS.md against each other, and e
 number of RESULTS.md is built here from the committed file. The last two read the pinned
 AutoBench files only when they are already in the default cache and skip otherwise (CI never
 downloads them): one rebuilds results.json and requires the committed bytes, the other rebuilds
-every sensitivity line of RESULTS.md.
+every sensitivity line of RESULTS.md. v1.28 adds the README `### AutoBench judges` subsection
+(DESIGN 12.8): its tables, counts, Reading it bullets and limits are built here from the
+committed file, the 12.11 defaults and the evidence README counts.
 """
 
 import importlib.util
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -53,6 +56,10 @@ CONFIG = {"bars": [0.6, 0.7, 0.8, 0.9], "seeds": list(range(50)),
           "min_samples": 30, "confidence": 0.95}
 LUNA = "openai/gpt-5.6-luna"
 SECTION_LINK = "../autobench-2026/README.md#judge-evidence-one-item-per-graded-answer"
+README = ROOT / "README.md"
+EVIDENCE_README = ROOT / "evidence" / "autobench-2026" / "README.md"
+HEADINGS = ["RouterBench", "AutoBench", "AutoBench judges", "Delegation on AutoBench"]
+RESULTS_LINK = "([AutoBench results](../autobench-2026/RESULTS.md))"
 
 
 def load(name, path):
@@ -358,6 +365,180 @@ def test_cost_blind_bullet_says_close_when_not_level():
             r["cost_usd"] *= 2
     assert "close to `best_on_calibration`" in cost_blind(fake)
     assert "level with" not in cost_blind(fake)
+
+
+# --- the README subsection (DESIGN 12.8, v1.28) ---------------------------------------------
+
+def readme():
+    return README.read_text(encoding="utf-8")
+
+
+def judges_subsection():
+    heading = "\n## Evidence: held-out results on public data\n"
+    text = readme()
+    assert text.count(heading) == 1
+    section = text.split(heading, 1)[1].split("\n## ", 1)[0]
+    assert re.findall(r"^### (.*)$", section, re.M) == HEADINGS
+    return section.split("\n### AutoBench judges\n", 1)[1].split("\n### ", 1)[0]
+
+
+def oracle_label(results):
+    if row(results, *first(results), "oracle")["success"] < 1:
+        return ("Per-answer oracle: on each answer, the cheapest judge that agrees with the "
+                "committee, or the cheapest judge, counted wrong, when none does")
+    return ("Per-answer oracle: on each answer, the cheapest judge that agrees with the "
+            "committee (some judge agrees on every answer)")
+
+
+def readme_tables(results):
+    """The two tables of the README judge subsection (DESIGN 12.8, v1.28)."""
+    bar0, flavor0 = first(results)
+    name, top = best(results)
+    low = row(results, bar0, flavor0, "cheapest")
+    lines = ["| Bar | Flavor | Held-out success | Cost (USD) | Cost / best single judge "
+             "| Cost / cheapest judge | Cleared rate | Bar-violation rate |",
+             "|---|---|---|---|---|---|---|---|"]
+    for bar in results["config"]["bars"]:
+        for flavor in results["config"]["flavors"]:
+            r = row(results, bar, flavor, "routed")
+            lines.append(f"| {bar} | `{flavor}` | {r['success']:.3f} | {r['cost_usd']:.4f} "
+                         f"| {r['cost_usd'] / top['cost_usd']:.3f} "
+                         f"| {r['cost_usd'] / low['cost_usd']:.1f} "
+                         f"| {rate(r['cleared_rate'])} | {rate(r['bar_violation_rate'])} |")
+    baselines = [(oracle_label(results), "oracle"),
+                 (f"Best single judge (`{name}`)", f"model:{name}"),
+                 ("Best judge on the calibration half", "best_on_calibration"),
+                 ("Cheapest judge on the calibration half", "cheapest")]
+    lines += ["", "| Baseline | Held-out success | Cost (USD) |", "|---|---|---|"]
+    for label, strategy in baselines:
+        r = row(results, bar0, flavor0, strategy)
+        lines.append(f"| {label} | {r['success']:.3f} | {r['cost_usd']:.4f} |")
+    return "\n".join(lines) + "\n"
+
+
+def readme_price(results):
+    """The RESULTS.md price bullet with its link pointed at the README `#autobench`."""
+    text = price(results)
+    if LUNA in text:
+        assert text.count(RESULTS_LINK) == 1
+        text = text.replace(RESULTS_LINK, "([AutoBench](#autobench))")
+    return text
+
+
+def readme_reading_it(results):
+    """Four of the RESULTS.md Reading it bullets (DESIGN 12.8, v1.28)."""
+    return [all_clear(results), violations(results), oracle(results), readme_price(results)]
+
+
+def counts_sentence(results, tolerance):
+    task, config = results["tasks"]["all"], results["config"]
+    return (f"What was run: {task['items']:,} graded answers in one pooled task, "
+            f"{len(task['models'])} candidate judges, {seeds(results)} seeds; the answers are "
+            f"split in half per seed and routed at bars {config['bars'][0]} to "
+            f"{config['bars'][-1]} in both flavors. A success is a judge's grade within "
+            f"{tolerance} of the mean of the other judges' grades on that answer, leaving out "
+            "the judge itself and the model that wrote the answer")
+
+
+def evidence_counts():
+    text = EVIDENCE_README.read_text(encoding="utf-8")
+    section = text.split("\n## Judge evidence: one item per graded answer\n", 1)[1]
+    by_candidate = re.findall(r"^- Answers by a candidate: ([\d,]+)\.", section, re.M)
+    missing = re.findall(r"^- Answers some candidate did not grade \(not among that answer's "
+                         r"judges, or a null grade\): ([\d,]+),", section, re.M)
+    kept = re.findall(r"^Kept: ([\d,]+) of the ([\d,]+) scored answers", section, re.M)
+    assert len(by_candidate) == len(missing) == len(kept) == 1
+    return by_candidate[0], missing[0], kept[0][0], kept[0][1]
+
+
+def limits(results, jm):
+    by_candidate, missing, kept, scored = evidence_counts()
+    assert kept == f"{results['tasks']['all']['items']:,}", kept
+    k = len(results["tasks"]["all"]["models"])
+    return [
+        "- The label is agreement with the other judges, which are models from the same pool, "
+        "not a human gold label: a judge that always grades as the committee does scores 1.0 "
+        "whether or not the committee is right",
+        "- Each cost is an estimate at the pool's list prices, never a billed cost: a judge call "
+        "is assumed to read the question, the visible answer and a "
+        f"{jm.DEFAULT_RUBRIC_TOKENS}-token rubric and to write a {jm.DEFAULT_GRADE_TOKENS}-token "
+        "grade",
+        f"- The {k} candidates are the pool judges whose set keeps the most answers, not the "
+        f"best or the cheapest judges. {kept} of the {scored} scored answers are kept: the "
+        f"converter drops the {by_candidate} answered by a candidate, since no model grades its "
+        f"own answer, and the {missing} that some candidate did not grade, so every candidate "
+        "grades every item",
+        "- Answers to the same question are separate items, so a seed's split can put answers "
+        "to one question in both halves"]
+
+
+def test_readme_judges_tables_are_the_committed_results():
+    assert "\n" + readme_tables(committed()) + "\n" in judges_subsection()
+
+
+def test_readme_judges_counts_and_reading_it_are_the_committed_results(jm):
+    results, section = committed(), judges_subsection()
+    assert counts_sentence(results, jm.DEFAULT_TOLERANCE) in section
+    bullets = readme_reading_it(results)
+    assert "\nReading it:\n\n" + "".join(f"- {b}\n" for b in bullets) + "\n" in section
+    assert all("../" not in b for b in bullets)
+    text = results_md()
+    for b in bullets[:3]:
+        assert "- " + b + "\n" in text, b
+
+
+def test_readme_judges_limits_links_and_commands(jm):
+    results, section = committed(), judges_subsection()
+    assert "\nLimits:\n\n" + "\n".join(limits(results, jm)) + "\n\n" in section
+    revision = jm.convert.REVISION
+    for needle in ("[AutoBench/router-benchmark-2026-10]"
+                   "(https://huggingface.co/datasets/AutoBench/router-benchmark-2026-10)",
+                   f"[`{revision[:7]}`](https://huggingface.co/datasets/AutoBench/"
+                   f"router-benchmark-2026-10/tree/{revision})",
+                   "[CC-BY-4.0](https://creativecommons.org/licenses/by/4.0/)",
+                   "Attribution: Autobench, Autobench Router Benchmark 2026",
+                   "[RESULTS.md](evidence/autobench-judges/RESULTS.md)",
+                   "[results.json](evidence/autobench-judges/results.json)",
+                   "(evidence/autobench-2026/README.md#judge-evidence-one-item-per-graded-answer)",
+                   "the share of held-out answers on which the routed judge agrees with the "
+                   "committee", "list-price estimate"):
+        assert needle in section, needle
+    regenerate = results_md().split("## Regenerate\n\n```bash\n", 1)[1].split("```", 1)[0]
+    assert "```bash\n" + regenerate + "```" == REGENERATE.rstrip("\n")
+    assert "\n" + REGENERATE in section
+
+
+def test_readme_judge_pointers_link_the_subsection():
+    text = readme()
+    judge = text.split("\n### Judge and eval calls, the first-class case\n", 1)[1]
+    judge = judge.split("\n## ", 1)[0]
+    assert "no public judge benchmark with a row for the current generation of models" in judge
+    assert "[AutoBench judges](#autobench-judges)" in judge
+    bullets = [line for line in text.splitlines()
+               if line.startswith("- None of these are judge benchmarks")]
+    assert len(bullets) == 1
+    assert "[AutoBench judges](#autobench-judges)" in bullets[0]
+    assert "agreement with other model judges, not with experts" in bullets[0]
+
+
+def test_readme_judges_helpers_follow_the_numbers():
+    fake = committed()
+    for r in fake["summary"]:
+        if r["strategy"] == "oracle":
+            r["success"] = 1.0
+        if (r["bar"], r["flavor"], r["strategy"]) == (0.6, "cost_blind", "routed"):
+            r["bar_violation_rate"] = None
+    tables = readme_tables(fake)
+    assert "(some judge agrees on every answer) | 1.000 |" in tables
+    assert "counted wrong" not in tables
+    assert [line for line in tables.split("\n") if "| 0.6 | `cost_blind` |" in line][0] \
+        .endswith(" | - |")
+    assert "counted wrong, when none does |" in readme_tables(committed())
+    for r in fake["summary"]:
+        if r["strategy"] == f"model:{LUNA}":
+            r["cost_usd"] = 0.0
+    assert "#autobench" not in readme_price(fake)
+    assert "([AutoBench](#autobench))" in readme_price(committed())
 
 
 # --- the pinned files, only when already cached ---------------------------------------------

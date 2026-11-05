@@ -1,7 +1,8 @@
 """v1.23 README evidence at a glance (DESIGN 12.8), written before the README list.
 
 The README evidence section opens with a short list, one bullet per subsection. Every
-number and model ID in it is built here from the three committed results files, at the
+number and model ID in it is built here from the committed results files (four since v1.28,
+which adds the AutoBench judges bullet), at the
 rounding of the subsection tables, and every word that depends on the data (no routed row
 reaches or beats, level, more, less) is asserted against those files, so the list cannot
 drift from them or keep a claim a regenerated file no longer supports.
@@ -20,6 +21,7 @@ README = ROOT / "README.md"
 HEADING = "\n## Evidence: held-out results on public data\n"
 FILES = {"RouterBench": ROOT / "evidence" / "routerbench" / "results.json",
          "AutoBench": ROOT / "evidence" / "autobench-2026" / "results.json",
+         "AutoBench judges": ROOT / "evidence" / "autobench-judges" / "results.json",
          "Delegation on AutoBench": ROOT / "evidence" / "delegation" / "results.json"}
 LEAD = ("Results at a glance, each number from the committed results of the subsection it "
         "links:")
@@ -51,7 +53,8 @@ def link(name):
     return f"- [{name}]({anchor(name)}): "
 
 
-def routerbench_bullet(results):
+def lowest_bar_against_best(results, noun):
+    """The RouterBench claim (v1.23), also used for the judges (v1.28) with noun "judge"."""
     config = results["config"]
     first = (config["bars"][0], config["flavors"][0])
     models = [r for r in results["summary"]
@@ -61,10 +64,19 @@ def routerbench_bullet(results):
     routed = [summary_row(results, bar, flavor, "routed")
               for bar in config["bars"] for flavor in config["flavors"]]
     assert max(r["success"] for r in routed) < best["success"], "a routed row reaches it"
-    return (link("RouterBench") + f"at bar {config['bars'][0]}, `cost_effective` routing reaches "
+    return (f"at bar {config['bars'][0]}, `cost_effective` routing reaches "
             f"held-out success {low['success']:.3f} at {low['cost_usd'] / best['cost_usd']:.3f} of "
-            f"the cost of the best single model, `{best['strategy'][len('model:'):]}`; no routed "
-            f"row at any bar reaches that model's held-out success")
+            f"the cost of the best single {noun}, `{best['strategy'][len('model:'):]}`; no routed "
+            f"row at any bar reaches that {noun}'s held-out success")
+
+
+def routerbench_bullet(results):
+    return link("RouterBench") + lowest_bar_against_best(results, "model")
+
+
+def judges_bullet(results):
+    return (link("AutoBench judges") + "choosing a judge, scored by agreement with the other "
+            "judges and not a human label, " + lowest_bar_against_best(results, "judge"))
 
 
 def autobench_bullet(results):
@@ -119,7 +131,7 @@ def delegation_bullet(results):
 
 
 BULLETS = {"RouterBench": routerbench_bullet, "AutoBench": autobench_bullet,
-           "Delegation on AutoBench": delegation_bullet}
+           "AutoBench judges": judges_bullet, "Delegation on AutoBench": delegation_bullet}
 
 
 def glance(files):
@@ -157,11 +169,12 @@ def test_each_glance_bullet_links_its_subsection_in_heading_order():
 def test_anchor_rule_gives_the_anchors_the_readme_already_links():
     readme = README.read_text(encoding="utf-8")
     for heading in ("Evidence: held-out results on public data", "Inline or sub-agent",
-                    "Delegation on AutoBench"):
+                    "Delegation on AutoBench", "AutoBench judges"):
         assert f"]({anchor(heading)})" in readme, heading
     assert anchor("Evidence: held-out results on public data") == \
         "#evidence-held-out-results-on-public-data"
     assert anchor("Delegation on AutoBench") == "#delegation-on-autobench"
+    assert anchor("AutoBench judges") == "#autobench-judges"
 
 
 def test_each_bullet_holds_at_most_two_result_values():
@@ -175,7 +188,9 @@ def test_the_glance_numbers_are_those_of_the_committed_files():
     text = glance(files)
     for needle in ("held-out success 0.735 at 0.341 of the cost", "`openai/gpt-4-1106-preview`",
                    "(0.872 at 0.3092 USD)", "over the 20 parents is 0.856 against 0.670",
-                   "at 8,000 context tokens but less at 64,000 and 200,000"):
+                   "at 8,000 context tokens but less at 64,000 and 200,000",
+                   "held-out success 0.816 at 0.518 of the cost of the best single judge, "
+                   "`tencent/hy3`; no routed row at any bar reaches that judge's"):
         assert needle in text, needle
     changed = copy.deepcopy(files)
     summary_row(changed["AutoBench"], 0.6, "cost_effective", LUNA)["cost_usd"] = 0.3095
@@ -186,6 +201,13 @@ def raise_routerbench(files):
     best = max((r for r in files["RouterBench"]["summary"] if r["strategy"].startswith("model:")),
                key=lambda r: r["success"])
     summary_row(files["RouterBench"], 0.9, "cost_blind", "routed")["success"] = best["success"]
+
+
+def raise_judges(files):
+    best = max((r for r in files["AutoBench judges"]["summary"]
+                if r["strategy"].startswith("model:")), key=lambda r: r["success"])
+    summary_row(files["AutoBench judges"], 0.8, "cost_effective", "routed")["success"] = \
+        best["success"]
 
 
 def beat_luna(files):
@@ -222,6 +244,7 @@ def cheaper_than_delegating(files):
 
 @pytest.mark.parametrize("change, match", [
     (raise_routerbench, "a routed row reaches it"),
+    (raise_judges, "a routed row reaches it"),
     (beat_luna, "bar 0.7 cost_effective beats it"),
     (cheap_decision, "costs no more than always delegating at point 0"),
     (costly_decision, r"more at \['8,000', '200,000'\], less at \['64,000'\]"),
