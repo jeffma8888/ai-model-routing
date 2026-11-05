@@ -33,7 +33,7 @@ python evidence/autobench-2026/convert.py --out autobench-matrix.jsonl --task-by
 model-routing evaluate --outcomes autobench-matrix.jsonl --bar 0.8
 ```
 
-`--task-by all` makes one task of every kept question, so the evaluator's default `min_samples = 30` can be met; with the default, one task per domain, no domain can meet it (see Reading it), so the routed model never clears the bar. Results committed for this dataset use `--task-by all`, with the per-domain matrix only as a stated sensitivity at a lower `--min-samples`.
+`--task-by all` makes one task of every kept question, so the evaluator's default `min_samples = 30` can be met; with the default, one task per domain, no domain can meet it (see Reading it), so the routed model never clears the bar. The committed results, [RESULTS.md](RESULTS.md) and [results.json](results.json), use `--task-by all`, with the per-domain matrix only as a stated sensitivity at a lower `--min-samples`.
 
 No extra is needed: the converter is standard library only. It prints a JSON report of what it kept and dropped. With the default options on the pinned files it keeps 203 of 252 questions over 20 models and writes 4,060 rows. The mean success over those rows is 0.667 at the default width and 0.762 at the official width.
 

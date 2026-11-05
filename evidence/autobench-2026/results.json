@@ -1,0 +1,2162 @@
+{
+  "config": {
+    "bars": [
+      0.6,
+      0.7,
+      0.8,
+      0.9
+    ],
+    "seeds": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39,
+      40,
+      41,
+      42,
+      43,
+      44,
+      45,
+      46,
+      47,
+      48,
+      49
+    ],
+    "flavors": [
+      "cost_effective",
+      "cost_blind"
+    ],
+    "calibration_fraction": 0.5,
+    "min_samples": 30,
+    "confidence": 0.95
+  },
+  "tasks": {
+    "all": {
+      "items": 203,
+      "models": [
+        "anthropic/claude-sonnet-5",
+        "deepseek/deepseek-v4-flash-0731",
+        "google/gemini-3.7-flash",
+        "google/gemma-4-31b-it",
+        "meta/muse-glimmer-30b",
+        "meta/muse-spark-1.2",
+        "minimax/minimax-m3",
+        "moonshotai/kimi-k2.6",
+        "nvidia/nemotron-3-ultra-550b-a55b",
+        "nvidia/nemotron-3.5-lightning",
+        "openai/gpt-5.6-luna",
+        "openai/gpt-5.6-sol",
+        "openai/gpt-oss-120b",
+        "qwen/qwen3.5-9b",
+        "qwen/qwen3.8-max",
+        "tencent/hy3",
+        "xai/grok-4.3",
+        "xai/grok-4.6",
+        "zai/glm-5.2",
+        "zai/glm-5.3"
+      ]
+    }
+  },
+  "summary": [
+    {
+      "bar": 0.6,
+      "flavor": "cost_effective",
+      "strategy": "routed",
+      "success": 0.7199808717202633,
+      "cost_usd": 0.19755340244416,
+      "below_bar_rate": 0.0,
+      "cleared_rate": 1.0,
+      "bar_violation_rate": 0.0
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_effective",
+      "strategy": "oracle",
+      "success": 1.0,
+      "cost_usd": 0.08361688881719999,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_effective",
+      "strategy": "best_on_calibration",
+      "success": 0.8576242861391072,
+      "cost_usd": 3.6534569798194,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_effective",
+      "strategy": "cheapest",
+      "success": 0.4533651639334608,
+      "cost_usd": 0.01911307132,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_effective",
+      "strategy": "model:anthropic/claude-sonnet-5",
+      "success": 0.8587822379587701,
+      "cost_usd": 2.557297,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_effective",
+      "strategy": "model:deepseek/deepseek-v4-flash-0731",
+      "success": 0.6805157692082574,
+      "cost_usd": 0.0343520212528,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_effective",
+      "strategy": "model:google/gemini-3.7-flash",
+      "success": 0.7740480096765251,
+      "cost_usd": 0.7354302825000001,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_effective",
+      "strategy": "model:google/gemma-4-31b-it",
+      "success": 0.48946861597662833,
+      "cost_usd": 0.019283836000000002,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_effective",
+      "strategy": "model:meta/muse-glimmer-30b",
+      "success": 0.5536807558043217,
+      "cost_usd": 0.08746013279999999,
+      "below_bar_rate": 0.82,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_effective",
+      "strategy": "model:meta/muse-spark-1.2",
+      "success": 0.70531121208465,
+      "cost_usd": 0.8597824799999999,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_effective",
+      "strategy": "model:minimax/minimax-m3",
+      "success": 0.7686483754540673,
+      "cost_usd": 0.32497703952,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_effective",
+      "strategy": "model:moonshotai/kimi-k2.6",
+      "success": 0.7759893121722663,
+      "cost_usd": 1.1534154977974,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_effective",
+      "strategy": "model:nvidia/nemotron-3-ultra-550b-a55b",
+      "success": 0.603443064858775,
+      "cost_usd": 0.397967196,
+      "below_bar_rate": 0.48,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_effective",
+      "strategy": "model:nvidia/nemotron-3.5-lightning",
+      "success": 0.4152722669222521,
+      "cost_usd": 0.0906582688,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_effective",
+      "strategy": "model:openai/gpt-5.6-luna",
+      "success": 0.8718261858776741,
+      "cost_usd": 0.3092002406,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_effective",
+      "strategy": "model:openai/gpt-5.6-sol",
+      "success": 0.8823426135468034,
+      "cost_usd": 5.561552799999999,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_effective",
+      "strategy": "model:openai/gpt-oss-120b",
+      "success": 0.44240491292884876,
+      "cost_usd": 0.0184431821,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_effective",
+      "strategy": "model:qwen/qwen3.5-9b",
+      "success": 0.2761627858920364,
+      "cost_usd": 0.09770854699999999,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_effective",
+      "strategy": "model:qwen/qwen3.8-max",
+      "success": 0.8527749905964425,
+      "cost_usd": 1.13405156,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_effective",
+      "strategy": "model:tencent/hy3",
+      "success": 0.6825288879877447,
+      "cost_usd": 0.07056751714056,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_effective",
+      "strategy": "model:xai/grok-4.3",
+      "success": 0.5575426153846654,
+      "cost_usd": 0.36756208799999995,
+      "below_bar_rate": 0.88,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_effective",
+      "strategy": "model:xai/grok-4.6",
+      "success": 0.688863529009284,
+      "cost_usd": 1.22453852,
+      "below_bar_rate": 0.02,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_effective",
+      "strategy": "model:zai/glm-5.2",
+      "success": 0.7560406646142142,
+      "cost_usd": 0.29714848332,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_effective",
+      "strategy": "model:zai/glm-5.3",
+      "success": 0.7550658230480561,
+      "cost_usd": 0.4042312424,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "routed",
+      "success": 0.8572119150050866,
+      "cost_usd": 3.6916996450194,
+      "below_bar_rate": 0.0,
+      "cleared_rate": 1.0,
+      "bar_violation_rate": 0.0
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "oracle",
+      "success": 1.0,
+      "cost_usd": 0.08361688881719999,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "best_on_calibration",
+      "success": 0.8576242861391072,
+      "cost_usd": 3.6534569798194,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "cheapest",
+      "success": 0.4533651639334608,
+      "cost_usd": 0.01911307132,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-sonnet-5",
+      "success": 0.8587822379587701,
+      "cost_usd": 2.557297,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/deepseek-v4-flash-0731",
+      "success": 0.6805157692082574,
+      "cost_usd": 0.0343520212528,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-3.7-flash",
+      "success": 0.7740480096765251,
+      "cost_usd": 0.7354302825000001,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemma-4-31b-it",
+      "success": 0.48946861597662833,
+      "cost_usd": 0.019283836000000002,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:meta/muse-glimmer-30b",
+      "success": 0.5536807558043217,
+      "cost_usd": 0.08746013279999999,
+      "below_bar_rate": 0.82,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:meta/muse-spark-1.2",
+      "success": 0.70531121208465,
+      "cost_usd": 0.8597824799999999,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:minimax/minimax-m3",
+      "success": 0.7686483754540673,
+      "cost_usd": 0.32497703952,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:moonshotai/kimi-k2.6",
+      "success": 0.7759893121722663,
+      "cost_usd": 1.1534154977974,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:nvidia/nemotron-3-ultra-550b-a55b",
+      "success": 0.603443064858775,
+      "cost_usd": 0.397967196,
+      "below_bar_rate": 0.48,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:nvidia/nemotron-3.5-lightning",
+      "success": 0.4152722669222521,
+      "cost_usd": 0.0906582688,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-5.6-luna",
+      "success": 0.8718261858776741,
+      "cost_usd": 0.3092002406,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-5.6-sol",
+      "success": 0.8823426135468034,
+      "cost_usd": 5.561552799999999,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-oss-120b",
+      "success": 0.44240491292884876,
+      "cost_usd": 0.0184431821,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen3.5-9b",
+      "success": 0.2761627858920364,
+      "cost_usd": 0.09770854699999999,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen3.8-max",
+      "success": 0.8527749905964425,
+      "cost_usd": 1.13405156,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:tencent/hy3",
+      "success": 0.6825288879877447,
+      "cost_usd": 0.07056751714056,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:xai/grok-4.3",
+      "success": 0.5575426153846654,
+      "cost_usd": 0.36756208799999995,
+      "below_bar_rate": 0.88,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:xai/grok-4.6",
+      "success": 0.688863529009284,
+      "cost_usd": 1.22453852,
+      "below_bar_rate": 0.02,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:zai/glm-5.2",
+      "success": 0.7560406646142142,
+      "cost_usd": 0.29714848332,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:zai/glm-5.3",
+      "success": 0.7550658230480561,
+      "cost_usd": 0.4042312424,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_effective",
+      "strategy": "routed",
+      "success": 0.8543421417255758,
+      "cost_usd": 0.31095172771880003,
+      "below_bar_rate": 0.02,
+      "cleared_rate": 1.0,
+      "bar_violation_rate": 0.02
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_effective",
+      "strategy": "oracle",
+      "success": 1.0,
+      "cost_usd": 0.08361688881719999,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_effective",
+      "strategy": "best_on_calibration",
+      "success": 0.8576242861391072,
+      "cost_usd": 3.6534569798194,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_effective",
+      "strategy": "cheapest",
+      "success": 0.4533651639334608,
+      "cost_usd": 0.01911307132,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_effective",
+      "strategy": "model:anthropic/claude-sonnet-5",
+      "success": 0.8587822379587701,
+      "cost_usd": 2.557297,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_effective",
+      "strategy": "model:deepseek/deepseek-v4-flash-0731",
+      "success": 0.6805157692082574,
+      "cost_usd": 0.0343520212528,
+      "below_bar_rate": 0.7,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_effective",
+      "strategy": "model:google/gemini-3.7-flash",
+      "success": 0.7740480096765251,
+      "cost_usd": 0.7354302825000001,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_effective",
+      "strategy": "model:google/gemma-4-31b-it",
+      "success": 0.48946861597662833,
+      "cost_usd": 0.019283836000000002,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_effective",
+      "strategy": "model:meta/muse-glimmer-30b",
+      "success": 0.5536807558043217,
+      "cost_usd": 0.08746013279999999,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_effective",
+      "strategy": "model:meta/muse-spark-1.2",
+      "success": 0.70531121208465,
+      "cost_usd": 0.8597824799999999,
+      "below_bar_rate": 0.42,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_effective",
+      "strategy": "model:minimax/minimax-m3",
+      "success": 0.7686483754540673,
+      "cost_usd": 0.32497703952,
+      "below_bar_rate": 0.02,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_effective",
+      "strategy": "model:moonshotai/kimi-k2.6",
+      "success": 0.7759893121722663,
+      "cost_usd": 1.1534154977974,
+      "below_bar_rate": 0.02,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_effective",
+      "strategy": "model:nvidia/nemotron-3-ultra-550b-a55b",
+      "success": 0.603443064858775,
+      "cost_usd": 0.397967196,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_effective",
+      "strategy": "model:nvidia/nemotron-3.5-lightning",
+      "success": 0.4152722669222521,
+      "cost_usd": 0.0906582688,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_effective",
+      "strategy": "model:openai/gpt-5.6-luna",
+      "success": 0.8718261858776741,
+      "cost_usd": 0.3092002406,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_effective",
+      "strategy": "model:openai/gpt-5.6-sol",
+      "success": 0.8823426135468034,
+      "cost_usd": 5.561552799999999,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_effective",
+      "strategy": "model:openai/gpt-oss-120b",
+      "success": 0.44240491292884876,
+      "cost_usd": 0.0184431821,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_effective",
+      "strategy": "model:qwen/qwen3.5-9b",
+      "success": 0.2761627858920364,
+      "cost_usd": 0.09770854699999999,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_effective",
+      "strategy": "model:qwen/qwen3.8-max",
+      "success": 0.8527749905964425,
+      "cost_usd": 1.13405156,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_effective",
+      "strategy": "model:tencent/hy3",
+      "success": 0.6825288879877447,
+      "cost_usd": 0.07056751714056,
+      "below_bar_rate": 0.74,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_effective",
+      "strategy": "model:xai/grok-4.3",
+      "success": 0.5575426153846654,
+      "cost_usd": 0.36756208799999995,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_effective",
+      "strategy": "model:xai/grok-4.6",
+      "success": 0.688863529009284,
+      "cost_usd": 1.22453852,
+      "below_bar_rate": 0.62,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_effective",
+      "strategy": "model:zai/glm-5.2",
+      "success": 0.7560406646142142,
+      "cost_usd": 0.29714848332,
+      "below_bar_rate": 0.04,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_effective",
+      "strategy": "model:zai/glm-5.3",
+      "success": 0.7550658230480561,
+      "cost_usd": 0.4042312424,
+      "below_bar_rate": 0.08,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "routed",
+      "success": 0.8572119150050866,
+      "cost_usd": 3.6916996450194,
+      "below_bar_rate": 0.0,
+      "cleared_rate": 1.0,
+      "bar_violation_rate": 0.0
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "oracle",
+      "success": 1.0,
+      "cost_usd": 0.08361688881719999,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "best_on_calibration",
+      "success": 0.8576242861391072,
+      "cost_usd": 3.6534569798194,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "cheapest",
+      "success": 0.4533651639334608,
+      "cost_usd": 0.01911307132,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-sonnet-5",
+      "success": 0.8587822379587701,
+      "cost_usd": 2.557297,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/deepseek-v4-flash-0731",
+      "success": 0.6805157692082574,
+      "cost_usd": 0.0343520212528,
+      "below_bar_rate": 0.7,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-3.7-flash",
+      "success": 0.7740480096765251,
+      "cost_usd": 0.7354302825000001,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemma-4-31b-it",
+      "success": 0.48946861597662833,
+      "cost_usd": 0.019283836000000002,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:meta/muse-glimmer-30b",
+      "success": 0.5536807558043217,
+      "cost_usd": 0.08746013279999999,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:meta/muse-spark-1.2",
+      "success": 0.70531121208465,
+      "cost_usd": 0.8597824799999999,
+      "below_bar_rate": 0.42,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:minimax/minimax-m3",
+      "success": 0.7686483754540673,
+      "cost_usd": 0.32497703952,
+      "below_bar_rate": 0.02,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:moonshotai/kimi-k2.6",
+      "success": 0.7759893121722663,
+      "cost_usd": 1.1534154977974,
+      "below_bar_rate": 0.02,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:nvidia/nemotron-3-ultra-550b-a55b",
+      "success": 0.603443064858775,
+      "cost_usd": 0.397967196,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:nvidia/nemotron-3.5-lightning",
+      "success": 0.4152722669222521,
+      "cost_usd": 0.0906582688,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-5.6-luna",
+      "success": 0.8718261858776741,
+      "cost_usd": 0.3092002406,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-5.6-sol",
+      "success": 0.8823426135468034,
+      "cost_usd": 5.561552799999999,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-oss-120b",
+      "success": 0.44240491292884876,
+      "cost_usd": 0.0184431821,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen3.5-9b",
+      "success": 0.2761627858920364,
+      "cost_usd": 0.09770854699999999,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen3.8-max",
+      "success": 0.8527749905964425,
+      "cost_usd": 1.13405156,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:tencent/hy3",
+      "success": 0.6825288879877447,
+      "cost_usd": 0.07056751714056,
+      "below_bar_rate": 0.74,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:xai/grok-4.3",
+      "success": 0.5575426153846654,
+      "cost_usd": 0.36756208799999995,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:xai/grok-4.6",
+      "success": 0.688863529009284,
+      "cost_usd": 1.22453852,
+      "below_bar_rate": 0.62,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:zai/glm-5.2",
+      "success": 0.7560406646142142,
+      "cost_usd": 0.29714848332,
+      "below_bar_rate": 0.04,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:zai/glm-5.3",
+      "success": 0.7550658230480561,
+      "cost_usd": 0.4042312424,
+      "below_bar_rate": 0.08,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_effective",
+      "strategy": "routed",
+      "success": 0.8547579136133527,
+      "cost_usd": 2.9693967631194,
+      "below_bar_rate": 0.04,
+      "cleared_rate": 0.66,
+      "bar_violation_rate": 0.030303030303030304
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_effective",
+      "strategy": "oracle",
+      "success": 1.0,
+      "cost_usd": 0.08361688881719999,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_effective",
+      "strategy": "best_on_calibration",
+      "success": 0.8576242861391072,
+      "cost_usd": 3.6534569798194,
+      "below_bar_rate": 0.02,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_effective",
+      "strategy": "cheapest",
+      "success": 0.4533651639334608,
+      "cost_usd": 0.01911307132,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_effective",
+      "strategy": "model:anthropic/claude-sonnet-5",
+      "success": 0.8587822379587701,
+      "cost_usd": 2.557297,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_effective",
+      "strategy": "model:deepseek/deepseek-v4-flash-0731",
+      "success": 0.6805157692082574,
+      "cost_usd": 0.0343520212528,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_effective",
+      "strategy": "model:google/gemini-3.7-flash",
+      "success": 0.7740480096765251,
+      "cost_usd": 0.7354302825000001,
+      "below_bar_rate": 0.82,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_effective",
+      "strategy": "model:google/gemma-4-31b-it",
+      "success": 0.48946861597662833,
+      "cost_usd": 0.019283836000000002,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_effective",
+      "strategy": "model:meta/muse-glimmer-30b",
+      "success": 0.5536807558043217,
+      "cost_usd": 0.08746013279999999,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_effective",
+      "strategy": "model:meta/muse-spark-1.2",
+      "success": 0.70531121208465,
+      "cost_usd": 0.8597824799999999,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_effective",
+      "strategy": "model:minimax/minimax-m3",
+      "success": 0.7686483754540673,
+      "cost_usd": 0.32497703952,
+      "below_bar_rate": 0.8,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_effective",
+      "strategy": "model:moonshotai/kimi-k2.6",
+      "success": 0.7759893121722663,
+      "cost_usd": 1.1534154977974,
+      "below_bar_rate": 0.8,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_effective",
+      "strategy": "model:nvidia/nemotron-3-ultra-550b-a55b",
+      "success": 0.603443064858775,
+      "cost_usd": 0.397967196,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_effective",
+      "strategy": "model:nvidia/nemotron-3.5-lightning",
+      "success": 0.4152722669222521,
+      "cost_usd": 0.0906582688,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_effective",
+      "strategy": "model:openai/gpt-5.6-luna",
+      "success": 0.8718261858776741,
+      "cost_usd": 0.3092002406,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_effective",
+      "strategy": "model:openai/gpt-5.6-sol",
+      "success": 0.8823426135468034,
+      "cost_usd": 5.561552799999999,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_effective",
+      "strategy": "model:openai/gpt-oss-120b",
+      "success": 0.44240491292884876,
+      "cost_usd": 0.0184431821,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_effective",
+      "strategy": "model:qwen/qwen3.5-9b",
+      "success": 0.2761627858920364,
+      "cost_usd": 0.09770854699999999,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_effective",
+      "strategy": "model:qwen/qwen3.8-max",
+      "success": 0.8527749905964425,
+      "cost_usd": 1.13405156,
+      "below_bar_rate": 0.02,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_effective",
+      "strategy": "model:tencent/hy3",
+      "success": 0.6825288879877447,
+      "cost_usd": 0.07056751714056,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_effective",
+      "strategy": "model:xai/grok-4.3",
+      "success": 0.5575426153846654,
+      "cost_usd": 0.36756208799999995,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_effective",
+      "strategy": "model:xai/grok-4.6",
+      "success": 0.688863529009284,
+      "cost_usd": 1.22453852,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_effective",
+      "strategy": "model:zai/glm-5.2",
+      "success": 0.7560406646142142,
+      "cost_usd": 0.29714848332,
+      "below_bar_rate": 0.96,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_effective",
+      "strategy": "model:zai/glm-5.3",
+      "success": 0.7550658230480561,
+      "cost_usd": 0.4042312424,
+      "below_bar_rate": 0.92,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "routed",
+      "success": 0.8572119150050866,
+      "cost_usd": 3.6916996450194,
+      "below_bar_rate": 0.02,
+      "cleared_rate": 0.66,
+      "bar_violation_rate": 0.0
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "oracle",
+      "success": 1.0,
+      "cost_usd": 0.08361688881719999,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "best_on_calibration",
+      "success": 0.8576242861391072,
+      "cost_usd": 3.6534569798194,
+      "below_bar_rate": 0.02,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "cheapest",
+      "success": 0.4533651639334608,
+      "cost_usd": 0.01911307132,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-sonnet-5",
+      "success": 0.8587822379587701,
+      "cost_usd": 2.557297,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/deepseek-v4-flash-0731",
+      "success": 0.6805157692082574,
+      "cost_usd": 0.0343520212528,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-3.7-flash",
+      "success": 0.7740480096765251,
+      "cost_usd": 0.7354302825000001,
+      "below_bar_rate": 0.82,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemma-4-31b-it",
+      "success": 0.48946861597662833,
+      "cost_usd": 0.019283836000000002,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:meta/muse-glimmer-30b",
+      "success": 0.5536807558043217,
+      "cost_usd": 0.08746013279999999,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:meta/muse-spark-1.2",
+      "success": 0.70531121208465,
+      "cost_usd": 0.8597824799999999,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:minimax/minimax-m3",
+      "success": 0.7686483754540673,
+      "cost_usd": 0.32497703952,
+      "below_bar_rate": 0.8,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:moonshotai/kimi-k2.6",
+      "success": 0.7759893121722663,
+      "cost_usd": 1.1534154977974,
+      "below_bar_rate": 0.8,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:nvidia/nemotron-3-ultra-550b-a55b",
+      "success": 0.603443064858775,
+      "cost_usd": 0.397967196,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:nvidia/nemotron-3.5-lightning",
+      "success": 0.4152722669222521,
+      "cost_usd": 0.0906582688,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-5.6-luna",
+      "success": 0.8718261858776741,
+      "cost_usd": 0.3092002406,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-5.6-sol",
+      "success": 0.8823426135468034,
+      "cost_usd": 5.561552799999999,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-oss-120b",
+      "success": 0.44240491292884876,
+      "cost_usd": 0.0184431821,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen3.5-9b",
+      "success": 0.2761627858920364,
+      "cost_usd": 0.09770854699999999,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen3.8-max",
+      "success": 0.8527749905964425,
+      "cost_usd": 1.13405156,
+      "below_bar_rate": 0.02,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:tencent/hy3",
+      "success": 0.6825288879877447,
+      "cost_usd": 0.07056751714056,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:xai/grok-4.3",
+      "success": 0.5575426153846654,
+      "cost_usd": 0.36756208799999995,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:xai/grok-4.6",
+      "success": 0.688863529009284,
+      "cost_usd": 1.22453852,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:zai/glm-5.2",
+      "success": 0.7560406646142142,
+      "cost_usd": 0.29714848332,
+      "below_bar_rate": 0.96,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:zai/glm-5.3",
+      "success": 0.7550658230480561,
+      "cost_usd": 0.4042312424,
+      "below_bar_rate": 0.92,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_effective",
+      "strategy": "routed",
+      "success": 0.8576242861391072,
+      "cost_usd": 3.6534569798194,
+      "below_bar_rate": 0.96,
+      "cleared_rate": 0.0,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_effective",
+      "strategy": "oracle",
+      "success": 1.0,
+      "cost_usd": 0.08361688881719999,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_effective",
+      "strategy": "best_on_calibration",
+      "success": 0.8576242861391072,
+      "cost_usd": 3.6534569798194,
+      "below_bar_rate": 0.96,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_effective",
+      "strategy": "cheapest",
+      "success": 0.4533651639334608,
+      "cost_usd": 0.01911307132,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_effective",
+      "strategy": "model:anthropic/claude-sonnet-5",
+      "success": 0.8587822379587701,
+      "cost_usd": 2.557297,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_effective",
+      "strategy": "model:deepseek/deepseek-v4-flash-0731",
+      "success": 0.6805157692082574,
+      "cost_usd": 0.0343520212528,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_effective",
+      "strategy": "model:google/gemini-3.7-flash",
+      "success": 0.7740480096765251,
+      "cost_usd": 0.7354302825000001,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_effective",
+      "strategy": "model:google/gemma-4-31b-it",
+      "success": 0.48946861597662833,
+      "cost_usd": 0.019283836000000002,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_effective",
+      "strategy": "model:meta/muse-glimmer-30b",
+      "success": 0.5536807558043217,
+      "cost_usd": 0.08746013279999999,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_effective",
+      "strategy": "model:meta/muse-spark-1.2",
+      "success": 0.70531121208465,
+      "cost_usd": 0.8597824799999999,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_effective",
+      "strategy": "model:minimax/minimax-m3",
+      "success": 0.7686483754540673,
+      "cost_usd": 0.32497703952,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_effective",
+      "strategy": "model:moonshotai/kimi-k2.6",
+      "success": 0.7759893121722663,
+      "cost_usd": 1.1534154977974,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_effective",
+      "strategy": "model:nvidia/nemotron-3-ultra-550b-a55b",
+      "success": 0.603443064858775,
+      "cost_usd": 0.397967196,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_effective",
+      "strategy": "model:nvidia/nemotron-3.5-lightning",
+      "success": 0.4152722669222521,
+      "cost_usd": 0.0906582688,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_effective",
+      "strategy": "model:openai/gpt-5.6-luna",
+      "success": 0.8718261858776741,
+      "cost_usd": 0.3092002406,
+      "below_bar_rate": 0.86,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_effective",
+      "strategy": "model:openai/gpt-5.6-sol",
+      "success": 0.8823426135468034,
+      "cost_usd": 5.561552799999999,
+      "below_bar_rate": 0.86,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_effective",
+      "strategy": "model:openai/gpt-oss-120b",
+      "success": 0.44240491292884876,
+      "cost_usd": 0.0184431821,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_effective",
+      "strategy": "model:qwen/qwen3.5-9b",
+      "success": 0.2761627858920364,
+      "cost_usd": 0.09770854699999999,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_effective",
+      "strategy": "model:qwen/qwen3.8-max",
+      "success": 0.8527749905964425,
+      "cost_usd": 1.13405156,
+      "below_bar_rate": 0.96,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_effective",
+      "strategy": "model:tencent/hy3",
+      "success": 0.6825288879877447,
+      "cost_usd": 0.07056751714056,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_effective",
+      "strategy": "model:xai/grok-4.3",
+      "success": 0.5575426153846654,
+      "cost_usd": 0.36756208799999995,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_effective",
+      "strategy": "model:xai/grok-4.6",
+      "success": 0.688863529009284,
+      "cost_usd": 1.22453852,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_effective",
+      "strategy": "model:zai/glm-5.2",
+      "success": 0.7560406646142142,
+      "cost_usd": 0.29714848332,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_effective",
+      "strategy": "model:zai/glm-5.3",
+      "success": 0.7550658230480561,
+      "cost_usd": 0.4042312424,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "routed",
+      "success": 0.8572119150050866,
+      "cost_usd": 3.6916996450194,
+      "below_bar_rate": 0.96,
+      "cleared_rate": 0.0,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "oracle",
+      "success": 1.0,
+      "cost_usd": 0.08361688881719999,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "best_on_calibration",
+      "success": 0.8576242861391072,
+      "cost_usd": 3.6534569798194,
+      "below_bar_rate": 0.96,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "cheapest",
+      "success": 0.4533651639334608,
+      "cost_usd": 0.01911307132,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-sonnet-5",
+      "success": 0.8587822379587701,
+      "cost_usd": 2.557297,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/deepseek-v4-flash-0731",
+      "success": 0.6805157692082574,
+      "cost_usd": 0.0343520212528,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-3.7-flash",
+      "success": 0.7740480096765251,
+      "cost_usd": 0.7354302825000001,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemma-4-31b-it",
+      "success": 0.48946861597662833,
+      "cost_usd": 0.019283836000000002,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:meta/muse-glimmer-30b",
+      "success": 0.5536807558043217,
+      "cost_usd": 0.08746013279999999,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:meta/muse-spark-1.2",
+      "success": 0.70531121208465,
+      "cost_usd": 0.8597824799999999,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:minimax/minimax-m3",
+      "success": 0.7686483754540673,
+      "cost_usd": 0.32497703952,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:moonshotai/kimi-k2.6",
+      "success": 0.7759893121722663,
+      "cost_usd": 1.1534154977974,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:nvidia/nemotron-3-ultra-550b-a55b",
+      "success": 0.603443064858775,
+      "cost_usd": 0.397967196,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:nvidia/nemotron-3.5-lightning",
+      "success": 0.4152722669222521,
+      "cost_usd": 0.0906582688,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-5.6-luna",
+      "success": 0.8718261858776741,
+      "cost_usd": 0.3092002406,
+      "below_bar_rate": 0.86,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-5.6-sol",
+      "success": 0.8823426135468034,
+      "cost_usd": 5.561552799999999,
+      "below_bar_rate": 0.86,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-oss-120b",
+      "success": 0.44240491292884876,
+      "cost_usd": 0.0184431821,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen3.5-9b",
+      "success": 0.2761627858920364,
+      "cost_usd": 0.09770854699999999,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen3.8-max",
+      "success": 0.8527749905964425,
+      "cost_usd": 1.13405156,
+      "below_bar_rate": 0.96,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:tencent/hy3",
+      "success": 0.6825288879877447,
+      "cost_usd": 0.07056751714056,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:xai/grok-4.3",
+      "success": 0.5575426153846654,
+      "cost_usd": 0.36756208799999995,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:xai/grok-4.6",
+      "success": 0.688863529009284,
+      "cost_usd": 1.22453852,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:zai/glm-5.2",
+      "success": 0.7560406646142142,
+      "cost_usd": 0.29714848332,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:zai/glm-5.3",
+      "success": 0.7550658230480561,
+      "cost_usd": 0.4042312424,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    }
+  ],
+  "per_task": [
+    {
+      "bar": 0.6,
+      "flavor": "cost_effective",
+      "task": "all",
+      "strategy": "routed",
+      "success": 0.7199808717202633,
+      "cost_usd": 0.19755340244416,
+      "below_bar_rate": 0.0,
+      "cleared_rate": 1.0,
+      "bar_violation_rate": 0.0,
+      "routed_models": {
+        "deepseek/deepseek-v4-flash-0731": 9,
+        "minimax/minimax-m3": 3,
+        "openai/gpt-5.6-luna": 5,
+        "tencent/hy3": 13,
+        "zai/glm-5.2": 20
+      }
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "task": "all",
+      "strategy": "routed",
+      "success": 0.8572119150050866,
+      "cost_usd": 3.6916996450194,
+      "below_bar_rate": 0.0,
+      "cleared_rate": 1.0,
+      "bar_violation_rate": 0.0,
+      "routed_models": {
+        "anthropic/claude-sonnet-5": 6,
+        "moonshotai/kimi-k2.6": 1,
+        "openai/gpt-5.6-luna": 11,
+        "openai/gpt-5.6-sol": 30,
+        "qwen/qwen3.8-max": 2
+      }
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_effective",
+      "task": "all",
+      "strategy": "routed",
+      "success": 0.8543421417255758,
+      "cost_usd": 0.31095172771880003,
+      "below_bar_rate": 0.02,
+      "cleared_rate": 1.0,
+      "bar_violation_rate": 0.02,
+      "routed_models": {
+        "minimax/minimax-m3": 2,
+        "openai/gpt-5.6-luna": 45,
+        "zai/glm-5.2": 3
+      }
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "task": "all",
+      "strategy": "routed",
+      "success": 0.8572119150050866,
+      "cost_usd": 3.6916996450194,
+      "below_bar_rate": 0.0,
+      "cleared_rate": 1.0,
+      "bar_violation_rate": 0.0,
+      "routed_models": {
+        "anthropic/claude-sonnet-5": 6,
+        "moonshotai/kimi-k2.6": 1,
+        "openai/gpt-5.6-luna": 11,
+        "openai/gpt-5.6-sol": 30,
+        "qwen/qwen3.8-max": 2
+      }
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_effective",
+      "task": "all",
+      "strategy": "routed",
+      "success": 0.8547579136133527,
+      "cost_usd": 2.9693967631194,
+      "below_bar_rate": 0.04,
+      "cleared_rate": 0.66,
+      "bar_violation_rate": 0.030303030303030304,
+      "routed_models": {
+        "anthropic/claude-sonnet-5": 6,
+        "moonshotai/kimi-k2.6": 1,
+        "openai/gpt-5.6-luna": 17,
+        "openai/gpt-5.6-sol": 23,
+        "qwen/qwen3.8-max": 3
+      }
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "task": "all",
+      "strategy": "routed",
+      "success": 0.8572119150050866,
+      "cost_usd": 3.6916996450194,
+      "below_bar_rate": 0.02,
+      "cleared_rate": 0.66,
+      "bar_violation_rate": 0.0,
+      "routed_models": {
+        "anthropic/claude-sonnet-5": 6,
+        "moonshotai/kimi-k2.6": 1,
+        "openai/gpt-5.6-luna": 11,
+        "openai/gpt-5.6-sol": 30,
+        "qwen/qwen3.8-max": 2
+      }
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_effective",
+      "task": "all",
+      "strategy": "routed",
+      "success": 0.8576242861391072,
+      "cost_usd": 3.6534569798194,
+      "below_bar_rate": 0.96,
+      "cleared_rate": 0.0,
+      "bar_violation_rate": null,
+      "routed_models": {
+        "anthropic/claude-sonnet-5": 5,
+        "moonshotai/kimi-k2.6": 1,
+        "openai/gpt-5.6-luna": 12,
+        "openai/gpt-5.6-sol": 30,
+        "qwen/qwen3.8-max": 2
+      }
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "task": "all",
+      "strategy": "routed",
+      "success": 0.8572119150050866,
+      "cost_usd": 3.6916996450194,
+      "below_bar_rate": 0.96,
+      "cleared_rate": 0.0,
+      "bar_violation_rate": null,
+      "routed_models": {
+        "anthropic/claude-sonnet-5": 6,
+        "moonshotai/kimi-k2.6": 1,
+        "openai/gpt-5.6-luna": 11,
+        "openai/gpt-5.6-sol": 30,
+        "qwen/qwen3.8-max": 2
+      }
+    }
+  ]
+}

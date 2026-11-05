@@ -209,3 +209,8 @@ def test_real_sensitivity_numbers_are_in_results_md(cv):
     assert len(needles) == 2 + 2 + 4
     for needle in needles:
         assert needle + "\n" in text, needle
+    # RESULTS.md: "Neither run beats `openai/gpt-5.6-luna` alone on both counts."
+    for summary, bars in ((official, [0.8]), (domain, [0.6, 0.8])):
+        fake = {"config": {"bars": bars, "flavors": CONFIG["flavors"]}, "summary": summary}
+        assert "no routed row beats it" in luna_statement(fake)
+    assert "Neither run beats `openai/gpt-5.6-luna` alone on both counts." in text

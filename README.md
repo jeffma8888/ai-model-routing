@@ -495,7 +495,7 @@ model_routing/
 research/       public evidence behind the defaults
 evidence/       public datasets turned into outcome matrices, with committed results
                 (RouterBench: evidence/routerbench/RESULTS.md)
-                (AutoBench 2026 converter: evidence/autobench-2026/README.md)
+                (AutoBench 2026: evidence/autobench-2026/RESULTS.md)
 DESIGN.md       the spec the tests were written from
 ```
 
