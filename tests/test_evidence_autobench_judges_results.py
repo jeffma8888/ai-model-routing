@@ -456,15 +456,15 @@ def limits(results, jm):
     assert kept == f"{results['tasks']['all']['items']:,}", kept
     k = len(results["tasks"]["all"]["models"])
     return [
-        "- The label is agreement with the other judges, which are models from the same pool, "
-        "not a human gold label: a judge that always grades as the committee does scores 1.0 "
+        "- The label is agreement with the other judges, which are models, not a human gold "
+        "label: a judge that always grades as the committee does scores 1.0 "
         "whether or not the committee is right",
         "- Each cost is an estimate at the pool's list prices, never a billed cost: a judge call "
         "is assumed to read the question, the visible answer and a "
         f"{jm.DEFAULT_RUBRIC_TOKENS}-token rubric and to write a {jm.DEFAULT_GRADE_TOKENS}-token "
         "grade",
-        f"- The {k} candidates are the pool judges whose set keeps the most answers, not the "
-        f"best or the cheapest judges. {kept} of the {scored} scored answers are kept: the "
+        f"- The {k} candidates are the pool judges whose set keeps the most answers, chosen for "
+        f"that and not for quality or price. {kept} of the {scored} scored answers are kept: the "
         f"converter drops the {by_candidate} answered by a candidate, since no model grades its "
         f"own answer, and the {missing} that some candidate did not grade, so every candidate "
         "grades every item",
@@ -501,7 +501,10 @@ def test_readme_judges_limits_links_and_commands(jm):
                    "[results.json](evidence/autobench-judges/results.json)",
                    "(evidence/autobench-2026/README.md#judge-evidence-one-item-per-graded-answer)",
                    "the share of held-out answers on which the routed judge agrees with the "
-                   "committee", "list-price estimate"):
+                   "committee", "list-price estimate",
+                   "The two ratios divide that cost by the cost of the best single judge and of "
+                   "the cheapest judge on the calibration half in the baseline table",
+                   "and a `-` means that no seed cleared."):
         assert needle in section, needle
     regenerate = results_md().split("## Regenerate\n\n```bash\n", 1)[1].split("```", 1)[0]
     assert "```bash\n" + regenerate + "```" == REGENERATE.rstrip("\n")
@@ -513,6 +516,7 @@ def test_readme_judge_pointers_link_the_subsection():
     judge = text.split("\n### Judge and eval calls, the first-class case\n", 1)[1]
     judge = judge.split("\n## ", 1)[0]
     assert "no public judge benchmark with a row for the current generation of models" in judge
+    assert "publishes each judge model's grade of each answer it graded" in judge
     assert "[AutoBench judges](#autobench-judges)" in judge
     bullets = [line for line in text.splitlines()
                if line.startswith("- None of these are judge benchmarks")]

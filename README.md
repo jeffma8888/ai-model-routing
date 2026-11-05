@@ -19,7 +19,7 @@ Route every repeated kind of model call (ticket triage, field extraction, code g
 
 - In a team that evaluates seriously, judge calls are a large share of model spend: every candidate output, on every test case, on every rubric, gets graded, often more than once
 - A cheap judge that is wrong does more damage than a cheap model on any other task, because it silently weakens the evals that every later decision trusts
-- We found no public judge benchmark with a row for the current generation of models (see [research/judge-benchmarks.md](research/judge-benchmarks.md)). The nearest public evidence is a router benchmark that publishes every judge model's grade of every answer: [AutoBench judges](#autobench-judges) chooses a judge on it by agreement with the other judges, not with a human label
+- We found no public judge benchmark with a row for the current generation of models (see [research/judge-benchmarks.md](research/judge-benchmarks.md)). The nearest public evidence is a router benchmark that publishes each judge model's grade of each answer it graded: [AutoBench judges](#autobench-judges) chooses a judge on it by agreement with the other judges, not with a human label
 - A judge must not grade its own family's output, so judge tasks turn on generator isolation (below)
 
 ## Two flavors, one pipeline
@@ -490,9 +490,9 @@ Reading it:
 
 Limits:
 
-- The label is agreement with the other judges, which are models from the same pool, not a human gold label: a judge that always grades as the committee does scores 1.0 whether or not the committee is right
+- The label is agreement with the other judges, which are models, not a human gold label: a judge that always grades as the committee does scores 1.0 whether or not the committee is right
 - Each cost is an estimate at the pool's list prices, never a billed cost: a judge call is assumed to read the question, the visible answer and a 400-token rubric and to write a 200-token grade
-- The 5 candidates are the pool judges whose set keeps the most answers, not the best or the cheapest judges. 756 of the 4,933 scored answers are kept: the converter drops the 1,252 answered by a candidate, since no model grades its own answer, and the 2,925 that some candidate did not grade, so every candidate grades every item
+- The 5 candidates are the pool judges whose set keeps the most answers, chosen for that and not for quality or price. 756 of the 4,933 scored answers are kept: the converter drops the 1,252 answered by a candidate, since no model grades its own answer, and the 2,925 that some candidate did not grade, so every candidate grades every item
 - Answers to the same question are separate items, so a seed's split can put answers to one question in both halves
 
 Regenerate (the dataset downloads into a cache folder outside the repo; the sensitivity commands are in RESULTS.md):

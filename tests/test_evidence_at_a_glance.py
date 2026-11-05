@@ -2,8 +2,7 @@
 
 The README evidence section opens with a short list, one bullet per subsection. Every
 number and model ID in it is built here from the committed results files (four since v1.28,
-which adds the AutoBench judges bullet), at the
-rounding of the subsection tables, and every word that depends on the data (no routed row
+which adds the AutoBench judges bullet), at the rounding of the subsection tables, and every word that depends on the data (no routed row
 reaches or beats, level, more, less) is asserted against those files, so the list cannot
 drift from them or keep a claim a regenerated file no longer supports.
 """
