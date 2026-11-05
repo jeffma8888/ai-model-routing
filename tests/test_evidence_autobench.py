@@ -642,7 +642,13 @@ def test_main_width_option_needs_no_delta_signal(cv, tmp_path, monkeypatch, caps
 def test_pool_is_checked_before_the_options(cv):
     matrix, questions = small()
     with pytest.raises(ValueError, match="pool"):
-        cv.convert(matrix, questions, {"members": []}, float("nan"), top_k=0, task_by="x")
+        cv.convert(matrix, questions, {"members": []}, float("nan"), top_k=0, task_by="x", tokens="x")
+
+
+def test_tokens_is_checked_after_task_by(cv):
+    matrix, questions = small()
+    with pytest.raises(ValueError, match="task_by"):
+        cv.convert(matrix, questions, POOL, 0.25, task_by="x", tokens="x")
 
 
 # --- token counts and the pool registry (v1.21) -----------------------------------------------
@@ -849,15 +855,30 @@ def test_main_registry(cv, tmp_path, monkeypatch, capsys):
     assert sorted(p.name for p in tmp_path.iterdir()) == ["data", "models.json", "out.jsonl"]
 
 
-@pytest.mark.parametrize("spelling", ["same", "dotdot"])
-def test_main_registry_same_file_as_out(cv, tmp_path, folder, capsys, spelling):
+@pytest.mark.parametrize("out_name, reg_name", [
+    ("out.jsonl", "out.jsonl"), ("out.jsonl", "data/../out.jsonl"),
+    ("x.part", "x"), ("y", "y.part"), ("data/../x.part", "x")])
+def test_main_registry_same_file_as_out(cv, tmp_path, folder, capsys, out_name, reg_name):
     _, seen = folder
-    out = tmp_path / "out.jsonl"
-    reg = out if spelling == "same" else tmp_path / "data" / ".." / "out.jsonl"
+    out, reg = tmp_path / out_name, tmp_path / reg_name
     assert cv.main(["--out", str(out), "--registry", str(reg)]) == 2
     err = one_error_line(capsys)
     assert "--registry" in err and "same file" in err
-    assert seen == [] and not out.exists()
+    assert seen == [] and sorted(p.name for p in tmp_path.iterdir()) == ["data"]
+
+
+def test_main_tokens_and_registry_together(cv, tmp_path, monkeypatch, capsys):
+    matrix, questions = tokened()
+    data = write_folder(tmp_path / "data", matrix, questions, pool=PRICED_POOL)
+    monkeypatch.setattr(cv, "fetch", lambda cache_dir=None: data)
+    out, reg = tmp_path / "out.jsonl", tmp_path / "models.json"
+    assert cv.main(["--out", str(out), "--task-by", "all", "--tokens", "--registry", str(reg)]) == 0
+    report = json.loads(capsys.readouterr().out)
+    want = sorted((dict(r, task="all") for r in TOKEN_ROWS), key=lambda r: (r["task"], r["item"], r["model"]))
+    assert out.read_text(encoding="utf-8") == "".join(json.dumps(r) + "\n" for r in want)
+    assert reg.read_text(encoding="utf-8") == json.dumps(PRICED_REGISTRY, indent=2) + "\n"
+    assert report["kept"] == {"all": 2}
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["data", "models.json", "out.jsonl"]
 
 
 def test_main_registry_bad_pool_writes_nothing(cv, tmp_path, folder, capsys):
@@ -916,13 +937,20 @@ README_COUNTS = [
     "10 tasks of 12 to 33 kept questions"]
 
 
+# The evidence README's list-price check as written; test_real_files_tokens_and_registry
+# builds the same phrase from the pinned files
+README_RATIO = "median ratio of 1.000 to the billed cost (2 rows are billed 0 and left out)"
+
+
 def test_evidence_readme():
     text = EVIDENCE_README.read_text(encoding="utf-8")
     for needle in ["https://huggingface.co/datasets/AutoBench/router-benchmark-2026-10", REVISION,
                    "CC-BY-4.0", "Do LLM Routers Pay for Themselves?",
                    "python evidence/autobench-2026/convert.py --out", "--width 0.3011090610836323",
                    "--task-by all", "not an absolute acceptance check", "203 of 252", "4,060 rows",
-                   "6,291", "(RESULTS.md)", "(results.json)", *README_COUNTS]:
+                   "6,291", "(RESULTS.md)", "(results.json)", *README_COUNTS,
+                   "--task-by all --tokens --registry autobench-models.json", "`reasoning_tokens` is not read",
+                   "Without `--tokens` the rows are exactly as before", README_RATIO]:
         assert needle in text, needle
 
 
@@ -1014,3 +1042,5 @@ def test_real_files_tokens_and_registry(cv):
                     for r in billed)
     median = (ratios[len(ratios) // 2 - 1] + ratios[len(ratios) // 2]) / 2
     assert len(ratios) == 4058 and f"{median:.3f}" == "1.000"   # DESIGN 12.9
+    built = f"median ratio of {median:.3f} to the billed cost ({len(rows) - len(billed)} rows are billed 0 and left out)"
+    assert built == README_RATIO

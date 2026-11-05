@@ -314,8 +314,11 @@ def main(argv=None) -> int:
                         help="also write a models.json registry built from the pool's list prices")
     try:
         args = parser.parse_args(argv)
-        if args.registry is not None and Path(args.registry).resolve() == Path(args.out).resolve():
-            raise _UsageError("--registry and --out name the same file")
+        if args.registry is not None:
+            paths = [p.resolve() for name in (args.out, args.registry)
+                     for p in (Path(name), Path(name + ".part"))]
+            if len(set(paths)) < len(paths):
+                raise _UsageError("--registry and --out (or their .part files) name the same file")
         folder = fetch(args.cache)
         params = json.loads((folder / "frozen_params.json").read_text(encoding="utf-8"))
         if not isinstance(params, dict):
