@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from model_routing import evaluate, outcomes_from_rows
+from model_routing import evaluate, outcomes_from_rows, split_items, wilson_lower_bound
 
 ROOT = Path(__file__).resolve().parents[1]
 FOLDER = ROOT / "evidence" / "autobench-2026"
@@ -117,6 +117,38 @@ def luna_line(summary, bar, flavor):
             f"{rows[0]['cost_usd']:.4f} USD")
 
 
+def reading_phrases(results):
+    """The numbers of the RESULTS.md "Reading it" bullets and the file size, from the file."""
+    config, seeds = results["config"], len(results["config"]["seeds"])
+    first = [r for r in results["summary"]
+             if (r["bar"], r["flavor"]) == (config["bars"][0], config["flavors"][0])]
+    best = min((r for r in first if r["strategy"].startswith("model:")),
+               key=lambda r: (-r["success"], r["cost_usd"], r["strategy"]))
+    boc = summary_row(results, config["bars"][0], config["flavors"][0], "best_on_calibration")
+    ce = {bar: summary_row(results, bar, "cost_effective", "routed") for bar in config["bars"]}
+    cb = [summary_row(results, bar, "cost_blind", "routed") for bar in config["bars"]]
+    assert ce[0.6]["cleared_rate"] == 1.0 and ce[0.9]["cleared_rate"] == 0.0
+    assert all((r["success"], r["cost_usd"]) == (cb[0]["success"], cb[0]["cost_usd"]) for r in cb)
+    phrases = [
+        f"At bar 0.6 every seed clears and it spends {ce[0.6]['cost_usd'] / best['cost_usd']:.3f} "
+        f"of the best single model's cost for a held-out success of {ce[0.6]['success']:.3f} "
+        f"against that model's {best['success']:.3f}",
+        f"At 0.8 a model clears on {round(ce[0.8]['cleared_rate'] * seeds)} of the {seeds} seeds",
+        f"the cost rises to {ce[0.8]['cost_usd'] / best['cost_usd']:.3f} of the best single model",
+        f"(the best single model's held-out success is {best['success']:.3f}), so no seed clears",
+        f"success {cb[0]['success']:.3f} at {cb[0]['cost_usd'] / best['cost_usd']:.3f} of the best "
+        f"single model's cost at every bar, close to `best_on_calibration` "
+        f"({boc['success']:.3f} at {boc['cost_usd'] / best['cost_usd']:.3f})",
+        f"a nominal one-sided {(1 - config['confidence']) / 2:.3f}",
+        f"the committed file, {RESULTS.stat().st_size:,} bytes,"]
+    for bar in (0.7, 0.8):
+        cleared = round(ce[bar]["cleared_rate"] * seeds)
+        violated = round(ce[bar]["bar_violation_rate"] * cleared)
+        phrases.append(f"{ce[bar]['bar_violation_rate']:.3f} at bar {bar} is {violated} of the "
+                       f"{cleared} seeds that cleared")
+    return phrases
+
+
 # --- the committed file and RESULTS.md ------------------------------------------------------
 
 def test_committed_results_are_small_reduced_and_pinned(rs):
@@ -157,6 +189,22 @@ def test_results_md_puts_the_card_headline_next_to_the_router():
     row = [r for r in results["per_task"] if (r["bar"], r["flavor"]) == (0.7, "cost_effective")]
     seeds = row[0]["routed_models"].get("openai/gpt-5.6-luna", 0)
     assert f"routes {seeds} of the 50 seeds to `openai/gpt-5.6-luna`" in text
+
+
+def test_results_md_reading_numbers_are_the_committed_results():
+    results, text = committed(), results_md()
+    for phrase in reading_phrases(results):
+        assert phrase in text, phrase
+    # "the other seeds to weaker models ..., so it ends a little below that model on success
+    # and a little above it on cost"
+    luna = summary_row(results, 0.6, "cost_effective", LUNA)
+    routed = summary_row(results, 0.7, "cost_effective", "routed")
+    assert routed["success"] < luna["success"] and routed["cost_usd"] > luna["cost_usd"]
+    row = [r for r in results["per_task"] if (r["bar"], r["flavor"]) == (0.7, "cost_effective")]
+    others = set(row[0]["routed_models"]) - {"openai/gpt-5.6-luna"}
+    assert others and all(summary_row(results, 0.6, "cost_effective", f"model:{m}")["success"]
+                          < luna["success"] for m in others)
+    assert "and the other seeds to weaker models that cleared the bar" in text
 
 
 def test_luna_statement_names_a_row_that_beats_it():
@@ -214,3 +262,26 @@ def test_real_sensitivity_numbers_are_in_results_md(cv):
         fake = {"config": {"bars": bars, "flavors": CONFIG["flavors"]}, "summary": summary}
         assert "no routed row beats it" in luna_statement(fake)
     assert "Neither run beats `openai/gpt-5.6-luna` alone on both counts." in text
+
+
+def test_real_split_sizes_are_in_results_md(cv):
+    matrix, questions, pool, params = pinned(cv)
+    text = results_md()
+    rows, _ = cv.convert(matrix, questions, pool, params["delta_signal"], params["top_k"],
+                         task_by="all")
+    items = {r["item"] for r in rows}
+    pooled = [len(split_items(items, seed)[0]) for seed in CONFIG["seeds"]]
+    assert (f"{len(items)} questions, with {min(pooled)} to {max(pooled)} in the calibration "
+            f"half over the 50 seeds") in text
+    rows, _ = cv.convert(matrix, questions, pool, params["delta_signal"], params["top_k"])
+    by_task = {}
+    for r in rows:
+        by_task.setdefault(r["task"], set()).add(r["item"])
+    halves = [len(split_items(v, seed)[0]) for v in by_task.values() for seed in CONFIG["seeds"]]
+    assert max(halves) < CONFIG["min_samples"]
+    assert (f"a calibration half holds from {min(halves)} to {max(halves)} questions over the "
+            f"{len(halves)} (domain, seed) splits") in text
+    need = next(n for n in range(1, 100) if wilson_lower_bound(n, n, 0.95) >= 0.8)
+    assert (f"a perfect score needs at least {need} calibration questions for a Wilson lower "
+            f"bound of 0.8 or more, and {sum(h < need for h in halves)} of the {len(halves)} "
+            f"halves hold fewer") in text
