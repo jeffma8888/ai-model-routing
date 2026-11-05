@@ -110,6 +110,18 @@ def test_null_grades_are_not_graders(jm):
     assert rows == [] and report["dropped_missing_candidate"] == 1
 
 
+def test_committee_mean_is_fsum_and_the_tolerance_has_no_epsilon(jm):
+    # math.fsum gives 1.2333333333333334 and |grade - mean| == 0.5; a left-to-right sum gives
+    # 1.2333333333333332 and a distance just above 0.5
+    graders = {"Alpha-1": 1.7333333333333334, "Beta-2": 1.1, "Gamma-3": 1.2, "Delta-4": 1.4}
+    rows, _ = jm.judge_matrix([cell("q1", "Zeta-6", graders)], POOL, candidates=["Alpha-1"])
+    assert [r["correct"] for r in rows] == [True]
+    # one ulp past the tolerance is outside it
+    graders = {"Alpha-1": math.nextafter(4.5, 5.0), "Beta-2": 4, "Gamma-3": 4, "Delta-4": 4}
+    rows, _ = jm.judge_matrix([cell("q1", "Zeta-6", graders)], POOL, candidates=["Alpha-1"])
+    assert [r["correct"] for r in rows] == [False]
+
+
 def test_committee_includes_other_candidates_and_judges_outside_the_pool(jm):
     graders = {"Alpha-1": 2, "Beta-2": 2, "Out-8": 2, "Out-9": 2}
     rows, _ = jm.judge_matrix([cell("q1", "Zeta-6", graders)], POOL, candidates=["Alpha-1", "Beta-2"])
@@ -210,6 +222,28 @@ def test_default_candidates_respect_the_self_graded_rule(jm):
 def test_size_larger_than_the_pool_judges(jm):
     with pytest.raises(ValueError, match="size 5"):
         jm.judge_matrix(default_matrix(), POOL, size=5)  # Alpha, Beta, Delta, Gamma grade
+
+
+def test_answer_with_no_graders_and_a_candidate_that_grades_nothing(jm):
+    rows, report = jm.judge_matrix([cell("q1", "Zeta-6", {}), cell("q2", "Zeta-6", {"Alpha-1": None})], POOL,
+                                   candidates=["Alpha-1"])
+    assert rows == [] and report["dropped_missing_candidate"] == 2 and report["kept"] == {}
+    rows, report = jm.judge_matrix(default_matrix(), POOL, candidates=["Eps-5"])
+    assert rows == [] and report["kept"] == {} and report["dropped_missing_candidate"] == 3
+    assert report["candidates"] == ["acme/eps-5"] and report["rows"] == 0
+
+
+def test_questions_are_not_read_with_task_by_all(jm):
+    want = jm.judge_matrix(default_matrix(), POOL, size=2)
+    assert jm.judge_matrix(default_matrix(), POOL, size=2, questions="not a list") == want
+    assert jm.judge_matrix(default_matrix(), POOL, size=2, questions=[{"prompt_id": ""}, 7]) == want
+
+
+def test_size_is_checked_even_with_given_candidates(jm):
+    with pytest.raises(ValueError, match="size"):
+        jm.judge_matrix(default_matrix(), POOL, candidates=["Alpha-1"], size=0)
+    with pytest.raises(ValueError, match="size"):
+        jm.judge_matrix(default_matrix(), POOL, candidates=["Alpha-1"], size=True)
 
 
 def test_given_candidates_ignore_size(jm):
@@ -433,6 +467,51 @@ def test_main_errors_exit_2_with_one_line_and_no_file(jm, tmp_path, folder, caps
     err = capsys.readouterr().err
     assert err.startswith("error: ") and err.count("\n") == 1
     assert sorted(p.name for p in tmp_path.iterdir()) == ["data"]
+
+
+def test_main_write_failure_keeps_an_existing_output(jm, tmp_path, folder, capsys, monkeypatch):
+    out, reg = tmp_path / "out.jsonl", tmp_path / "reg.json"
+    out.write_text("old\n", encoding="utf-8")
+
+    def broken(rows, path):
+        Path(path).write_text("partial", encoding="utf-8")
+        raise OSError("disk full")
+    monkeypatch.setattr(jm.convert, "write_jsonl", broken)
+    assert jm.main(["--out", str(out), "--registry", str(reg), "--size", "2"]) == 2
+    assert capsys.readouterr().err == "error: disk full\n"
+    assert out.read_text(encoding="utf-8") == "old\n"
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["data", "out.jsonl"]
+
+
+def test_main_registry_write_failure_writes_nothing(jm, tmp_path, folder, capsys, monkeypatch):
+    out, reg = tmp_path / "out.jsonl", tmp_path / "reg.json"
+    real = Path.write_text
+
+    def write_text(self, *args, **kwargs):
+        if self.name == "reg.json.part":
+            real(self, "partial", encoding="utf-8")
+            raise OSError("no space")
+        return real(self, *args, **kwargs)
+    monkeypatch.setattr(Path, "write_text", write_text)
+    assert jm.main(["--out", str(out), "--registry", str(reg), "--size", "2"]) == 2
+    assert capsys.readouterr().err == "error: no space\n"
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["data"]
+
+
+def test_main_second_rename_failure_leaves_out_renamed(jm, tmp_path, folder, capsys, monkeypatch):
+    out, reg = tmp_path / "out.jsonl", tmp_path / "reg.json"
+    real = Path.replace
+
+    def replace(self, target):
+        if Path(target).name == "reg.json":
+            raise OSError("rename failed")
+        return real(self, target)
+    monkeypatch.setattr(Path, "replace", replace)
+    assert jm.main(["--out", str(out), "--registry", str(reg), "--size", "2"]) == 2
+    assert capsys.readouterr().err == "error: rename failed\n"
+    rows, _ = jm.judge_matrix(default_matrix(), POOL, size=2)
+    assert out.read_text(encoding="utf-8") == "".join(json.dumps(r) + "\n" for r in rows)
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["data", "out.jsonl"]
 
 
 def test_main_needs_out(jm, folder, capsys):
