@@ -59,12 +59,12 @@ python evidence/autobench-2026/convert.py --out autobench-matrix.jsonl --task-by
 
 ## Judge evidence: one item per graded answer
 
-AutoBench publishes every judge's grade of every answer (`judges_json` in `matrix.csv`), so the same pinned files give public evidence for choosing a judge model. `judges.py` turns those grades into a judge outcome matrix in the format `model-routing evaluate` reads (DESIGN 12.11): an item is one graded answer (a question and the pool model that answered it), a model is a candidate judge, and a judge's grade is a success when it is within 0.5 of the mean of the other judges' grades on that answer. It loads `convert.py` from this folder for the pinned files, their checks and the download, and needs no extra.
+AutoBench publishes every judge's grade of every answer (`judges_json` in `matrix.csv`), so the same pinned files give public evidence for choosing a judge model. `judges.py` turns those grades into a judge outcome matrix in the format `model-routing evaluate` reads (DESIGN 12.11): an item is one graded answer (a question and the pool model that answered it), a model is a candidate judge, and a judge's grade is a success when it is within 0.5 of the mean of the other judges' grades on that answer. It loads `convert.py` from this folder for the pinned files, their checks and the download, and like it is standard library only, so no extra is needed.
 
 ```bash
 python -m pip install -e .
-python evidence/autobench-2026/judges.py --out autobench-judges.jsonl --registry autobench-pool.json
-model-routing evaluate --outcomes autobench-judges.jsonl --registry autobench-pool.json --bar 0.8
+python evidence/autobench-2026/judges.py --out autobench-judges.jsonl --registry autobench-models.json
+model-routing evaluate --outcomes autobench-judges.jsonl --registry autobench-models.json --bar 0.8
 ```
 
 The rows carry token counts and no cost, so `evaluate` needs `--registry`: the file it writes is the one `convert.py --registry` writes, priced at the pool's list prices. The script prints a JSON report of what it kept and dropped.

@@ -2,8 +2,8 @@
 
 The script lives outside the package (``evidence/autobench-2026/judges.py``) and loads
 convert.py from its own folder, so it is loaded from its path by an autouse fixture. Every
-test uses tiny in-memory tables, except the evidence README test, which reads that README, and
-the three at the end, which read the pinned files only when they are already in the default
+test uses tiny in-memory tables, except the two evidence README tests, which read that README,
+and the three at the end, which read the pinned files only when they are already in the default
 cache and skip otherwise (CI never downloads them).
 """
 
@@ -541,8 +541,9 @@ def test_evidence_readme_judge_section():
     section = text.split("## Judge evidence: one item per graded answer\n", 1)[1]
     assert "](#judge-evidence-one-item-per-graded-answer)" in text.split("\n## ", 1)[0]
     for needle in [
-            "python evidence/autobench-2026/judges.py --out autobench-judges.jsonl --registry autobench-pool.json",
-            "model-routing evaluate --outcomes autobench-judges.jsonl --registry autobench-pool.json --bar 0.8\n",
+            "python evidence/autobench-2026/judges.py --out autobench-judges.jsonl --registry autobench-models.json",
+            "model-routing evaluate --outcomes autobench-judges.jsonl --registry autobench-models.json --bar 0.8\n",
+            "like it is standard library only, so no extra is needed",
             "a judge outcome matrix in the format `model-routing evaluate` reads (DESIGN 12.11)",
             "not a human gold label", "scores 1.0 whether or not the committee is right",
             "never enters a committee", "Tolerance 0.5 on the 1 to 5 scale (`--tolerance`)", "no epsilon",
@@ -626,6 +627,7 @@ def test_pinned_readme_counts(jm):
     reasoning = [float(r["reasoning_tokens"] or 0) for r in kept]
     output = [float(r["output_tokens"]) for r in kept]
     over = [x / y for x, y in zip(reasoning, output) if x > y]
+    assert over, "no kept answer reports more reasoning than output tokens: reword the README caveat"
     by_size = {k: sum(jm.judge_matrix(matrix, pool, size=k)[1]["kept"].values()) for k in (4, 6)}
     by_size[5] = sum(report["kept"].values())
     assert by_size[4] > by_size[5] > by_size[6]
