@@ -18,9 +18,6 @@ import pytest
 
 from model_routing import Registry, evaluate, outcomes_from_rows
 
-pytestmark = pytest.mark.xfail(strict=True, raises=FileNotFoundError,
-                               reason="v1.27 results not committed yet (DESIGN 12.12)")
-
 ROOT = Path(__file__).resolve().parents[1]
 FOLDER = ROOT / "evidence" / "autobench-judges"
 RESULTS = FOLDER / "results.json"

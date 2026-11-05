@@ -1,0 +1,923 @@
+{
+  "config": {
+    "bars": [
+      0.6,
+      0.7,
+      0.8,
+      0.9
+    ],
+    "seeds": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39,
+      40,
+      41,
+      42,
+      43,
+      44,
+      45,
+      46,
+      47,
+      48,
+      49
+    ],
+    "flavors": [
+      "cost_effective",
+      "cost_blind"
+    ],
+    "calibration_fraction": 0.5,
+    "min_samples": 30,
+    "confidence": 0.95
+  },
+  "tasks": {
+    "all": {
+      "items": 756,
+      "models": [
+        "deepseek/deepseek-v4-flash-0731",
+        "google/gemma-4-31b-it",
+        "meta/muse-glimmer-30b",
+        "openai/gpt-5.6-luna",
+        "tencent/hy3"
+      ]
+    }
+  },
+  "summary": [
+    {
+      "bar": 0.6,
+      "flavor": "cost_effective",
+      "strategy": "routed",
+      "success": 0.8158364371881991,
+      "cost_usd": 0.0617086336,
+      "below_bar_rate": 0.0,
+      "cleared_rate": 1.0,
+      "bar_violation_rate": 0.0
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_effective",
+      "strategy": "oracle",
+      "success": 0.9572683746712783,
+      "cost_usd": 0.08322428672000001,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_effective",
+      "strategy": "best_on_calibration",
+      "success": 0.8314047980499311,
+      "cost_usd": 0.11461965616,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_effective",
+      "strategy": "cheapest",
+      "success": 0.8158364371881991,
+      "cost_usd": 0.0617086336,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_effective",
+      "strategy": "model:deepseek/deepseek-v4-flash-0731",
+      "success": 0.8158364371881991,
+      "cost_usd": 0.0617086336,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_effective",
+      "strategy": "model:google/gemma-4-31b-it",
+      "success": 0.7714533669321129,
+      "cost_usd": 0.11436748880000001,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_effective",
+      "strategy": "model:meta/muse-glimmer-30b",
+      "success": 0.5985696602373368,
+      "cost_usd": 0.323432722,
+      "below_bar_rate": 0.48,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_effective",
+      "strategy": "model:openai/gpt-5.6-luna",
+      "success": 0.6419935377074408,
+      "cost_usd": 0.21054258400000003,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_effective",
+      "strategy": "model:tencent/hy3",
+      "success": 0.8348509053430578,
+      "cost_usd": 0.11915071344000001,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "routed",
+      "success": 0.8314047980499311,
+      "cost_usd": 0.11461965616,
+      "below_bar_rate": 0.0,
+      "cleared_rate": 1.0,
+      "bar_violation_rate": 0.0
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "oracle",
+      "success": 0.9572683746712783,
+      "cost_usd": 0.08322428672000001,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "best_on_calibration",
+      "success": 0.8314047980499311,
+      "cost_usd": 0.11461965616,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "cheapest",
+      "success": 0.8158364371881991,
+      "cost_usd": 0.0617086336,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/deepseek-v4-flash-0731",
+      "success": 0.8158364371881991,
+      "cost_usd": 0.0617086336,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemma-4-31b-it",
+      "success": 0.7714533669321129,
+      "cost_usd": 0.11436748880000001,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:meta/muse-glimmer-30b",
+      "success": 0.5985696602373368,
+      "cost_usd": 0.323432722,
+      "below_bar_rate": 0.48,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-5.6-luna",
+      "success": 0.6419935377074408,
+      "cost_usd": 0.21054258400000003,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:tencent/hy3",
+      "success": 0.8348509053430578,
+      "cost_usd": 0.11915071344000001,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_effective",
+      "strategy": "routed",
+      "success": 0.8158364371881991,
+      "cost_usd": 0.0617086336,
+      "below_bar_rate": 0.0,
+      "cleared_rate": 1.0,
+      "bar_violation_rate": 0.0
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_effective",
+      "strategy": "oracle",
+      "success": 0.9572683746712783,
+      "cost_usd": 0.08322428672000001,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_effective",
+      "strategy": "best_on_calibration",
+      "success": 0.8314047980499311,
+      "cost_usd": 0.11461965616,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_effective",
+      "strategy": "cheapest",
+      "success": 0.8158364371881991,
+      "cost_usd": 0.0617086336,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_effective",
+      "strategy": "model:deepseek/deepseek-v4-flash-0731",
+      "success": 0.8158364371881991,
+      "cost_usd": 0.0617086336,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_effective",
+      "strategy": "model:google/gemma-4-31b-it",
+      "success": 0.7714533669321129,
+      "cost_usd": 0.11436748880000001,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_effective",
+      "strategy": "model:meta/muse-glimmer-30b",
+      "success": 0.5985696602373368,
+      "cost_usd": 0.323432722,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_effective",
+      "strategy": "model:openai/gpt-5.6-luna",
+      "success": 0.6419935377074408,
+      "cost_usd": 0.21054258400000003,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_effective",
+      "strategy": "model:tencent/hy3",
+      "success": 0.8348509053430578,
+      "cost_usd": 0.11915071344000001,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "routed",
+      "success": 0.8314047980499311,
+      "cost_usd": 0.11461965616,
+      "below_bar_rate": 0.0,
+      "cleared_rate": 1.0,
+      "bar_violation_rate": 0.0
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "oracle",
+      "success": 0.9572683746712783,
+      "cost_usd": 0.08322428672000001,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "best_on_calibration",
+      "success": 0.8314047980499311,
+      "cost_usd": 0.11461965616,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "cheapest",
+      "success": 0.8158364371881991,
+      "cost_usd": 0.0617086336,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/deepseek-v4-flash-0731",
+      "success": 0.8158364371881991,
+      "cost_usd": 0.0617086336,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemma-4-31b-it",
+      "success": 0.7714533669321129,
+      "cost_usd": 0.11436748880000001,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:meta/muse-glimmer-30b",
+      "success": 0.5985696602373368,
+      "cost_usd": 0.323432722,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-5.6-luna",
+      "success": 0.6419935377074408,
+      "cost_usd": 0.21054258400000003,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:tencent/hy3",
+      "success": 0.8348509053430578,
+      "cost_usd": 0.11915071344000001,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_effective",
+      "strategy": "routed",
+      "success": 0.8306825758277089,
+      "cost_usd": 0.11351346312,
+      "below_bar_rate": 0.04,
+      "cleared_rate": 0.56,
+      "bar_violation_rate": 0.07142857142857142
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_effective",
+      "strategy": "oracle",
+      "success": 0.9572683746712783,
+      "cost_usd": 0.08322428672000001,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_effective",
+      "strategy": "best_on_calibration",
+      "success": 0.8314047980499311,
+      "cost_usd": 0.11461965616,
+      "below_bar_rate": 0.02,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_effective",
+      "strategy": "cheapest",
+      "success": 0.8158364371881991,
+      "cost_usd": 0.0617086336,
+      "below_bar_rate": 0.06,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_effective",
+      "strategy": "model:deepseek/deepseek-v4-flash-0731",
+      "success": 0.8158364371881991,
+      "cost_usd": 0.0617086336,
+      "below_bar_rate": 0.06,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_effective",
+      "strategy": "model:google/gemma-4-31b-it",
+      "success": 0.7714533669321129,
+      "cost_usd": 0.11436748880000001,
+      "below_bar_rate": 0.96,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_effective",
+      "strategy": "model:meta/muse-glimmer-30b",
+      "success": 0.5985696602373368,
+      "cost_usd": 0.323432722,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_effective",
+      "strategy": "model:openai/gpt-5.6-luna",
+      "success": 0.6419935377074408,
+      "cost_usd": 0.21054258400000003,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_effective",
+      "strategy": "model:tencent/hy3",
+      "success": 0.8348509053430578,
+      "cost_usd": 0.11915071344000001,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "routed",
+      "success": 0.8314047980499311,
+      "cost_usd": 0.11461965616,
+      "below_bar_rate": 0.02,
+      "cleared_rate": 0.56,
+      "bar_violation_rate": 0.03571428571428571
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "oracle",
+      "success": 0.9572683746712783,
+      "cost_usd": 0.08322428672000001,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "best_on_calibration",
+      "success": 0.8314047980499311,
+      "cost_usd": 0.11461965616,
+      "below_bar_rate": 0.02,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "cheapest",
+      "success": 0.8158364371881991,
+      "cost_usd": 0.0617086336,
+      "below_bar_rate": 0.06,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/deepseek-v4-flash-0731",
+      "success": 0.8158364371881991,
+      "cost_usd": 0.0617086336,
+      "below_bar_rate": 0.06,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemma-4-31b-it",
+      "success": 0.7714533669321129,
+      "cost_usd": 0.11436748880000001,
+      "below_bar_rate": 0.96,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:meta/muse-glimmer-30b",
+      "success": 0.5985696602373368,
+      "cost_usd": 0.323432722,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-5.6-luna",
+      "success": 0.6419935377074408,
+      "cost_usd": 0.21054258400000003,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:tencent/hy3",
+      "success": 0.8348509053430578,
+      "cost_usd": 0.11915071344000001,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_effective",
+      "strategy": "routed",
+      "success": 0.8314047980499311,
+      "cost_usd": 0.11461965616,
+      "below_bar_rate": 1.0,
+      "cleared_rate": 0.0,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_effective",
+      "strategy": "oracle",
+      "success": 0.9572683746712783,
+      "cost_usd": 0.08322428672000001,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_effective",
+      "strategy": "best_on_calibration",
+      "success": 0.8314047980499311,
+      "cost_usd": 0.11461965616,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_effective",
+      "strategy": "cheapest",
+      "success": 0.8158364371881991,
+      "cost_usd": 0.0617086336,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_effective",
+      "strategy": "model:deepseek/deepseek-v4-flash-0731",
+      "success": 0.8158364371881991,
+      "cost_usd": 0.0617086336,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_effective",
+      "strategy": "model:google/gemma-4-31b-it",
+      "success": 0.7714533669321129,
+      "cost_usd": 0.11436748880000001,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_effective",
+      "strategy": "model:meta/muse-glimmer-30b",
+      "success": 0.5985696602373368,
+      "cost_usd": 0.323432722,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_effective",
+      "strategy": "model:openai/gpt-5.6-luna",
+      "success": 0.6419935377074408,
+      "cost_usd": 0.21054258400000003,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_effective",
+      "strategy": "model:tencent/hy3",
+      "success": 0.8348509053430578,
+      "cost_usd": 0.11915071344000001,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "routed",
+      "success": 0.8314047980499311,
+      "cost_usd": 0.11461965616,
+      "below_bar_rate": 1.0,
+      "cleared_rate": 0.0,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "oracle",
+      "success": 0.9572683746712783,
+      "cost_usd": 0.08322428672000001,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "best_on_calibration",
+      "success": 0.8314047980499311,
+      "cost_usd": 0.11461965616,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "cheapest",
+      "success": 0.8158364371881991,
+      "cost_usd": 0.0617086336,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/deepseek-v4-flash-0731",
+      "success": 0.8158364371881991,
+      "cost_usd": 0.0617086336,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemma-4-31b-it",
+      "success": 0.7714533669321129,
+      "cost_usd": 0.11436748880000001,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:meta/muse-glimmer-30b",
+      "success": 0.5985696602373368,
+      "cost_usd": 0.323432722,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-5.6-luna",
+      "success": 0.6419935377074408,
+      "cost_usd": 0.21054258400000003,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:tencent/hy3",
+      "success": 0.8348509053430578,
+      "cost_usd": 0.11915071344000001,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    }
+  ],
+  "per_task": [
+    {
+      "bar": 0.6,
+      "flavor": "cost_effective",
+      "task": "all",
+      "strategy": "routed",
+      "success": 0.8158364371881991,
+      "cost_usd": 0.0617086336,
+      "below_bar_rate": 0.0,
+      "cleared_rate": 1.0,
+      "bar_violation_rate": 0.0,
+      "routed_models": {
+        "deepseek/deepseek-v4-flash-0731": 50
+      }
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "task": "all",
+      "strategy": "routed",
+      "success": 0.8314047980499311,
+      "cost_usd": 0.11461965616,
+      "below_bar_rate": 0.0,
+      "cleared_rate": 1.0,
+      "bar_violation_rate": 0.0,
+      "routed_models": {
+        "deepseek/deepseek-v4-flash-0731": 4,
+        "tencent/hy3": 46
+      }
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_effective",
+      "task": "all",
+      "strategy": "routed",
+      "success": 0.8158364371881991,
+      "cost_usd": 0.0617086336,
+      "below_bar_rate": 0.0,
+      "cleared_rate": 1.0,
+      "bar_violation_rate": 0.0,
+      "routed_models": {
+        "deepseek/deepseek-v4-flash-0731": 50
+      }
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "task": "all",
+      "strategy": "routed",
+      "success": 0.8314047980499311,
+      "cost_usd": 0.11461965616,
+      "below_bar_rate": 0.0,
+      "cleared_rate": 1.0,
+      "bar_violation_rate": 0.0,
+      "routed_models": {
+        "deepseek/deepseek-v4-flash-0731": 4,
+        "tencent/hy3": 46
+      }
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_effective",
+      "task": "all",
+      "strategy": "routed",
+      "success": 0.8306825758277089,
+      "cost_usd": 0.11351346312,
+      "below_bar_rate": 0.04,
+      "cleared_rate": 0.56,
+      "bar_violation_rate": 0.07142857142857142,
+      "routed_models": {
+        "deepseek/deepseek-v4-flash-0731": 5,
+        "tencent/hy3": 45
+      }
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "task": "all",
+      "strategy": "routed",
+      "success": 0.8314047980499311,
+      "cost_usd": 0.11461965616,
+      "below_bar_rate": 0.02,
+      "cleared_rate": 0.56,
+      "bar_violation_rate": 0.03571428571428571,
+      "routed_models": {
+        "deepseek/deepseek-v4-flash-0731": 4,
+        "tencent/hy3": 46
+      }
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_effective",
+      "task": "all",
+      "strategy": "routed",
+      "success": 0.8314047980499311,
+      "cost_usd": 0.11461965616,
+      "below_bar_rate": 1.0,
+      "cleared_rate": 0.0,
+      "bar_violation_rate": null,
+      "routed_models": {
+        "deepseek/deepseek-v4-flash-0731": 4,
+        "tencent/hy3": 46
+      }
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "task": "all",
+      "strategy": "routed",
+      "success": 0.8314047980499311,
+      "cost_usd": 0.11461965616,
+      "below_bar_rate": 1.0,
+      "cleared_rate": 0.0,
+      "bar_violation_rate": null,
+      "routed_models": {
+        "deepseek/deepseek-v4-flash-0731": 4,
+        "tencent/hy3": 46
+      }
+    }
+  ]
+}
