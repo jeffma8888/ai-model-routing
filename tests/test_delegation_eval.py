@@ -389,8 +389,8 @@ def test_same_result_for_any_row_order_and_byte_identical_json():
 # seeds, prices that are not binary fractions and a different token count on every
 # call; fiction/small is wrong on q1 and q6 of task b and q3 and q8 of task c (none of
 # task a), and fiction/weak is right on q3 and q6 of task a, q2, q5 and q8 of task b
-# and q1, q4 and q7 of task c. On it a plain left-to-right `sum`, or a cost expression
-# written another way, gives a total or a mean that differs from the spec's
+# and q1, q4 and q7 of task c. On it plain left-to-right addition, or a cost
+# expression written another way, gives a total or a mean that differs from the spec's
 VARIED_TASKS = ["a", "b", "c"]
 VARIED_SEEDS = list(range(6))
 VARIED_POINTS = [point(100_000, 500, 300, 0, True), point(0, 700, 450, 3, False),
@@ -422,6 +422,16 @@ def run_varied(rows):
     return run(rows=rows, reg=varied_registry(), seeds=VARIED_SEEDS, points=VARIED_POINTS)
 
 
+def naive_sum(values):
+    # plain left-to-right float addition; builtin `sum` did this before Python 3.12,
+    # but from 3.12 it compensates (Neumaier) and often equals `fsum`, so it cannot
+    # stand in for a naive total on every Python the suite runs on
+    acc = 0.0
+    for v in values:
+        acc += v
+    return acc
+
+
 def test_costs_are_exact_fsum_totals_of_items_costed_left_to_right():
     rows, reg = varied_rows(), varied_registry()
     result = run_varied(rows)
@@ -431,13 +441,13 @@ def test_costs_are_exact_fsum_totals_of_items_costed_left_to_right():
 
     def total(values, level):
         values = list(values)
-        if sum(values) != fsum(values):
+        if naive_sum(values) != fsum(values):
             sensitive.add(level)
         return fsum(values)
 
     def mean(values, level):
         values = list(values)
-        if sum(values) / len(values) != fsum(values) / len(values):
+        if naive_sum(values) / len(values) != fsum(values) / len(values):
             sensitive.add(level)
         return fsum(values) / len(values)
 
@@ -494,7 +504,10 @@ def test_costs_are_exact_fsum_totals_of_items_costed_left_to_right():
                         for cs in by_seed]
         assert r["success"] == mean(seed_success, "success mean")
     # the fixture is sensitive at every level, each checked on the value the test
-    # compares, so a plain sum or a cost written another way fails an equality above
+    # compares, so naive left-to-right addition (builtin `sum` before Python 3.12) or
+    # a cost written another way fails an equality above; on 3.12 and later a module
+    # that sums with builtin `sum` gives the same values here, so only the 3.10 and
+    # 3.11 jobs catch that
     assert sensitive == {"items", "tasks", "cost mean", "success mean",
                          "separate inline rescaled", "folded inline rescaled",
                          "delegate regrouped"}
