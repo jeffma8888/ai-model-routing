@@ -3,7 +3,9 @@
 
 An autouse fixture imports ``model_routing.delegation`` before any other fixture or
 test code runs. The strict xfail these tests were committed under was removed by the
-implementing commit (DESIGN 13.8), so any failure here now fails the suite.
+implementing commit (DESIGN 13.8), so any failure here now fails the suite. The v1.31
+row 7 equal-bound tests that need the new branch carry their own strict xfail until the
+code that implements them lands (DESIGN 13.8).
 """
 
 import dataclasses
@@ -497,14 +499,11 @@ def test_neither_clears_under_refuse_raises():
     assert all(c.reason == "below_bar" for c in info.value.candidates)
 
 
-def test_neither_clears_under_best_available_takes_the_higher_measured_bound_ties_inline():
+def test_neither_clears_under_best_available_takes_the_higher_measured_bound():
     router = make_router(stats=ALL_BELOW, on_no_model="best_available")
     up = decide(router, "fiction/mid", context_tokens=1000)
     assert (up.mode, up.reason, up.model, up.below_bar) == (
         "delegate", "none_clear", "fiction/best", True)
-    same = decide(router, "fiction/best")
-    assert (same.mode, same.reason, same.model, same.below_bar) == (
-        "inline", "none_clear", "fiction/best", True)
 
 
 def test_neither_clears_an_unmeasured_parent_takes_a_measured_route():
@@ -534,6 +533,108 @@ def test_neither_clears_a_measured_parent_keeps_a_higher_bound_than_a_measured_r
         "inline", "none_clear", "fiction/best", True)
 
 
+# 13.5 row 7 (v1.31): on an equal bound, `cost_effective` takes the cheaper path, as the
+# 5.3 best_available sort does; `cost_blind`, an exact cost tie and a lower bound go inline
+
+EQUAL_PAIR = {"fiction/cheap": (78, 100), "fiction/mid": (70, 100), "fiction/best": (78, 100)}
+BIG_CONTEXT = 90_000
+# with fiction/best (10 and 20 USD per 1M tokens) as parent and delegate, inline minus
+# delegate is 10C - 40B - 10R + 25,000 millionths of a USD, zero at C = 4B + R - 2,500;
+# these counts give that zero in floating point too (0.08 USD on both paths)
+COST_TIE = {"context_tokens": 2500, "brief_tokens": 1000, "result_tokens": 1000}
+ROW_7_LATER = ("DESIGN 13.5 row 7 v1.31: an equal bound and a cheaper delegate delegate in "
+               "cost_effective; lands with the implementing commit")
+
+
+def test_row_7_equal_bound_fixtures_are_what_the_new_tests_assume():
+    router = make_router(stats=ALL_BELOW, on_no_model="best_available")
+    for flavor in ("cost_effective", "cost_blind"):
+        for context in (WORK["context_tokens"], BIG_CONTEXT):
+            own = decide(router, "fiction/best", flavor, context_tokens=context)
+            assert own.inline_allowed is True
+            assert own.route.basis == "measured" and own.route.primary == "fiction/best"
+            assert own.route.below_bar is True
+            assert own.delegate_quality_lb == own.parent_quality_lb
+            assert own.delegate_cost_usd == delegate_cost(router, "fiction/best", "fiction/best")
+            assert own.inline_cost_usd == inline_cost(router, "fiction/best", context)
+            assert own.delegate_cost_usd < own.inline_cost_usd
+    pair = make_router(stats=EQUAL_PAIR, on_no_model="best_available")
+    for flavor in ("cost_effective", "cost_blind"):
+        other = decide(pair, "fiction/best", flavor, exclude_models=("fiction/best",))
+        assert other.route.basis == "measured" and other.route.primary == "fiction/cheap"
+        assert other.route.below_bar is True
+        assert other.delegate_quality_lb == other.parent_quality_lb
+        assert other.delegate_cost_usd < other.inline_cost_usd
+
+
+@pytest.mark.xfail(strict=True, raises=AssertionError, reason=ROW_7_LATER)
+@pytest.mark.parametrize("context", [WORK["context_tokens"], BIG_CONTEXT])
+def test_neither_clears_an_equal_bound_delegates_to_the_parent_model_when_cheaper(context):
+    router = make_router(stats=ALL_BELOW, on_no_model="best_available")
+    decision = decide(router, "fiction/best", context_tokens=context)
+    assert (decision.mode, decision.reason, decision.model, decision.below_bar) == (
+        "delegate", "none_clear", "fiction/best", True)
+
+
+@pytest.mark.xfail(strict=True, raises=AssertionError, reason=ROW_7_LATER)
+def test_neither_clears_an_equal_bound_delegates_to_another_model_when_cheaper():
+    router = make_router(stats=EQUAL_PAIR, on_no_model="best_available")
+    decision = decide(router, "fiction/best", exclude_models=("fiction/best",))
+    assert (decision.mode, decision.reason, decision.model, decision.below_bar) == (
+        "delegate", "none_clear", "fiction/cheap", True)
+
+
+def test_neither_clears_an_equal_bound_stays_inline_in_cost_blind():
+    router = make_router(stats=ALL_BELOW, on_no_model="best_available")
+    for context in (WORK["context_tokens"], BIG_CONTEXT):
+        decision = decide(router, "fiction/best", "cost_blind", context_tokens=context)
+        assert (decision.mode, decision.reason, decision.model, decision.below_bar) == (
+            "inline", "none_clear", "fiction/best", True)
+    pair = make_router(stats=EQUAL_PAIR, on_no_model="best_available")
+    other = decide(pair, "fiction/best", "cost_blind", exclude_models=("fiction/best",))
+    assert (other.mode, other.reason, other.model, other.below_bar) == (
+        "inline", "none_clear", "fiction/best", True)
+
+
+def test_neither_clears_an_equal_bound_and_an_exact_cost_tie_stays_inline():
+    router = make_router(stats=ALL_BELOW, on_no_model="best_available")
+    tie = decide(router, "fiction/best", **COST_TIE)
+    assert tie.route.primary == "fiction/best"
+    assert tie.delegate_quality_lb == tie.parent_quality_lb
+    assert tie.delegate_cost_usd == tie.inline_cost_usd == pytest.approx(0.08, rel=1e-12)
+    assert (tie.mode, tie.reason, tie.model, tie.below_bar) == (
+        "inline", "none_clear", "fiction/best", True)
+    free = make_router(stats=ALL_BELOW, registry_models=models(free=True),
+                       on_no_model="best_available")
+    zero = decide(free, "fiction/best", context_tokens=BIG_CONTEXT)
+    assert zero.route.primary == "fiction/best"
+    assert zero.delegate_cost_usd == zero.inline_cost_usd == 0.0
+    assert (zero.mode, zero.reason, zero.model, zero.below_bar) == (
+        "inline", "none_clear", "fiction/best", True)
+
+
+def test_neither_clears_an_equal_bound_stays_inline_when_the_delegate_is_dearer():
+    router = make_router(stats=ALL_BELOW, on_no_model="best_available")
+    folded = decide(router, "fiction/best", inline_separate_call=False)
+    assert folded.route.primary == "fiction/best"
+    assert folded.delegate_quality_lb == folded.parent_quality_lb
+    assert folded.delegate_cost_usd > folded.inline_cost_usd
+    assert (folded.mode, folded.reason, folded.model, folded.below_bar) == (
+        "inline", "none_clear", "fiction/best", True)
+
+
+def test_neither_clears_a_lower_delegate_bound_stays_inline_even_when_cheaper():
+    router = make_router(stats=ALL_BELOW, on_no_model="best_available")
+    for context in (WORK["context_tokens"], BIG_CONTEXT):
+        decision = decide(router, "fiction/best", context_tokens=context,
+                          exclude_models=("fiction/best",))
+        assert decision.route.basis == "measured" and decision.route.primary == "fiction/mid"
+        assert decision.delegate_quality_lb < decision.parent_quality_lb
+        assert decision.delegate_cost_usd < decision.inline_cost_usd
+        assert (decision.mode, decision.reason, decision.model, decision.below_bar) == (
+            "inline", "none_clear", "fiction/best", True)
+
+
 def prior_router(stats):
     priors = Priors({"review": {"metric": "fictional", "source": "https://example.org/scores",
                                 "as_of": "2026-01-01",
@@ -546,6 +647,17 @@ def test_neither_clears_a_measured_parent_beats_a_prior_route():
     router = prior_router({"fiction/mid": (75, 100)})
     decision = decide(router, "fiction/mid", exclude_models=("fiction/mid",))
     assert decision.route.basis == "prior" and decision.route.primary == "fiction/best"
+    assert (decision.mode, decision.reason, decision.model, decision.below_bar) == (
+        "inline", "none_clear", "fiction/mid", True)
+
+
+def test_neither_clears_a_prior_route_with_an_equal_zero_bound_stays_inline():
+    router = prior_router({"fiction/mid": (0, 100)})
+    decision = decide(router, "fiction/mid", context_tokens=BIG_CONTEXT,
+                      exclude_models=("fiction/mid",))
+    assert decision.route.basis == "prior" and decision.route.primary == "fiction/best"
+    assert decision.delegate_quality_lb == decision.parent_quality_lb == 0.0
+    assert decision.delegate_cost_usd < decision.inline_cost_usd
     assert (decision.mode, decision.reason, decision.model, decision.below_bar) == (
         "inline", "none_clear", "fiction/mid", True)
 
