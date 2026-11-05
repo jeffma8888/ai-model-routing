@@ -9,17 +9,23 @@ AutoBench files only when they are already in the default cache and skip otherwi
 downloads them): one rebuilds results.json and requires the committed bytes, the other rebuilds
 every sensitivity line of RESULTS.md. v1.28 adds the README `### AutoBench judges` subsection
 (DESIGN 12.8): its tables, counts, Reading it bullets and limits are built here from the
-committed file, the 12.11 defaults and the evidence README counts.
+committed file, the 12.11 defaults and the evidence README counts. v1.29 compares the intro,
+the header and the Caveats of RESULTS.md as whole paragraphs, and, on the cached files, checks
+seed by seed that the routed judge is the one 5.3 picks from the calibration-half Wilson lower
+bounds, which is what the "highest lower bound" bullets say.
 """
 
+import hashlib
 import importlib.util
 import json
 import re
+from collections import Counter
+from math import fsum
 from pathlib import Path
 
 import pytest
 
-from model_routing import Registry, evaluate, outcomes_from_rows
+from model_routing import Registry, evaluate, outcomes_from_rows, wilson_lower_bound
 
 ROOT = Path(__file__).resolve().parents[1]
 FOLDER = ROOT / "evidence" / "autobench-judges"
@@ -156,6 +162,83 @@ def intro(results, tolerance):
 def header(results):
     return ("`vs_best_model` is that cost divided by the cost of the best single judge "
             f"(`{best(results)[0]}`)")
+
+
+def only_task(results):
+    assert list(results["tasks"]) == ["all"], list(results["tasks"])
+    return "all"
+
+
+def intro_paragraph(results, jm):
+    """The whole RESULTS.md intro paragraph (DESIGN 12.12, v1.29)."""
+    return ("What `model-routing evaluate` measures when the router chooses a judge model on "
+            "public data. The outcome matrix is the one `evidence/autobench-2026/judges.py` "
+            "builds, at its default options, from the per-judge grades the AutoBench Router "
+            "Benchmark 2026 publishes (DESIGN 12.11, and the [judge section of the evidence "
+            f"README]({SECTION_LINK})). {intro(results, jm.DEFAULT_TOLERANCE)} the answers are "
+            "split in half by a seeded hash; the router calibrates on one half at a bar and is "
+            "scored on the other half, next to the oracle, the best judge on the calibration "
+            "half, the cheapest judge and every single judge (DESIGN 12.3). The answers are "
+            f"pooled into one task, `{only_task(results)}`. The file behind every number here is "
+            "[results.json](results.json): the summary rows and the routed per-task rows, "
+            f"including how many of the {seeds(results)} seeds routed to each judge. It is made "
+            "by the RouterBench results script, `evidence/routerbench/results.py`, which does not "
+            "depend on the dataset.")
+
+
+def header_paragraph(results):
+    """The whole paragraph above the RESULTS.md table (DESIGN 12.12, v1.29)."""
+    return ("Routed rows: `success` is the share of held-out answers on which the judge agrees "
+            "with the committee, `cost_usd` is the list-price estimate of judging them (both "
+            f"averaged over the {seeds(results)} seeds), {header(results)}, `cleared_rate` is the "
+            "share of seeds where some judge cleared the bar on the calibration half, and "
+            "`bar_violation_rate` is the share of cleared seeds whose held-out success fell below "
+            "the bar. Baseline rows do not depend on the bar or the flavor.")
+
+
+def caveats(results, jm):
+    """The whole RESULTS.md Caveats list (DESIGN 12.12, v1.29)."""
+    k = len(results["tasks"][only_task(results)]["models"])
+    assert k == jm.DEFAULT_SIZE and jm.DEFAULT_ANSWER_TOKENS == "visible"
+    cv = jm.convert
+    return "\n".join("- " + c for c in [
+        "The label is a committee label, not a human gold label: a judge succeeds when it agrees "
+        "with the other judges on the same answer. A judge that always grades as the committee "
+        "does scores 1.0 whether or not the committee is right, and a judge that is right where "
+        "the committee is wrong scores lower",
+        "The cost is a list-price estimate at the pool's list prices, never a billed cost: a "
+        "judge call is assumed to read the question, the visible answer and a "
+        f"{jm.DEFAULT_RUBRIC_TOKENS}-token rubric, and to write a {jm.DEFAULT_GRADE_TOKENS}-token "
+        "grade (DESIGN 12.11)",
+        f"The {k} candidates are the pool judges whose set keeps the most answers, not the best "
+        "or the cheapest judges; a judge outside them is not compared here",
+        "Answers to the same question are separate items, so a seed's split can put answers to "
+        "one question in both halves",
+        "Data: CC-BY-4.0, Autobench, Autobench Router Benchmark 2026, "
+        f"https://huggingface.co/datasets/{cv.DATASET} at revision {cv.REVISION}. Pinned files, "
+        "sha256 values, the citation the card asks for and what the converter drops are in the "
+        "[evidence README](../autobench-2026/README.md)"])
+
+
+def between(text, start, end):
+    assert text.count(start) == 1, start
+    rest = text.split(start, 1)[1]
+    assert end in rest, end
+    return rest.split(end, 1)[0]
+
+
+def prose(text):
+    """The intro, the header and the Caveats of a RESULTS.md text, each whole."""
+    return {"intro": between(text, "# AutoBench judge results\n\n", "\n\n## Results\n"),
+            "header": between(text, "\n## Results\n\n", "\n\n```text\n"),
+            "caveats": between(text, "\n## Caveats\n\n", "\n\n## ")}
+
+
+def prose_problems(text, results, jm):
+    want = {"intro": intro_paragraph(results, jm), "header": header_paragraph(results),
+            "caveats": caveats(results, jm)}
+    got = prose(text)
+    return [name for name in want if got[name] != want[name]]
 
 
 def all_clear(results):
@@ -298,10 +381,19 @@ def test_results_md_regenerate_blocks_and_file_size():
     assert f"the committed file, {RESULTS.stat().st_size:,} bytes," in text
 
 
-def test_results_md_intro_and_header_are_the_committed_results(jm):
+def test_results_md_intro_header_and_caveats_are_whole_paragraphs(jm):
+    assert prose_problems(results_md(), committed(), jm) == []
+
+
+def test_whole_paragraph_check_catches_an_added_number(jm):
     results, text = committed(), results_md()
-    assert intro(results, jm.DEFAULT_TOLERANCE) in text
-    assert header(results) in text
+    for name, paragraph in prose(text).items():
+        assert text.count(paragraph) == 1, name
+        mutant = text.replace(paragraph, paragraph + " (about 0.999 of them)", 1)
+        assert prose_problems(mutant, results, jm) == [name]
+    intro_ = prose(text)["intro"]
+    mutant = text.replace(intro_, intro_ + " (about 0.999 of them)", 1)
+    assert intro(results, jm.DEFAULT_TOLERANCE) in mutant, "the old substring check passes it"
 
 
 def test_results_md_reading_it_is_the_committed_results():
@@ -310,29 +402,12 @@ def test_results_md_reading_it_is_the_committed_results():
         assert "- " + bullet + "\n" in text, bullet
 
 
-def test_results_md_caveats_and_links(jm):
-    text = results_md()
-    for needle in ["https://huggingface.co/datasets/AutoBench/router-benchmark-2026-10",
-                   jm.convert.REVISION, "CC-BY-4.0", "(results.json)", f"({SECTION_LINK})",
-                   "not a human gold label", "list-price estimate", "never a billed cost",
-                   f"{jm.DEFAULT_RUBRIC_TOKENS}-token rubric",
-                   f"{jm.DEFAULT_GRADE_TOKENS}-token grade", "`--tolerance 1.0`",
-                   "`--answer-tokens output`", "in both halves"]:
-        assert needle in text, needle
-
-
-def test_results_md_other_numbers_are_pinned():
+def test_results_md_sensitivity_names_both_options():
     results, text = committed(), results_md()
-    n, k = seeds(results), len(results["tasks"]["all"]["models"])
-    assert text.count(f"At bar 0.8 with {n} seeds:\n") == 2
-    for needle in [f"how many of the {n} seeds routed to each judge",
-                   f"(both averaged over the {n} seeds)", f"- The {k} candidates are the pool judges",
-                   "Router Benchmark 2026 publishes (DESIGN 12.11, and the [judge section",
-                   "`evidence/autobench-2026/judges.py` builds", "every single judge (DESIGN 12.3).",
-                   "scores 1.0 whether or not", "-token grade (DESIGN 12.11)\n",
-                   "Autobench Router Benchmark 2026, https://", "Pinned files, sha256 values,",
-                   "[evidence README](../autobench-2026/README.md)\n"]:
-        assert needle in text, needle
+    sensitivity = between(text, "\n## Sensitivity\n\n", "\n## Caveats\n")
+    assert sensitivity.count(f"At bar 0.8 with {seeds(results)} seeds:\n") == 2
+    assert sensitivity.startswith("Tolerance. With `--tolerance 1.0` a grade within one point")
+    assert "\nReasoning tokens. With `--answer-tokens output` the judge is charged" in sensitivity
 
 
 def test_price_bullet_follows_the_numbers():
@@ -567,6 +642,55 @@ def test_real_results_regenerate_byte_identical(rs, jm, tmp_path):
     result = evaluate(outcomes_from_rows(rows, registry), bars=CONFIG["bars"], seeds=range(50))
     result.pop("cells")
     assert json.dumps(rs.reduce(result), indent=2) + "\n" == RESULTS.read_text(encoding="utf-8")
+
+
+def calibration_half(items, seed, fraction):
+    """The 12.2 calibration items, the hash rule re-derived here and not imported."""
+    return sorted(i for i in set(items) if int.from_bytes(
+        hashlib.sha256(f"{seed}:{i}".encode("utf-8")).digest()[:8], "big") < fraction * 2 ** 64)
+
+
+def test_real_routed_judge_has_the_highest_lower_bound(jm, tmp_path):
+    matrix, pool, registry = pinned(jm, tmp_path)
+    rows, _ = jm.judge_matrix(matrix, pool)
+    outcomes = outcomes_from_rows(rows, registry)
+    result = evaluate(outcomes, bars=CONFIG["bars"], seeds=range(50))
+    config = result["config"]
+    assert config == CONFIG
+    grid = {}
+    for o in outcomes:
+        assert o.task == "all"
+        grid.setdefault(o.model, {})[o.item] = o
+    assert sorted(grid) == CANDIDATES
+    items = sorted(grid[CANDIDATES[0]])
+    counts, fallback, highest = Counter(), 0, 0
+    for cell in result["cells"]:
+        where = (cell["bar"], cell["flavor"], cell["seed"])
+        half = calibration_half(items, cell["seed"], config["calibration_fraction"])
+        assert len(half) == cell["calibration_items"] >= config["min_samples"], where
+        lb, mean, cost = {}, {}, {}
+        for m in CANDIDATES:
+            wins = sum(grid[m][i].correct for i in half)
+            lb[m] = wilson_lower_bound(wins, len(half), config["confidence"])
+            mean[m] = fsum(grid[m][i].cost_usd for i in half) / len(half)
+            cost[m] = 0.0 if cell["flavor"] == "cost_blind" else mean[m]
+        passing = [m for m in CANDIDATES if lb[m] >= cell["bar"]]
+        if passing:
+            want = min(passing, key=lambda m: (cost[m], -lb[m], m))
+        else:
+            want = min(CANDIDATES, key=lambda m: (-lb[m], cost[m], m))
+            fallback += 1
+        assert cell["cleared"] == bool(passing), where
+        assert cell["models"]["routed"] == want, where
+        if not passing or cell["flavor"] == "cost_blind":
+            assert lb[want] == max(lb.values()), where
+            highest += want != min(CANDIDATES, key=lambda m: (mean[m], m))
+        counts[(cell["bar"], cell["flavor"], want)] += 1
+    assert fallback and highest, "the claim cells must include some where the cheapest loses"
+    for bar in CONFIG["bars"]:
+        for flavor in CONFIG["flavors"]:
+            got = {m: n for (b, f, m), n in counts.items() if (b, f) == (bar, flavor)}
+            assert got == routed_models(committed(), bar, flavor), (bar, flavor)
 
 
 def sensitivity_line(r):
