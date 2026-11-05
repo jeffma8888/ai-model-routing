@@ -48,7 +48,7 @@ model:zai/glm-5.3                        0.755    0.4042
 
 ## Next to the dataset's headline
 
-The dataset card, at the pinned revision, states: "Headline finding: no commercial pass beats always calling GPT-5.6 Luna on quality and cost together." The card's passes are runs of the commercial routers that the paper audited; this router was not one of them, and it routes one pooled task rather than each prompt.
+The dataset card, at the pinned revision, states: "Headline finding: no commercial pass beats always calling GPT-5.6 Luna on quality and cost together." On how it graded routers, the card says: "Seven routers were then graded by lookup: a router only names a model; we read that cell", and it describes `scoreboard.json` as "The published board", with "28 passes". This router was not one of them, and it routes one pooled task rather than each prompt.
 
 On the same matrix no routed row beats it on both counts: always calling `openai/gpt-5.6-luna` reaches held-out success 0.872 at 0.3092 USD, and every routed row in the table has lower held-out success or a higher cost.
 
