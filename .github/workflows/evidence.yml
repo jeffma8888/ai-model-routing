@@ -1,0 +1,53 @@
+name: evidence
+
+# Reruns the regenerate commands of the README subsections AutoBench, AutoBench judges and
+# Delegation on AutoBench, which download the pinned dataset files and check their sha256,
+# then fails if a committed results file changed (DESIGN.md 12.13).
+# RouterBench is left out: its source is a 99,567,659-byte pickle that needs the pandas
+# extra, and its evaluate step takes about 70 seconds.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "evidence/**"
+      - "model_routing/**"
+      - "pyproject.toml"
+      - ".github/workflows/evidence.yml"
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  regenerate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: python -m pip install -e .
+      - name: Regenerate
+        run: |
+          python evidence/autobench-2026/convert.py --out autobench-matrix.jsonl --task-by all
+          model-routing evaluate --outcomes autobench-matrix.jsonl --bar 0.6 0.7 0.8 0.9 --seeds 50 --json > autobench-evaluate.json
+          python evidence/routerbench/results.py --evaluate autobench-evaluate.json --out evidence/autobench-2026/results.json
+          python evidence/routerbench/results.py --table evidence/autobench-2026/results.json
+          python evidence/autobench-2026/judges.py --out autobench-judges.jsonl --registry autobench-models.json
+          model-routing evaluate --outcomes autobench-judges.jsonl --registry autobench-models.json --bar 0.6 0.7 0.8 0.9 --seeds 50 --json > autobench-judges-evaluate.json
+          python evidence/routerbench/results.py --evaluate autobench-judges-evaluate.json --out evidence/autobench-judges/results.json
+          python evidence/routerbench/results.py --table evidence/autobench-judges/results.json
+          python evidence/autobench-2026/convert.py --out autobench-tokens.jsonl --task-by all --tokens --registry autobench-pool.json
+          python evidence/delegation/results.py --matrix autobench-tokens.jsonl --registry autobench-pool.json --out evidence/delegation/results.json
+          python evidence/delegation/results.py --table evidence/delegation/results.json
+          python evidence/delegation/results.py --table evidence/delegation/results.json --bar 0.8 --point 1
+      - name: Compare
+        run: git diff --exit-code -- evidence/autobench-2026/results.json evidence/autobench-judges/results.json evidence/delegation/results.json

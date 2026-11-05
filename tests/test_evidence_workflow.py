@@ -217,7 +217,8 @@ def test_readme_commands_are_the_three_autobench_blocks():
 
 def test_readme_evidence_intro_names_the_workflow():
     text = readme()
-    intro = text.split(EVIDENCE, 1)[1].split("\n\n", 2)[1]
+    intro = text.split(EVIDENCE, 1)[1].strip("\n").split("\n\n", 1)[0]
+    assert intro.startswith("Each dataset here already holds")
     assert intro.endswith(" " + readme_sentence(text))
     assert text.count("(.github/workflows/evidence.yml)") == 1
 
