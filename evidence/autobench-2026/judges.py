@@ -3,7 +3,7 @@
 Usage: python evidence/autobench-2026/judges.py --out PATH [--cache DIR] [--registry PATH]
                                                 [--tolerance T] [--candidates A,B,...] [--size K]
                                                 [--min-committee N] [--rubric-tokens N] [--grade-tokens N]
-                                                [--task-by {domain,all}]
+                                                [--task-by {domain,all}] [--answer-tokens {visible,output}]
 
 Standard library only. The pinned files, their checks and the download are those of
 convert.py in this folder, loaded from its path, never copied. An item is one graded answer
@@ -11,6 +11,7 @@ convert.py in this folder, loaded from its path, never copied. An item is one gr
 correct when its grade is within ``tolerance`` of the mean of the other judges' grades on that
 answer: a leave-one-out committee label, not a human gold label. Rows carry estimated token
 counts and no cost, so ``model-routing evaluate --registry`` prices them at the pool's list prices.
+By default the judge reads the visible answer, the cell's output tokens less its reasoning tokens.
 """
 
 from __future__ import annotations
@@ -40,6 +41,8 @@ DEFAULT_SIZE = 5
 DEFAULT_MIN_COMMITTEE = 3
 DEFAULT_RUBRIC_TOKENS = 400
 DEFAULT_GRADE_TOKENS = 200
+ANSWER_TOKENS = ("visible", "output")
+DEFAULT_ANSWER_TOKENS = "visible"
 
 
 def _is_number(value) -> bool:
@@ -82,7 +85,8 @@ def _fate(answer, graders, chosen, min_committee) -> str:
 
 def judge_matrix(matrix, pool, tolerance=DEFAULT_TOLERANCE, candidates=None, size=DEFAULT_SIZE,
                  min_committee=DEFAULT_MIN_COMMITTEE, rubric_tokens=DEFAULT_RUBRIC_TOKENS,
-                 grade_tokens=DEFAULT_GRADE_TOKENS, task_by="all", questions=None):
+                 grade_tokens=DEFAULT_GRADE_TOKENS, task_by="all", questions=None,
+                 answer_tokens=DEFAULT_ANSWER_TOKENS):
     names = convert.pool_models(pool)
     if not _is_number(tolerance) or not math.isfinite(tolerance) or tolerance < 0:
         raise ValueError(f"tolerance must be a finite number >= 0, got {tolerance!r}")
@@ -98,6 +102,8 @@ def judge_matrix(matrix, pool, tolerance=DEFAULT_TOLERANCE, candidates=None, siz
     _whole(min_committee, "min_committee", 1)
     _whole(rubric_tokens, "rubric_tokens", 0)
     _whole(grade_tokens, "grade_tokens", 0)
+    if not isinstance(answer_tokens, str) or answer_tokens not in ANSWER_TOKENS:
+        raise ValueError(f"answer_tokens must be one of {', '.join(ANSWER_TOKENS)}, got {answer_tokens!r}")
     if task_by not in convert.TASK_BY:
         raise ValueError(f"task_by must be one of {', '.join(convert.TASK_BY)}, got {task_by!r}")
     task_of = None
@@ -133,8 +139,10 @@ def judge_matrix(matrix, pool, tolerance=DEFAULT_TOLERANCE, candidates=None, siz
             unscored += 1
             continue
         graders = parse_grades(r.get("judges_json"), pid, model)
-        tokens = (convert._count(r.get("input_tokens"), "input_tokens", pid, model)
-                  + convert._count(r.get("output_tokens"), "output_tokens", pid, model))
+        read = convert._count(r.get("output_tokens"), "output_tokens", pid, model)
+        if answer_tokens == "visible":
+            read = max(read - convert._count(r.get("reasoning_tokens"), "reasoning_tokens", pid, model), 0)
+        tokens = convert._count(r.get("input_tokens"), "input_tokens", pid, model) + read
         cells.append((pid, model, graders, tokens))
     if candidates is None:
         judges = sorted({j for _, _, graders, _ in cells for j in graders if j in names})
@@ -169,7 +177,7 @@ def judge_matrix(matrix, pool, tolerance=DEFAULT_TOLERANCE, candidates=None, siz
     rows.sort(key=lambda x: (x["task"], x["item"], x["model"]))
     report = {"candidates": sorted(names[c] for c in chosen), "candidates_by": by, "tolerance": tolerance,
               "min_committee": min_committee, "rubric_tokens": rubric_tokens, "grade_tokens": grade_tokens,
-              "task_by": task_by, "scored_cells": len(cells), "kept": dict(sorted(kept.items())),
+              "answer_tokens": answer_tokens, "task_by": task_by, "scored_cells": len(cells), "kept": dict(sorted(kept.items())),
               "dropped_self_graded": dropped["self_graded"],
               "dropped_missing_candidate": dropped["missing_candidate"],
               "dropped_small_committee": dropped["small_committee"], "self_graded_cells": self_graded_cells,
@@ -230,6 +238,9 @@ def main(argv=None) -> int:
                         help="assumed judge output tokens (default: %(default)s)")
     parser.add_argument("--task-by", choices=convert.TASK_BY, default="all",
                         help="task = one pooled judge task, or the question's domain (default: %(default)s)")
+    parser.add_argument("--answer-tokens", choices=ANSWER_TOKENS, default=DEFAULT_ANSWER_TOKENS,
+                        help="answer length a judge reads: output tokens less reasoning tokens, floored at 0, "
+                             "or all output tokens (default: %(default)s)")
     try:
         args = parser.parse_args(argv)
         if args.registry is not None:
@@ -247,7 +258,7 @@ def main(argv=None) -> int:
         questions = convert.read_csv(folder / "questions.csv") if args.task_by == "domain" else None
         rows, report = judge_matrix(convert.read_csv(folder / "matrix.csv"), pool, args.tolerance, candidates,
                                     args.size, args.min_committee, args.rubric_tokens, args.grade_tokens,
-                                    args.task_by, questions)
+                                    args.task_by, questions, args.answer_tokens)
         registry = convert.pool_registry(pool) if args.registry is not None else None
         targets = [Path(args.out)] + ([Path(args.registry)] if registry is not None else [])
         parts = [t.with_name(t.name + ".part") for t in targets]
