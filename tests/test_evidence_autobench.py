@@ -878,6 +878,19 @@ def test_main_registry_write_error_writes_nothing(cv, tmp_path, monkeypatch, cap
     assert sorted(p.name for p in tmp_path.iterdir()) == ["data"]
 
 
+def test_main_rename_error_removes_both_parts(cv, tmp_path, monkeypatch, capsys):
+    matrix, questions = small()
+    data = write_folder(tmp_path / "data", matrix, questions, pool=PRICED_POOL)
+    monkeypatch.setattr(cv, "fetch", lambda cache_dir=None: data)
+    out, reg = tmp_path / "taken", tmp_path / "models.json"
+    out.mkdir()
+    (out / "keep").write_text("x", encoding="utf-8")   # a non-empty folder: renaming onto it fails
+    assert cv.main(["--out", str(out), "--registry", str(reg)]) == 2
+    one_error_line(capsys)
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["data", "taken"]
+    assert [p.name for p in out.iterdir()] == ["keep"]
+
+
 def test_main_bad_token_data(cv, tmp_path, monkeypatch, capsys):
     matrix, questions = tokened()
     matrix[1]["input_tokens"] = "1.5"

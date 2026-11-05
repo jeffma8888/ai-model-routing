@@ -37,6 +37,14 @@ model-routing evaluate --outcomes autobench-matrix.jsonl --bar 0.8
 
 No extra is needed: the converter is standard library only. It prints a JSON report of what it kept and dropped. With the default options on the pinned files it keeps 203 of 252 questions over 20 models and writes 4,060 rows. The mean success over those rows is 0.667 at the default width and 0.762 at the official width.
 
+## Token counts and a price registry (for the delegation evidence)
+
+```bash
+python evidence/autobench-2026/convert.py --out autobench-matrix.jsonl --task-by all --tokens --registry autobench-models.json
+```
+
+`--tokens` adds `input_tokens` and `output_tokens` to every row, the cell's own `matrix.csv` columns as integers. `output_tokens` already counts the reasoning tokens, so `reasoning_tokens` is not read. Without `--tokens` the rows are exactly as before. `--registry` writes a `models.json`-format file (DESIGN 4.1) built from `pool.json`: each model's ID, `family`, `context_window` and its list prices per 1M tokens, `input_cost_per_mtok` and `output_cost_per_mtok`. `evaluate_delegation` (DESIGN 13.9) needs both, because a hand-off charges one item's tokens to two models, and a billed per-call total cannot be split that way. A cost from this registry is a list-price estimate: on the default rows, list price times tokens has a median ratio of 1.000 to the billed cost (2 rows are billed 0 and left out).
+
 ## What is dropped, and why
 
 - Unscored cells: 107 pool cells have no score (no judge rated them, and 100 of them have a billed cost of 0). A question is kept only when all 20 pool models have a score on it, so the matrix is complete as the evaluator requires; the 49 questions with an unscored cell are dropped and counted, never scored as misses

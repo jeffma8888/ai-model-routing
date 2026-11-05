@@ -1,11 +1,14 @@
 """Convert the public AutoBench Router Benchmark 2026 into the evaluator's outcome matrix (DESIGN 12.9).
 
 Usage: python evidence/autobench-2026/convert.py --out PATH [--cache DIR] [--width W] [--task-by {domain,all}]
+                                                 [--tokens] [--registry PATH]
 
 Standard library only. Every file is pinned by size and sha256 and checked before it is
 read; the dataset's own SHA256SUMS must agree with the pins. Success is the dataset's
 Delta-Hit: a score within ``width`` of the mean of the best ``top_k`` pool scores on the
 same question, which is relative to this pool and not an absolute acceptance check.
+``--tokens`` adds each call's token counts to the rows and ``--registry`` writes a models.json
+registry from the pool's list prices: the inputs of the delegation evidence (DESIGN 13.9).
 """
 
 from __future__ import annotations
@@ -20,8 +23,9 @@ import sys
 import urllib.request
 from pathlib import Path
 
+DATASET = "AutoBench/router-benchmark-2026-10"
 REVISION = "43755180be7d8097068982d7a3f37fc04cd15379"
-BASE_URL = f"https://huggingface.co/datasets/AutoBench/router-benchmark-2026-10/resolve/{REVISION}/"
+BASE_URL = f"https://huggingface.co/datasets/{DATASET}/resolve/{REVISION}/"
 SUMS = "SHA256SUMS"
 # name -> (bytes, sha256); these pins are the trust root, SHA256SUMS is a second check.
 FILES = {
@@ -133,6 +137,36 @@ def pool_models(pool) -> dict[str, str]:
     return names
 
 
+def _price(entry, key: str, display: str) -> float:
+    value = entry.get(key)
+    try:
+        number = float(value) if _is_number(value) else math.nan
+    except OverflowError:
+        number = math.nan
+    if not math.isfinite(number) or number < 0:
+        raise ValueError(f"pool member {display!r}: {key} must be a finite number >= 0, got {value!r}")
+    return number
+
+
+def pool_registry(pool) -> dict:
+    names = pool_models(pool)
+    models = []
+    for entry in pool["members"]:
+        display = entry["display_id"]
+        family = entry.get("family")
+        if not _text(family):
+            raise ValueError(f"pool member {display!r}: family must be a non-empty string, got {family!r}")
+        price_in = _price(entry, "input_cost_per_mtok", display)
+        price_out = _price(entry, "output_cost_per_mtok", display)
+        window = entry.get("context_window")
+        if isinstance(window, bool) or not isinstance(window, int) or window < 1:
+            raise ValueError(f"pool member {display!r}: context_window must be an int >= 1, got {window!r}")
+        models.append({"id": names[display], "family": family, "price_in": price_in, "price_out": price_out,
+                       "context_window": window})
+    models.sort(key=lambda m: m["id"])
+    return {"source": {"dataset": DATASET, "revision": REVISION, "file": "pool.json"}, "models": models}
+
+
 def delta_hit(score, pool_scores, width, top_k) -> bool:
     top = sorted(pool_scores, reverse=True)[:top_k]
     reference = math.fsum(top) / top_k
@@ -162,9 +196,18 @@ def _finite(text, what: str, pid: str, model: str) -> float:
     return value
 
 
-def convert(matrix, questions, pool, width, top_k: int = 3, task_by: str = "domain"):
+def _count(text, what: str, pid: str, model: str) -> int:
+    value = _finite(text, what, pid, model)
+    if value < 0 or not value.is_integer():
+        raise ValueError(f"{pid}, {model}: {what} {text!r} is not a whole number >= 0")
+    return int(value)
+
+
+def convert(matrix, questions, pool, width, top_k: int = 3, task_by: str = "domain", tokens: bool = False):
     names = pool_models(pool)
     _check_options(width, top_k, task_by, len(names))
+    if not isinstance(tokens, bool):
+        raise ValueError(f"tokens must be a bool, got {tokens!r}")
     task_of = {}
     for q in questions:
         pid = q.get("prompt_id") if isinstance(q, dict) else None
@@ -199,7 +242,9 @@ def convert(matrix, questions, pool, width, top_k: int = 3, task_by: str = "doma
         cost = _finite(r.get("cost"), "cost", pid, model)
         if cost < 0:
             raise ValueError(f"{pid}, {model}: cost {r.get('cost')!r} is below 0")
-        scores[pid][model] = (value, 0.0 if cost == 0 else cost)
+        counts = (_count(r.get("input_tokens"), "input_tokens", pid, model),
+                  _count(r.get("output_tokens"), "output_tokens", pid, model)) if tokens else None
+        scores[pid][model] = (value, 0.0 if cost == 0 else cost, counts)
     rows, kept, dropped, unscored = [], {}, {}, 0
     for pid in sorted(task_of):
         task, cells = task_of[pid], scores[pid]
@@ -210,9 +255,12 @@ def convert(matrix, questions, pool, width, top_k: int = 3, task_by: str = "doma
         kept[task] = kept.get(task, 0) + 1
         pool_scores = [cells[d][0] for d in names]
         for display, mid in names.items():
-            value, cost = cells[display]
-            rows.append({"task": task, "item": pid, "model": mid,
-                         "correct": delta_hit(value, pool_scores, width, top_k), "cost_usd": cost})
+            value, cost, counts = cells[display]
+            out = {"task": task, "item": pid, "model": mid,
+                   "correct": delta_hit(value, pool_scores, width, top_k), "cost_usd": cost}
+            if counts is not None:
+                out["input_tokens"], out["output_tokens"] = counts
+            rows.append(out)
     rows.sort(key=lambda x: (x["task"], x["item"], x["model"]))
     report = {"models": sorted(names.values()), "width": width, "top_k": top_k, "task_by": task_by,
               "kept": dict(sorted(kept.items())), "dropped_unscored": dict(sorted(dropped.items())),
@@ -260,8 +308,14 @@ def main(argv=None) -> int:
                              "0.3011090610836323 is the dataset's official width)")
     parser.add_argument("--task-by", choices=TASK_BY, default="domain",
                         help="task = the question's domain, or one task for all (default: %(default)s)")
+    parser.add_argument("--tokens", action="store_true",
+                        help="also write each row's input_tokens and output_tokens")
+    parser.add_argument("--registry", default=None,
+                        help="also write a models.json registry built from the pool's list prices")
     try:
         args = parser.parse_args(argv)
+        if args.registry is not None and Path(args.registry).resolve() == Path(args.out).resolve():
+            raise _UsageError("--registry and --out name the same file")
         folder = fetch(args.cache)
         params = json.loads((folder / "frozen_params.json").read_text(encoding="utf-8"))
         if not isinstance(params, dict):
@@ -272,14 +326,19 @@ def main(argv=None) -> int:
         width = args.width if args.width is not None else params["delta_signal"]
         pool = json.loads((folder / "pool.json").read_text(encoding="utf-8"))
         rows, report = convert(read_csv(folder / "matrix.csv"), read_csv(folder / "questions.csv"), pool,
-                               width, params["top_k"], args.task_by)
-        out = Path(args.out)
-        part = out.with_name(out.name + ".part")
+                               width, params["top_k"], args.task_by, args.tokens)
+        registry = pool_registry(pool) if args.registry is not None else None
+        targets = [Path(args.out)] + ([Path(args.registry)] if registry is not None else [])
+        parts = [t.with_name(t.name + ".part") for t in targets]
         try:
-            write_jsonl(rows, part)
-            part.replace(out)
+            write_jsonl(rows, parts[0])
+            if registry is not None:
+                parts[1].write_text(json.dumps(registry, indent=2) + "\n", encoding="utf-8")
+            for part, target in zip(parts, targets):
+                part.replace(target)
         finally:
-            part.unlink(missing_ok=True)
+            for part in parts:
+                part.unlink(missing_ok=True)
     except (_UsageError, ValueError, OSError, csv.Error) as exc:
         message = str(exc).replace("\r", "\\r").replace("\n", "\\n")
         print(f"error: {message}", file=sys.stderr)
