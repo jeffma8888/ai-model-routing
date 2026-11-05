@@ -231,6 +231,7 @@ def test_results_md_says_what_the_card_graded_in_the_card_words():
     text = results_md()
     for quote in CARD_QUOTES:
         assert f'"{quote}"' in text, quote
+    assert 'it describes `scoreboard.json` as "The published board", with "28 passes"' in text
     assert "commercial routers that the paper audited" not in text
 
 
@@ -243,6 +244,14 @@ def autobench_subsection():
     section = readme.split(heading, 1)[1].split("\n## ", 1)[0]
     assert re.findall(r"^### (.*)$", section, re.M) == ["RouterBench", "AutoBench"]
     return section.split("\n### AutoBench\n", 1)[1].split("\n### ", 1)[0]
+
+
+def test_readme_evidence_intro_names_both_labels():
+    readme = README.read_text(encoding="utf-8")
+    section = readme.split("\n## Evidence: held-out results on public data\n", 1)[1]
+    intro = section.split("\n### ", 1)[0]
+    assert ("(right or wrong on RouterBench, a Delta-Hit from a judge committee's scores on "
+            "AutoBench)") in intro
 
 
 def readme_tables(results):
@@ -291,24 +300,27 @@ def test_readme_autobench_tables_are_the_committed_results():
     assert luna_statement(results) in section
 
 
-def test_readme_autobench_table_prints_a_dash_for_no_rate():
+def test_readme_tables_helper_prints_a_dash_for_no_rate():
     fake = json.loads(json.dumps(committed()))
     summary_row(fake, 0.6, "cost_blind", "routed")["bar_violation_rate"] = None
-    assert "| 0.6 | `cost_blind` |" in readme_tables(fake)
     row = [line for line in readme_tables(fake).split("\n") if "| 0.6 | `cost_blind` |" in line]
-    assert row[0].endswith(" | - |")
+    assert len(row) == 1 and row[0].endswith(" | - |")
 
 
 def test_readme_autobench_links_source_licence_limits_and_commands(cv):
     section = autobench_subsection()
     revision = cv.REVISION
+    read = [name for name in cv.FILES if name != "SHA256SUMS"]
+    words = {3: "three", 4: "four", 5: "five", 6: "six"}
+    assert f"the {words[len(read)]} files the converter reads" in section
     for needle in ("https://huggingface.co/datasets/AutoBench/router-benchmark-2026-10",
                    f"[`{revision[:7]}`](https://huggingface.co/datasets/AutoBench/"
                    f"router-benchmark-2026-10/tree/{revision})",
                    "[CC-BY-4.0](https://creativecommons.org/licenses/by/4.0/)",
                    "Attribution: Autobench, Autobench Router Benchmark 2026",
                    "(evidence/autobench-2026/RESULTS.md)", "(evidence/autobench-2026/results.json)",
-                   "(evidence/autobench-2026/README.md)", "default width, 0.2007",
+                   "(evidence/autobench-2026/README.md)",
+                   "at the converter's default width, the dataset's `delta_signal` of 0.2007",
                    "frozen on 2026-08-29", "not an absolute acceptance check",
                    "12 to 33 questions", "the 49 questions with an unscored pool cell (107 cells)",
                    "the 388 rows for 13 models outside the 20-model pool"):
@@ -375,6 +387,8 @@ def test_real_split_sizes_are_in_results_md(cv):
     pooled = [len(split_items(items, seed)[0]) for seed in CONFIG["seeds"]]
     assert (f"{len(items)} questions, with {min(pooled)} to {max(pooled)} in the calibration "
             f"half over the 50 seeds") in text
+    assert (f"At 0.9 no model's lower bound on a calibration half of {min(pooled)} to "
+            f"{max(pooled)} questions reaches the bar") in text
     rows, _ = cv.convert(matrix, questions, pool, params["delta_signal"], params["top_k"])
     by_task = {}
     for r in rows:
@@ -396,3 +410,5 @@ def test_card_quotes_are_in_the_pinned_card_when_cached(cv):
     card = path.read_text(encoding="utf-8").replace("**", "")
     for quote in CARD_QUOTES + (CARD,):
         assert quote in card, quote
+    board = [line for line in card.splitlines() if line.startswith("| `scoreboard.json` |")]
+    assert len(board) == 1 and "The published board" in board[0] and "28 passes" in board[0]
