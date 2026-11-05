@@ -225,9 +225,18 @@ def violations(results):
 
 def oracle(results):
     o = row(results, *first(results), "oracle")
+    rest = 1 - o["success"]
+    if rest > 0:
+        assert f"{rest:.3f}" != "0.000", rest
+        takes = ("the cheapest candidate that agrees with the committee, or, where none agrees "
+                 f"({rest:.3f} of the held-out answers), the cheapest candidate on that answer, "
+                 "counted wrong")
+    else:
+        takes = ("the cheapest candidate that agrees with the committee, and some candidate "
+                 "agrees on every held-out answer")
     return (f"The oracle, {o['success']:.3f} at {o['cost_usd']:.4f} USD, takes on each held-out "
-            "answer the cheapest candidate that agrees with the committee: a hindsight bound, "
-            f"next to {best(results)[1]['success']:.3f} for the best single judge")
+            f"answer {takes}: a hindsight bound, next to {best(results)[1]['success']:.3f} for "
+            "the best single judge")
 
 
 def price(results):
@@ -331,6 +340,17 @@ def test_price_bullet_follows_the_numbers():
     assert LUNA not in price(fake)
 
 
+def test_oracle_bullet_names_the_fallback_only_when_some_answer_has_no_agreeing_judge():
+    assert "counted wrong" in oracle(committed())
+    fake = committed()
+    for r in fake["summary"]:
+        if r["strategy"] == "oracle":
+            r["success"] = 1.0
+    text = oracle(fake)
+    assert "some candidate agrees on every held-out answer" in text
+    assert "counted wrong" not in text
+
+
 def test_cost_blind_bullet_says_close_when_not_level():
     fake = committed()
     for r in fake["summary"]:
@@ -373,9 +393,21 @@ def sensitivity_line(r):
 def test_real_sensitivity_numbers_are_in_results_md(jm, tmp_path):
     matrix, pool, registry = pinned(jm, tmp_path)
     text, name = results_md(), best(committed())[0]
-    needles = []
+    base, _ = jm.judge_matrix(matrix, pool)
+    keys = [(b["task"], b["item"], b["model"]) for b in base]
+    needles = ["so more of the judges' grades count as successes. At bar 0.8 with 50 seeds:",
+               "Every grade keeps its label, and in the three lines below held-out success, "
+               "cleared and bar-violation rates are those of the default run and only the costs "
+               "rise. At bar 0.8 with 50 seeds:"]
     for options in ({"tolerance": 1.0}, {"answer_tokens": "output"}):
         rows, _ = jm.judge_matrix(matrix, pool, **options)
+        assert [(r["task"], r["item"], r["model"]) for r in rows] == keys, options
+        if options == {"tolerance": 1.0}:
+            assert all(r["correct"] for r, b in zip(rows, base) if b["correct"])
+            assert sum(r["correct"] for r in rows) > sum(b["correct"] for b in base)
+        else:
+            assert [r["correct"] for r in rows] == [b["correct"] for b in base]
+            assert all(r["input_tokens"] >= b["input_tokens"] for r, b in zip(rows, base))
         outcomes = outcomes_from_rows(rows, registry)
         summary = evaluate(outcomes, bars=[0.8], seeds=range(50))["summary"]
         alone = [r for r in summary if (r["flavor"], r["strategy"]) == ("cost_effective",
@@ -390,6 +422,11 @@ def test_real_sensitivity_numbers_are_in_results_md(jm, tmp_path):
                              row(committed(), 0.8, f, "routed")["cleared_rate"],
                              row(committed(), 0.8, f, "routed")["bar_violation_rate"])
                             for f in CONFIG["flavors"]]
-    assert len(needles) == 2 * 3
+            default = row(committed(), 0.8, "cost_effective", f"model:{name}")
+            assert alone[0]["success"] == default["success"]
+            assert alone[0]["cost_usd"] > default["cost_usd"]
+            assert all(r["cost_usd"] > row(committed(), 0.8, r["flavor"], "routed")["cost_usd"]
+                       for r in summary if r["strategy"] == "routed")
+    assert len(needles) == 2 + 2 * 3
     for needle in needles:
         assert needle + "\n" in text, needle

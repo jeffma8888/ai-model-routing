@@ -37,18 +37,18 @@ model:tencent/hy3                      0.835    0.1192
 - At bar 0.8 a judge clears on 28 of the 50 seeds, and `cost_effective` routes 45 to `tencent/hy3` and 5 to `deepseek/deepseek-v4-flash-0731`: held-out success 0.831 at 0.953 of the best single judge's cost. At bar 0.9 no seed clears (the best single judge's held-out success is 0.835), so the router falls back on every seed to the judge with the highest lower bound
 - `cost_blind` routes to the judge with the highest lower bound: held-out success 0.831 at 0.962 of the best single judge's cost at every bar, routing 46 to `tencent/hy3` and 4 to `deepseek/deepseek-v4-flash-0731`, level with `best_on_calibration` at full precision
 - There is one task, so each rate counts seeds: `cost_effective` at bar 0.8, 0.071, is 2 of the 28 seeds that cleared; `cost_blind` at bar 0.8, 0.036, is 1 of the 28 seeds that cleared. Read them next to a nominal one-sided 0.025 for a 95% Wilson bound on one judge, as a resampling estimate for this matrix and never as a guarantee (DESIGN 12.3)
-- The oracle, 0.957 at 0.0832 USD, takes on each held-out answer the cheapest candidate that agrees with the committee: a hindsight bound, next to 0.835 for the best single judge
+- The oracle, 0.957 at 0.0832 USD, takes on each held-out answer the cheapest candidate that agrees with the committee, or, where none agrees (0.043 of the held-out answers), the cheapest candidate on that answer, counted wrong: a hindsight bound, next to 0.835 for the best single judge
 - The two costliest candidates agree with the committee least: `meta/muse-glimmer-30b` (0.599 at 0.3234 USD) and `openai/gpt-5.6-luna` (0.642 at 0.2105 USD), so a higher price did not buy more agreement. `openai/gpt-5.6-luna` is the answer model of the dataset card's headline, which no commercial router beat on quality and cost together ([AutoBench results](../autobench-2026/RESULTS.md))
 
 ## Sensitivity
 
-Tolerance. With `--tolerance 1.0` a grade within one point of the committee's mean counts as agreement, so more answers count as successes. At bar 0.8 with 50 seeds:
+Tolerance. With `--tolerance 1.0` a grade within one point of the committee's mean counts as agreement, so more of the judges' grades count as successes. At bar 0.8 with 50 seeds:
 
 - `tencent/hy3` alone: held-out success 0.935 at 0.1192 USD
 - bar 0.8, `cost_effective`: routed success 0.920 at 0.0617 USD, cleared_rate 1.000, bar_violation_rate 0.000
 - bar 0.8, `cost_blind`: routed success 0.931 at 0.1226 USD, cleared_rate 1.000, bar_violation_rate 0.000
 
-Reasoning tokens. With `--answer-tokens output` the judge is charged for reading the answer model's reasoning too, an upper bound on cost; the labels are the same, so held-out success, cleared and bar-violation rates are those of the default run and only the costs rise. At bar 0.8 with 50 seeds:
+Reasoning tokens. With `--answer-tokens output` the judge is charged for reading the answer model's reasoning too, an upper bound on cost. Every grade keeps its label, and in the three lines below held-out success, cleared and bar-violation rates are those of the default run and only the costs rise. At bar 0.8 with 50 seeds:
 
 - `tencent/hy3` alone: held-out success 0.835 at 0.2357 USD
 - bar 0.8, `cost_effective`: routed success 0.831 at 0.2255 USD, cleared_rate 0.560, bar_violation_rate 0.071
