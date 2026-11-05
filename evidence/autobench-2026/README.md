@@ -29,9 +29,11 @@ A Delta-Hit is relative, not an absolute acceptance check. It means "rated about
 
 ```bash
 python -m pip install -e .
-python evidence/autobench-2026/convert.py --out autobench-matrix.jsonl
+python evidence/autobench-2026/convert.py --out autobench-matrix.jsonl --task-by all
 model-routing evaluate --outcomes autobench-matrix.jsonl --bar 0.8
 ```
+
+`--task-by all` makes one task of every kept question, so the evaluator's default `min_samples = 30` can be met; with the default, one task per domain, no domain can meet it (see Reading it), so the routed model never clears the bar. Results committed for this dataset use `--task-by all`, with the per-domain matrix only as a stated sensitivity at a lower `--min-samples`.
 
 No extra is needed: the converter is standard library only. It prints a JSON report of what it kept and dropped. With the default options on the pinned files it keeps 203 of 252 questions over 20 models and writes 4,060 rows. The mean success over those rows is 0.667 at the default width and 0.762 at the official width.
 
@@ -44,5 +46,5 @@ No extra is needed: the converter is standard library only. It prints a JSON rep
 ## Reading it
 
 - A task is the question's `ddc_domain`, as written (Dewey Decimal style classes such as `9 History`, plus `A Agentic tool use`): 10 tasks of 12 to 33 kept questions. A calibration half then holds fewer than 30 items, so the evaluator's default `min_samples = 30` cannot be met per domain; `--task-by all` pools every question into one task of 203 items
-- The costs are the billed USD per call, recorded between 2026-08-29 and 2026-09-05; vendor prices and products have moved since
+- The costs are the billed USD per call in the matrix frozen on 2026-08-29 (the card dates the `fill_7_4` rows 2026-09-05, and every one of them is dropped); vendor prices and products have moved since
 - Model IDs are written as `vendor/model` from the pool's `openrouter_id`, with hyphens removed from the vendor (`x-ai/grok-4.6` becomes `xai/grok-4.6`, `z-ai/glm-5.3` becomes `zai/glm-5.3`)

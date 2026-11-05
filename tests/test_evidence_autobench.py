@@ -585,6 +585,66 @@ def test_main_fetch_error(cv, tmp_path, monkeypatch, capsys):
     assert capsys.readouterr().err == "error: matrix.csv: expected 1 bytes, got 2\n"
 
 
+def one_error_line(capsys):
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert len(captured.err.splitlines()) == 1 and captured.err.startswith("error: ")
+    return captured.err
+
+
+def test_main_io_error(cv, tmp_path, folder, capsys):
+    out = tmp_path / "missing" / "o.jsonl"
+    assert cv.main(["--out", str(out)]) == 2
+    one_error_line(capsys)
+    assert not out.exists() and not (tmp_path / "missing").exists()
+
+
+def test_main_csv_error(cv, tmp_path, monkeypatch, capsys):
+    matrix, questions = small()
+    matrix[0]["judges_json"] = "x" * 200000  # over the csv module's default field size limit
+    data = write_folder(tmp_path / "data", matrix, questions)
+    monkeypatch.setattr(cv, "fetch", lambda cache_dir=None: data)
+    out = tmp_path / "o.jsonl"
+    assert cv.main(["--out", str(out)]) == 2
+    one_error_line(capsys)
+    assert not out.exists() and not (tmp_path / "o.jsonl.part").exists()
+
+
+def test_main_bad_width_message_names_the_value(cv, tmp_path, folder, capsys):
+    assert cv.main(["--out", str(tmp_path / "o.jsonl"), "--width", "abc"]) == 2
+    err = one_error_line(capsys)
+    assert "'abc'" in err and "_width" not in err
+
+
+@pytest.mark.parametrize("params, argv, needle", [
+    ({"delta_signal": 0.25}, [], "top_k"),
+    ({"top_k": 3}, [], "delta_signal"),
+    ({"delta_signal": 0.25}, ["--width", "0.5"], "top_k"),
+    ([0.25, 3], [], "not an object"),
+])
+def test_main_bad_params(cv, tmp_path, monkeypatch, capsys, params, argv, needle):
+    matrix, questions = small()
+    data = write_folder(tmp_path / "data", matrix, questions, params)
+    monkeypatch.setattr(cv, "fetch", lambda cache_dir=None: data)
+    assert cv.main(["--out", str(tmp_path / "o.jsonl")] + argv) == 2
+    err = one_error_line(capsys)
+    assert "frozen_params.json" in err and needle in err
+
+
+def test_main_width_option_needs_no_delta_signal(cv, tmp_path, monkeypatch, capsys):
+    matrix, questions = small()
+    data = write_folder(tmp_path / "data", matrix, questions, {"top_k": 3})
+    monkeypatch.setattr(cv, "fetch", lambda cache_dir=None: data)
+    assert cv.main(["--out", str(tmp_path / "o.jsonl"), "--width", "0.25"]) == 0
+    assert json.loads(capsys.readouterr().out) == SMALL_REPORT
+
+
+def test_pool_is_checked_before_the_options(cv):
+    matrix, questions = small()
+    with pytest.raises(ValueError, match="pool"):
+        cv.convert(matrix, questions, {"members": []}, float("nan"), top_k=0, task_by="x")
+
+
 # --- docs -----------------------------------------------------------------------------------
 
 def test_evidence_readme():

@@ -242,9 +242,12 @@ class _Parser(argparse.ArgumentParser):
 
 
 def _width(text: str) -> float:
-    value = float(text)
+    try:
+        value = float(text)
+    except ValueError:
+        value = math.nan
     if not math.isfinite(value) or value <= 0:
-        raise ValueError(text)
+        raise argparse.ArgumentTypeError(f"{text!r} is not a finite number > 0")
     return value
 
 
@@ -263,10 +266,13 @@ def main(argv=None) -> int:
         params = json.loads((folder / "frozen_params.json").read_text(encoding="utf-8"))
         if not isinstance(params, dict):
             raise ValueError("frozen_params.json is not an object")
-        width = args.width if args.width is not None else params.get("delta_signal")
+        for key in ("top_k",) + (("delta_signal",) if args.width is None else ()):
+            if key not in params:
+                raise ValueError(f"frozen_params.json has no {key}")
+        width = args.width if args.width is not None else params["delta_signal"]
         pool = json.loads((folder / "pool.json").read_text(encoding="utf-8"))
         rows, report = convert(read_csv(folder / "matrix.csv"), read_csv(folder / "questions.csv"), pool,
-                               width, params.get("top_k"), args.task_by)
+                               width, params["top_k"], args.task_by)
         out = Path(args.out)
         part = out.with_name(out.name + ".part")
         try:
