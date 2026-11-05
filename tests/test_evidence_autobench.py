@@ -19,7 +19,7 @@ from pathlib import Path
 
 import pytest
 
-from model_routing import evaluate, outcomes_from_rows
+from model_routing import Registry, evaluate, outcomes_from_rows
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "evidence" / "autobench-2026" / "convert.py"
@@ -496,14 +496,14 @@ def test_read_csv(cv, tmp_path):
 
 # --- CLI ------------------------------------------------------------------------------------
 
-def write_folder(folder, matrix, questions, params=None):
+def write_folder(folder, matrix, questions, params=None, pool=None):
     folder.mkdir(parents=True, exist_ok=True)
     for name, table in (("matrix.csv", matrix), ("questions.csv", questions)):
         with (folder / name).open("w", encoding="utf-8", newline="") as f:
             w = csv.DictWriter(f, fieldnames=list(table[0]))
             w.writeheader()
             w.writerows(table)
-    (folder / "pool.json").write_text(json.dumps(POOL), encoding="utf-8")
+    (folder / "pool.json").write_text(json.dumps(POOL if pool is None else pool), encoding="utf-8")
     params = params if params is not None else {"delta_signal": 0.25, "delta_official": 0.5, "top_k": 3}
     (folder / "frozen_params.json").write_text(json.dumps(params), encoding="utf-8")
     return folder
@@ -645,6 +645,253 @@ def test_pool_is_checked_before_the_options(cv):
         cv.convert(matrix, questions, {"members": []}, float("nan"), top_k=0, task_by="x")
 
 
+# --- token counts and the pool registry (v1.21) -----------------------------------------------
+
+def tokened():
+    """small() with distinct token counts on every cell, written as the pinned file writes them."""
+    matrix, questions = small()
+    for i, r in enumerate(matrix):
+        r["input_tokens"], r["output_tokens"] = f"{100 + i}.0", f"{1000 + 7 * i}.0"
+    return matrix, questions
+
+
+# SMALL_ROWS with the counts of tokened(): q/1 is matrix rows 0 to 3, q/2 rows 4 to 7
+TOKEN_ROWS = [dict(r, input_tokens=i, output_tokens=o) for r, (i, o) in zip(SMALL_ROWS, [
+    (101, 1007), (103, 1021), (100, 1000), (102, 1014), (105, 1035), (107, 1049), (104, 1028), (106, 1042)])]
+
+PRICED_POOL = {"frozen_at": "2026-08-23T16:19:21Z", "members": [
+    {"display_id": "Alpha-1", "openrouter_id": "x-ai/alpha-1", "family": "A", "input_cost_per_mtok": 3,
+     "output_cost_per_mtok": 15.0, "price_range": "high", "context_window": 200000},
+    {"display_id": "Beta-2", "openrouter_id": "acme/beta-2", "family": "B", "input_cost_per_mtok": 0.25,
+     "output_cost_per_mtok": 1.25, "price_range": "low", "context_window": 128000},
+    {"display_id": "Gamma-3", "openrouter_id": "z-ai/gamma-3", "family": "G", "input_cost_per_mtok": 0.0,
+     "output_cost_per_mtok": 0, "price_range": "free", "context_window": 1},
+    {"display_id": "Delta-4", "openrouter_id": "acme/delta-4", "family": "B", "input_cost_per_mtok": 1.1,
+     "output_cost_per_mtok": 4.4, "price_range": "mid", "context_window": 1048576},
+]}
+PRICED_REGISTRY = {
+    "source": {"dataset": "AutoBench/router-benchmark-2026-10", "revision": REVISION, "file": "pool.json"},
+    "models": [
+        {"id": "acme/beta-2", "family": "B", "price_in": 0.25, "price_out": 1.25, "context_window": 128000},
+        {"id": "acme/delta-4", "family": "B", "price_in": 1.1, "price_out": 4.4, "context_window": 1048576},
+        {"id": "xai/alpha-1", "family": "A", "price_in": 3.0, "price_out": 15.0, "context_window": 200000},
+        {"id": "zai/gamma-3", "family": "G", "price_in": 0.0, "price_out": 0.0, "context_window": 1},
+    ]}
+MODEL_KEYS = ["id", "family", "price_in", "price_out", "context_window"]
+
+
+def test_convert_tokens_known_answer(cv):
+    matrix, questions = tokened()
+    rows, report = cv.convert(matrix, questions, POOL, 0.25, tokens=True)
+    assert rows == TOKEN_ROWS and report == SMALL_REPORT
+    for r in rows:
+        assert list(r) == ["task", "item", "model", "correct", "cost_usd", "input_tokens", "output_tokens"]
+        assert type(r["input_tokens"]) is int and type(r["output_tokens"]) is int
+
+
+def test_tokens_off_is_the_default(cv):
+    matrix, questions = tokened()
+    want = "".join(json.dumps(r) + "\n" for r in SMALL_ROWS)
+    for kwargs in ({}, {"tokens": False}):
+        rows, report = cv.convert(matrix, questions, POOL, 0.25, **kwargs)
+        assert "".join(json.dumps(r) + "\n" for r in rows) == want and report == SMALL_REPORT
+
+
+@pytest.mark.parametrize("value", ["", "x", "1.5", "-1", None])
+def test_tokens_off_never_reads_the_columns(cv, value):
+    matrix, questions = small()
+    for r in matrix:
+        for column in ("input_tokens", "output_tokens"):
+            if value is None:
+                del r[column]
+            else:
+                r[column] = value
+    assert cv.convert(matrix, questions, POOL, 0.25) == (SMALL_ROWS, SMALL_REPORT)
+
+
+@pytest.mark.parametrize("text, want", [("0", 0), ("0.0", 0), ("12", 12), ("303.0", 303), ("1e3", 1000),
+                                        ("42188.0", 42188)])
+def test_token_counts_parse_as_whole_numbers(cv, text, want):
+    matrix, questions = tokened()
+    matrix[1]["input_tokens"] = matrix[1]["output_tokens"] = text   # q/1 Beta-2
+    rows, _ = cv.convert(matrix, questions, POOL, 0.25, tokens=True)
+    got = [r for r in rows if r["item"] == "q/1" and r["model"] == "acme/beta-2"]
+    assert len(got) == 1 and got[0]["input_tokens"] == want == got[0]["output_tokens"]
+    assert type(got[0]["input_tokens"]) is int
+
+
+@pytest.mark.parametrize("column", ["input_tokens", "output_tokens"])
+@pytest.mark.parametrize("value", ["", "x", "1.5", "-1", "-1.0", "nan", "inf", "-0.5", None])
+def test_bad_token_count(cv, column, value):
+    matrix, questions = tokened()
+    if value is None:
+        del matrix[1][column]
+    else:
+        matrix[1][column] = value
+    with pytest.raises(ValueError) as err:
+        cv.convert(matrix, questions, POOL, 0.25, tokens=True)
+    for needle in ("q/1", "Beta-2", column):
+        assert needle in str(err.value), needle
+
+
+def test_token_counts_of_a_scored_cell_in_a_dropped_question_are_checked(cv):
+    matrix, questions = tokened()
+    matrix[8]["output_tokens"] = "x"   # q/3 Alpha-1: scored, but q/3 is dropped for its unscored cell
+    with pytest.raises(ValueError, match="q/3"):
+        cv.convert(matrix, questions, POOL, 0.25, tokens=True)
+
+
+def test_token_counts_not_read_for_unscored_or_out_of_pool_rows(cv):
+    matrix, questions = tokened()
+    for i in (10, 12, 13):   # q/3 Gamma-3 (unscored) and the two Outside-9 rows
+        matrix[i]["input_tokens"], matrix[i]["output_tokens"] = "x", ""
+    assert cv.convert(matrix, questions, POOL, 0.25, tokens=True) == (TOKEN_ROWS, SMALL_REPORT)
+
+
+@pytest.mark.parametrize("tokens", [1, 0, "yes", None, 1.0])
+def test_bad_tokens_option(cv, tokens):
+    matrix, questions = tokened()
+    with pytest.raises(ValueError, match="tokens"):
+        cv.convert(matrix, questions, POOL, 0.25, tokens=tokens)
+
+
+def test_tokens_row_order_does_not_matter(cv):
+    matrix, questions = tokened()
+    want = cv.convert(matrix, questions, POOL, 0.25, task_by="all", tokens=True)
+    for seed in range(5):
+        rng = random.Random(seed)
+        m, q = matrix[:], questions[:]
+        rng.shuffle(m)
+        rng.shuffle(q)
+        assert cv.convert(m, q, POOL, 0.25, task_by="all", tokens=True) == want
+
+
+def test_pool_registry_known_answer(cv):
+    before = json.dumps(PRICED_POOL)
+    got = cv.pool_registry(PRICED_POOL)
+    assert got == PRICED_REGISTRY and list(got) == ["source", "models"]
+    assert list(got["source"]) == ["dataset", "revision", "file"]
+    for m in got["models"]:
+        assert list(m) == MODEL_KEYS
+        assert type(m["price_in"]) is float and type(m["price_out"]) is float
+        assert type(m["context_window"]) is int
+    assert json.dumps(PRICED_POOL) == before
+
+
+def test_pool_registry_ignores_the_pool_order(cv):
+    pool = dict(PRICED_POOL, members=list(reversed(PRICED_POOL["members"])))
+    assert cv.pool_registry(pool) == PRICED_REGISTRY
+
+
+def test_pool_registry_loads_as_a_registry(cv, tmp_path):
+    path = tmp_path / "models.json"
+    path.write_text(json.dumps(cv.pool_registry(PRICED_POOL), indent=2) + "\n", encoding="utf-8")
+    registry = Registry.load(path)
+    assert [m.id for m in registry.models] == MODELS
+    alpha = registry.get("xai/alpha-1")
+    assert (alpha.family, alpha.context_window) == ("A", 200000)
+    assert alpha.cost(1000, 2000) == (1000 * 3.0 + 2000 * 15.0) / 1_000_000
+
+
+@pytest.mark.parametrize("key, value", [
+    ("family", None), ("family", ""), ("family", 3),
+    ("input_cost_per_mtok", None), ("input_cost_per_mtok", True), ("input_cost_per_mtok", -0.1),
+    ("input_cost_per_mtok", float("nan")), ("input_cost_per_mtok", float("inf")), ("input_cost_per_mtok", "1"),
+    ("output_cost_per_mtok", None), ("output_cost_per_mtok", False), ("output_cost_per_mtok", -1),
+    ("output_cost_per_mtok", float("inf")), ("output_cost_per_mtok", "1.25"),
+    ("context_window", None), ("context_window", True), ("context_window", 0), ("context_window", -1),
+    ("context_window", 1.5), ("context_window", 128000.0), ("context_window", "128000"),
+])
+def test_pool_registry_rejects(cv, key, value):
+    pool = json.loads(json.dumps(PRICED_POOL))
+    member = pool["members"][1]   # Beta-2
+    if value is None:
+        del member[key]
+    else:
+        member[key] = value
+    with pytest.raises(ValueError) as err:
+        cv.pool_registry(pool)
+    assert "Beta-2" in str(err.value) and key in str(err.value)
+
+
+@pytest.mark.parametrize("bad", [None, [], {"members": []},
+                                 {"members": PRICED_POOL["members"] + [PRICED_POOL["members"][0]]}])
+def test_pool_registry_checks_the_pool_first(cv, bad):
+    with pytest.raises(ValueError) as want:
+        cv.pool_models(bad)
+    with pytest.raises(ValueError) as got:
+        cv.pool_registry(bad)
+    assert str(got.value) == str(want.value)
+
+
+def test_main_tokens(cv, tmp_path, monkeypatch, capsys):
+    matrix, questions = tokened()
+    data = write_folder(tmp_path / "data", matrix, questions)
+    monkeypatch.setattr(cv, "fetch", lambda cache_dir=None: data)
+    out = tmp_path / "out.jsonl"
+    assert cv.main(["--out", str(out), "--tokens"]) == 0
+    captured = capsys.readouterr()
+    assert captured.out == json.dumps(SMALL_REPORT, indent=2) + "\n" and captured.err == ""
+    assert out.read_text(encoding="utf-8") == "".join(json.dumps(r) + "\n" for r in TOKEN_ROWS)
+    assert not (tmp_path / "out.jsonl.part").exists()
+
+
+def test_main_registry(cv, tmp_path, monkeypatch, capsys):
+    matrix, questions = small()
+    data = write_folder(tmp_path / "data", matrix, questions, pool=PRICED_POOL)
+    monkeypatch.setattr(cv, "fetch", lambda cache_dir=None: data)
+    out, reg = tmp_path / "out.jsonl", tmp_path / "models.json"
+    assert cv.main(["--out", str(out), "--registry", str(reg)]) == 0
+    captured = capsys.readouterr()
+    assert captured.out == json.dumps(SMALL_REPORT, indent=2) + "\n" and captured.err == ""
+    assert reg.read_text(encoding="utf-8") == json.dumps(PRICED_REGISTRY, indent=2) + "\n"
+    assert out.read_text(encoding="utf-8") == "".join(json.dumps(r) + "\n" for r in SMALL_ROWS)
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["data", "models.json", "out.jsonl"]
+
+
+@pytest.mark.parametrize("spelling", ["same", "dotdot"])
+def test_main_registry_same_file_as_out(cv, tmp_path, folder, capsys, spelling):
+    _, seen = folder
+    out = tmp_path / "out.jsonl"
+    reg = out if spelling == "same" else tmp_path / "data" / ".." / "out.jsonl"
+    assert cv.main(["--out", str(out), "--registry", str(reg)]) == 2
+    err = one_error_line(capsys)
+    assert "--registry" in err and "same file" in err
+    assert seen == [] and not out.exists()
+
+
+def test_main_registry_bad_pool_writes_nothing(cv, tmp_path, folder, capsys):
+    out, reg = tmp_path / "out.jsonl", tmp_path / "models.json"
+    assert cv.main(["--out", str(out), "--registry", str(reg)]) == 2   # POOL has no prices
+    err = one_error_line(capsys)
+    assert "family" in err or "cost_per_mtok" in err or "context_window" in err
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["data"]
+
+
+def test_main_registry_write_error_writes_nothing(cv, tmp_path, monkeypatch, capsys):
+    matrix, questions = small()
+    data = write_folder(tmp_path / "data", matrix, questions, pool=PRICED_POOL)
+    monkeypatch.setattr(cv, "fetch", lambda cache_dir=None: data)
+    out, reg = tmp_path / "out.jsonl", tmp_path / "missing" / "models.json"
+    assert cv.main(["--out", str(out), "--registry", str(reg)]) == 2
+    assert "unrecognized" not in one_error_line(capsys)   # an I/O error, not a usage error
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["data"]
+
+
+def test_main_bad_token_data(cv, tmp_path, monkeypatch, capsys):
+    matrix, questions = tokened()
+    matrix[1]["input_tokens"] = "1.5"
+    data = write_folder(tmp_path / "data", matrix, questions)
+    monkeypatch.setattr(cv, "fetch", lambda cache_dir=None: data)
+    out = tmp_path / "o.jsonl"
+    assert cv.main(["--out", str(out)]) == 0   # the default never reads the token columns
+    capsys.readouterr()
+    out.unlink()
+    assert cv.main(["--out", str(out), "--tokens"]) == 2
+    assert "input_tokens" in one_error_line(capsys)
+    assert not out.exists() and not (tmp_path / "o.jsonl.part").exists()
+
+
 # --- docs -----------------------------------------------------------------------------------
 
 # The evidence README's counts as written (DESIGN 12.10); test_real_files_default_options
@@ -726,3 +973,31 @@ def test_real_delta_hit_reproduces_the_dataset_labels(cv):
             assert got == (d["delta_hit_signal"] == "True"), d["prompt_id"]
             checked += 1
     assert checked == 6291
+
+
+def test_real_files_tokens_and_registry(cv):
+    folder = cached(cv, PINNED_FILES)
+    for name, (size, sha) in PINNED_FILES.items():
+        cv.verify(folder / name, size, sha)
+    params = json.loads((folder / "frozen_params.json").read_text(encoding="utf-8"))
+    pool = json.loads((folder / "pool.json").read_text(encoding="utf-8"))
+    matrix, questions = cv.read_csv(folder / "matrix.csv"), cv.read_csv(folder / "questions.csv")
+    args = (matrix, questions, pool, params["delta_signal"], params["top_k"], "all")
+    plain, report = cv.convert(*args)
+    rows, token_report = cv.convert(*args, tokens=True)
+    assert token_report == report and len(rows) == 4060
+    assert [{k: r[k] for k in ("task", "item", "model", "correct", "cost_usd")} for r in rows] == plain
+    ins, outs = [r["input_tokens"] for r in rows], [r["output_tokens"] for r in rows]
+    assert all(type(n) is int for n in ins + outs)
+    assert (min(ins), max(ins), min(outs), max(outs)) == (66, 2341, 3, 42188)   # DESIGN 12.9
+    registry = cv.pool_registry(pool)
+    assert [m["id"] for m in registry["models"]] == report["models"]
+    assert registry["source"]["revision"] == REVISION
+    prices = {m["id"]: m for m in registry["models"]}
+    billed = [r for r in rows if r["cost_usd"] > 0]
+    assert len(rows) - len(billed) == 2
+    ratios = sorted((r["input_tokens"] * prices[r["model"]]["price_in"]
+                     + r["output_tokens"] * prices[r["model"]]["price_out"]) / 1e6 / r["cost_usd"]
+                    for r in billed)
+    median = (ratios[len(ratios) // 2 - 1] + ratios[len(ratios) // 2]) / 2
+    assert len(ratios) == 4058 and f"{median:.3f}" == "1.000"   # DESIGN 12.9
