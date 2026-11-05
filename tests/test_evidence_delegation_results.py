@@ -10,15 +10,13 @@ and skips otherwise (CI never downloads them).
 
 import importlib.util
 import json
+import math
 import re
 from pathlib import Path
 
 import pytest
 
 from model_routing import Model, Registry, evaluate_delegation
-
-pytestmark = pytest.mark.xfail(strict=True, raises=ModuleNotFoundError,
-                               reason="evidence/delegation/results.py lands after this contract")
 
 ROOT = Path(__file__).resolve().parents[1]
 FOLDER = ROOT / "evidence" / "delegation"
@@ -237,6 +235,73 @@ def test_results_md_shows_both_tables_and_the_regenerate_commands(dr):
         assert phrase in md, phrase
 
 
+def reading_it(results):
+    """The "Reading it" sentences, built from a results file (DESIGN 13.10)."""
+    rows = {(r["bar"], r["flavor"], r["point"], r["parent"], r["strategy"]): r
+            for r in results["summary"]}
+    parents = results["config"]["parents"]
+    sizes = [f"{p['context_tokens']:,}" for p in results["config"]["points"]]
+    n = len(parents)
+
+    def mean(bar, flavor, point, strategy, key):
+        return math.fsum(rows[(bar, flavor, point, p, strategy)][key] for p in parents) / n
+
+    def same(bar, flavor, strategy, key, fmt):
+        values = {format(mean(bar, flavor, i, strategy, key), fmt) for i in range(len(sizes))}
+        assert len(values) == 1, (bar, flavor, strategy, key, values)
+        return values.pop()
+
+    out = []
+    assert {rows[(0.7, "cost_effective", i, p, "decision")]["delegate_rate"]
+            for i in range(len(sizes)) for p in parents} == {1.0}
+    out.append(f"At bar 0.7, `cost_effective` delegates on every seed for every parent and holds "
+               f"a mean held-out success of {same(0.7, 'cost_effective', 'decision', 'success', '.3f')}"
+               f" at {same(0.7, 'cost_effective', 'decision', 'cost_usd', '.4f')} USD at every point")
+    always = {sum(1 for p in parents
+                  if rows[(0.8, "cost_effective", i, p, "decision")]["delegate_rate"] == 1.0)
+              for i in range(len(sizes))}
+    assert len(always) == 1
+    out.append(f"At bar 0.8, the `cost_effective` decision's mean held-out success over the {n} "
+               f"parents is {same(0.8, 'cost_effective', 'decision', 'success', '.3f')} at every "
+               f"point, against {same(0.8, 'cost_effective', 'inline', 'success', '.3f')} for "
+               f"always inline and {same(0.8, 'cost_effective', 'delegate', 'success', '.3f')} for "
+               f"always delegating; {always.pop()} of the {n} parents delegate on every seed")
+    first = [mean(0.8, "cost_effective", 0, s, "cost_usd") for s in ("decision", "inline")]
+    last = [mean(0.8, "cost_effective", len(sizes) - 1, s, "cost_usd")
+            for s in ("decision", "inline")]
+    assert first[0] > first[1] and last[0] < last[1]
+    out.append(f"At bar 0.8 the `cost_effective` decision costs more than always inline at "
+               f"{sizes[0]} context tokens ({first[0]:.4f} against {first[1]:.4f} USD) and far "
+               f"less at {sizes[-1]} ({last[0]:.4f} against {last[1]:.4f}), where the parent's "
+               f"own call for the work re-reads the whole context")
+    sol = {s: rows[(0.8, "cost_effective", 1, "openai/gpt-5.6-sol", s)] for s in STRATEGIES}
+    assert sol["decision"]["success"] < sol["inline"]["success"]
+    assert sol["decision"]["cost_usd"] < sol["inline"]["cost_usd"]
+    out.append(f"With `openai/gpt-5.6-sol` as the parent at bar 0.8 and {sizes[1]} context "
+               f"tokens, always inline scores {sol['inline']['success']:.3f} at "
+               f"{sol['inline']['cost_usd']:.4f} USD; `cost_effective` delegates on "
+               f"{100 * sol['decision']['delegate_rate']:.1f}% of seeds and scores "
+               f"{sol['decision']['success']:.3f} at {sol['decision']['cost_usd']:.4f} USD, "
+               f"{100 * sol['decision']['cost_usd'] / sol['inline']['cost_usd']:.0f}% of the "
+               f"inline cost")
+    luna = {s: rows[(0.8, "cost_blind", 1, "openai/gpt-5.6-luna", s)] for s in STRATEGIES}
+    assert luna["decision"]["success"] < luna["inline"]["success"]
+    assert luna["decision"]["cost_usd"] > luna["inline"]["cost_usd"]
+    out.append(f"With `openai/gpt-5.6-luna` as the parent at bar 0.8 and {sizes[1]} context "
+               f"tokens, `cost_blind` delegates on {100 * luna['decision']['delegate_rate']:.1f}% "
+               f"of seeds and scores {luna['decision']['success']:.3f} against "
+               f"{luna['inline']['success']:.3f} inline, at {luna['decision']['cost_usd']:.4f} "
+               f"against {luna['inline']['cost_usd']:.4f} USD")
+    return out
+
+
+def test_results_md_reading_it_is_the_committed_results(dr):
+    md = RESULTS_MD.read_text(encoding="utf-8")
+    for sentence in reading_it(committed()):
+        assert sentence in md, sentence
+    assert f"{RESULTS.stat().st_size:,} bytes" in md
+
+
 def readme_subsection():
     readme = README.read_text(encoding="utf-8")
     heading = "\n## Evidence: held-out results on public data\n"
@@ -250,6 +315,8 @@ def readme_subsection():
 def test_readme_subsection_shows_the_table_and_links(dr):
     sub = readme_subsection()
     assert block(TABLE_COMMAND, dr.table(committed())) in sub
+    for sentence in reading_it(committed())[1:3]:
+        assert sentence in sub, sentence
     assert REGENERATE in sub
     for phrase in ("[RESULTS.md](evidence/delegation/RESULTS.md)",
                    "[results.json](evidence/delegation/results.json)",

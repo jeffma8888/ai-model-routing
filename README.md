@@ -219,6 +219,8 @@ Reading it:
 - `cost_blind` ignores price, so the first parent stays inline (`inline_as_good`): its best delegate is `atlas-max` itself, and equal-quality ties go inline because a brief can drop detail. A parent below the bar hands off to a delegate that clears it (`parent_below_bar`), whatever inline would cost, in either flavor: a `birch-nano` parent (lower bound 0.674) at 2,000 context tokens goes to `atlas-mid` in `cost_effective` although inline would cost 0.00052 USD against 0.0050 (`cost_blind` sends it to `atlas-max`). At 60,000 tokens the reason is `parent_context_full` instead, because the work no longer fits its 32,000-token window and that check comes first
 - Inline is blocked outright when the task excludes the parent's family, when the parent is the generator or in its family on an `independent_of_generator` task, or when the work does not fit the parent's context. `--json` prints the full decision, including the delegate's route (`DESIGN.md` 13)
 
+On public data, [Delegation on AutoBench](#delegation-on-autobench) scores this decision on held-out questions for each of 20 models as the parent.
+
 ## Calibrate your own task
 
 1. **Define the task** in a tasks file. `model_routing/data/example_tasks.json` ships three judge tasks and three from other domains (`support_ticket_triage`, `invoice_field_extraction`, `unit_test_codegen`):
@@ -445,6 +447,41 @@ python evidence/routerbench/results.py --evaluate autobench-evaluate.json --out 
 python evidence/routerbench/results.py --table evidence/autobench-2026/results.json
 ```
 
+### Delegation on AutoBench
+
+The same AutoBench matrix, with each answer's token counts and the pool's list prices, scores the [inline or sub-agent](#inline-or-sub-agent) decision on held-out questions for every one of the 20 pool models as the parent, next to always working inline and always delegating ([RESULTS.md](evidence/delegation/RESULTS.md), [results.json](evidence/delegation/results.json), `DESIGN.md` 13.9 and 13.10). No public dataset records a real hand-off, so the parent's context and the hand-off sizes are a stated grid: 8,000, 64,000 and 200,000 context tokens, a brief of 500 tokens, a 500-token result and one later parent call. Each cost is a list-price estimate, and the delegate is credited with its recorded answer as if the brief carried the whole question, so a lossy brief is not measured. Means over the 20 parents (`dec_` the decision, `inl_` always inline, `del_` always delegating; cost in USD for a seed's held-out half; `delegated` the share of seeds the decision hands off):
+
+```text
+$ python evidence/delegation/results.py --table evidence/delegation/results.json
+bar  flavor          context  dec_success  dec_cost  inl_success  inl_cost  del_success  del_cost  delegated
+---  --------------  -------  -----------  --------  -----------  --------  -----------  --------  ---------
+0.7  cost_effective  8000     0.872        0.6268    0.670        1.6931    0.872        0.6268    1.000
+0.7  cost_effective  64000    0.872        0.6268    0.670        6.1849    0.872        0.6268    1.000
+0.7  cost_effective  200000   0.872        0.6268    0.670        17.0936   0.872        0.6268    1.000
+0.7  cost_blind      8000     0.857        2.5582    0.670        1.6931    0.857        2.4768    0.944
+0.7  cost_blind      64000    0.857        3.0624    0.670        6.1849    0.857        2.4768    0.944
+0.7  cost_blind      200000   0.857        4.2869    0.670        17.0936   0.857        2.4768    0.944
+0.8  cost_effective  8000     0.856        2.1659    0.670        1.6931    0.855        2.1372    0.981
+0.8  cost_effective  64000    0.856        2.3442    0.670        6.1849    0.855        2.1372    0.981
+0.8  cost_effective  200000   0.856        2.7772    0.670        17.0936   0.855        2.1372    0.981
+0.8  cost_blind      8000     0.857        2.5582    0.670        1.6931    0.857        2.4768    0.944
+0.8  cost_blind      64000    0.857        3.0624    0.670        6.1849    0.857        2.4768    0.944
+0.8  cost_blind      200000   0.857        4.2869    0.670        17.0936   0.857        2.4768    0.944
+```
+
+- At bar 0.8, the `cost_effective` decision's mean held-out success over the 20 parents is 0.856 at every point, against 0.670 for always inline and 0.855 for always delegating; 15 of the 20 parents delegate on every seed
+- At bar 0.8 the `cost_effective` decision costs more than always inline at 8,000 context tokens (2.1659 against 1.6931 USD) and far less at 200,000 (2.7772 against 17.0936), where the parent's own call for the work re-reads the whole context
+
+Regenerate (a few seconds after the download):
+
+```bash
+python -m pip install -e .
+python evidence/autobench-2026/convert.py --out autobench-tokens.jsonl --task-by all --tokens --registry autobench-pool.json
+python evidence/delegation/results.py --matrix autobench-tokens.jsonl --registry autobench-pool.json --out evidence/delegation/results.json
+python evidence/delegation/results.py --table evidence/delegation/results.json
+python evidence/delegation/results.py --table evidence/delegation/results.json --bar 0.8 --point 1
+```
+
 ## What the public evidence says (October 2026)
 
 Expected list cost per call for the `faithfulness_judge` example task (3,000 input and 150 output tokens), from `model_routing/data/models.json` (vendor list prices, 2026-10-29):
@@ -548,6 +585,7 @@ research/       public evidence behind the defaults
 evidence/       public datasets turned into outcome matrices, with committed results
                 (RouterBench: evidence/routerbench/RESULTS.md)
                 (AutoBench 2026: evidence/autobench-2026/RESULTS.md)
+                (delegation on AutoBench: evidence/delegation/RESULTS.md)
 DESIGN.md       the spec the tests were written from
 ```
 

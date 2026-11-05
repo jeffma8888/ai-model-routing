@@ -242,7 +242,8 @@ def autobench_subsection():
     heading = "\n## Evidence: held-out results on public data\n"
     assert readme.count(heading) == 1
     section = readme.split(heading, 1)[1].split("\n## ", 1)[0]
-    assert re.findall(r"^### (.*)$", section, re.M) == ["RouterBench", "AutoBench"]
+    assert re.findall(r"^### (.*)$", section, re.M) == ["RouterBench", "AutoBench",
+                                                        "Delegation on AutoBench"]
     return section.split("\n### AutoBench\n", 1)[1].split("\n### ", 1)[0]
 
 
