@@ -108,6 +108,25 @@ def split_items(items: Iterable[str], seed: int, calibration_fraction: float = 0
     return tuple(cal), tuple(held)
 
 
+def _check_run_options(bars: list, seeds: list, flavors: list, min_samples, confidence,
+                       calibration_fraction) -> None:
+    """The bar, seed, flavor and bound checks shared by evaluate and evaluate_delegation (12.3)."""
+    if not bars or any(isinstance(b, bool) or not isinstance(b, (int, float))
+                       or not isfinite(b) or not 0.0 <= b <= 1.0 for b in bars) \
+            or len(set(bars)) != len(bars):
+        raise ValueError(f"bars must be distinct finite numbers in [0, 1], got {bars}")
+    if not seeds or any(isinstance(x, bool) or not isinstance(x, int) for x in seeds) \
+            or len(set(seeds)) != len(seeds):
+        raise ValueError(f"seeds must be distinct integers, got {seeds}")
+    if not flavors or any(f not in FLAVORS for f in flavors) or len(set(flavors)) != len(flavors):
+        raise ValueError(f"flavors must be distinct names from {FLAVORS}")
+    if min_samples < 1:
+        raise ValueError("min_samples must be >= 1")
+    if not 0.0 < confidence < 1.0:
+        raise ValueError("confidence must be in (0, 1)")
+    _check_fraction(calibration_fraction)
+
+
 def _strategies(models: Sequence[str]) -> List[str]:
     return ["routed", "oracle", "best_on_calibration", "cheapest"] + [f"model:{m}" for m in models]
 
@@ -124,20 +143,7 @@ def evaluate(outcomes, bars, seeds=range(10), flavors=("cost_effective", "cost_b
     bars, seeds, flavors = list(bars), list(seeds), list(flavors)
     if not outcomes:
         raise ValueError("no outcomes")
-    if not bars or any(isinstance(b, bool) or not isinstance(b, (int, float))
-                       or not isfinite(b) or not 0.0 <= b <= 1.0 for b in bars) \
-            or len(set(bars)) != len(bars):
-        raise ValueError(f"bars must be distinct finite numbers in [0, 1], got {bars}")
-    if not seeds or any(isinstance(x, bool) or not isinstance(x, int) for x in seeds) \
-            or len(set(seeds)) != len(seeds):
-        raise ValueError(f"seeds must be distinct integers, got {seeds}")
-    if not flavors or any(f not in FLAVORS for f in flavors) or len(set(flavors)) != len(flavors):
-        raise ValueError(f"flavors must be distinct names from {FLAVORS}")
-    if min_samples < 1:
-        raise ValueError("min_samples must be >= 1")
-    if not 0.0 < confidence < 1.0:
-        raise ValueError("confidence must be in (0, 1)")
-    _check_fraction(calibration_fraction)
+    _check_run_options(bars, seeds, flavors, min_samples, confidence, calibration_fraction)
 
     table: Dict[Tuple[str, str], Dict[str, Outcome]] = {}
     models = sorted({o.model for o in outcomes})

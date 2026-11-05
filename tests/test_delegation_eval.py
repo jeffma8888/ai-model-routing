@@ -1,8 +1,7 @@
 """v1.19 offline delegation evidence contract (DESIGN 13.9), written before the module exists.
 
-Every test imports ``model_routing.delegation_eval`` first, so until it exists each
-one fails with ModuleNotFoundError and the strict xfail below keeps the suite green.
-The implementing commit removes ``pytestmark`` (DESIGN 13.9).
+They were held under a module-level strict xfail until ``delegation_eval.py``
+landed; the implementing commit removed that marker (DESIGN 13.9).
 
 The main matrix is built so every answer can be checked by hand: two seeds that
 each hold 3 items for calibration and 5 out (seed 0 holds out q1 q2 q3 q7 q8,
@@ -22,10 +21,6 @@ import pytest
 import model_routing
 from model_routing import Model, Registry, Router, Stats, Task
 from model_routing.evaluate import split_items
-
-pytestmark = pytest.mark.xfail(
-    strict=True, raises=ModuleNotFoundError,
-    reason="model_routing.delegation_eval is specified (DESIGN 13.9) but not implemented yet")
 
 ITEMS = [f"q{i}" for i in range(1, 9)]
 SEEDS = [0, 1]
@@ -277,6 +272,38 @@ def test_summary_rows_order_and_values():
     assert [weak[s]["below_bar_rate"] for s in STRATEGIES] == [0.0, 1.0, 0.0]
     assert weak["decision"]["delegate_rate"] == 1.0
     assert weak["inline"]["cost_usd"] == pytest.approx(5 * 0.00018, rel=1e-12)
+
+
+def test_each_bar_decides_on_its_own_bar():
+    # 3 of 3 has a 95% lower bound of 0.438: at bar 0.4 big and small clear, at 0.5 none does
+    result = run(bars=[0.4, 0.5])
+    assert [c["bar"] for c in result["cells"]] == [0.4] * 36 + [0.5] * 36
+    changed = 0
+    for c in result["cells"]:
+        stats = Stats()
+        for m in MODELS:
+            stats.add("work", m, 3 * RIGHT[m], 3)
+        task = Task(name="work", bar=c["bar"], min_samples=3, confidence=0.95,
+                    independent_of_generator=False, expected_input_tokens=S_IN,
+                    expected_output_tokens=S_OUT, on_no_model="best_available",
+                    max_fallbacks=0)
+        d = Router(registry(), {"work": task}, stats).decide_delegation(
+            "work", c["parent"], c["flavor"], **POINTS[c["point"]])
+        assert (c["mode"], c["model"], c["reason"], c["below_bar"], c["delegate"]) == (
+            d.mode, d.model, d.reason, d.below_bar, d.route.primary)
+        changed += c["bar"] == 0.5 and d.below_bar
+    assert changed > 0
+
+
+def test_a_success_equal_to_the_bar_is_not_below_it():
+    # at bar 0 a held-out success of 0 is not below the bar; at bar 1 a success of 1 is not
+    rows = {(r["bar"], r["parent"], r["strategy"]): r
+            for r in run(bars=[0.0, 1.0], flavors=["cost_effective"])["summary"]}
+    assert rows[0.0, "fiction/weak", "inline"]["success"] == 0.0
+    assert rows[0.0, "fiction/weak", "inline"]["below_bar_rate"] == 0.0
+    assert rows[1.0, "fiction/big", "inline"]["success"] == 1.0
+    assert rows[1.0, "fiction/big", "inline"]["below_bar_rate"] == 0.0
+    assert rows[1.0, "fiction/weak", "inline"]["below_bar_rate"] == 1.0
 
 
 def test_summary_success_weights_items_across_tasks_within_a_seed():

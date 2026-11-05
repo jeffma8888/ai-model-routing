@@ -26,6 +26,7 @@ from .monitor import Monitor, load_records, report  # noqa: E402
 from .demo import run_demo  # noqa: E402
 from .evaluate import Outcome, evaluate, load_outcomes, outcomes_from_rows, split_items  # noqa: E402
 from .delegation import DelegationDecision  # noqa: E402
+from .delegation_eval import evaluate_delegation  # noqa: E402
 
 __version__ = "0.1.0"
 
@@ -38,7 +39,7 @@ __all__ = [
     "OpenAICompatibleProvider", "Attempt", "CallResult", "Executor", "AllModelsFailed",
     "json_validator", "Monitor", "load_records", "report", "run_demo", "main",
     "Outcome", "outcomes_from_rows", "load_outcomes", "split_items", "evaluate",
-    "DelegationDecision",
+    "DelegationDecision", "evaluate_delegation",
 ]
 
 

@@ -2,7 +2,7 @@
 
 Route every repeated kind of model call (ticket triage, field extraction, code generation, eval and judge calls) to the cheapest model that clears a quality bar you measured on that task, with fallback, monitoring and cost attribution. Or, if your team has decided spend does not matter, route to the best measured model with the exact same machinery.
 
-- Python 3.10+, standard library only, about 2,200 lines you can read in an afternoon
+- Python 3.10+, standard library only, about 2,400 lines you can read in an afternoon
 - Works with any OpenAI-compatible endpoint (vendor APIs, gateways, local servers) or your own provider class
 - Ships with a fully offline demo, so you can see the whole loop without an API key
 - Tested on public data that already holds each model's answers, correctness and cost, so no API key is needed: see [Evidence](#evidence-held-out-results-on-public-data)
@@ -541,6 +541,7 @@ model_routing/
   demo.py       offline end-to-end demo
   evaluate.py   offline evaluation on an outcome matrix, held-out split, baselines
   delegation.py inline or sub-agent for one piece of work, in both flavors
+  delegation_eval.py  offline evidence for that choice on an outcome matrix with token counts
   cli.py        model-routing select | calibrate | report | demo | evaluate | delegate
   data/         models.json, priors.json, example_tasks.json
 research/       public evidence behind the defaults
