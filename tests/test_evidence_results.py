@@ -513,11 +513,14 @@ def test_same_success_words_refuse_a_gap_or_a_cheaper_cost_blind():
 
 @pytest.fixture(scope="module")
 def pinned_columns():
-    pytest.importorskip("pandas")
     cv = load_convert()
     if os.environ.get("ROUTERBENCH_PKL"):
+        # an explicit request to check: a missing pandas or file fails, never skips
+        if importlib.util.find_spec("pandas") is None:
+            pytest.fail("ROUTERBENCH_PKL is set but pandas is not installed")
         path = Path(os.environ["ROUTERBENCH_PKL"])
     else:
+        pytest.importorskip("pandas")
         path = cv.default_cache_dir() / cv.FILENAME
         if not path.is_file():
             pytest.skip("the pinned RouterBench file is not in the default cache")
