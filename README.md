@@ -19,7 +19,7 @@ Route every repeated kind of model call (ticket triage, field extraction, code g
 
 - In a team that evaluates seriously, judge calls are a large share of model spend: every candidate output, on every test case, on every rubric, gets graded, often more than once
 - A cheap judge that is wrong does more damage than a cheap model on any other task, because it silently weakens the evals that every later decision trusts
-- We found no public judge benchmark with a row for the current generation of models (see [research/judge-benchmarks.md](research/judge-benchmarks.md))
+- We found no public judge benchmark with a row for the current generation of models (see [research/judge-benchmarks.md](research/judge-benchmarks.md)). The nearest public evidence is a router benchmark that publishes every judge model's grade of every answer: [AutoBench judges](#autobench-judges) chooses a judge on it by agreement with the other judges, not with a human label
 - A judge must not grade its own family's output, so judge tasks turn on generator isolation (below)
 
 ## Two flavors, one pipeline
@@ -343,12 +343,13 @@ for row in report(monitor.records, by="tag:team"):
 
 ## Evidence: held-out results on public data
 
-Each dataset here already holds every model's answer to every item, a label for whether that answer was good enough (right or wrong on RouterBench, a Delta-Hit from a judge committee's scores on AutoBench) and the cost of each call, so the router is tested offline with no API key: for each task and seed, calibrate on one half of the items, route at a bar, and score the routed model on the other half, next to fixed baselines (`model-routing evaluate`, `DESIGN.md` 12). The test suite rebuilds every number in these tables from that dataset's committed results file, so they cannot drift from it.
+Each dataset here already holds every model's answer to every item, a label for whether that answer was good enough (right or wrong on RouterBench, a Delta-Hit from a judge committee's scores on AutoBench, and agreement with the other judges' grades for a judge model's grade in AutoBench judges) and the cost of each call or the token counts to estimate it at list prices, so the router is tested offline with no API key: for each task and seed, calibrate on one half of the items, route at a bar, and score the routed model on the other half, next to fixed baselines (`model-routing evaluate`, `DESIGN.md` 12). The test suite rebuilds every number in these tables from that dataset's committed results file, so they cannot drift from it.
 
 Results at a glance, each number from the committed results of the subsection it links:
 
 - [RouterBench](#routerbench): at bar 0.6, `cost_effective` routing reaches held-out success 0.735 at 0.341 of the cost of the best single model, `openai/gpt-4-1106-preview`; no routed row at any bar reaches that model's held-out success
 - [AutoBench](#autobench): no routed row beats always calling `openai/gpt-5.6-luna` on held-out success and cost together (0.872 at 0.3092 USD)
+- [AutoBench judges](#autobench-judges): choosing a judge, scored by agreement with the other judges and not a human label, at bar 0.6, `cost_effective` routing reaches held-out success 0.816 at 0.518 of the cost of the best single judge, `tencent/hy3`; no routed row at any bar reaches that judge's held-out success
 - [Delegation on AutoBench](#delegation-on-autobench): at bar 0.8, with the brief assumed to carry the whole question, the `cost_effective` decision's mean held-out success over the 20 parents is 0.856 against 0.670 for always inline and level with always delegating to two decimals; it costs more than always delegating at every context size, and more than always inline at 8,000 context tokens but less at 64,000 and 200,000
 
 ### RouterBench
@@ -453,6 +454,57 @@ python evidence/routerbench/results.py --evaluate autobench-evaluate.json --out 
 python evidence/routerbench/results.py --table evidence/autobench-2026/results.json
 ```
 
+### AutoBench judges
+
+- Dataset: the same [AutoBench/router-benchmark-2026-10](https://huggingface.co/datasets/AutoBench/router-benchmark-2026-10) files, pinned at revision [`4375518`](https://huggingface.co/datasets/AutoBench/router-benchmark-2026-10/tree/43755180be7d8097068982d7a3f37fc04cd15379), read for the grade each judge model gave each answer (`judges_json` in `matrix.csv`)
+- Licence: [CC-BY-4.0](https://creativecommons.org/licenses/by/4.0/), as the dataset card states. Attribution: Autobench, Autobench Router Benchmark 2026. This repo commits no part of the dataset, only numbers derived from it
+- What was run: 756 graded answers in one pooled task, 5 candidate judges, 50 seeds; the answers are split in half per seed and routed at bars 0.6 to 0.9 in both flavors. A success is a judge's grade within 0.5 of the mean of the other judges' grades on that answer, leaving out the judge itself and the model that wrote the answer
+- Full results, with how many seeds were routed to each judge and two sensitivity runs: [RESULTS.md](evidence/autobench-judges/RESULTS.md) and [results.json](evidence/autobench-judges/results.json); how the grades become a judge outcome matrix, every assumption with its option, and what is dropped: [the judge section of the evidence README](evidence/autobench-2026/README.md#judge-evidence-one-item-per-graded-answer)
+
+Held-out success is the share of held-out answers on which the routed judge agrees with the committee, and cost is the list-price estimate of judging them, both averaged over the seeds. The two ratios divide that cost by the cost of the best single judge and of the cheapest judge on the calibration half in the baseline table; the cleared and bar-violation rates read as in the AutoBench table, with one task, and a `-` means that no seed cleared.
+
+| Bar | Flavor | Held-out success | Cost (USD) | Cost / best single judge | Cost / cheapest judge | Cleared rate | Bar-violation rate |
+|---|---|---|---|---|---|---|---|
+| 0.6 | `cost_effective` | 0.816 | 0.0617 | 0.518 | 1.0 | 1.000 | 0.000 |
+| 0.6 | `cost_blind` | 0.831 | 0.1146 | 0.962 | 1.9 | 1.000 | 0.000 |
+| 0.7 | `cost_effective` | 0.816 | 0.0617 | 0.518 | 1.0 | 1.000 | 0.000 |
+| 0.7 | `cost_blind` | 0.831 | 0.1146 | 0.962 | 1.9 | 1.000 | 0.000 |
+| 0.8 | `cost_effective` | 0.831 | 0.1135 | 0.953 | 1.8 | 0.560 | 0.071 |
+| 0.8 | `cost_blind` | 0.831 | 0.1146 | 0.962 | 1.9 | 0.560 | 0.036 |
+| 0.9 | `cost_effective` | 0.831 | 0.1146 | 0.962 | 1.9 | 0.000 | - |
+| 0.9 | `cost_blind` | 0.831 | 0.1146 | 0.962 | 1.9 | 0.000 | - |
+
+| Baseline | Held-out success | Cost (USD) |
+|---|---|---|
+| Per-answer oracle: on each answer, the cheapest judge that agrees with the committee, or the cheapest judge, counted wrong, when none does | 0.957 | 0.0832 |
+| Best single judge (`tencent/hy3`) | 0.835 | 0.1192 |
+| Best judge on the calibration half | 0.831 | 0.1146 |
+| Cheapest judge on the calibration half | 0.816 | 0.0617 |
+
+Reading it:
+
+- At bars 0.6 and 0.7 every seed clears and `cost_effective` routes all 50 seeds to `deepseek/deepseek-v4-flash-0731`, the cheapest candidate: held-out success 0.816 at 0.518 of the cost of the best single judge, `tencent/hy3` (0.835 at 0.1192 USD)
+- There is one task, so each rate counts seeds: `cost_effective` at bar 0.8, 0.071, is 2 of the 28 seeds that cleared; `cost_blind` at bar 0.8, 0.036, is 1 of the 28 seeds that cleared. Read them next to a nominal one-sided 0.025 for a 95% Wilson bound on one judge, as a resampling estimate for this matrix and never as a guarantee (DESIGN 12.3)
+- The oracle, 0.957 at 0.0832 USD, takes on each held-out answer the cheapest candidate that agrees with the committee, or, where none agrees (0.043 of the held-out answers), the cheapest candidate on that answer, counted wrong: a hindsight bound, next to 0.835 for the best single judge
+- The two costliest candidates agree with the committee least: `meta/muse-glimmer-30b` (0.599 at 0.3234 USD) and `openai/gpt-5.6-luna` (0.642 at 0.2105 USD), so a higher price did not buy more agreement. `openai/gpt-5.6-luna` is the answer model of the dataset card's headline, which no commercial router beat on quality and cost together ([AutoBench](#autobench))
+
+Limits:
+
+- The label is agreement with the other judges, which are models from the same pool, not a human gold label: a judge that always grades as the committee does scores 1.0 whether or not the committee is right
+- Each cost is an estimate at the pool's list prices, never a billed cost: a judge call is assumed to read the question, the visible answer and a 400-token rubric and to write a 200-token grade
+- The 5 candidates are the pool judges whose set keeps the most answers, not the best or the cheapest judges. 756 of the 4,933 scored answers are kept: the converter drops the 1,252 answered by a candidate, since no model grades its own answer, and the 2,925 that some candidate did not grade, so every candidate grades every item
+- Answers to the same question are separate items, so a seed's split can put answers to one question in both halves
+
+Regenerate (the dataset downloads into a cache folder outside the repo; the sensitivity commands are in RESULTS.md):
+
+```bash
+python -m pip install -e .
+python evidence/autobench-2026/judges.py --out autobench-judges.jsonl --registry autobench-models.json
+model-routing evaluate --outcomes autobench-judges.jsonl --registry autobench-models.json --bar 0.6 0.7 0.8 0.9 --seeds 50 --json > autobench-judges-evaluate.json
+python evidence/routerbench/results.py --evaluate autobench-judges-evaluate.json --out evidence/autobench-judges/results.json
+python evidence/routerbench/results.py --table evidence/autobench-judges/results.json
+```
+
 ### Delegation on AutoBench
 
 The same [AutoBench matrix](https://huggingface.co/datasets/AutoBench/router-benchmark-2026-10) at revision [4375518](https://huggingface.co/datasets/AutoBench/router-benchmark-2026-10/tree/43755180be7d8097068982d7a3f37fc04cd15379) (licence CC-BY-4.0), with each answer's token counts and the pool's list prices, scores the [inline or sub-agent](#inline-or-sub-agent) decision on held-out questions for every one of the 20 pool models as the parent, next to always working inline and always delegating ([RESULTS.md](evidence/delegation/RESULTS.md), [results.json](evidence/delegation/results.json), `DESIGN.md` 13.9 and 13.10). No public dataset records a real hand-off, so the parent's context and the hand-off sizes are a stated grid: 8,000, 64,000 and 200,000 context tokens, a brief of 500 tokens, a 500-token result, one later parent call, and inline work in a parent call of its own (`inline_separate_call` True). Each cost is a list-price estimate, and the delegate is credited with its recorded answer as if the brief carried the whole question, so a lossy brief is not measured. Means over the 20 parents (`dec_` the decision, `inl_` always inline, `del_` always delegating; cost in USD, the mean over the 50 seeds of a held-out half's list-price cost; `delegated` the share of seeds the decision hands off):
@@ -545,7 +597,7 @@ What this does and does not tell you:
 - The spread in cost is large (100x between the cheapest and most expensive judge), so measuring whether the cheap tier clears your bar pays for itself quickly
 - Rankings flip by category: gpt-6-astra is first on ARC-AGI-3 and eighth of twelve on GDPval-AA. There is no single best model, for judging or anything else
 - Some gaps are too small to act on: on Terminal-Bench 4.0, Opus 5.5 and Sonnet 5.5 are about one point apart, and one leaderboard cannot tell them apart. That is why priors may order candidates but never admit them
-- None of these are judge benchmarks. Public judge evidence for current models is thin, and what exists argues for measuring rather than trusting: frontier judges still miss deliberately planted errors at maximum reasoning effort, a rubric judge in one study passed its own failed outputs up to about 20x more often than other models' failures, and rubric edits that raised judge-to-judge agreement left agreement with experts flat. Details and sources: [research/judge-benchmarks.md](research/judge-benchmarks.md)
+- None of these are judge benchmarks. The judge results in this repo, [AutoBench judges](#autobench-judges), measure agreement with other model judges, not with experts. Public judge evidence for current models is thin, and what exists argues for measuring rather than trusting: frontier judges still miss deliberately planted errors at maximum reasoning effort, a rubric judge in one study passed its own failed outputs up to about 20x more often than other models' failures, and rubric edits that raised judge-to-judge agreement left agreement with experts flat. Details and sources: [research/judge-benchmarks.md](research/judge-benchmarks.md)
 
 ## Prior art, and what is actually new here
 
