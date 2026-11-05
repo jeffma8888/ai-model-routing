@@ -88,40 +88,45 @@ def readme_sentence(text):
 
 
 def top_blocks(text):
-    """Top-level keys in file order, each with its text (comment and blank lines dropped)."""
+    """Top-level keys in file order, each with its text. Only top-level comment lines and the
+    blank lines that end a block are dropped, so a comment or blank line inside a block is part
+    of it and an exact comparison fails on it."""
     blocks = []
     for line in text.split("\n"):
-        if not line.strip() or line.lstrip().startswith("#"):
+        if line.startswith("#") or (not blocks and not line):
             continue
-        if not line.startswith(" "):
+        if line and not line.startswith(" "):
             blocks.append([line.split(":", 1)[0], ""])
         blocks[-1][1] += line + "\n"
-    return blocks
+    return [[key, body.rstrip("\n") + "\n"] for key, body in blocks]
 
 
 def parse_steps(job):
-    """The job's steps as dicts: `name`, `uses`, `with` (dict) and `run` (list of lines)."""
-    lines = job.split("\n")
+    """The job's header lines (before `steps:`) and its steps as dicts: `keys` (every key of
+    the step, in order), `name`, `uses`, `with` (dict) and `run` (list of lines). A line this
+    file's shape does not have, a blank line outside a `run` block included, raises."""
+    lines = job.rstrip("\n").split("\n")
     start = lines.index("    steps:")
     steps, block = [], None
     for line in lines[start + 1:]:
-        if not line:
-            continue
         if line.startswith("      - "):
-            steps.append({"with": {}, "run": []})
+            steps.append({"keys": [], "with": {}, "run": []})
             line = "        " + line[len("      - "):]
+        assert steps, line
         step = steps[-1]
-        if block is not None and line.startswith(" " * 10):
-            if block == "with":
-                key, value = line.strip().split(": ", 1)
-                step["with"][key] = value
-            else:
-                step["run"].append(line[10:])
+        if block == "run" and (not line or line.startswith(" " * 10)):
+            step["run"].append(line[10:])
+            continue
+        if block == "with" and line.startswith(" " * 10):
+            key, value = line.strip().split(": ", 1)
+            step["with"][key] = value
             continue
         block = None
-        assert line.startswith("        ") and not line.startswith("         "), line
+        assert line.startswith("        ") and not line.startswith("         "), repr(line)
         key, _, value = line.strip().partition(":")
         value = value.strip()
+        assert key not in step["keys"], key
+        step["keys"].append(key)
         if key == "with" and not value:
             block = "with"
         elif key == "run" and value == "|":
@@ -129,9 +134,8 @@ def parse_steps(job):
         elif key == "run":
             step["run"] = [value]
         else:
-            assert key not in step, key
             step[key] = value
-    return steps
+    return lines[:start], steps
 
 
 def ci_uses(ci_text):
@@ -141,15 +145,17 @@ def ci_uses(ci_text):
 def problems(text, readme_text, ci_text):
     """Every way the workflow text breaks DESIGN 12.13 (an empty list when it holds)."""
     found = []
+    # Substring checks, so they fail closed: a comment that says "secrets" or ": write" fails too.
     if re.search(r"secrets", text, re.I):
         found.append("names a secret")
     if "pull_request_target" in text:
         found.append("has a pull_request_target trigger")
     if re.search(r":\s*write\b", text):
         found.append("grants a write permission")
-    head = text.split("\n\non:\n", 1)[0]
-    if "RouterBench" not in head or f"{routerbench_size():,}-byte" not in head:
-        found.append("the top comment does not say why RouterBench is left out")
+    head = text.split("\n\non:\n", 1)[0].split("\n")
+    comment = " ".join(line[2:] for line in head if line.startswith("# "))
+    if readme_sentence(readme_text).split("; ", 1)[1] not in comment:
+        found.append("the top comment does not give the README's RouterBench reason")
     blocks = top_blocks(text)
     keys = [k for k, _ in blocks]
     if keys != ["name", "on", "permissions", "defaults", "jobs"]:
@@ -168,14 +174,16 @@ def problems(text, readme_text, ci_text):
     if jobs != ["regenerate"]:
         return found + [f"jobs {jobs}"]
     ci_runs_on = re.findall(r"^    runs-on: (\S+)$", ci_text, re.M)
-    if re.findall(r"^    runs-on: (\S+)$", job, re.M) != ci_runs_on or len(ci_runs_on) != 1:
-        found.append("runs-on differs from ci.yml")
     try:
-        steps = parse_steps(job)
+        header, steps = parse_steps(job)
     except (AssertionError, ValueError) as error:
         return found + [f"steps do not parse: {error}"]
+    if len(ci_runs_on) != 1 or header != ["jobs:", "  regenerate:", f"    runs-on: {ci_runs_on[0]}"]:
+        found.append("the job holds more than runs-on and steps, or runs-on differs from ci.yml")
     if [s.get("name") for s in steps] != STEP_NAMES:
         return found + [f"step names {[s.get('name') for s in steps]}"]
+    if [s["keys"] for s in steps] != [["uses", "with"]] * 2 + [["name", "run"]] * 3:
+        found.append(f"step keys {[s['keys'] for s in steps]}")
     checkout, python, install, regenerate, compare = steps
     if [checkout.get("uses"), python.get("uses")] != ci_uses(ci_text):
         found.append("actions differ from ci.yml")
@@ -250,10 +258,30 @@ MUTANTS = {
                                     "run: python -m pip install -e .\n"
                                     "        env:\n          TOKEN: ${{ secrets.TOKEN }}\n", 1),
     "the compare step on two files": lambda t: t.replace(
-        " evidence/delegation/results.json\n", "\n", 1),
+        "evidence/autobench-judges/results.json evidence/delegation/results.json\n",
+        "evidence/autobench-judges/results.json\n", 1),
     "checkout with credentials": lambda t: t.replace("persist-credentials: false",
                                                      "persist-credentials: true", 1),
+    "a job shell without pipefail": lambda t: t.replace(
+        "    runs-on: ubuntu-latest\n",
+        "    runs-on: ubuntu-latest\n    defaults:\n      run:\n        shell: bash -e\n", 1),
+    "a skipped Regenerate": lambda t: t.replace(
+        "      - name: Regenerate\n", "      - name: Regenerate\n        if: false\n", 1),
+    "a Compare that may fail": lambda t: t.replace(
+        "      - name: Compare\n", "      - name: Compare\n        continue-on-error: true\n", 1),
+    "Regenerate in another folder": lambda t: t.replace(
+        "      - name: Regenerate\n",
+        "      - name: Regenerate\n        working-directory: elsewhere\n", 1),
+    "a step shell override": lambda t: t.replace(
+        "      - name: Compare\n", "      - name: Compare\n        shell: sh\n", 1),
+    "a comment in Regenerate": lambda t: with_lines(t, lambda ls: ls[:1] + ["          # x"] + ls[1:]),
+    "a job after the steps": lambda t: t + "  other:\n    runs-on: ubuntu-latest\n",
+    "the RouterBench reason dropped": lambda t: t.replace("# takes about 70 seconds.\n", "", 1),
 }
+
+
+def test_the_mutant_count_is_the_one_design_states():
+    assert len(MUTANTS) == 16
 
 
 @pytest.mark.parametrize("name", sorted(MUTANTS))
