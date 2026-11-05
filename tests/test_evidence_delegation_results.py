@@ -251,6 +251,10 @@ def reading_it(results):
         assert len(values) == 1, (bar, flavor, strategy, key, values)
         return values.pop()
 
+    for i in range(len(sizes)):
+        for p in parents:
+            assert len({(r["success"], r["cost_usd"]) for (b, f, j, q, s), r in rows.items()
+                        if (j, q, s) == (i, p, "inline")}) == 1, (i, p)
     out = []
     assert {rows[(0.7, "cost_effective", i, p, "decision")]["delegate_rate"]
             for i in range(len(sizes)) for p in parents} == {1.0}
@@ -321,6 +325,8 @@ def test_readme_subsection_shows_the_table_and_links(dr):
     for phrase in ("[RESULTS.md](evidence/delegation/RESULTS.md)",
                    "[results.json](evidence/delegation/results.json)",
                    "8,000, 64,000 and 200,000", "brief of 500 tokens", "500-token result",
+                   "(`inline_separate_call` True)", "(licence CC-BY-4.0)",
+                   "](https://huggingface.co/datasets/AutoBench/router-benchmark-2026-10/tree/43755180be7d8097068982d7a3f37fc04cd15379)",
                    "list-price estimate"):
         assert phrase in sub, phrase
     readme = README.read_text(encoding="utf-8")
@@ -347,3 +353,12 @@ def test_real_results_regenerate_byte_identical(dr, tmp_path):
     path.write_text(json.dumps(cv.pool_registry(pool)), encoding="utf-8")
     result = dr.run(rows, Registry.load(path))
     assert json.dumps(result, indent=2) + "\n" == RESULTS.read_text(encoding="utf-8")
+    small = {m["id"]: m["context_window"] for m in cv.pool_registry(pool)["models"]
+             if m["context_window"] < POINTS[2]["context_tokens"]}
+    assert small == {"meta/muse-glimmer-30b": 131_072, "openai/gpt-oss-120b": 131_000}
+    md = RESULTS_MD.read_text(encoding="utf-8")
+    assert ("At 200,000 tokens `meta/muse-glimmer-30b` and `openai/gpt-oss-120b` (context windows "
+            "of 131,072 and 131,000 tokens) have no room") in md
+    for r in result["summary"]:
+        if r["parent"] in small and r["point"] == 2 and r["strategy"] == "decision":
+            assert r["delegate_rate"] == 1.0, r
