@@ -59,13 +59,15 @@ def load():
     return importlib.import_module("model_routing.delegation_eval")
 
 
-def registry(window=1_000_000, big_window=None):
+def registry(window=1_000_000, big_window=None, windows=None, reverse=False):
     """big 10/40, small 1/4, weak 0.1/0.4 USD per 1M tokens."""
-    return Registry([
-        Model("fiction/big", "large", 10.0, 40.0, window if big_window is None else big_window),
-        Model("fiction/small", "small", 1.0, 4.0, window),
-        Model("fiction/weak", "tiny", 0.1, 0.4, window),
-    ])
+    size = {"fiction/big": window if big_window is None else big_window,
+            "fiction/small": window, "fiction/weak": window}
+    size.update(windows or {})
+    models = [Model("fiction/big", "large", 10.0, 40.0, size["fiction/big"]),
+              Model("fiction/small", "small", 1.0, 4.0, size["fiction/small"]),
+              Model("fiction/weak", "tiny", 0.1, 0.4, size["fiction/weak"])]
+    return Registry(models[::-1] if reverse else models)
 
 
 def matrix(task="work", items=ITEMS, tokens=None):
@@ -217,13 +219,36 @@ def test_parent_context_full_delegates_and_the_inline_baseline_is_still_scored()
         assert fits["inline_allowed"] is True and fits["mode"] == "inline"
 
 
-@pytest.mark.parametrize("window,points", [
-    (1000, [point(0, 500, 300, 0, True)]),     # nothing fits: inline blocked, no route
-    (1500, [point(0, 500, 300, 0, True)]),     # inline fits, no delegate does
+@pytest.mark.parametrize("flavor", ["cost_effective", "cost_blind"])
+def test_the_delegate_baseline_is_the_route_even_when_the_decision_stays_inline(flavor):
+    # big fits 1,200 tokens inline but not 1,700 delegated, small fits neither, so the
+    # route falls back to weak (below the bar) and only the parent clears
+    reg = registry(windows={"fiction/big": 1500, "fiction/small": 1500})
+    result = run(reg=reg, flavors=[flavor], parents=["fiction/big"],
+                 points=[point(0, 500, 300, 0, True)])
+    for seed in SEEDS:
+        c = cell(result, flavor, "fiction/big", 0, seed)
+        assert (c["mode"], c["model"], c["reason"], c["delegate"]) == (
+            "inline", "fiction/big", "only_parent_clears", "fiction/weak")
+        assert c["below_bar"] is False and c["inline_allowed"] is True
+        assert c["correct"] == {"decision": 5, "inline": 5, "delegate": 0}
+        assert c["success"] == {"decision": 1.0, "inline": 1.0, "delegate": 0.0}
+        assert c["cost_usd"]["inline"] == pytest.approx(5 * 0.03, rel=1e-12)
+        assert c["cost_usd"]["delegate"] == pytest.approx(5 * 0.02823, rel=1e-12)
+        assert c["cost_usd"]["decision"] == c["cost_usd"]["inline"]
+
+
+@pytest.mark.parametrize("window,points,parent,failing", [
+    # nothing fits: inline blocked, no route
+    (1000, [point(0, 500, 300, 0, True)], "fiction/big", 0),
+    # point 0 fits a delegate (1,300 tokens), point 1 (1,700) fits only inline
+    (1500, [point(0, 100, 300, 0, True), point(0, 500, 300, 0, True)], "fiction/small", 1),
 ])
-def test_a_cell_with_no_delegate_is_a_value_error(window, points):
-    with pytest.raises(ValueError, match="fiction/"):
-        run(reg=registry(window=window), points=points)
+def test_a_cell_with_no_delegate_is_a_value_error(window, points, parent, failing):
+    with pytest.raises(ValueError) as caught:
+        run(reg=registry(window=window), points=points, parents=[parent])
+    message = str(caught.value)
+    assert "work" in message and parent in message and f"point {failing}" in message
 
 
 def test_summary_rows_order_and_values():
@@ -262,15 +287,21 @@ def test_summary_success_weights_items_across_tasks_within_a_seed():
                                for r in matrix(items=ITEMS[:6])]
     result = run(rows=rows, flavors=["cost_effective"], parents=["fiction/small"],
                  points=[POINTS[1]])
+    sizes = set()
     for r in result["summary"]:
         s = r["strategy"]
-        per_seed = []
+        per_seed, per_seed_cost = [], []
         for seed in SEEDS:
             cs = [c for c in result["cells"] if c["seed"] == seed]
             assert sorted(c["task"] for c in cs) == ["a", "b"]
+            sizes.update(c["held_out_items"] for c in cs)
             per_seed.append(sum(c["correct"][s] for c in cs)
                             / sum(c["held_out_items"] for c in cs))
+            per_seed_cost.append(sum(c["cost_usd"][s] for c in cs))
         assert r["success"] == pytest.approx(sum(per_seed) / 2, rel=1e-15)
+        # a seed's cost is its total over both tasks, never a mean per task
+        assert r["cost_usd"] == pytest.approx(sum(per_seed_cost) / 2, rel=1e-12)
+    assert len(sizes) > 1
 
 
 def test_cells_nest_in_the_stated_order_with_the_stated_keys():
@@ -304,6 +335,9 @@ def test_config_and_tasks():
 
 def test_parents_default_to_every_model_ascending_and_keep_the_given_order():
     assert run()["config"]["parents"] == MODELS
+    reversed_registry = run(reg=registry(reverse=True))
+    assert reversed_registry["config"]["parents"] == MODELS
+    assert reversed_registry["tasks"]["work"]["models"] == MODELS
     picked = run(parents=["fiction/weak", "fiction/big"])
     assert picked["config"]["parents"] == ["fiction/weak", "fiction/big"]
     assert {c["parent"] for c in picked["cells"]} == {"fiction/weak", "fiction/big"}
@@ -332,6 +366,27 @@ def test_registry_and_rows_are_not_modified():
     run(rows=rows, reg=reg)
     assert reg.models == before
     assert rows == copy
+
+
+def test_min_samples_and_confidence_reach_the_decision():
+    # 3 of 3 clears bar 0.4 at min_samples 3 and confidence 0.95 (bound 0.438), but
+    # not with 4 samples required or at confidence 0.99 (bound 0.311)
+    for kwargs in ({"min_samples": 4}, {"confidence": 0.99}):
+        result = run(**kwargs)
+        assert {c["reason"] for c in result["cells"]} == {"none_clear"}
+        assert all(c["below_bar"] for c in result["cells"])
+        for key, value in kwargs.items():
+            assert result["config"][key] == value
+    assert "none_clear" not in {c["reason"] for c in run()["cells"]}
+
+
+def test_calibration_fraction_reaches_the_split():
+    result = run(calibration_fraction=0.75)
+    assert result["config"]["calibration_fraction"] == 0.75
+    for c in result["cells"]:
+        cal, held = split_items(ITEMS, c["seed"], 0.75)
+        assert (c["calibration_items"], c["held_out_items"]) == (len(cal), len(held))
+    assert {(c["seed"], c["calibration_items"]) for c in result["cells"]} == {(0, 5), (1, 3)}
 
 
 def test_split_matches_evaluate():
@@ -385,7 +440,10 @@ def test_token_counts_are_required_even_with_cost_usd():
     {"points": [{k: v for k, v in POINTS[0].items() if k != "carry_turns"}]},
     {"points": [dict(POINTS[0], extra=1)]},
     {"points": [dict(POINTS[0], context_tokens=-1)]},
+    {"points": [dict(POINTS[0], context_tokens=True)]},
     {"points": [dict(POINTS[0], brief_tokens=True)]},
+    {"points": [dict(POINTS[0], result_tokens=True)]},
+    {"points": [dict(POINTS[0], carry_turns=True)]},
     {"points": [dict(POINTS[0], result_tokens=1.5)]},
     {"points": [dict(POINTS[0], inline_separate_call=1)]},
     {"points": [POINTS[0], dict(POINTS[0])]},
