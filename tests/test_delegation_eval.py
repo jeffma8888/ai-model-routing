@@ -386,11 +386,11 @@ def test_same_result_for_any_row_order_and_byte_identical_json():
 
 
 # A fixture on which float addition order changes the last digits: three tasks, six
-# seeds, prices that are not binary fractions, a different token count on every call,
-# fiction/small wrong on four items (q1 and q6 of task b, q3 and q8 of task c) and
-# fiction/weak right on a third of the items.
-# A plain left-to-right `sum`, or a regrouped cost expression, gives a total or a mean
-# that differs from the spec's
+# seeds, prices that are not binary fractions and a different token count on every
+# call; fiction/small is wrong on q1 and q6 of task b and q3 and q8 of task c (none of
+# task a), and fiction/weak is right on q3 and q6 of task a, q2, q5 and q8 of task b
+# and q1, q4 and q7 of task c. On it a plain left-to-right `sum`, or a cost expression
+# written another way, gives a total or a mean that differs from the spec's
 VARIED_TASKS = ["a", "b", "c"]
 VARIED_SEEDS = list(range(6))
 VARIED_POINTS = [point(100_000, 500, 300, 0, True), point(0, 700, 450, 3, False),
@@ -455,19 +455,33 @@ def test_costs_are_exact_fsum_totals_of_items_costed_left_to_right():
 
         def delegated(item, D):
             tin, tout = tokens[c["task"], item, D.id]
-            cost = P.cost(0, B) + D.cost(B + tin, tout) + (1 + T) * P.cost(B + R, 0)
-            if cost != P.cost(0, B) + (D.cost(B + tin, tout) + (1 + T) * P.cost(B + R, 0)):
-                sensitive.add("regrouped")
-            return cost
+            return P.cost(0, B) + D.cost(B + tin, tout) + (1 + T) * P.cost(B + R, 0)
 
+        # the same costs written another way, for the guard below
+        def rescaled_inline(item):
+            tin, tout = tokens[c["task"], item, P.id]
+            if pt["inline_separate_call"]:
+                return P.cost(C + tin, tout) + P.cost((1 + T) * (tin + tout), 0)
+            return P.cost(tin, tout) + P.cost(T * (tin + tout), 0)
+
+        def regrouped_delegated(item, D):
+            tin, tout = tokens[c["task"], item, D.id]
+            return P.cost(0, B) + (D.cost(B + tin, tout) + (1 + T) * P.cost(B + R, 0))
+
+        D = reg.get(c["delegate"])
+        inline_total = total((inline(i) for i in held), "items")
+        delegate_total = total((delegated(i, D) for i in held), "items")
+        if inline_total != fsum(rescaled_inline(i) for i in held):
+            sensitive.add("separate inline rescaled" if pt["inline_separate_call"]
+                          else "folded inline rescaled")
+        if delegate_total != fsum(regrouped_delegated(i, D) for i in held):
+            sensitive.add("delegate regrouped")
         if c["mode"] == "inline":
-            decision = [inline(i) for i in held]
+            decision = total((inline(i) for i in held), "items")
         else:
-            decision = [delegated(i, reg.get(c["model"])) for i in held]
-        assert c["cost_usd"] == {
-            "decision": total(decision, "items"),
-            "inline": total((inline(i) for i in held), "items"),
-            "delegate": total((delegated(i, reg.get(c["delegate"])) for i in held), "items")}
+            decision = total((delegated(i, reg.get(c["model"])) for i in held), "items")
+        assert c["cost_usd"] == {"decision": decision, "inline": inline_total,
+                                "delegate": delegate_total}
     for r in result["summary"]:
         s = r["strategy"]
         group = [c for c in result["cells"] if (c["bar"], c["flavor"], c["point"], c["parent"])
@@ -475,12 +489,15 @@ def test_costs_are_exact_fsum_totals_of_items_costed_left_to_right():
         by_seed = [[c for c in group if c["seed"] == seed] for seed in VARIED_SEEDS]
         seed_cost = [total((c["cost_usd"][s] for c in cs), "tasks") for cs in by_seed]
         assert r["cost_usd"] == mean(seed_cost, "cost mean")
+        # per-cell `correct` counts are checked against the rows by the tests above
         seed_success = [sum(c["correct"][s] for c in cs) / sum(c["held_out_items"] for c in cs)
                         for cs in by_seed]
         assert r["success"] == mean(seed_success, "success mean")
-    # the fixture is order-sensitive at every level, so a plain sum or a regrouped
-    # delegated cost anywhere fails the equalities above
-    assert sensitive == {"items", "regrouped", "tasks", "cost mean", "success mean"}
+    # the fixture is sensitive at every level, each checked on the value the test
+    # compares, so a plain sum or a cost written another way fails an equality above
+    assert sensitive == {"items", "tasks", "cost mean", "success mean",
+                         "separate inline rescaled", "folded inline rescaled",
+                         "delegate regrouped"}
     assert {c["mode"] for c in result["cells"]} == {"inline", "delegate"}
 
 
