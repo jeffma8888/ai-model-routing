@@ -5,17 +5,20 @@ loaded from its path by an autouse fixture before any other test code runs. The 
 were held under a module-level strict xfail until the script landed; the implementing
 commit removed that marker. They need no pandas and no download: they run on a small
 synthetic matrix, on hand-made results with known answers, and on the committed
-``results.json`` and ``RESULTS.md``.
+``results.json`` and ``RESULTS.md``. v1.18 also builds the RouterBench prose numbers of
+RESULTS.md and the README from the committed file, and rebuilds the half sizes and the
+graded-evals sensitivity numbers from the pinned pickle only when it is cached.
 """
 
 import hashlib
 import importlib.util
 import json
+import os
 from pathlib import Path
 
 import pytest
 
-from model_routing import evaluate, outcomes_from_rows
+from model_routing import evaluate, outcomes_from_rows, split_items
 
 FOLDER = Path(__file__).resolve().parents[1] / "evidence" / "routerbench"
 README = Path(__file__).resolve().parents[1] / "README.md"
@@ -371,3 +374,212 @@ def test_readme_evidence_links_source_revision_results_and_commands():
     regenerate = results_md.split("## Regenerate\n\n```bash\n", 1)[1].split("```", 1)[0]
     assert regenerate.count("\n") == 5
     assert "```bash\n" + regenerate + "```" in section
+
+
+# --- the RouterBench prose, built from the committed file (DESIGN 12.7, 12.8, v1.18) ---------
+
+WORDS = {2: "two", 3: "three", 4: "four", 5: "five", 6: "six"}
+
+
+def committed_results():
+    return json.loads((FOLDER / "results.json").read_text(encoding="utf-8"))
+
+
+def results_md():
+    return (FOLDER / "RESULTS.md").read_text(encoding="utf-8")
+
+
+def summary_row(results, bar, flavor, strategy):
+    rows = [r for r in results["summary"]
+            if (r["bar"], r["flavor"], r["strategy"]) == (bar, flavor, strategy)]
+    assert len(rows) == 1, (bar, flavor, strategy)
+    return rows[0]
+
+
+def prose_rows(results):
+    config = results["config"]
+    first = (config["bars"][0], config["flavors"][0])
+    models = [r for r in results["summary"]
+              if (r["bar"], r["flavor"]) == first and r["strategy"].startswith("model:")]
+    best = min(models, key=lambda r: (-r["success"], r["cost_usd"], r["strategy"]))
+    ce = [summary_row(results, bar, "cost_effective", "routed") for bar in config["bars"]]
+    cb = [summary_row(results, bar, "cost_blind", "routed") for bar in config["bars"]]
+    boc = summary_row(results, *first, "best_on_calibration")
+    oracle = summary_row(results, *first, "oracle")
+    return config, best, ce, cb, boc, oracle
+
+
+def same_success_words(cb, boc):
+    """The words are allowed only while they are true (DESIGN 12.7, v1.18)."""
+    assert all((r["success"], r["cost_usd"]) == (cb[0]["success"], cb[0]["cost_usd"]) for r in cb)
+    assert f"{cb[0]['success']:.3f}" == f"{boc['success']:.3f}"
+    assert cb[0]["cost_usd"] > boc["cost_usd"]
+    more = (cb[0]["cost_usd"] / boc["cost_usd"] - 1) * 100
+    return f"the same success to three decimals at {more:.1f}% more cost"
+
+
+def fewest_prompts(results):
+    items = [t["items"] for t in results["tasks"].values()]
+    return min(items), items.count(min(items))
+
+
+def results_md_phrases(results):
+    config, best, ce, cb, boc, oracle = prose_rows(results)
+    bars, seeds, conf = config["bars"], len(config["seeds"]), config["confidence"]
+    tasks = results["tasks"]
+    models = {m for t in tasks.values() for m in t["models"]}
+    items = sum(t["items"] for t in tasks.values())
+    violations = [r["bar_violation_rate"] for r in ce]
+    fewest, how_many = fewest_prompts(results)
+    ratio = [r["cost_usd"] / best["cost_usd"] for r in ce]
+    assert all(a < b for a, b in zip(ratio, ratio[1:])), "the cost ratio no longer rises"
+    return [
+        f"{len(models)} models, {len(tasks)} evals (one task each), {items:,} prompts",
+        f"For each eval and each of {seeds} seeds",
+        f"At bar {bars[0]} it cleared {ce[0]['cleared_rate'] * 100:.1f}% of cells and spent "
+        f"{ratio[0]:.3f} of the best single model's cost for an overall success of "
+        f"{ce[0]['success']:.3f} against that model's {best['success']:.3f}",
+        f"at {bars[-1]} only {ce[-1]['cleared_rate'] * 100:.1f}% of cells clear",
+        f"the cost ratio rises to {ratio[-1]:.3f}",
+        f"success {cb[0]['success']:.3f} at {cb[0]['cost_usd'] / best['cost_usd']:.3f} of the best "
+        f"single model's cost at every bar, close to `best_on_calibration` "
+        f"({boc['success']:.3f} at {boc['cost_usd'] / best['cost_usd']:.3f}): "
+        + same_success_words(cb, boc),
+        f"`bar_violation_rate` for `cost_effective` runs from {min(violations):.3f} to "
+        f"{max(violations):.3f} across the {WORDS[len(bars)]} bars, next to a nominal one-sided "
+        f"{(1 - conf) / 2:.3f} for a {conf * 100:.0f}% Wilson bound on one model",
+        f"{how_many} evals hold only {fewest} prompts, and their held-out halves run from",
+        f"and the {seeds} seeds re-split one pool",
+        f"The per-prompt oracle reaches {oracle['success']:.3f} at {oracle['cost_usd']:.4f} USD",
+    ]
+
+
+def test_results_md_reading_numbers_are_the_committed_results():
+    text = results_md()
+    for phrase in results_md_phrases(committed_results()):
+        assert phrase in text, phrase
+    assert "level with" not in text
+
+
+def readme_reading_phrases(results):
+    config, best, ce, cb, boc, oracle = prose_rows(results)
+    conf = config["confidence"]
+    top = max(r["success"] for r in ce + cb)
+    assert oracle["success"] - top >= 0.1, "routing per task is no longer nowhere near the oracle"
+    return [
+        f"`cost_blind` routes each eval to the model with the highest lower bound, and at every "
+        f"bar it reaches held-out success {cb[0]['success']:.3f} at {cb[0]['cost_usd']:.4f} USD "
+        f"against {boc['success']:.3f} at {boc['cost_usd']:.4f} USD for the best model on the "
+        f"calibration half: " + same_success_words(cb, boc),
+        f"next to the nominal one-sided {(1 - conf) / 2:.3f} of a {conf * 100:.0f}% Wilson bound "
+        f"on one model",
+        f"The per-prompt oracle is a hindsight bound ({oracle['success']:.3f} held-out success at "
+        f"{oracle['cost_usd']:.4f} USD, against at most {top:.3f} for a routed row). Routing per "
+        f"task gets nowhere near it",
+    ]
+
+
+def test_readme_reading_it_is_the_committed_results():
+    results, section = committed_results(), routerbench_subsection()
+    for phrase in readme_reading_phrases(results):
+        assert phrase in section, phrase
+    assert "level with" not in section
+    # the cost_effective bullet: "At the lower bars it gives up held-out success for a large
+    # cut in cost; as the bar rises, fewer evals clear it, ... and its cost approaches that of
+    # the best single model"
+    assert "At the lower bars it gives up held-out success for a large cut in cost" in section
+    _, best, ce, cb, _, _ = prose_rows(results)
+    cleared = [r["cleared_rate"] for r in ce]
+    cost = [r["cost_usd"] for r in ce]
+    assert all(a > b for a, b in zip(cleared, cleared[1:]))
+    assert all(a < b for a, b in zip(cost, cost[1:]))
+    for low, blind in list(zip(ce, cb))[:2]:
+        assert low["cost_usd"] < 0.5 * best["cost_usd"] and low["success"] < blind["success"]
+    assert ce[-1]["cost_usd"] >= 0.9 * best["cost_usd"]
+
+
+def test_same_success_words_refuse_a_gap_or_a_cheaper_cost_blind():
+    results = committed_results()
+    _, _, _, cb, boc, _ = prose_rows(results)
+    assert same_success_words(cb, boc).endswith("% more cost")
+    for change in ({"success": boc["success"] - 0.002}, {"cost_usd": cb[0]["cost_usd"] * 2}):
+        with pytest.raises(AssertionError):
+            same_success_words(cb, dict(boc, **change))
+    with pytest.raises(AssertionError):
+        same_success_words(cb[:1] + [dict(cb[1], cost_usd=cb[1]["cost_usd"] + 1)] + cb[2:], boc)
+
+
+# --- checks on the pinned pickle, only when it is found (DESIGN 12.7, v1.18) -------------------
+
+@pytest.fixture(scope="module")
+def pinned_columns():
+    pytest.importorskip("pandas")
+    cv = load_convert()
+    if os.environ.get("ROUTERBENCH_PKL"):
+        path = Path(os.environ["ROUTERBENCH_PKL"])
+    else:
+        path = cv.default_cache_dir() / cv.FILENAME
+        if not path.is_file():
+            pytest.skip("the pinned RouterBench file is not in the default cache")
+    cv.verify(path)
+    return cv, cv.frame_columns(cv.load_frame(path))
+
+
+def test_real_smallest_eval_half_sizes_are_in_results_md(pinned_columns):
+    cv, columns = pinned_columns
+    results = committed_results()
+    rows, report = cv.convert(columns)
+    assert report["kept"] == {task: t["items"] for task, t in results["tasks"].items()}
+    fewest, how_many = fewest_prompts(results)
+    by_task = {}
+    for r in rows:
+        if report["kept"][r["task"]] == fewest:
+            by_task.setdefault(r["task"], set()).add(r["item"])
+    assert len(by_task) == how_many
+    config = results["config"]
+    held = [len(split_items(items, seed, config["calibration_fraction"])[1])
+            for items in by_task.values() for seed in config["seeds"]]
+    assert (f"{how_many} evals hold only {fewest} prompts, and their held-out halves run from "
+            f"{min(held)} to {max(held)} prompts over the {len(config['seeds'])} seeds"
+            ) in results_md()
+
+
+def test_real_graded_eval_counts_are_in_results_md(pinned_columns):
+    cv, columns = pinned_columns
+    _, default = cv.convert(columns)
+    _, graded = cv.convert(columns, pass_score=0.75)
+    back = sorted(((n, t) for t, n in graded["kept"].items() if t not in default["kept"]),
+                  reverse=True)
+    assert len(back) == 2 and {t for _, t in back} <= set(default["dropped_graded"])
+    rest = set(default["dropped_graded"]) - {t for _, t in back}
+    assert rest and all(default["dropped_graded"][t] < 100 for t in rest)
+    text = results_md()
+    (n1, t1), (n2, t2) = back
+    for phrase in (
+            f"the converter drops the {WORDS[len(default['dropped_graded'])]} evals whose scores "
+            f"are not just 0 or 1",
+            f"With `--pass-score 0.75` a call counts as correct when its score is at least 0.75, "
+            f"which brings back `{t1}` ({n1:,} prompts) and `{t2}` ({n2:,}); the other "
+            f"{WORDS[len(rest)]} graded evals stay out as smaller than 100 prompts",
+            f"That matrix has {len(graded['kept'])} evals, {sum(graded['kept'].values()):,} "
+            f"prompts and {graded['rows']:,} rows"):
+        assert phrase in text, phrase
+
+
+@pytest.mark.skipif(not os.environ.get("ROUTERBENCH_PKL"),
+                    reason="set ROUTERBENCH_PKL to the pinned file (an evaluate of about 20 s)")
+def test_real_graded_eval_routed_numbers_are_in_results_md(pinned_columns):
+    cv, columns = pinned_columns
+    rows, _ = cv.convert(columns, pass_score=0.75)
+    summary = evaluate(outcomes_from_rows(rows), bars=[0.8], seeds=range(50))["summary"]
+    row = {(r["flavor"], r["strategy"]): r for r in summary}
+    models = [r for (flavor, strategy), r in row.items()
+              if flavor == "cost_effective" and strategy.startswith("model:")]
+    best = min(models, key=lambda r: (-r["success"], r["cost_usd"], r["strategy"]))
+    ce, cb = row[("cost_effective", "routed")], row[("cost_blind", "routed")]
+    assert (f"At bar 0.8 with 50 seeds, `cost_effective` routed success is {ce['success']:.3f} at "
+            f"{ce['cost_usd'] / best['cost_usd']:.3f} of the cost of the best single model "
+            f"(`{best['strategy'][len('model:'):]}`, {best['success']:.3f}), cleared_rate "
+            f"{ce['cleared_rate']:.3f} and bar_violation_rate {ce['bar_violation_rate']:.3f}; "
+            f"`cost_blind` reaches {cb['success']:.3f} at {cb['cost_usd'] / best['cost_usd']:.3f} "
+            f"with bar_violation_rate {cb['bar_violation_rate']:.3f}") in results_md()
