@@ -1,6 +1,6 @@
 # AutoBench Router Benchmark 2026 evidence
 
-The Autobench Router Benchmark 2026 asked 20 current models each of 252 long, open-ended questions, had a committee of judge models score every answer, and stored the billed cost of every call. That is enough to test routing offline with no API key, on 2026 models: `convert.py` turns it into the outcome matrix that `model-routing evaluate` reads (DESIGN 12.1 and 12.9).
+The Autobench Router Benchmark 2026 asked 20 current models each of 252 long, open-ended questions, had a committee of judge models score every answer, and stored the billed cost of every call. That is enough to test routing offline with no API key, on 2026 models: `convert.py` turns it into the outcome matrix that `model-routing evaluate` reads (DESIGN 12.1 and 12.9), and `judges.py` turns the per-judge grades into a judge outcome matrix (DESIGN 12.11, [Judge evidence](#judge-evidence-one-item-per-graded-answer)).
 
 ## Source and licence
 
@@ -56,3 +56,34 @@ python evidence/autobench-2026/convert.py --out autobench-matrix.jsonl --task-by
 - A task is the question's `ddc_domain`, as written (Dewey Decimal style classes such as `9 History`, plus `A Agentic tool use`): 10 tasks of 12 to 33 kept questions. A calibration half then holds fewer than 30 items, so the evaluator's default `min_samples = 30` cannot be met per domain; `--task-by all` pools every question into one task of 203 items
 - The costs are the billed USD per call in the matrix frozen on 2026-08-29 (the card dates the `fill_7_4` rows 2026-09-05, and every one of them is dropped); vendor prices and products have moved since
 - Model IDs are written as `vendor/model` from the pool's `openrouter_id`, with hyphens removed from the vendor (`x-ai/grok-4.6` becomes `xai/grok-4.6`, `z-ai/glm-5.3` becomes `zai/glm-5.3`)
+
+## Judge evidence: one item per graded answer
+
+AutoBench publishes every judge's grade of every answer (`judges_json` in `matrix.csv`), so the same pinned files give public evidence for choosing a judge model. `judges.py` turns those grades into a judge outcome matrix in the format `model-routing evaluate` reads (DESIGN 12.11): an item is one graded answer (a question and the pool model that answered it), a model is a candidate judge, and a judge's grade is a success when it is within 0.5 of the mean of the other judges' grades on that answer. It loads `convert.py` from this folder for the pinned files, their checks and the download, and needs no extra.
+
+```bash
+python -m pip install -e .
+python evidence/autobench-2026/judges.py --out autobench-judges.jsonl --registry autobench-pool.json
+model-routing evaluate --outcomes autobench-judges.jsonl --registry autobench-pool.json --bar 0.8
+```
+
+The rows carry token counts and no cost, so `evaluate` needs `--registry`: the file it writes is the one `convert.py --registry` writes, priced at the pool's list prices. The script prints a JSON report of what it kept and dropped.
+
+Every assumption, each with the option that changes it:
+
+- The label is a committee label, not a human gold label: a judge is scored on agreement with the other judges on the same answer (leave one out). A judge that always grades as the committee does scores 1.0 whether or not the committee is right, and a judge that is right where the committee is wrong scores lower. The answer model's grade of its own answer never enters a committee
+- Tolerance 0.5 on the 1 to 5 scale (`--tolerance`), compared as written with no epsilon, against the `math.fsum` mean of the committee's grades. The grades are read from `judges_json`; the dataset's `score` only tells scored answers from unscored ones
+- Every committee has at least 3 judges (`--min-committee`)
+- The cost of a judge call is an estimate at the pool's list prices, never a billed cost: the judge reads the answer's prompt and answer tokens (that cell's `input_tokens` plus `output_tokens`) and an assumed 400-token rubric (`--rubric-tokens`), and writes an assumed 200-token grade (`--grade-tokens`). The cell's `output_tokens` include its reasoning tokens, which a judge never reads: 707 of the 756 kept answers report some, and their `reasoning_tokens` sum to 0.738 of their `output_tokens` (on 14 of them `reasoning_tokens` is above `output_tokens`, by at most 10%, so the two counts are not exact), so the estimate overstates what a judge reads for reasoning models' answers
+- Candidates: by default the 5 pool judges (`--size`) whose set keeps the most answers, ties to the set whose sorted display IDs come first; `--candidates` names them instead. On the pinned files the five are `deepseek/deepseek-v4-flash-0731`, `google/gemma-4-31b-it`, `meta/muse-glimmer-30b`, `openai/gpt-5.6-luna` and `tencent/hy3`. Each candidate more cuts the kept answers by about a third (1,191 at 4, 756 at 5, 460 at 6), so 5 trades the number of judges compared against the number of items. Judges outside the pool may sit on committees but are never candidates, since they have no price
+- Answers to one question are separate items, so the evaluator's random split can put answers to one question in both halves
+- One pooled task, `all`; `--task-by domain` makes one task per question domain, as a sensitivity
+
+What is dropped, with the default options on the pinned files:
+
+- Answers by a candidate: 1,252. Generator isolation never lets a model grade its own answer, and dropping the whole answer keeps every candidate on every item. In all, 2,478 answers carry a grade from their own answer model, the answers a self-grading check would measure
+- Answers some candidate did not grade (not among that answer's judges, or a null grade): 2,925, so the matrix is complete as the evaluator requires
+- Answers with too small a committee: 0
+- The 107 unscored cells and the 388 rows outside the pool, as `convert.py` drops them
+
+Kept: 756 of the 4,933 scored answers, 3,780 rows (one per candidate), mean success 0.735 over the rows.

@@ -1,9 +1,10 @@
-"""v1.24 AutoBench judge committee converter contract (DESIGN 12.11), written before the script exists.
+"""v1.24 AutoBench judge committee converter contract (DESIGN 12.11), committed before the script and now its tests.
 
 The script lives outside the package (``evidence/autobench-2026/judges.py``) and loads
 convert.py from its own folder, so it is loaded from its path by an autouse fixture. Every
-test uses tiny in-memory tables except the two at the end, which read the pinned files only
-when they are already in the default cache and skip otherwise (CI never downloads them).
+test uses tiny in-memory tables, except the evidence README test, which reads that README, and
+the three at the end, which read the pinned files only when they are already in the default
+cache and skip otherwise (CI never downloads them).
 """
 
 import ast
@@ -19,12 +20,10 @@ import pytest
 
 from model_routing import Registry, evaluate, outcomes_from_rows
 
-pytestmark = pytest.mark.xfail(strict=True, raises=ModuleNotFoundError,
-                               reason="evidence/autobench-2026/judges.py lands after its contract (DESIGN 12.11)")
-
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "evidence" / "autobench-2026" / "judges.py"
 CONVERT = ROOT / "evidence" / "autobench-2026" / "convert.py"
+EVIDENCE_README = ROOT / "evidence" / "autobench-2026" / "README.md"
 REVISION = "43755180be7d8097068982d7a3f37fc04cd15379"
 
 POOL = {"members": [
@@ -519,6 +518,60 @@ def test_main_needs_out(jm, folder, capsys):
     assert capsys.readouterr().err.startswith("error: ")
 
 
+# --- docs -----------------------------------------------------------------------------------------
+
+# The evidence README's judge counts as written (DESIGN 12.11); test_pinned_readme_counts builds
+# the same phrases from the report on the pinned files
+README_JUDGE_COUNTS = [
+    "707 of the 756 kept answers report some, and their `reasoning_tokens` sum to 0.738 of their `output_tokens` "
+    "(on 14 of them `reasoning_tokens` is above `output_tokens`, by at most 10%, so the two counts are not exact)",
+    "the five are `deepseek/deepseek-v4-flash-0731`, `google/gemma-4-31b-it`, `meta/muse-glimmer-30b`, "
+    "`openai/gpt-5.6-luna` and `tencent/hy3`",
+    "(1,191 at 4, 756 at 5, 460 at 6)",
+    "Answers by a candidate: 1,252.",
+    "In all, 2,478 answers carry a grade from their own answer model",
+    "(not among that answer's judges, or a null grade): 2,925,",
+    "Answers with too small a committee: 0",
+    "The 107 unscored cells and the 388 rows outside the pool",
+    "Kept: 756 of the 4,933 scored answers, 3,780 rows (one per candidate), mean success 0.735 over the rows."]
+
+
+def test_evidence_readme_judge_section():
+    text = EVIDENCE_README.read_text(encoding="utf-8")
+    section = text.split("## Judge evidence: one item per graded answer\n", 1)[1]
+    assert "](#judge-evidence-one-item-per-graded-answer)" in text.split("\n## ", 1)[0]
+    for needle in [
+            "python evidence/autobench-2026/judges.py --out autobench-judges.jsonl --registry autobench-pool.json",
+            "model-routing evaluate --outcomes autobench-judges.jsonl --registry autobench-pool.json --bar 0.8\n",
+            "a judge outcome matrix in the format `model-routing evaluate` reads (DESIGN 12.11)",
+            "not a human gold label", "scores 1.0 whether or not the committee is right",
+            "never enters a committee", "Tolerance 0.5 on the 1 to 5 scale (`--tolerance`)", "no epsilon",
+            "at least 3 judges (`--min-committee`)", "an estimate at the pool's list prices, never a billed cost",
+            "an assumed 400-token rubric (`--rubric-tokens`)", "an assumed 200-token grade (`--grade-tokens`)",
+            "by default the 5 pool judges (`--size`) whose set keeps the most answers",
+            "ties to the set whose sorted display IDs come first", "`--candidates` names them instead",
+            "never candidates, since they have no price", "in both halves", "`--task-by domain`",
+            "Generator isolation", *README_JUDGE_COUNTS]:
+        assert needle in section, needle
+    assert f"within {jm_defaults()['tolerance']} of the mean of the other judges' grades" in section
+
+
+def jm_defaults():
+    module = load_jm()
+    return {"tolerance": module.DEFAULT_TOLERANCE, "size": module.DEFAULT_SIZE,
+            "min_committee": module.DEFAULT_MIN_COMMITTEE, "rubric_tokens": module.DEFAULT_RUBRIC_TOKENS,
+            "grade_tokens": module.DEFAULT_GRADE_TOKENS}
+
+
+def test_evidence_readme_states_the_defaults():
+    section = EVIDENCE_README.read_text(encoding="utf-8").split("## Judge evidence", 1)[1]
+    d = jm_defaults()
+    for needle in [f"Tolerance {d['tolerance']} ", f"at least {d['min_committee']} judges",
+                   f"{d['rubric_tokens']}-token rubric", f"{d['grade_tokens']}-token grade",
+                   f"by default the {d['size']} pool judges", f"so {d['size']} trades the number of judges"]:
+        assert needle in section, needle
+
+
 # --- the pinned files, only when cached ------------------------------------------------------------
 
 def cached_folder(jm):
@@ -559,3 +612,38 @@ def test_pinned_rows_feed_the_evaluator(jm, tmp_path, capsys):
     outcomes = outcomes_from_rows(rows, Registry.load(reg))
     result = evaluate(outcomes, bars=[0.8], seeds=range(2))
     assert result["tasks"] == {"all": {"items": 756, "models": PINNED_CANDIDATES}}
+
+
+def test_pinned_readme_counts(jm):
+    folder = cached_folder(jm)
+    pool = json.loads((folder / "pool.json").read_text(encoding="utf-8"))
+    matrix = jm.convert.read_csv(folder / "matrix.csv")
+    rows, report = jm.judge_matrix(matrix, pool)
+    names = jm.convert.pool_models(pool)
+    items = {r["item"] for r in rows}
+    kept = [r for r in matrix if r["model"] in names and f"{r['prompt_id']}|{names[r['model']]}" in items]
+    assert len(kept) == sum(report["kept"].values()) == len(items)
+    reasoning = [float(r["reasoning_tokens"] or 0) for r in kept]
+    output = [float(r["output_tokens"]) for r in kept]
+    over = [x / y for x, y in zip(reasoning, output) if x > y]
+    by_size = {k: sum(jm.judge_matrix(matrix, pool, size=k)[1]["kept"].values()) for k in (4, 6)}
+    by_size[5] = sum(report["kept"].values())
+    assert by_size[4] > by_size[5] > by_size[6]
+    out = report["dropped_out_of_pool"]
+    ids = [f"`{c}`" for c in report["candidates"]]
+    built = [
+        f"{sum(1 for x in reasoning if x > 0):,} of the {len(kept):,} kept answers report some, and their "
+        f"`reasoning_tokens` sum to {math.fsum(reasoning) / math.fsum(output):.3f} of their `output_tokens` "
+        f"(on {len(over)} of them `reasoning_tokens` is above `output_tokens`, by at most "
+        f"{math.ceil(100 * (max(over) - 1))}%, so the two counts are not exact)",
+        f"the five are {', '.join(ids[:-1])} and {ids[-1]}",
+        f"({by_size[4]:,} at 4, {by_size[5]:,} at 5, {by_size[6]:,} at 6)",
+        f"Answers by a candidate: {report['dropped_self_graded']:,}.",
+        f"In all, {report['self_graded_cells']:,} answers carry a grade from their own answer model",
+        f"(not among that answer's judges, or a null grade): {report['dropped_missing_candidate']:,},",
+        f"Answers with too small a committee: {report['dropped_small_committee']:,}",
+        f"The {report['unscored_cells']:,} unscored cells and the {sum(out.values()):,} rows outside the pool",
+        f"Kept: {sum(report['kept'].values()):,} of the {report['scored_cells']:,} scored answers, "
+        f"{report['rows']:,} rows (one per candidate), mean success "
+        f"{sum(r['correct'] for r in rows) / len(rows):.3f} over the rows."]
+    assert built == README_JUDGE_COUNTS
