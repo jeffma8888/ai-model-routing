@@ -6,10 +6,15 @@ first tests need no download: they check the committed file and RESULTS.md again
 other. The last two read the pinned AutoBench files only when they are already in the
 default cache and skip otherwise (CI never downloads them): one rebuilds results.json and
 requires the committed bytes, the other rebuilds every sensitivity number in RESULTS.md.
+v1.17 adds the README `### AutoBench` subsection (DESIGN 12.8), rebuilt from the committed
+file, and the card quotes RESULTS.md uses for what the card graded, checked against the
+pinned card when it is cached.
 """
 
+import hashlib
 import importlib.util
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -20,6 +25,10 @@ ROOT = Path(__file__).resolve().parents[1]
 FOLDER = ROOT / "evidence" / "autobench-2026"
 RESULTS = FOLDER / "results.json"
 RESULTS_MD = FOLDER / "RESULTS.md"
+README = ROOT / "README.md"
+CARD_SHA256 = "30f119c55031ca3c70f740ff3dfc395e580fe633bd513be94891a9c3acfdd168"
+CARD_QUOTES = ("Seven routers were then graded by lookup: a router only names a model; we read "
+               "that cell", "The published board", "28 passes")
 TABLE_COMMAND = ("$ python evidence/routerbench/results.py --table "
                  "evidence/autobench-2026/results.json")
 REGENERATE = (
@@ -218,6 +227,99 @@ def test_luna_statement_names_a_row_that_beats_it():
     assert "no routed row beats it" in luna_statement(fake)
 
 
+def test_results_md_says_what_the_card_graded_in_the_card_words():
+    text = results_md()
+    for quote in CARD_QUOTES:
+        assert f'"{quote}"' in text, quote
+    assert "commercial routers that the paper audited" not in text
+
+
+# --- the README subsection (DESIGN 12.8, v1.17) ---------------------------------------------
+
+def autobench_subsection():
+    readme = README.read_text(encoding="utf-8")
+    heading = "\n## Evidence: held-out results on public data\n"
+    assert readme.count(heading) == 1
+    section = readme.split(heading, 1)[1].split("\n## ", 1)[0]
+    assert re.findall(r"^### (.*)$", section, re.M) == ["RouterBench", "AutoBench"]
+    return section.split("\n### AutoBench\n", 1)[1].split("\n### ", 1)[0]
+
+
+def readme_tables(results):
+    """The two AutoBench tables of the README evidence section (DESIGN 12.8, v1.17)."""
+    config = results["config"]
+    first = (config["bars"][0], config["flavors"][0])
+    models = [r for r in results["summary"]
+              if (r["bar"], r["flavor"]) == first and r["strategy"].startswith("model:")]
+    best = min(models, key=lambda r: (-r["success"], r["cost_usd"], r["strategy"]))
+    cheapest = summary_row(results, *first, "cheapest")
+    lines = ["| Bar | Flavor | Held-out success | Cost (USD) | Cost / best single model "
+             "| Cost / cheapest model | Cleared rate | Bar-violation rate |",
+             "|---|---|---|---|---|---|---|---|"]
+    for bar in config["bars"]:
+        for flavor in config["flavors"]:
+            r = summary_row(results, bar, flavor, "routed")
+            lines.append(f"| {bar} | `{flavor}` | {r['success']:.3f} | {r['cost_usd']:.4f} "
+                         f"| {r['cost_usd'] / best['cost_usd']:.3f} "
+                         f"| {r['cost_usd'] / cheapest['cost_usd']:.1f} "
+                         f"| {rate(r['cleared_rate'])} | {rate(r['bar_violation_rate'])} |")
+    assert summary_row(results, *first, "oracle")["success"] == 1.0
+    baselines = [
+        ("Per-question oracle: on each question, the cheapest model with a Delta-Hit on it "
+         "(some model has one on every question)", "oracle"),
+        (f"Best single model (`{best['strategy'][len('model:'):]}`)", best["strategy"]),
+        ("The model the dataset card's headline names (`openai/gpt-5.6-luna`)", LUNA),
+        ("Best model on the calibration half", "best_on_calibration"),
+        ("Cheapest model on the calibration half", "cheapest")]
+    lines += ["", "| Baseline | Held-out success | Cost (USD) |", "|---|---|---|"]
+    for label, strategy in baselines:
+        r = summary_row(results, *first, strategy)
+        lines.append(f"| {label} | {r['success']:.3f} | {r['cost_usd']:.4f} |")
+    return "\n".join(lines) + "\n"
+
+
+def test_readme_autobench_tables_are_the_committed_results():
+    results, section = committed(), autobench_subsection()
+    assert "\n" + readme_tables(results) in section
+    config, task = results["config"], results["tasks"]["all"]
+    assert list(results["tasks"]) == ["all"]
+    counts = (f"{len(task['models'])} models, {task['items']} of the 252 questions in one "
+              f"pooled task (`--task-by all`), {len(config['seeds'])} seeds")
+    assert counts in section
+    assert f"routed at bars {config['bars'][0]} to {config['bars'][-1]} in both flavors" in section
+    assert CARD in section
+    assert luna_statement(results) in section
+
+
+def test_readme_autobench_table_prints_a_dash_for_no_rate():
+    fake = json.loads(json.dumps(committed()))
+    summary_row(fake, 0.6, "cost_blind", "routed")["bar_violation_rate"] = None
+    assert "| 0.6 | `cost_blind` |" in readme_tables(fake)
+    row = [line for line in readme_tables(fake).split("\n") if "| 0.6 | `cost_blind` |" in line]
+    assert row[0].endswith(" | - |")
+
+
+def test_readme_autobench_links_source_licence_limits_and_commands(cv):
+    section = autobench_subsection()
+    revision = cv.REVISION
+    for needle in ("https://huggingface.co/datasets/AutoBench/router-benchmark-2026-10",
+                   f"[`{revision[:7]}`](https://huggingface.co/datasets/AutoBench/"
+                   f"router-benchmark-2026-10/tree/{revision})",
+                   "[CC-BY-4.0](https://creativecommons.org/licenses/by/4.0/)",
+                   "Attribution: Autobench, Autobench Router Benchmark 2026",
+                   "(evidence/autobench-2026/RESULTS.md)", "(evidence/autobench-2026/results.json)",
+                   "(evidence/autobench-2026/README.md)", "default width, 0.2007",
+                   "frozen on 2026-08-29", "not an absolute acceptance check",
+                   "12 to 33 questions", "the 49 questions with an unscored pool cell (107 cells)",
+                   "the 388 rows for 13 models outside the 20-model pool"):
+        assert needle in section, needle
+    assert "0.20073937405575484" not in section
+    regenerate = results_md().split("## Regenerate\n\n```bash\n", 1)[1].split("```", 1)[0]
+    assert regenerate.count("\n") == 5
+    assert "```bash\n" + regenerate + "```" in section
+    assert REGENERATE.rstrip("\n") == "```bash\n" + regenerate + "```"
+
+
 # --- the pinned files, only when already cached ---------------------------------------------
 
 def pinned(cv):
@@ -285,3 +387,12 @@ def test_real_split_sizes_are_in_results_md(cv):
     assert (f"a perfect score needs at least {need} calibration questions for a Wilson lower "
             f"bound of 0.8 or more, and {sum(h < need for h in halves)} of the {len(halves)} "
             f"halves hold fewer") in text
+
+
+def test_card_quotes_are_in_the_pinned_card_when_cached(cv):
+    path = cv.default_cache_dir() / "README.md"
+    if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != CARD_SHA256:
+        pytest.skip("the dataset card at the pinned revision is not in the default cache")
+    card = path.read_text(encoding="utf-8").replace("**", "")
+    for quote in CARD_QUOTES + (CARD,):
+        assert quote in card, quote
