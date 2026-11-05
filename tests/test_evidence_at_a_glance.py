@@ -25,8 +25,6 @@ LEAD = ("Results at a glance, each number from the committed results of the subs
         "links:")
 LUNA = "model:openai/gpt-5.6-luna"
 RESULT_VALUE = re.compile(r"(?<![\w.])\d+\.\d{3,}(?![\w.])")
-RED = pytest.mark.xfail(strict=True, reason="the README has no Results at a glance list yet "
-                        "(DESIGN 12.8, v1.23)")
 
 
 def committed():
@@ -137,7 +135,6 @@ def evidence_section():
 
 # --- the README ------------------------------------------------------------------------------
 
-@RED
 def test_readme_opens_the_evidence_section_with_the_glance_list():
     intro = evidence_section().split("\n### ", 1)[0]
     paragraphs = intro.strip("\n").split("\n\n")
@@ -146,7 +143,6 @@ def test_readme_opens_the_evidence_section_with_the_glance_list():
     assert "\n\n".join(paragraphs[1:]) + "\n" == glance(committed())
 
 
-@RED
 def test_each_glance_bullet_links_its_subsection_in_heading_order():
     section = evidence_section()
     headings = re.findall(r"^### (.*)$", section, re.M)
