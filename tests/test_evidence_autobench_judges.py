@@ -1,5 +1,7 @@
 """v1.24 AutoBench judge committee converter contract (DESIGN 12.11), committed before the script and now its tests.
 
+v1.26 adds ``answer_tokens``: the judge reads the visible answer, output less reasoning tokens, by default.
+
 The script lives outside the package (``evidence/autobench-2026/judges.py``) and loads
 convert.py from its own folder, so it is loaded from its path by an autouse fixture. Every
 test uses tiny in-memory tables, except the two evidence README tests, which read that README,
@@ -10,6 +12,7 @@ cache and skip otherwise (CI never downloads them).
 import ast
 import csv
 import importlib.util
+import inspect
 import json
 import math
 import random
@@ -44,7 +47,7 @@ COLUMNS = ["prompt_id", "model", "score", "score_sd", "n_judges", "cost", "input
            "reasoning_tokens", "judges_json", "source", "has_answer"]
 ROW_KEYS = ["task", "item", "model", "correct", "input_tokens", "output_tokens"]
 REPORT_KEYS = ["candidates", "candidates_by", "tolerance", "min_committee", "rubric_tokens", "grade_tokens",
-               "task_by", "scored_cells", "kept", "dropped_self_graded", "dropped_missing_candidate",
+               "answer_tokens", "task_by", "scored_cells", "kept", "dropped_self_graded", "dropped_missing_candidate",
                "dropped_small_committee", "self_graded_cells", "unscored_cells", "dropped_out_of_pool", "rows"]
 
 
@@ -62,10 +65,10 @@ def jm():
     return load_jm()
 
 
-def cell(pid, model, grades, score="4.5", inp="100.0", out="50.0", source="original"):
+def cell(pid, model, grades, score="4.5", inp="100.0", out="50.0", source="original", rea="0.0"):
     text = grades if isinstance(grades, str) else json.dumps(grades)
     return {"prompt_id": pid, "model": model, "score": score, "score_sd": "0.5", "n_judges": "10",
-            "cost": "0.001", "input_tokens": inp, "output_tokens": out, "reasoning_tokens": "0.0",
+            "cost": "0.001", "input_tokens": inp, "output_tokens": out, "reasoning_tokens": rea,
             "judges_json": text, "source": source, "has_answer": "true"}
 
 
@@ -274,9 +277,60 @@ def test_rows_tokens_keys_and_order(jm):
 def test_defaults(jm):
     _, report = jm.judge_matrix([cell("q1", "Zeta-6", committee(**{"Alpha-1": 4}))], POOL, candidates=["Alpha-1"])
     assert (report["tolerance"], report["min_committee"], report["rubric_tokens"], report["grade_tokens"],
-            report["task_by"]) == (0.5, 3, 400, 200, "all")
+            report["answer_tokens"], report["task_by"]) == (0.5, 3, 400, 200, "visible", "all")
     assert (jm.DEFAULT_TOLERANCE, jm.DEFAULT_SIZE, jm.DEFAULT_MIN_COMMITTEE, jm.DEFAULT_RUBRIC_TOKENS,
-            jm.DEFAULT_GRADE_TOKENS) == (0.5, 5, 3, 400, 200)
+            jm.DEFAULT_GRADE_TOKENS, jm.DEFAULT_ANSWER_TOKENS) == (0.5, 5, 3, 400, 200, "visible")
+
+
+def test_answer_tokens_is_the_last_parameter_so_positional_calls_keep_their_meaning(jm):
+    params = inspect.signature(jm.judge_matrix).parameters
+    assert list(params)[-3:] == ["task_by", "questions", "answer_tokens"]
+    assert params["answer_tokens"].default == "visible"
+    matrix = [cell("q1", "Zeta-6", committee(**{"Alpha-1": 4}), out="90", rea="30")]
+    assert (jm.judge_matrix(matrix, POOL, 0.5, ["Alpha-1"], 5, 3, 400, 200, "all", None)
+            == jm.judge_matrix(matrix, POOL, candidates=["Alpha-1"]))
+
+
+def test_visible_answer_is_output_less_reasoning_floored_at_zero(jm):
+    matrix = [cell("q1", "Zeta-6", committee(**{"Alpha-1": 4}), inp="303.0", out="1912.0", rea="1500.0"),
+              cell("q2", "Zeta-6", committee(**{"Alpha-1": 2}), inp="7", out="50.0", rea="60.0"),
+              cell("q3", "Zeta-6", committee(**{"Alpha-1": 4}), inp="9", out="40", rea="40"),
+              cell("q4", "Zeta-6", committee(**{"Alpha-1": 4}), inp="11", out="0.0", rea="0")]
+    rows, report = jm.judge_matrix(matrix, POOL, candidates=["Alpha-1"])
+    assert [r["input_tokens"] for r in rows] == [303 + 412 + 400, 7 + 0 + 400, 9 + 0 + 400, 11 + 0 + 400]
+    assert all(type(r["input_tokens"]) is int and r["output_tokens"] == 200 for r in rows)
+    assert report["answer_tokens"] == "visible"
+    full, full_report = jm.judge_matrix(matrix, POOL, candidates=["Alpha-1"], answer_tokens="output")
+    assert [r["input_tokens"] for r in full] == [303 + 1912 + 400, 7 + 50 + 400, 9 + 40 + 400, 11 + 0 + 400]
+    assert full_report["answer_tokens"] == "output" and list(full_report) == REPORT_KEYS
+    assert ([{k: v for k, v in r.items() if k != "input_tokens"} for r in rows]
+            == [{k: v for k, v in r.items() if k != "input_tokens"} for r in full])
+    assert [r["correct"] for r in rows] == [True, False, True, True]
+    assert ({k: v for k, v in report.items() if k != "answer_tokens"}
+            == {k: v for k, v in full_report.items() if k != "answer_tokens"})
+    rows, _ = jm.judge_matrix(matrix, POOL, candidates=["Alpha-1"], rubric_tokens=0, answer_tokens="visible")
+    assert [r["input_tokens"] for r in rows] == [715, 7, 9, 11]
+
+
+@pytest.mark.parametrize("value", ["1.5", "-1", "", "x", "nan", None])
+def test_reasoning_tokens_are_read_only_for_the_visible_answer(jm, value):
+    row = cell("q7", "Zeta-6", committee(**{"Alpha-1": 4}))
+    if value is None:
+        del row["reasoning_tokens"]
+    else:
+        row["reasoning_tokens"] = value
+    rows, _ = jm.judge_matrix([row], POOL, candidates=["Alpha-1"], answer_tokens="output")
+    assert [r["input_tokens"] for r in rows] == [100 + 50 + 400]
+    with pytest.raises(ValueError, match="q7.*reasoning_tokens"):
+        jm.judge_matrix([row], POOL, candidates=["Alpha-1"])
+
+
+def test_reasoning_tokens_are_not_read_on_dropped_rows(jm):
+    matrix = [cell("q1", "Stranger-7", "{}", rea=""), cell("q1", "Alpha-1", "{}", score="", rea="bad"),
+              cell("q2", "Zeta-6", committee(**{"Alpha-1": 4}), rea="20")]
+    rows, report = jm.judge_matrix(matrix, POOL, candidates=["Alpha-1"])
+    assert report["unscored_cells"] == 1 and report["dropped_out_of_pool"] == {"Stranger-7": 1}
+    assert [r["input_tokens"] for r in rows] == [100 + 30 + 400]
 
 
 def test_task_by_domain(jm):
@@ -330,6 +384,8 @@ GOOD = [cell("q1", "Zeta-6", committee(**{"Alpha-1": 4}))]
     ({"min_committee": 0}, "min_committee"), ({"min_committee": False}, "min_committee"),
     ({"rubric_tokens": -1}, "rubric_tokens"), ({"rubric_tokens": True}, "rubric_tokens"),
     ({"rubric_tokens": 1.5}, "rubric_tokens"), ({"grade_tokens": -1}, "grade_tokens"),
+    ({"answer_tokens": "reasoning"}, "answer_tokens"), ({"answer_tokens": None}, "answer_tokens"),
+    ({"answer_tokens": ["visible"]}, "answer_tokens"), ({"answer_tokens": "Visible"}, "answer_tokens"),
     ({"task_by": "judge"}, "task_by"), ({"task_by": "domain"}, "questions"),
     ({"task_by": "domain", "questions": [{"prompt_id": "q1"}]}, "ddc_domain"),
     ({"task_by": "domain", "questions": [{"prompt_id": "q1", "ddc_domain": "A"}] * 2}, "repeated"),
@@ -344,6 +400,10 @@ def test_pool_is_checked_first(jm):
         jm.judge_matrix(GOOD, {}, tolerance=-1)
     with pytest.raises(ValueError, match="tolerance"):
         jm.judge_matrix(GOOD, POOL, tolerance=-1, size=0)
+    with pytest.raises(ValueError, match="grade_tokens"):
+        jm.judge_matrix(GOOD, POOL, grade_tokens=-1, answer_tokens="x")
+    with pytest.raises(ValueError, match="answer_tokens"):
+        jm.judge_matrix(GOOD, POOL, answer_tokens="x", task_by="judge")
 
 
 @pytest.mark.parametrize("text", ["not json", "[1, 2]", '{"Alpha-1": true}', '{"Alpha-1": "4"}',
@@ -353,7 +413,8 @@ def test_invalid_judges_json(jm, text):
         jm.judge_matrix([cell("q7", "Zeta-6", text)], POOL, candidates=["Alpha-1"])
 
 
-@pytest.mark.parametrize("field, value", [("input_tokens", "1.5"), ("output_tokens", "-1"), ("input_tokens", "")])
+@pytest.mark.parametrize("field, value", [("input_tokens", "1.5"), ("output_tokens", "-1"), ("input_tokens", ""),
+                                          ("reasoning_tokens", "2.5"), ("reasoning_tokens", "-3")])
 def test_invalid_token_counts(jm, field, value):
     row = cell("q7", "Zeta-6", committee(**{"Alpha-1": 4}))
     row[field] = value
@@ -446,6 +507,19 @@ def test_main_options(jm, tmp_path, folder, capsys):
     assert seen == [str(tmp_path / "c")]
 
 
+def test_main_answer_tokens(jm, tmp_path, monkeypatch, capsys):
+    matrix = [cell(f"q{i}", "Zeta-6", committee(**{"Alpha-1": 4}), inp="10", out="300", rea="200") for i in (1, 2)]
+    data = write_folder(tmp_path / "data", matrix)
+    monkeypatch.setattr(jm.convert, "fetch", lambda cache_dir=None: data)
+    out = tmp_path / "out.jsonl"
+    for args, name, answer in [([], "visible", 100), (["--answer-tokens", "output"], "output", 300),
+                               (["--answer-tokens", "visible"], "visible", 100)]:
+        assert jm.main(["--out", str(out), "--candidates", "Alpha-1"] + args) == 0
+        assert json.loads(capsys.readouterr().out)["answer_tokens"] == name
+        lines = out.read_text(encoding="utf-8").splitlines()
+        assert [json.loads(line)["input_tokens"] for line in lines] == [10 + answer + 400] * 2
+
+
 def test_main_registry_matches_the_converter(jm, tmp_path, folder, capsys):
     out, reg = tmp_path / "out.jsonl", tmp_path / "reg.json"
     assert jm.main(["--out", str(out), "--registry", str(reg), "--size", "2"]) == 0
@@ -457,6 +531,7 @@ def test_main_registry_matches_the_converter(jm, tmp_path, folder, capsys):
     ["--tolerance", "-1"], ["--tolerance", "nan"], ["--size", "0"], ["--size", "x"], ["--min-committee", "0"],
     ["--rubric-tokens", "-1"], ["--grade-tokens", "1.5"], ["--task-by", "judge"],
     ["--candidates", "Alpha-1,,Beta-2"], ["--candidates", "Nope-0"], ["--size", "9"],
+    ["--answer-tokens", "reasoning"], ["--answer-tokens"],
     ["--registry", "OUT"], ["--registry", "OUT.part"],
 ])
 def test_main_errors_exit_2_with_one_line_and_no_file(jm, tmp_path, folder, capsys, args):
@@ -525,6 +600,8 @@ def test_main_needs_out(jm, folder, capsys):
 README_JUDGE_COUNTS = [
     "707 of the 756 kept answers report some, and their `reasoning_tokens` sum to 0.738 of their `output_tokens` "
     "(on 14 of them `reasoning_tokens` is above `output_tokens`, by at most 10%, so the two counts are not exact)",
+    "the floor gives those 14 an answer of 0 tokens. By default the judges read 1,218,584 input tokens per "
+    "candidate over the kept answers, 0.406 of the 3,001,074 that `--answer-tokens output` counts",
     "the five are `deepseek/deepseek-v4-flash-0731`, `google/gemma-4-31b-it`, `meta/muse-glimmer-30b`, "
     "`openai/gpt-5.6-luna` and `tencent/hy3`",
     "(1,191 at 4, 756 at 5, 460 at 6)",
@@ -552,7 +629,8 @@ def test_evidence_readme_judge_section():
             "by default the 5 pool judges (`--size`) whose set keeps the most answers",
             "ties to the set whose sorted display IDs come first", "`--candidates` names them instead",
             "never candidates, since they have no price", "in both halves", "`--task-by domain`",
-            "Generator isolation", *README_JUDGE_COUNTS]:
+            "Generator isolation", "a judge never reads the reasoning", "floored at 0",
+            "`--answer-tokens output` counts the reasoning too, an upper bound", *README_JUDGE_COUNTS]:
         assert needle in section, needle
     assert f"within {jm_defaults()['tolerance']} of the mean of the other judges' grades" in section
 
@@ -561,7 +639,7 @@ def jm_defaults():
     module = load_jm()
     return {"tolerance": module.DEFAULT_TOLERANCE, "size": module.DEFAULT_SIZE,
             "min_committee": module.DEFAULT_MIN_COMMITTEE, "rubric_tokens": module.DEFAULT_RUBRIC_TOKENS,
-            "grade_tokens": module.DEFAULT_GRADE_TOKENS}
+            "grade_tokens": module.DEFAULT_GRADE_TOKENS, "answer_tokens": module.DEFAULT_ANSWER_TOKENS}
 
 
 def test_evidence_readme_states_the_defaults():
@@ -569,7 +647,8 @@ def test_evidence_readme_states_the_defaults():
     d = jm_defaults()
     for needle in [f"Tolerance {d['tolerance']} ", f"at least {d['min_committee']} judges",
                    f"{d['rubric_tokens']}-token rubric", f"{d['grade_tokens']}-token grade",
-                   f"by default the {d['size']} pool judges", f"so {d['size']} trades the number of judges"]:
+                   f"by default the {d['size']} pool judges", f"so {d['size']} trades the number of judges",
+                   f"(`--answer-tokens {d['answer_tokens']}`, the default)"]:
         assert needle in section, needle
 
 
@@ -629,6 +708,14 @@ def test_pinned_readme_counts(jm):
     over = [x / y for x, y in zip(reasoning, output) if x > y]
     assert over, "no kept answer reports more reasoning than output tokens: reword the README caveat"
     by_size = {k: sum(jm.judge_matrix(matrix, pool, size=k)[1]["kept"].values()) for k in (4, 6)}
+    display = {v: k for k, v in names.items()}
+    full = jm.judge_matrix(matrix, pool, candidates=[display[c] for c in report["candidates"]],
+                           answer_tokens="output")[0]
+    judge_input = {}
+    for label, these in (("visible", rows), ("output", full)):
+        per = {c: sum(r["input_tokens"] for r in these if r["model"] == c) for c in report["candidates"]}
+        assert len(set(per.values())) == 1, per
+        judge_input[label] = per[report["candidates"][0]]
     by_size[5] = sum(report["kept"].values())
     assert by_size[4] > by_size[5] > by_size[6]
     out = report["dropped_out_of_pool"]
@@ -638,6 +725,10 @@ def test_pinned_readme_counts(jm):
         f"`reasoning_tokens` sum to {math.fsum(reasoning) / math.fsum(output):.3f} of their `output_tokens` "
         f"(on {len(over)} of them `reasoning_tokens` is above `output_tokens`, by at most "
         f"{math.ceil(100 * (max(over) - 1))}%, so the two counts are not exact)",
+        f"the floor gives those {len(over)} an answer of 0 tokens. By default the judges read "
+        f"{judge_input['visible']:,} input tokens per candidate over the kept answers, "
+        f"{judge_input['visible'] / judge_input['output']:.3f} of the {judge_input['output']:,} that "
+        f"`--answer-tokens output` counts",
         f"the five are {', '.join(ids[:-1])} and {ids[-1]}",
         f"({by_size[4]:,} at 4, {by_size[5]:,} at 5, {by_size[6]:,} at 6)",
         f"Answers by a candidate: {report['dropped_self_graded']:,}.",
