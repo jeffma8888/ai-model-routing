@@ -647,13 +647,22 @@ def test_pool_is_checked_before_the_options(cv):
 
 # --- docs -----------------------------------------------------------------------------------
 
+# The evidence README's counts as written (DESIGN 12.10); test_real_files_default_options
+# builds the same phrases from the converter report on the pinned files
+README_COUNTS = [
+    "107 pool cells have no score", "the 49 questions with an unscored cell",
+    "388 later `fill_7_4` rows for 13 models outside the 20-model pool",
+    "0.667 at the default width and 0.762 at the official width",
+    "10 tasks of 12 to 33 kept questions"]
+
+
 def test_evidence_readme():
     text = EVIDENCE_README.read_text(encoding="utf-8")
     for needle in ["https://huggingface.co/datasets/AutoBench/router-benchmark-2026-10", REVISION,
                    "CC-BY-4.0", "Do LLM Routers Pay for Themselves?",
                    "python evidence/autobench-2026/convert.py --out", "--width 0.3011090610836323",
                    "--task-by all", "not an absolute acceptance check", "203 of 252", "4,060 rows",
-                   "6,291"]:
+                   "6,291", "(RESULTS.md)", "(results.json)", *README_COUNTS]:
         assert needle in text, needle
 
 
@@ -685,6 +694,16 @@ def test_real_files_default_options(cv):
     official, _ = cv.convert(matrix, questions, pool, params["delta_official"], params["top_k"])
     assert round(sum(r["correct"] for r in official) / len(official), 3) == 0.762
     outcomes_from_rows(rows)
+    kept, out = report["kept"], report["dropped_out_of_pool"]
+    mean = sum(r["correct"] for r in rows) / len(rows)
+    mean_official = sum(r["correct"] for r in official) / len(official)
+    built = [f"{report['unscored_cells']} pool cells have no score",
+             f"the {sum(report['dropped_unscored'].values())} questions with an unscored cell",
+             f"{sum(out.values())} later `fill_7_4` rows for {len(out)} models outside the "
+             f"{len(report['models'])}-model pool",
+             f"{mean:.3f} at the default width and {mean_official:.3f} at the official width",
+             f"{len(kept)} tasks of {min(kept.values())} to {max(kept.values())} kept questions"]
+    assert built == README_COUNTS
 
 
 def test_real_delta_hit_reproduces_the_dataset_labels(cv):
