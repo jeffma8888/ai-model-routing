@@ -15,6 +15,7 @@ import importlib
 import json
 import random
 import statistics
+from math import fsum
 
 import pytest
 
@@ -382,6 +383,120 @@ def test_same_result_for_any_row_order_and_byte_identical_json():
     a, b = run(rows=rows), run(rows=shuffled)
     assert a == b
     assert json.dumps(a, sort_keys=True) == json.dumps(b, sort_keys=True)
+
+
+# A fixture on which float addition order changes the last digits: three tasks, six
+# seeds, prices that are not binary fractions, a different token count on every call,
+# fiction/small wrong on four items (q1 and q6 of task b, q3 and q8 of task c) and
+# fiction/weak right on a third of the items.
+# A plain left-to-right `sum`, or a regrouped cost expression, gives a total or a mean
+# that differs from the spec's
+VARIED_TASKS = ["a", "b", "c"]
+VARIED_SEEDS = list(range(6))
+VARIED_POINTS = [point(100_000, 500, 300, 0, True), point(0, 700, 450, 3, False),
+                 point(20_000, 400, 900, 2, True)]
+
+
+def varied_registry():
+    return Registry([Model("fiction/big", "large", 2.7, 13.1, 1_000_000),
+                     Model("fiction/small", "small", 0.33, 1.9, 1_000_000),
+                     Model("fiction/weak", "tiny", 0.07, 0.29, 1_000_000)])
+
+
+def varied_rows():
+    rows = []
+    for t, task in enumerate(VARIED_TASKS):
+        for item in ITEMS:
+            k = int(item[1:])
+            for i, m in enumerate(MODELS):
+                wrong = m == "fiction/small" and k * t % 5 == 1
+                rows.append({"task": task, "item": item, "model": m,
+                             "correct": (RIGHT[m] and not wrong)
+                             or (m == "fiction/weak" and (k + t) % 3 == 0),
+                             "input_tokens": 1013 + 977 * k + 131 * i + 17 * t,
+                             "output_tokens": 89 + 233 * k + 41 * i + 7 * t})
+    return rows
+
+
+def run_varied(rows):
+    return run(rows=rows, reg=varied_registry(), seeds=VARIED_SEEDS, points=VARIED_POINTS)
+
+
+def test_costs_are_exact_fsum_totals_of_items_costed_left_to_right():
+    rows, reg = varied_rows(), varied_registry()
+    result = run_varied(rows)
+    tokens = {(r["task"], r["item"], r["model"]): (r["input_tokens"], r["output_tokens"])
+              for r in rows}
+    sensitive = set()
+
+    def total(values, level):
+        values = list(values)
+        if sum(values) != fsum(values):
+            sensitive.add(level)
+        return fsum(values)
+
+    def mean(values, level):
+        values = list(values)
+        if sum(values) / len(values) != fsum(values) / len(values):
+            sensitive.add(level)
+        return fsum(values) / len(values)
+
+    for c in result["cells"]:
+        pt = VARIED_POINTS[c["point"]]
+        C, B, R, T = (pt[k] for k in KEYS[:4])
+        P = reg.get(c["parent"])
+        _, held = split_items(ITEMS, c["seed"])
+
+        def inline(item):
+            tin, tout = tokens[c["task"], item, P.id]
+            if pt["inline_separate_call"]:
+                return P.cost(C + tin, tout) + (1 + T) * P.cost(tin + tout, 0)
+            return P.cost(tin, tout) + T * P.cost(tin + tout, 0)
+
+        def delegated(item, D):
+            tin, tout = tokens[c["task"], item, D.id]
+            cost = P.cost(0, B) + D.cost(B + tin, tout) + (1 + T) * P.cost(B + R, 0)
+            if cost != P.cost(0, B) + (D.cost(B + tin, tout) + (1 + T) * P.cost(B + R, 0)):
+                sensitive.add("regrouped")
+            return cost
+
+        if c["mode"] == "inline":
+            decision = [inline(i) for i in held]
+        else:
+            decision = [delegated(i, reg.get(c["model"])) for i in held]
+        assert c["cost_usd"] == {
+            "decision": total(decision, "items"),
+            "inline": total((inline(i) for i in held), "items"),
+            "delegate": total((delegated(i, reg.get(c["delegate"])) for i in held), "items")}
+    for r in result["summary"]:
+        s = r["strategy"]
+        group = [c for c in result["cells"] if (c["bar"], c["flavor"], c["point"], c["parent"])
+                 == (r["bar"], r["flavor"], r["point"], r["parent"])]
+        by_seed = [[c for c in group if c["seed"] == seed] for seed in VARIED_SEEDS]
+        seed_cost = [total((c["cost_usd"][s] for c in cs), "tasks") for cs in by_seed]
+        assert r["cost_usd"] == mean(seed_cost, "cost mean")
+        seed_success = [sum(c["correct"][s] for c in cs) / sum(c["held_out_items"] for c in cs)
+                        for cs in by_seed]
+        assert r["success"] == mean(seed_success, "success mean")
+    # the fixture is order-sensitive at every level, so a plain sum or a regrouped
+    # delegated cost anywhere fails the equalities above
+    assert sensitive == {"items", "regrouped", "tasks", "cost mean", "success mean"}
+    assert {c["mode"] for c in result["cells"]} == {"inline", "delegate"}
+
+
+def test_same_result_for_any_row_order_on_varied_tokens_and_tasks():
+    rows = varied_rows()
+    expect = run_varied(rows)
+    text = json.dumps(expect, sort_keys=True)
+    orders = [rows[::-1]]
+    for seed in range(3):
+        shuffled = list(rows)
+        random.Random(seed).shuffle(shuffled)
+        orders.append(shuffled)
+    for order in orders:
+        got = run_varied(order)
+        assert got == expect
+        assert json.dumps(got, sort_keys=True) == text
 
 
 def test_registry_and_rows_are_not_modified():
