@@ -376,7 +376,7 @@ for row in report(monitor.records, by="tag:team"):
 
 ## Evidence: held-out results on public data
 
-Each dataset here already holds every model's answer to every item, a label for whether that answer was good enough (right or wrong on RouterBench, a Delta-Hit from a judge committee's scores on AutoBench, and agreement with the other judges' grades for a judge model's grade in AutoBench judges) and the cost of each call or the token counts to estimate it at list prices, so the router is tested offline with no API key: for each task and seed, calibrate on one half of the items, route at a bar, and score the routed model on the other half, next to fixed baselines (`model-routing evaluate`, `DESIGN.md` 12). The test suite rebuilds every number in these tables from that dataset's committed results file, so they cannot drift from it. On GitHub, the `evidence` workflow ([.github/workflows/evidence.yml](.github/workflows/evidence.yml)) reruns the regenerate commands of the AutoBench, AutoBench judges and delegation subsections, downloading the pinned files, and fails if `evidence/autobench-2026/results.json`, `evidence/autobench-judges/results.json` or `evidence/delegation/results.json` changes by a byte; RouterBench is left out of it, since its source is a 99,567,659-byte pickle that needs pandas and its evaluate step takes about 70 seconds.
+Each dataset here already holds every model's answer to every item, a label for whether that answer was good enough (right or wrong on RouterBench, a Delta-Hit from a judge committee's scores on AutoBench, and agreement with the other judges' grades for a judge model's grade in AutoBench judges) and the cost of each call or the token counts to estimate it at list prices, so the router is tested offline with no API key: for each task and seed, calibrate on one half of the items, route at a bar, and score the routed model on the other half, next to fixed baselines (`model-routing evaluate`, `DESIGN.md` 12). The test suite rebuilds every number in these tables from that dataset's committed results file, so they cannot drift from it. On GitHub, the `evidence` workflow ([.github/workflows/evidence.yml](.github/workflows/evidence.yml)) reruns the regenerate commands of the AutoBench, AutoBench judges and delegation subsections, downloading the pinned files, and fails if `evidence/autobench-2026/results.json`, `evidence/autobench-judges/results.json`, `evidence/delegation/results.json` or `evidence/delegation/variants.json` changes by a byte; RouterBench is left out of it, since its source is a 99,567,659-byte pickle that needs pandas and its evaluate step takes about 70 seconds.
 
 Results at a glance, each number from the committed results of the subsection it links:
 
@@ -569,6 +569,20 @@ bar  flavor          context  separate  dec_success  dec_cost  inl_success  inl_
 - With the work folded into the parent's next call (`inline_separate_call` False) at 8,000 context tokens, `cost_effective` keeps some work inline: its mean delegated share over the 20 parents is 0.936 at bar 0.7, where 3 mix inline and delegated seeds and `openai/gpt-5.6-luna` never delegates, and 0.947 at bar 0.8, where 4 mix inline and delegated seeds. It costs less than always delegating at both bars: 0.6237 against 0.6282 USD at bar 0.7 (held-out success 0.867 against 0.869) and 2.1215 against 2.1372 at bar 0.8 (0.856 against 0.855), while always inline costs 0.8602 USD at 0.670
 - A lossy brief is not measured, but the break-even table in [RESULTS.md](evidence/delegation/RESULTS.md) puts a number on it: at bar 0.8 and 64,000 context tokens, it may lower the delegated held-out success by a mean of 0.186 over the 20 parents before the `cost_effective` decision does no better than always inline, and the minimum is -0.027, with `openai/gpt-5.6-sol` as the parent, one of the 3 that already score higher inline than the delegate does with a lossless brief
 
+Variant point 0, in a second file, [variants.json](evidence/delegation/variants.json) (the [Variant points](evidence/delegation/RESULTS.md#variant-points) part of RESULTS.md, `DESIGN.md` 13.10), is point 3, the folded rows of the table above, at 64,000 context tokens with the work in two calls (`work_calls` 2, the `calls` column) instead of one. Each answer is still scored by its one recorded label, so whether the two calls succeed together is not measured:
+
+```text
+$ python evidence/delegation/results.py --table evidence/delegation/variants.json
+bar  flavor          context  separate  calls  dec_success  dec_cost  inl_success  inl_cost  del_success  del_cost  delegated
+---  --------------  -------  --------  -----  -----------  --------  -----------  --------  -----------  --------  ---------
+0.7  cost_effective  64000    False     2      0.869        1.0019    0.670        7.0451    0.869        1.0019    1.000
+0.7  cost_blind      64000    False     2      0.857        5.6883    0.670        7.0451    0.857        5.1050    0.944
+0.8  cost_effective  64000    False     2      0.855        4.3560    0.670        7.0451    0.855        4.3560    1.000
+0.8  cost_blind      64000    False     2      0.857        5.6883    0.670        7.0451    0.857        5.1050    0.944
+```
+
+- With the work in two folded calls at 64,000 context tokens (variant point 0) instead of one (point 3, which stands for every context size with room in every parent's window), `cost_effective` delegates on every seed for every parent at both bars: its mean delegated share over the 20 parents is 1.000 at bar 0.7 and at bar 0.8, against 0.936 and 0.947 at point 3. Mean costs in USD, variant point 0 against point 3: at bar 0.7 the decision 1.0019 against 0.6237, always inline 7.0451 against 0.8602, always delegating 1.0019 against 0.6282; at bar 0.8 the decision 4.3560 against 2.1215, always inline 7.0451 against 0.8602, always delegating 4.3560 against 2.1372. On the inline path the second call re-reads the 64,000-token context; on the delegate path each call reads the brief in its place
+
 Regenerate (a few seconds after the download):
 
 ```bash
@@ -577,6 +591,8 @@ python evidence/autobench-2026/convert.py --out autobench-tokens.jsonl --task-by
 python evidence/delegation/results.py --matrix autobench-tokens.jsonl --registry autobench-pool.json --out evidence/delegation/results.json
 python evidence/delegation/results.py --table evidence/delegation/results.json
 python evidence/delegation/results.py --table evidence/delegation/results.json --bar 0.8 --point 1
+python evidence/delegation/results.py --matrix autobench-tokens.jsonl --registry autobench-pool.json --grid variants --out evidence/delegation/variants.json
+python evidence/delegation/results.py --table evidence/delegation/variants.json
 ```
 
 ## What the public evidence says (October 2026)
@@ -655,7 +671,7 @@ Full survey with sources and dates: [research/prior-art.md](research/prior-art.m
 - No online drift detection. Re-calibrate from audited samples on a schedule, and when a provider ships a new model version
 - No budgets, alerts, async execution or streaming. The OpenAI-compatible adapter covers gateways; there are no native vendor SDK adapters
 - Prices are a dated snapshot. Refresh `models.json` yourself, and check that the model your gateway actually serves matches the ID you calibrated. A row whose vendor states an end date for the price can carry it as `price_valid_until` (`YYYY-MM-DD`, the last valid day); after that day `select` and `delegate` print one `warning:` line per such model on stderr, and stdout does not change
-- The inline-or-delegate cost is a list-price approximation. Work of several calls is costed (`--work-calls`) as if each call re-read everything before it on its path, with nothing summarised between calls. Prompt caching is costed only as one ratio of the list input price on the parent's re-reads of its context in inline work (`--cached-read-ratio`, default 1.0, the list price); cache writes, cache expiry, discounts on other re-reads and the wall-clock gain of running sub-agents side by side are not modelled, and the bar is held per call, not for the calls together (`DESIGN.md` 13.2 and 13.8)
+- The inline-or-delegate cost is a list-price approximation. Work of several calls is costed (`--work-calls`) as if each call re-read everything before it on its path, with nothing summarised between calls. Prompt caching is costed only as one ratio of the list input price on the parent's re-reads of its context in inline work (`--cached-read-ratio`, default 1.0, the list price); cache writes, cache expiry, discounts on other re-reads and the wall-clock gain of running sub-agents side by side are not modelled, and the bar is held per call, not for the calls together (`DESIGN.md` 13.2 and 13.8). The committed evidence has one multi-call point, variant point 0 in [variants.json](evidence/delegation/variants.json): two folded calls at 64,000 context tokens
 - Cost is linear at the listed price. Tiered and promotional pricing (long-prompt tiers, promotional rates; see the notes under the capability table) is not modelled, so long-context tasks on those models are under-costed
 
 ## Layout

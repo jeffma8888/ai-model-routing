@@ -41,6 +41,12 @@ REGENERATE = (
     "python evidence/delegation/results.py --table evidence/delegation/results.json"
     " --bar 0.8 --point 1\n"
     "```\n")
+# v1.48: the README block is the RESULTS.md one followed by the two Variant points lines
+README_REGENERATE = REGENERATE[:-len("```\n")] + (
+    "python evidence/delegation/results.py --matrix autobench-tokens.jsonl"
+    " --registry autobench-pool.json --grid variants --out evidence/delegation/variants.json\n"
+    "python evidence/delegation/results.py --table evidence/delegation/variants.json\n"
+    "```\n")
 MODELS = [
     "anthropic/claude-sonnet-5", "deepseek/deepseek-v4-flash-0731", "google/gemini-3.7-flash",
     "google/gemma-4-31b-it", "meta/muse-glimmer-30b", "meta/muse-spark-1.2",
@@ -539,7 +545,7 @@ def test_readme_subsection_shows_the_table_and_links(dr):
     for sentence in reading_it(committed())[1:3]:
         assert sentence in sub, sentence
     assert f"- {folded_reading(committed())}\n" in sub
-    assert REGENERATE in sub
+    assert re.findall(r"```bash\n.*?```\n", sub, re.S) == [README_REGENERATE]
     for phrase in ("[RESULTS.md](evidence/delegation/RESULTS.md)",
                    "[results.json](evidence/delegation/results.json)",
                    "8,000, 64,000 and 200,000", "brief of 500 tokens", "500-token result",

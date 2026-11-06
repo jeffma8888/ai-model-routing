@@ -49,5 +49,7 @@ jobs:
           python evidence/delegation/results.py --matrix autobench-tokens.jsonl --registry autobench-pool.json --out evidence/delegation/results.json
           python evidence/delegation/results.py --table evidence/delegation/results.json
           python evidence/delegation/results.py --table evidence/delegation/results.json --bar 0.8 --point 1
+          python evidence/delegation/results.py --matrix autobench-tokens.jsonl --registry autobench-pool.json --grid variants --out evidence/delegation/variants.json
+          python evidence/delegation/results.py --table evidence/delegation/variants.json
       - name: Compare
-        run: git diff --exit-code -- evidence/autobench-2026/results.json evidence/autobench-judges/results.json evidence/delegation/results.json
+        run: git diff --exit-code -- evidence/autobench-2026/results.json evidence/autobench-judges/results.json evidence/delegation/results.json evidence/delegation/variants.json

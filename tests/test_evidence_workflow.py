@@ -215,10 +215,11 @@ def test_workflow_reruns_the_readme_commands_and_compares_the_results():
 
 def test_readme_commands_are_the_three_autobench_blocks():
     commands = expected_commands(readme())
-    assert len(commands) == 4 + 4 + 4
+    assert len(commands) == 4 + 4 + 6
     assert out_paths(commands) == ["evidence/autobench-2026/results.json",
                                    "evidence/autobench-judges/results.json",
-                                   "evidence/delegation/results.json"]
+                                   "evidence/delegation/results.json",
+                                   "evidence/delegation/variants.json"]
     assert all((ROOT / p).is_file() for p in out_paths(commands))
     assert not any("routerbench-matrix" in c for c in commands)
 
@@ -257,9 +258,9 @@ MUTANTS = {
     "a secret": lambda t: t.replace("run: python -m pip install -e .\n",
                                     "run: python -m pip install -e .\n"
                                     "        env:\n          TOKEN: ${{ secrets.TOKEN }}\n", 1),
-    "the compare step on two files": lambda t: t.replace(
-        "evidence/autobench-judges/results.json evidence/delegation/results.json\n",
-        "evidence/autobench-judges/results.json\n", 1),
+    "the compare step without variants.json": lambda t: t.replace(
+        "evidence/delegation/results.json evidence/delegation/variants.json\n",
+        "evidence/delegation/results.json\n", 1),
     "checkout with credentials": lambda t: t.replace("persist-credentials: false",
                                                      "persist-credentials: true", 1),
     "a job shell without pipefail": lambda t: t.replace(

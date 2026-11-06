@@ -12,12 +12,16 @@ the v1.44 script raised (``AttributeError`` for ``variant_points``, ``TypeError`
 outcomes); v1.46 implements the script and removes the markers. v1.47 commits
 ``variants.json`` with a ``Variant points`` part in the delegation RESULTS.md, and the last tests
 check the file, that part and its bullet against both committed files; the cached-file one
-reads the pinned AutoBench files only when they are already in the default cache.
+reads the pinned AutoBench files only when they are already in the default cache. v1.48 shows
+the same block and bullet in the README delegation subsection, whose regenerate block is the
+RESULTS.md one followed by the two variant lines, and README Limitations names the one
+multi-call point; the README tests check them against both committed files.
 """
 
 import importlib.util
 import json
 import math
+import re
 from pathlib import Path
 
 import pytest
@@ -29,6 +33,7 @@ SCRIPT = ROOT / "evidence" / "delegation" / "results.py"
 RESULTS = ROOT / "evidence" / "delegation" / "results.json"
 VARIANTS_FILE = ROOT / "evidence" / "delegation" / "variants.json"
 RESULTS_MD = ROOT / "evidence" / "delegation" / "RESULTS.md"
+README = ROOT / "README.md"
 VARIANTS_COMMAND = "$ python evidence/delegation/results.py --table evidence/delegation/variants.json"
 VARIANTS_REGENERATE = (
     "```bash\n"
@@ -343,6 +348,55 @@ def test_variant_reading_refuses_a_file_where_the_decision_keeps_work_inline():
             break
     with pytest.raises(AssertionError):
         variant_reading(base, variants)
+
+
+# --- v1.48: the README block, bullet, regenerate lines and limitation ---------------------------
+
+def readme_delegation():
+    text = README.read_text(encoding="utf-8")
+    section = text.split("\n## Evidence: held-out results on public data\n", 1)[1].split("\n## ", 1)[0]
+    marker = "\n### Delegation on AutoBench\n"
+    assert section.count(marker) == 1
+    return section.split(marker, 1)[1].split("\n### ", 1)[0]
+
+
+def bash_blocks(text):
+    return re.findall(r"```bash\n(.*?)```\n", text, re.S)
+
+
+def test_readme_subsection_shows_the_variant_table_bullet_link_and_regenerate_lines(dr):
+    sub = readme_delegation()
+    variants = committed(VARIANTS_FILE)
+    table = f"```text\n{VARIANTS_COMMAND}\n{dr.table(variants)}\n```\n"
+    assert table in sub
+    bullet = f"- {variant_reading(committed(RESULTS), variants)}\n"
+    assert bullet in sub
+    base_command = "$ python evidence/delegation/results.py --table evidence/delegation/results.json\n"
+    assert sub.index(base_command) < sub.index(table) < sub.index(bullet) < sub.index("```bash\n")
+    for phrase in ("[variants.json](evidence/delegation/variants.json)",
+                   "[Variant points](evidence/delegation/RESULTS.md#variant-points)",
+                   "`work_calls` 2", "the `calls` column", "`DESIGN.md` 13.10",
+                   "whether the two calls succeed together is not measured"):
+        assert phrase in sub, phrase
+    md = RESULTS_MD.read_text(encoding="utf-8")
+    base = bash_blocks(md.split("\n## Regenerate\n", 1)[1])
+    assert len(base) == 1 and len(base[0].rstrip("\n").split("\n")) == 5
+    two = bash_blocks(VARIANTS_REGENERATE)
+    assert len(two) == 1 and len(two[0].rstrip("\n").split("\n")) == 2
+    assert bash_blocks(sub) == [base[0] + two[0]]
+
+
+def test_readme_limitations_name_the_one_multi_call_point():
+    text = README.read_text(encoding="utf-8")
+    limits = text.split("\n## Limitations and non-goals (v1)\n", 1)[1].split("\n## ", 1)[0]
+    assert all("work_calls" not in p for p in committed(RESULTS)["config"]["points"])
+    points = committed(VARIANTS_FILE)["config"]["points"]
+    assert [p.get("work_calls", 1) > 1 for p in points] == [True]
+    point = points[0]
+    assert (point["work_calls"], point["inline_separate_call"]) == (2, False)
+    assert ("The committed evidence has one multi-call point, variant point 0 in "
+            "[variants.json](evidence/delegation/variants.json): two folded calls at "
+            f"{point['context_tokens']:,} context tokens") in limits
 
 
 # --- the pinned files, only when already cached ------------------------------------------------
