@@ -1,5 +1,6 @@
 """The `evidence` workflow reruns the README regenerate commands of the AutoBench-based
-subsections on GitHub and fails when a committed results file changes (DESIGN 12.13, v1.30).
+subsections on GitHub and fails when a committed results file changes (DESIGN 12.13, v1.30),
+and both workflows run on one pinned runner image with a dated comment (v1.49).
 
 The workflow is read with a line parser for its own shape (no YAML library, so this runs in
 CI); the run itself is checked on GitHub, not here."""
@@ -264,8 +265,8 @@ MUTANTS = {
     "checkout with credentials": lambda t: t.replace("persist-credentials: false",
                                                      "persist-credentials: true", 1),
     "a job shell without pipefail": lambda t: t.replace(
-        "    runs-on: ubuntu-latest\n",
-        "    runs-on: ubuntu-latest\n    defaults:\n      run:\n        shell: bash -e\n", 1),
+        "    runs-on: ubuntu-24.04\n",
+        "    runs-on: ubuntu-24.04\n    defaults:\n      run:\n        shell: bash -e\n", 1),
     "a skipped Regenerate": lambda t: t.replace(
         "      - name: Regenerate\n", "      - name: Regenerate\n        if: false\n", 1),
     "a Compare that may fail": lambda t: t.replace(
@@ -276,7 +277,7 @@ MUTANTS = {
     "a step shell override": lambda t: t.replace(
         "      - name: Compare\n", "      - name: Compare\n        shell: sh\n", 1),
     "a comment in Regenerate": lambda t: with_lines(t, lambda ls: ls[:1] + ["          # x"] + ls[1:]),
-    "a job after the steps": lambda t: t + "  other:\n    runs-on: ubuntu-latest\n",
+    "a job after the steps": lambda t: t + "  other:\n    runs-on: ubuntu-24.04\n",
     "the RouterBench reason dropped": lambda t: t.replace("# takes about 70 seconds.\n", "", 1),
 }
 
@@ -291,3 +292,67 @@ def test_a_broken_workflow_fails_the_check(name):
     mutant = MUTANTS[name](text)
     assert mutant != text, name
     assert problems(mutant, readme(), CI.read_text(encoding="utf-8")), name
+
+
+# --- v1.49: one pinned runner image for both workflows --------------------------------------
+
+PINNED = re.compile(r"^    runs-on: (ubuntu-\d\d\.\d\d)$", re.M)
+
+
+def comment_above_jobs(text):
+    """The column-0 `# ` comment lines directly above `jobs:`, joined with spaces."""
+    lines = []
+    for line in reversed(text.split("\njobs:\n", 1)[0].split("\n")):
+        if not line.startswith("# "):
+            break
+        lines.insert(0, line[2:])
+    return " ".join(lines)
+
+
+def runner_problems(ci_text, text):
+    """Every way the two workflows break the v1.49 runner clause of DESIGN 12.13."""
+    found, labels = [], []
+    for name, body in (("ci.yml", ci_text), ("evidence.yml", text)):
+        runs_on = re.findall(r"^\s*runs-on:.*$", body, re.M)
+        pinned = PINNED.findall(body)
+        if len(runs_on) != 1 or len(pinned) != 1:
+            found.append(f"{name} does not run on one versioned ubuntu image")
+            continue
+        labels.append(pinned[0])
+        dated = rf"pinned to the {re.escape(pinned[0])} image \(\d{{4}}-\d\d-\d\d, "
+        if not re.search(dated, comment_above_jobs(body)):
+            found.append(f"{name} has no dated comment above jobs: naming {pinned[0]}")
+    if len(set(labels)) > 1:
+        found.append("the two workflows run on different images")
+    return found
+
+
+def test_both_workflows_run_on_one_pinned_image():
+    ci_text = CI.read_text(encoding="utf-8")
+    assert runner_problems(ci_text, workflow_text()) == []
+    assert PINNED.findall(ci_text) == PINNED.findall(workflow_text()) == ["ubuntu-24.04"]
+    assert "ubuntu-latest" in comment_above_jobs(ci_text)
+
+
+def pin(label):
+    return lambda t: t.replace("    runs-on: ubuntu-24.04\n", f"    runs-on: {label}\n", 1)
+
+
+RUNNER_MUTANTS = {
+    "ci.yml back on ubuntu-latest": ("ci", pin("ubuntu-latest")),
+    "evidence.yml back on ubuntu-latest": ("evidence", pin("ubuntu-latest")),
+    "the two files on different images": ("evidence", pin("ubuntu-26.04")),
+    "the ci.yml comment dropped": ("ci", lambda t: re.sub(
+        r"(?m)^# .*\n(?=(?:# .*\n)*jobs:\n)", "", t)),
+    "the evidence.yml comment without its date": ("evidence", lambda t: t.replace(
+        "image (2026-11-06, ", "image (", 1)),
+}
+
+
+@pytest.mark.parametrize("name", sorted(RUNNER_MUTANTS))
+def test_a_runner_left_unpinned_or_undated_fails_the_check(name):
+    texts = {"ci": CI.read_text(encoding="utf-8"), "evidence": workflow_text()}
+    which, change = RUNNER_MUTANTS[name]
+    mutant = dict(texts, **{which: change(texts[which])})
+    assert mutant[which] != texts[which], name
+    assert runner_problems(mutant["ci"], mutant["evidence"]), name

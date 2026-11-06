@@ -23,9 +23,14 @@ defaults:
   run:
     shell: bash
 
+# The runner is pinned to the ubuntu-24.04 image (2026-11-06, DESIGN.md 12.13): GitHub
+# moves the ubuntu-latest label to Ubuntu 26.04 between 2026-10-19 and 2026-11-19
+# (https://github.com/actions/runner-images/issues/14748), and the pin keeps every run on
+# the image the suite last passed on. To move it, change runs-on here and in ci.yml
+# together, and keep the new label only after a green run on it.
 jobs:
   regenerate:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
         with:
