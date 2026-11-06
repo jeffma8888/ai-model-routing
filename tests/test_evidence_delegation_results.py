@@ -300,8 +300,6 @@ def reading_it(results):
     return out
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError,
-                   reason="v1.35 spec: RESULTS.md still states the pooled median sizes")
 def test_results_md_method_states_the_per_model_sizes(dr):
     # v1.35 (DESIGN 13.9): each model is priced at its own mean calibration sizes, and the
     # pooled medians are only the task's expected sizes for the context checks

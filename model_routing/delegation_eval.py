@@ -4,7 +4,8 @@ No public dataset records inline-versus-sub-agent outcomes, so this combines wha
 a matrix does measure (each model's acceptance and token counts on each item)
 with a stated grid of what it does not (the parent's context and the hand-off
 sizes). The decision comes from ``Router.decide_delegation`` on calibration-half
-stats, and each held-out item is costed at list price from its own tokens.
+stats that hold each model's token totals, so each model is priced at its own mean
+sizes, and each held-out item is costed at list price from its own tokens.
 """
 
 from __future__ import annotations
@@ -139,10 +140,17 @@ def evaluate_delegation(rows, registry: Registry, bars, points, seeds=range(10),
 
 
 def _calibrate(table, models, task, cal, held) -> dict:
-    """Calibration-half stats and median sizes, which do not depend on bar, flavor or point."""
+    """Calibration-half stats and median sizes, which do not depend on bar, flavor or point.
+
+    The stats hold each model's token totals over the half, so ``decide_delegation``
+    prices it at its own mean sizes; the pooled medians are the task's expected sizes,
+    which only the context checks read (DESIGN 13.9, v1.35).
+    """
     stats = Stats()
     for m in models:
-        stats.add(task, m, sum(table[task, i][m][0] for i in cal), len(cal))
+        stats.add(task, m, sum(table[task, i][m][0] for i in cal), len(cal),
+                  input_tokens=sum(table[task, i][m][1] for i in cal),
+                  output_tokens=sum(table[task, i][m][2] for i in cal))
     return {
         "cal": cal, "held": held, "stats": stats,
         "s_in": statistics.median_low([table[task, i][m][1] for i in cal for m in models]),

@@ -516,9 +516,9 @@ The same [AutoBench matrix](https://huggingface.co/datasets/AutoBench/router-ben
 $ python evidence/delegation/results.py --table evidence/delegation/results.json
 bar  flavor          context  dec_success  dec_cost  inl_success  inl_cost  del_success  del_cost  delegated
 ---  --------------  -------  -----------  --------  -----------  --------  -----------  --------  ---------
-0.7  cost_effective  8000     0.872        0.6268    0.670        1.6931    0.872        0.6268    1.000
-0.7  cost_effective  64000    0.872        0.6268    0.670        6.1849    0.872        0.6268    1.000
-0.7  cost_effective  200000   0.872        0.6268    0.670        17.0936   0.872        0.6268    1.000
+0.7  cost_effective  8000     0.869        0.6282    0.670        1.6931    0.869        0.6282    1.000
+0.7  cost_effective  64000    0.869        0.6282    0.670        6.1849    0.869        0.6282    1.000
+0.7  cost_effective  200000   0.869        0.6282    0.670        17.0936   0.869        0.6282    1.000
 0.7  cost_blind      8000     0.857        2.5582    0.670        1.6931    0.857        2.4768    0.944
 0.7  cost_blind      64000    0.857        3.0624    0.670        6.1849    0.857        2.4768    0.944
 0.7  cost_blind      200000   0.857        4.2869    0.670        17.0936   0.857        2.4768    0.944

@@ -161,9 +161,7 @@ def test_decision_is_router_decide_delegation_on_the_calibration_half():
         s_in = statistics.median_low([r["input_tokens"] for r in cal_rows])
         s_out = statistics.median_low([r["output_tokens"] for r in cal_rows])
         assert (c["expected_input_tokens"], c["expected_output_tokens"]) == (s_in, s_out)
-        stats = Stats()
-        for m in MODELS:
-            stats.add("work", m, len(cal) * RIGHT[m], len(cal))
+        stats = stats_for(rows, cal, tokens=True)
         task = Task(name="work", bar=0.4, min_samples=3, confidence=0.95,
                     independent_of_generator=False, expected_input_tokens=s_in,
                     expected_output_tokens=s_out, on_no_model="best_available",
@@ -660,12 +658,10 @@ def test_exported_from_the_package():
 # `fiction/big` does. Over the calibration rows of all three models the median_low sizes are
 # 1,000 in and 300 out, at which small is the cheaper delegate (0.0027 USD a call with the
 # 500-token brief against 0.027 for big); at each model's own mean sizes big is (0.023 against
-# 0.0815). Until the harness adds token totals to the stats these tests fail.
+# 0.0815). They were committed under strict xfail before the harness added token totals
+# to its stats (v1.35); the implementing commit removed the marker (v1.36).
 
 WRITES = {"fiction/big": 200, "fiction/small": 20_000, "fiction/weak": 300}
-PER_MODEL_SIZES = pytest.mark.xfail(
-    strict=True, raises=AssertionError,
-    reason="v1.35 spec: evaluate_delegation does not add token totals to its stats yet")
 
 
 def writer_rows(tokens=None):
@@ -687,7 +683,6 @@ WRITER_KNOWN = [
 ]
 
 
-@PER_MODEL_SIZES
 @pytest.mark.parametrize("parent,p,mode,model,reason,inline_each,delegate_each", WRITER_KNOWN)
 def test_v135_each_model_is_priced_at_its_own_mean_calibration_sizes(parent, p, mode, model,
                                                                     reason, inline_each,
@@ -717,7 +712,6 @@ def stats_for(rows, cal, tokens):
     return stats
 
 
-@PER_MODEL_SIZES
 def test_v135_the_decision_is_decide_delegation_on_stats_with_token_totals():
     # seed 2 calibrates on 4 items; sizes differ by item and model, so means round up
     rows = writer_rows(lambda item, m: (900 + 37 * int(item[1:]) + 5 * MODELS.index(m),
