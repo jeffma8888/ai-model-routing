@@ -376,7 +376,8 @@ def test_readme_subsection_shows_the_variant_table_bullet_link_and_regenerate_li
     for phrase in ("[variants.json](evidence/delegation/variants.json)",
                    "[Variant points](evidence/delegation/RESULTS.md#variant-points)",
                    "`work_calls` 2", "the `calls` column", "`DESIGN.md` 13.10",
-                   "whether the two calls succeed together is not measured"):
+                   "whether the two calls succeed together is not measured",
+                   "point 3 stands for every context size that leaves every parent room"):
         assert phrase in sub, phrase
     md = RESULTS_MD.read_text(encoding="utf-8")
     base = bash_blocks(md.split("\n## Regenerate\n", 1)[1])
