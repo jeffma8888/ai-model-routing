@@ -203,16 +203,19 @@ def test_cli_writes_run_and_prints_both_tables(dr, tmp_path, capsys):
 # Committed as strict xfail ahead of breakeven_table; the implementing commit removed the markers.
 
 def breakeven_handmade():
-    """handmade() plus a parent below inline and one whose margins round to zero."""
+    """handmade() plus a parent below inline, one whose margins round to zero from below and
+    one with a partial rate whose decision success is not the delegate's."""
     results = handmade()
     values = {("c/z", "decision"): (0.6, 1.0, 0.5), ("c/z", "inline"): (0.7, 1.0, None),
               ("c/z", "delegate"): (0.65, 1.0, None), ("d/w", "decision"): (0.3, 1.0, 0.25),
-              ("d/w", "inline"): (0.3001, 1.0, None), ("d/w", "delegate"): (0.3, 1.0, None)}
+              ("d/w", "inline"): (0.3001, 1.0, None), ("d/w", "delegate"): (0.3, 1.0, None),
+              ("e/v", "decision"): (0.62, 1.0, 0.4), ("e/v", "inline"): (0.6, 1.0, None),
+              ("e/v", "delegate"): (0.6002, 1.0, None)}
     results["summary"] += [{"bar": 0.5, "flavor": "cost_effective", "point": 0, "parent": parent,
                             "strategy": strategy, "success": success, "cost_usd": cost,
                             "below_bar_rate": 0.0, "delegate_rate": rate}
                            for (parent, strategy), (success, cost, rate) in values.items()]
-    results["config"]["parents"] += ["c/z", "d/w"]
+    results["config"]["parents"] += ["c/z", "d/w", "e/v"]
     return results
 
 
@@ -224,13 +227,16 @@ BREAKEVEN = "\n".join([
     "cost_effective  a/x     1.000      0.500        0.250        0.500        0.250       0.250",
     "cost_effective  b/y     0.000      0.700        0.750        0.900        0.150       -",
     "cost_effective  c/z     0.500      0.600        0.700        0.650        -0.050      -0.200",
-    "cost_effective  d/w     0.250      0.300        0.300        0.300        0.000       0.000"])
+    "cost_effective  d/w     0.250      0.300        0.300        0.300        0.000       0.000",
+    "cost_effective  e/v     0.400      0.620        0.600        0.600        0.000       0.050"])
 
 
 def test_breakeven_table_is_the_margin_over_inline_per_parent(dr):
     # a/x delegates on every seed, so its break-even equals its margin; b/y never delegates
     # ("-"); c/z is below inline and delegates on half the seeds, so its break-even is twice
-    # its decision's margin; d/w's margins are -0.0001 and -0.0004 and print 0.000
+    # its decision's margin; d/w's margins are -0.0001 and -0.0004 and print 0.000; e/v's
+    # always-delegate margin is +0.0002 (0.000) while its decision's, 0.02 over a rate of 0.4,
+    # is 0.050, so neither column can be read off the other
     assert dr.breakeven_table(breakeven_handmade(), 0.5, 0) == BREAKEVEN
 
 
@@ -266,8 +272,9 @@ def near():
 
 def test_dec_breakeven_is_exact_on_one_task():
     # DESIGN 13.10 v1.37: with one task a summary success is the seed mean of one cell's
-    # held-out success and delegate_rate the share of seeds delegated, so lowering the
-    # decision's success by L on every delegated seed lowers its mean by L * delegate_rate
+    # held-out rate, every seed weighted equally whatever its held-out size, and delegate_rate
+    # the share of seeds delegated, so lowering the decision's rate by L on every delegated
+    # seed lowers its mean by L * delegate_rate
     rows, registry = near()
     full = evaluate_delegation(rows, registry, bars=[0.7, 0.8], points=POINTS, seeds=range(50))
     summary = {(r["bar"], r["flavor"], r["point"], r["parent"], r["strategy"]): r
@@ -504,8 +511,8 @@ def breakeven_reading(results):
               f"{size} context tokens, it may lower the delegated held-out success by a mean of "
               f"{mean:.3f} over the {n} parents before the `cost_effective` decision does no "
               f"better than always inline, and the minimum is {values[low]:.3f}, with `{low}` as "
-              f"the parent, which already scores higher inline than the delegate does with a "
-              f"lossless brief")
+              f"the parent, one of the {below} that already score higher inline than the "
+              f"delegate does with a lossless brief")
     return md, readme
 
 
@@ -518,7 +525,11 @@ def test_results_md_shows_the_breakeven_block_and_its_reading(dr):
     for phrase in ("`del_margin` is always delegating's held-out success minus always inline's",
                    "`dec_breakeven` is the decision's held-out success minus always inline's, "
                    "divided by its `delegated` share",
-                   "exact here, where all 203 questions are one task",
+                   "exact here for the stored success, the mean over seeds of each seed's "
+                   "held-out rate with every seed weighted equally, since all 203 questions "
+                   "are one task",
+                   "A value below zero means that always delegating, or the decision, already "
+                   "scores below always inline with a lossless brief.",
                    "`-` where the decision never delegates"):
         assert phrase in md, phrase
 

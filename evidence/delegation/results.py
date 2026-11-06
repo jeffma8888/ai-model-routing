@@ -145,7 +145,8 @@ def breakeven_table(results: dict, bar, point: int) -> str:
 
     ``del_margin`` is always delegating's success minus always inline's; ``dec_breakeven`` is
     the decision's success minus always inline's over its delegate rate, the uniform drop on
-    the delegated seeds at which the decision falls to inline's success (exact for one task).
+    the delegated seeds at which the decision falls to inline's success (exact for one task,
+    for the stored success: the mean over seeds of each seed's held-out rate).
     """
     rows = _index(results)
     config = results["config"]
