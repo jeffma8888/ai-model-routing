@@ -87,6 +87,54 @@ cost_blind      zai/glm-5.2                        1.000      0.857        2.515
 cost_blind      zai/glm-5.3                        1.000      0.857        2.6725    0.755        9.8066    0.857        2.6725
 ```
 
+The quality assumption above credits every hand-off with a lossless brief. The break-even table puts a number on how much a lossy one may lose, from the same file with no new run. `del_margin` is always delegating's held-out success minus always inline's: the success every hand-off could lose before always delegating does no better than always inline. `dec_breakeven` is the decision's held-out success minus always inline's, divided by its `delegated` share: the drop in held-out success on the seeds it delegates at which the decision falls to always inline's success (exact here, where all 203 questions are one task; `-` where the decision never delegates). A value below zero means the hand-off already scores below always inline with a lossless brief. At bar 0.8 and C = 64,000 tokens (point 1):
+
+```text
+$ python evidence/delegation/results.py --breakeven evidence/delegation/results.json --bar 0.8 --point 1
+flavor          parent                             delegated  dec_success  inl_success  del_success  del_margin  dec_breakeven
+--------------  ---------------------------------  ---------  -----------  -----------  -----------  ----------  -------------
+cost_effective  anthropic/claude-sonnet-5          1.000      0.855        0.859        0.855        -0.003      -0.003
+cost_effective  deepseek/deepseek-v4-flash-0731    1.000      0.855        0.681        0.855        0.175       0.175
+cost_effective  google/gemini-3.7-flash            1.000      0.855        0.774        0.855        0.081       0.081
+cost_effective  google/gemma-4-31b-it              1.000      0.855        0.489        0.855        0.366       0.366
+cost_effective  meta/muse-glimmer-30b              1.000      0.855        0.554        0.855        0.302       0.302
+cost_effective  meta/muse-spark-1.2                1.000      0.855        0.705        0.855        0.150       0.150
+cost_effective  minimax/minimax-m3                 1.000      0.855        0.769        0.855        0.087       0.087
+cost_effective  moonshotai/kimi-k2.6               1.000      0.855        0.776        0.855        0.079       0.079
+cost_effective  nvidia/nemotron-3-ultra-550b-a55b  1.000      0.855        0.603        0.855        0.252       0.252
+cost_effective  nvidia/nemotron-3.5-lightning      1.000      0.855        0.415        0.855        0.440       0.440
+cost_effective  openai/gpt-5.6-luna                1.000      0.855        0.872        0.855        -0.016      -0.016
+cost_effective  openai/gpt-5.6-sol                 1.000      0.855        0.882        0.855        -0.027      -0.027
+cost_effective  openai/gpt-oss-120b                1.000      0.855        0.442        0.855        0.413       0.413
+cost_effective  qwen/qwen3.5-9b                    1.000      0.855        0.276        0.855        0.579       0.579
+cost_effective  qwen/qwen3.8-max                   1.000      0.855        0.853        0.855        0.003       0.003
+cost_effective  tencent/hy3                        1.000      0.855        0.683        0.855        0.173       0.173
+cost_effective  xai/grok-4.3                       1.000      0.855        0.558        0.855        0.298       0.298
+cost_effective  xai/grok-4.6                       1.000      0.855        0.689        0.855        0.167       0.167
+cost_effective  zai/glm-5.2                        1.000      0.855        0.756        0.855        0.099       0.099
+cost_effective  zai/glm-5.3                        1.000      0.855        0.755        0.855        0.100       0.100
+cost_blind      anthropic/claude-sonnet-5          0.880      0.857        0.859        0.857        -0.002      -0.002
+cost_blind      deepseek/deepseek-v4-flash-0731    1.000      0.857        0.681        0.857        0.177       0.177
+cost_blind      google/gemini-3.7-flash            1.000      0.857        0.774        0.857        0.083       0.083
+cost_blind      google/gemma-4-31b-it              1.000      0.857        0.489        0.857        0.368       0.368
+cost_blind      meta/muse-glimmer-30b              1.000      0.857        0.554        0.857        0.304       0.304
+cost_blind      meta/muse-spark-1.2                1.000      0.857        0.705        0.857        0.152       0.152
+cost_blind      minimax/minimax-m3                 1.000      0.857        0.769        0.857        0.089       0.089
+cost_blind      moonshotai/kimi-k2.6               0.980      0.857        0.776        0.857        0.081       0.083
+cost_blind      nvidia/nemotron-3-ultra-550b-a55b  1.000      0.857        0.603        0.857        0.254       0.254
+cost_blind      nvidia/nemotron-3.5-lightning      1.000      0.857        0.415        0.857        0.442       0.442
+cost_blind      openai/gpt-5.6-luna                0.760      0.858        0.872        0.857        -0.015      -0.019
+cost_blind      openai/gpt-5.6-sol                 0.300      0.862        0.882        0.857        -0.025      -0.069
+cost_blind      openai/gpt-oss-120b                1.000      0.857        0.442        0.857        0.415       0.415
+cost_blind      qwen/qwen3.5-9b                    1.000      0.857        0.276        0.857        0.581       0.581
+cost_blind      qwen/qwen3.8-max                   0.960      0.857        0.853        0.857        0.004       0.005
+cost_blind      tencent/hy3                        1.000      0.857        0.683        0.857        0.175       0.175
+cost_blind      xai/grok-4.3                       1.000      0.857        0.558        0.857        0.300       0.300
+cost_blind      xai/grok-4.6                       1.000      0.857        0.689        0.857        0.168       0.168
+cost_blind      zai/glm-5.2                        1.000      0.857        0.756        0.857        0.101       0.101
+cost_blind      zai/glm-5.3                        1.000      0.857        0.755        0.857        0.102       0.102
+```
+
 ## Reading it
 
 - At bar 0.7, `cost_effective` delegates on every seed for every parent and holds a mean held-out success of 0.869 at 0.6282 USD at every point
@@ -94,6 +142,7 @@ cost_blind      zai/glm-5.3                        1.000      0.857        2.672
 - At bar 0.8 the `cost_effective` decision costs more than always inline at 8,000 context tokens (2.1372 against 1.6931 USD) and far less at 200,000 (2.1372 against 17.0936), where the parent's own call for the work re-reads the whole context
 - With `openai/gpt-5.6-sol` as the parent at bar 0.8 and 64,000 context tokens, always inline scores 0.882 at 16.9574 USD; `cost_effective` delegates on 100.0% of seeds and scores 0.855 at 2.7387 USD, 16% of the inline cost: a strong, expensive parent gives up a little held-out success for a large saving
 - With `openai/gpt-5.6-luna` as the parent at bar 0.8 and 64,000 context tokens, `cost_blind` delegates on 76.0% of seeds and scores 0.858 against 0.872 inline, at 2.5326 against 1.7156 USD. `cost_blind` never compares cost: outside a full context it decides on the lower bounds alone (`DESIGN.md` 13.5 rows 2, 4, 5 and 7), and a higher bound on the calibration half is not always a higher rate on the held-out half
+- At bar 0.8 and 64,000 context tokens, `cost_effective` delegates on every seed for every parent, so `dec_breakeven` equals `del_margin`: a lossy brief may lower the delegated held-out success by a mean of 0.186 over the 20 parents before the decision does no better than always inline. The minimum is -0.027, with `openai/gpt-5.6-sol` as the parent, and 3 of the 20 parents are below zero: they already score higher inline than the delegate does with a lossless brief
 
 ## Regenerate
 

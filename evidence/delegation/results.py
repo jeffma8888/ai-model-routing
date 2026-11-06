@@ -4,12 +4,15 @@ Usage:
   python evidence/delegation/results.py --matrix MATRIX.jsonl --registry POOL.json --out results.json
   python evidence/delegation/results.py --table results.json
   python evidence/delegation/results.py --table results.json --bar 0.8 --point 1
+  python evidence/delegation/results.py --breakeven results.json --bar 0.8 --point 1
 
 ``--matrix`` runs ``evaluate_delegation`` (DESIGN 13.9) on the converter's ``--task-by all
 --tokens`` matrix and ``--registry`` pool, at the bars, seeds and grid points named below,
 and keeps the config, tasks and summary (no cells). ``--table`` prints the mean over
 parents of each (bar, flavor, point); with ``--bar`` and ``--point`` it prints one row per
-(flavor, parent) for that bar and point. Standard library and the model_routing package.
+(flavor, parent) for that bar and point. ``--breakeven`` with ``--bar`` and ``--point`` prints,
+per (flavor, parent), how much held-out success a lossy hand-off may lose before delegating
+does no better than working inline. Standard library and the model_routing package.
 """
 
 from __future__ import annotations
@@ -106,14 +109,18 @@ def table(results: dict) -> str:
     return "\n".join(_layout(["bar", "flavor", "context"] + HEADERS + ["delegated"], lines))
 
 
-def parent_table(results: dict, bar, point: int) -> str:
-    rows = _index(results)
-    config = results["config"]
+def _check_bar_point(config: dict, bar, point: int) -> None:
     if bar not in config["bars"]:
         raise ValueError(f"bar {bar} is not in the config bars {config['bars']}")
     if not 0 <= point < len(config["points"]):
         raise ValueError(f"point {point} is not an index into the {len(config['points'])} "
                          "config points")
+
+
+def parent_table(results: dict, bar, point: int) -> str:
+    rows = _index(results)
+    config = results["config"]
+    _check_bar_point(config, bar, point)
     lines = []
     for flavor in config["flavors"]:
         for parent in config["parents"]:
@@ -121,6 +128,38 @@ def parent_table(results: dict, bar, point: int) -> str:
             lines.append([flavor, parent, f"{found['decision']['delegate_rate']:.3f}"]
                          + _cells(found))
     return "\n".join(_layout(["flavor", "parent", "delegated"] + HEADERS, lines))
+
+
+def _signed(value: float) -> str:
+    """Three decimals with the sign kept, and a value that rounds to zero as 0.000."""
+    text = f"{value:.3f}"
+    return "0.000" if text == "-0.000" else text
+
+
+BREAKEVEN_HEADERS = ["flavor", "parent", "delegated", "dec_success", "inl_success",
+                     "del_success", "del_margin", "dec_breakeven"]
+
+
+def breakeven_table(results: dict, bar, point: int) -> str:
+    """Per (flavor, parent): the held-out success a lossy hand-off may lose (DESIGN 13.10).
+
+    ``del_margin`` is always delegating's success minus always inline's; ``dec_breakeven`` is
+    the decision's success minus always inline's over its delegate rate, the uniform drop on
+    the delegated seeds at which the decision falls to inline's success (exact for one task).
+    """
+    rows = _index(results)
+    config = results["config"]
+    _check_bar_point(config, bar, point)
+    lines = []
+    for flavor in config["flavors"]:
+        for parent in config["parents"]:
+            found = {s: _get(rows, bar, flavor, point, parent, s) for s in STRATEGIES}
+            dec, inl, dlg = (found[s]["success"] for s in STRATEGIES)
+            rate = found["decision"]["delegate_rate"]
+            breakeven = "-" if rate == 0 else _signed((dec - inl) / rate)
+            lines.append([flavor, parent, f"{rate:.3f}", f"{dec:.3f}", f"{inl:.3f}",
+                          f"{dlg:.3f}", _signed(dlg - inl), breakeven])
+    return "\n".join(_layout(BREAKEVEN_HEADERS, lines))
 
 
 class _UsageError(Exception):
@@ -161,17 +200,21 @@ def main(argv=None) -> int:
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--matrix", help="converter output with --task-by all --tokens")
     mode.add_argument("--table", help="a results file to print the tables of")
+    mode.add_argument("--breakeven", help="a results file to print the break-even table of "
+                                          "(with --bar and --point)")
     parser.add_argument("--registry", help="converter --registry output (with --matrix only)")
     parser.add_argument("--out", help="results file to write (with --matrix only)")
-    parser.add_argument("--bar", type=float, help="with --table and --point: one row per parent")
-    parser.add_argument("--point", type=int, help="with --table and --bar: a config point index")
+    parser.add_argument("--bar", type=float,
+                        help="with --point and --table or --breakeven: one row per parent")
+    parser.add_argument("--point", type=int,
+                        help="with --bar and --table or --breakeven: a config point index")
     try:
         args = parser.parse_args(argv)
         if args.matrix is not None:
             if args.registry is None or args.out is None:
                 raise _UsageError("--matrix needs --registry and --out")
             if args.bar is not None or args.point is not None:
-                raise _UsageError("--bar and --point are only used with --table")
+                raise _UsageError("--bar and --point are only used with --table or --breakeven")
             result = run(_read_rows(args.matrix), Registry.load(args.registry))
             text = json.dumps(result, indent=2) + "\n"
             out = Path(args.out)
@@ -184,6 +227,12 @@ def main(argv=None) -> int:
             return 0
         if args.registry is not None or args.out is not None:
             raise _UsageError("--registry and --out are only used with --matrix")
+        if args.breakeven is not None:
+            if args.bar is None or args.point is None:
+                raise _UsageError("--breakeven needs --bar and --point")
+            text = breakeven_table(_read_object(args.breakeven), args.bar, args.point)
+            print(text)
+            return 0
         if (args.bar is None) != (args.point is None):
             raise _UsageError("--bar and --point go together")
         results = _read_object(args.table)

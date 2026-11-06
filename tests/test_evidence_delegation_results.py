@@ -200,10 +200,7 @@ def test_cli_writes_run_and_prints_both_tables(dr, tmp_path, capsys):
 
 
 # --- v1.37 the break-even table on small inputs (DESIGN 13.10) -----------------------------------
-
-BREAKEVEN_RED = pytest.mark.xfail(strict=True, raises=(AttributeError, AssertionError),
-                                  reason="v1.37 breakeven_table lands in the implementing commit")
-
+# Committed as strict xfail ahead of breakeven_table; the implementing commit removed the markers.
 
 def breakeven_handmade():
     """handmade() plus a parent below inline and one whose margins round to zero."""
@@ -230,7 +227,6 @@ BREAKEVEN = "\n".join([
     "cost_effective  d/w     0.250      0.300        0.300        0.300        0.000       0.000"])
 
 
-@BREAKEVEN_RED
 def test_breakeven_table_is_the_margin_over_inline_per_parent(dr):
     # a/x delegates on every seed, so its break-even equals its margin; b/y never delegates
     # ("-"); c/z is below inline and delegates on half the seeds, so its break-even is twice
@@ -238,7 +234,6 @@ def test_breakeven_table_is_the_margin_over_inline_per_parent(dr):
     assert dr.breakeven_table(breakeven_handmade(), 0.5, 0) == BREAKEVEN
 
 
-@BREAKEVEN_RED
 @pytest.mark.parametrize("change, match", [
     (lambda r: r.pop("config"), "config"),
     (lambda r: r.pop("summary"), "summary"),
@@ -252,7 +247,6 @@ def test_breakeven_table_refuses_bad_results(dr, change, match):
         dr.breakeven_table(results, 0.5, 0)
 
 
-@BREAKEVEN_RED
 @pytest.mark.parametrize("bar, point, match", [(0.6, 0, "bar 0.6"), (0.5, 1, "point 1"),
                                                (0.5, -1, "point -1")])
 def test_breakeven_table_refuses_a_bar_or_point_not_in_the_config(dr, bar, point, match):
@@ -299,7 +293,6 @@ def test_dec_breakeven_is_exact_on_one_task():
     assert len(shares - {0.0, 1.0}) >= 2, shares
 
 
-@BREAKEVEN_RED
 @pytest.mark.parametrize("argv, match", [
     (["--breakeven", "t"], "--breakeven needs --bar and --point"),
     (["--breakeven", "t", "--bar", "0.8"], "--breakeven needs --bar and --point"),
@@ -316,7 +309,6 @@ def test_cli_breakeven_usage_errors_are_one_line_and_exit_2(dr, argv, match, cap
     assert err.startswith("error: ") and err.count("\n") == 1 and match in err, err
 
 
-@BREAKEVEN_RED
 def test_cli_prints_the_breakeven_table(dr, tmp_path, capsys):
     path = tmp_path / "results.json"
     path.write_text(json.dumps(breakeven_handmade()), encoding="utf-8")
@@ -512,11 +504,11 @@ def breakeven_reading(results):
               f"{size} context tokens, it may lower the delegated held-out success by a mean of "
               f"{mean:.3f} over the {n} parents before the `cost_effective` decision does no "
               f"better than always inline, and the minimum is {values[low]:.3f}, with `{low}` as "
-              f"the parent")
+              f"the parent, which already scores higher inline than the delegate does with a "
+              f"lossless brief")
     return md, readme
 
 
-@BREAKEVEN_RED
 def test_results_md_shows_the_breakeven_block_and_its_reading(dr):
     md = RESULTS_MD.read_text(encoding="utf-8")
     results = committed()
@@ -531,7 +523,6 @@ def test_results_md_shows_the_breakeven_block_and_its_reading(dr):
         assert phrase in md, phrase
 
 
-@BREAKEVEN_RED
 def test_readme_subsection_states_the_breakeven_numbers(dr):
     assert f"- {breakeven_reading(committed())[1]}\n" in readme_subsection()
 

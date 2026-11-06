@@ -532,6 +532,7 @@ bar  flavor          context  dec_success  dec_cost  inl_success  inl_cost  del_
 
 - At bar 0.8, `cost_effective` delegates on every seed for every parent, so it scores and costs the same as always delegating: a mean held-out success over the 20 parents of 0.855 at every point, against 0.670 for always inline
 - At bar 0.8 the `cost_effective` decision costs more than always inline at 8,000 context tokens (2.1372 against 1.6931 USD) and far less at 200,000 (2.1372 against 17.0936), where the parent's own call for the work re-reads the whole context
+- A lossy brief is not measured, but the break-even table in [RESULTS.md](evidence/delegation/RESULTS.md) puts a number on it: at bar 0.8 and 64,000 context tokens, it may lower the delegated held-out success by a mean of 0.186 over the 20 parents before the `cost_effective` decision does no better than always inline, and the minimum is -0.027, with `openai/gpt-5.6-sol` as the parent, which already scores higher inline than the delegate does with a lossless brief
 
 Regenerate (a few seconds after the download):
 
