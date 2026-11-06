@@ -5,7 +5,9 @@ AutoBench 2026 matrix with token counts and the pool registry, and prints the ta
 its RESULTS.md and the README show. The first tests check the script on small inputs with
 known answers, the next ones the committed file against RESULTS.md and the README. The
 last one reads the pinned AutoBench files only when they are already in the default cache
-and skips otherwise (CI never downloads them).
+and skips otherwise (CI never downloads them). v1.37 adds the break-even table
+(``breakeven_table`` and ``--breakeven``), which puts a number on how much held-out success
+a lossy hand-off may lose before delegating does no better than working inline.
 """
 
 import importlib.util
@@ -197,6 +199,133 @@ def test_cli_writes_run_and_prints_both_tables(dr, tmp_path, capsys):
     assert capsys.readouterr().err.startswith("error: bar 0.9")
 
 
+# --- v1.37 the break-even table on small inputs (DESIGN 13.10) -----------------------------------
+
+BREAKEVEN_RED = pytest.mark.xfail(strict=True, raises=(AttributeError, AssertionError),
+                                  reason="v1.37 breakeven_table lands in the implementing commit")
+
+
+def breakeven_handmade():
+    """handmade() plus a parent below inline and one whose margins round to zero."""
+    results = handmade()
+    values = {("c/z", "decision"): (0.6, 1.0, 0.5), ("c/z", "inline"): (0.7, 1.0, None),
+              ("c/z", "delegate"): (0.65, 1.0, None), ("d/w", "decision"): (0.3, 1.0, 0.25),
+              ("d/w", "inline"): (0.3001, 1.0, None), ("d/w", "delegate"): (0.3, 1.0, None)}
+    results["summary"] += [{"bar": 0.5, "flavor": "cost_effective", "point": 0, "parent": parent,
+                            "strategy": strategy, "success": success, "cost_usd": cost,
+                            "below_bar_rate": 0.0, "delegate_rate": rate}
+                           for (parent, strategy), (success, cost, rate) in values.items()]
+    results["config"]["parents"] += ["c/z", "d/w"]
+    return results
+
+
+BREAKEVEN = "\n".join([
+    "flavor          parent  delegated  dec_success  inl_success  del_success  del_margin"
+    "  dec_breakeven",
+    "--------------  ------  ---------  -----------  -----------  -----------  ----------"
+    "  -------------",
+    "cost_effective  a/x     1.000      0.500        0.250        0.500        0.250       0.250",
+    "cost_effective  b/y     0.000      0.700        0.750        0.900        0.150       -",
+    "cost_effective  c/z     0.500      0.600        0.700        0.650        -0.050      -0.200",
+    "cost_effective  d/w     0.250      0.300        0.300        0.300        0.000       0.000"])
+
+
+@BREAKEVEN_RED
+def test_breakeven_table_is_the_margin_over_inline_per_parent(dr):
+    # a/x delegates on every seed, so its break-even equals its margin; b/y never delegates
+    # ("-"); c/z is below inline and delegates on half the seeds, so its break-even is twice
+    # its decision's margin; d/w's margins are -0.0001 and -0.0004 and print 0.000
+    assert dr.breakeven_table(breakeven_handmade(), 0.5, 0) == BREAKEVEN
+
+
+@BREAKEVEN_RED
+@pytest.mark.parametrize("change, match", [
+    (lambda r: r.pop("config"), "config"),
+    (lambda r: r.pop("summary"), "summary"),
+    (lambda r: r["summary"].pop(3), "b/y"),
+    (lambda r: r["summary"].append(dict(r["summary"][0])), "repeated"),
+])
+def test_breakeven_table_refuses_bad_results(dr, change, match):
+    results = handmade()
+    change(results)
+    with pytest.raises(ValueError, match=match):
+        dr.breakeven_table(results, 0.5, 0)
+
+
+@BREAKEVEN_RED
+@pytest.mark.parametrize("bar, point, match", [(0.6, 0, "bar 0.6"), (0.5, 1, "point 1"),
+                                               (0.5, -1, "point -1")])
+def test_breakeven_table_refuses_a_bar_or_point_not_in_the_config(dr, bar, point, match):
+    with pytest.raises(ValueError, match=match):
+        dr.breakeven_table(handmade(), bar, point)
+
+
+def near():
+    """tiny() with two models of close success rates, so cost_blind delegates on part of the
+    seeds for both parents."""
+    rows, registry = tiny()
+    for row in rows:
+        number = int(row["item"][1:])
+        row["correct"] = number % (7 if row["model"] == "v/strong" else 8) != 0
+    return rows, registry
+
+
+def test_dec_breakeven_is_exact_on_one_task():
+    # DESIGN 13.10 v1.37: with one task a summary success is the seed mean of one cell's
+    # held-out success and delegate_rate the share of seeds delegated, so lowering the
+    # decision's success by L on every delegated seed lowers its mean by L * delegate_rate
+    rows, registry = near()
+    full = evaluate_delegation(rows, registry, bars=[0.7, 0.8], points=POINTS, seeds=range(50))
+    summary = {(r["bar"], r["flavor"], r["point"], r["parent"], r["strategy"]): r
+               for r in full["summary"]}
+    groups = {}
+    for cell in full["cells"]:
+        groups.setdefault((cell["bar"], cell["flavor"], cell["point"], cell["parent"]),
+                          []).append(cell)
+    shares = set()
+    for key, cells in groups.items():
+        assert {c["task"] for c in cells} == {"all"} and len(cells) == 50
+        dec, inl = summary[key + ("decision",)], summary[key + ("inline",)]
+        assert dec["success"] == math.fsum(c["success"]["decision"] for c in cells) / 50
+        share = sum(c["mode"] == "delegate" for c in cells) / 50
+        assert dec["delegate_rate"] == share
+        shares.add(share)
+        if share == 0:
+            continue
+        loss = (dec["success"] - inl["success"]) / share
+        lowered = math.fsum(c["success"]["decision"] - (loss if c["mode"] == "delegate" else 0.0)
+                            for c in cells) / 50
+        assert lowered == pytest.approx(inl["success"], abs=1e-12), key
+    assert len(shares - {0.0, 1.0}) >= 2, shares
+
+
+@BREAKEVEN_RED
+@pytest.mark.parametrize("argv, match", [
+    (["--breakeven", "t"], "--breakeven needs --bar and --point"),
+    (["--breakeven", "t", "--bar", "0.8"], "--breakeven needs --bar and --point"),
+    (["--breakeven", "t", "--point", "1"], "--breakeven needs --bar and --point"),
+    (["--breakeven", "t", "--bar", "0.8", "--point", "1", "--out", "o"], "--registry and --out"),
+    (["--breakeven", "t", "--bar", "0.8", "--point", "1", "--registry", "r"],
+     "--registry and --out"),
+    (["--breakeven", "t", "--table", "t", "--bar", "0.8", "--point", "1"], "not allowed with"),
+    (["--breakeven", "t", "--matrix", "m", "--bar", "0.8", "--point", "1"], "not allowed with"),
+])
+def test_cli_breakeven_usage_errors_are_one_line_and_exit_2(dr, argv, match, capsys):
+    assert dr.main(argv) == 2
+    err = capsys.readouterr().err
+    assert err.startswith("error: ") and err.count("\n") == 1 and match in err, err
+
+
+@BREAKEVEN_RED
+def test_cli_prints_the_breakeven_table(dr, tmp_path, capsys):
+    path = tmp_path / "results.json"
+    path.write_text(json.dumps(breakeven_handmade()), encoding="utf-8")
+    assert dr.main(["--breakeven", str(path), "--bar", "0.5", "--point", "0"]) == 0
+    assert capsys.readouterr().out == BREAKEVEN + "\n"
+    assert dr.main(["--breakeven", str(path), "--bar", "0.6", "--point", "0"]) == 2
+    assert capsys.readouterr().err.startswith("error: bar 0.6")
+
+
 # --- the committed file, RESULTS.md and the README ---------------------------------------------
 
 def committed():
@@ -349,6 +478,62 @@ def test_readme_subsection_shows_the_table_and_links(dr):
     readme = README.read_text(encoding="utf-8")
     inline = readme.split("\n### Inline or sub-agent\n", 1)[1].split("\n## ", 1)[0]
     assert "[Delegation on AutoBench](#delegation-on-autobench)" in inline
+
+
+BREAKEVEN_COMMAND = ("$ python evidence/delegation/results.py --breakeven"
+                     " evidence/delegation/results.json --bar 0.8 --point 1")
+
+
+def breakeven_reading(results):
+    """v1.37: the RESULTS.md "Reading it" bullet and the README bullet on the bar 0.8, point 1
+    break-even table, built from a results file (DESIGN 13.10)."""
+    rows = {(r["bar"], r["flavor"], r["point"], r["parent"], r["strategy"]): r
+            for r in results["summary"]}
+    parents = results["config"]["parents"]
+    n = len(parents)
+    size = f"{results['config']['points'][1]['context_tokens']:,}"
+    values = {}
+    for p in parents:
+        dec, inl, dlg = (rows[(0.8, "cost_effective", 1, p, s)] for s in STRATEGIES)
+        assert dec["delegate_rate"] == 1.0 and dec["success"] == dlg["success"], p
+        values[p] = (dec["success"] - inl["success"]) / dec["delegate_rate"]
+    mean = math.fsum(values.values()) / n
+    low = min(parents, key=values.get)
+    below = sum(v < 0 for v in values.values())
+    assert values[low] < 0 < mean
+    md = (f"At bar 0.8 and {size} context tokens, `cost_effective` delegates on every seed for "
+          f"every parent, so `dec_breakeven` equals `del_margin`: a lossy brief may lower the "
+          f"delegated held-out success by a mean of {mean:.3f} over the {n} parents before the "
+          f"decision does no better than always inline. The minimum is {values[low]:.3f}, with "
+          f"`{low}` as the parent, and {below} of the {n} parents are below zero: they already "
+          f"score higher inline than the delegate does with a lossless brief")
+    readme = (f"A lossy brief is not measured, but the break-even table in "
+              f"[RESULTS.md](evidence/delegation/RESULTS.md) puts a number on it: at bar 0.8 and "
+              f"{size} context tokens, it may lower the delegated held-out success by a mean of "
+              f"{mean:.3f} over the {n} parents before the `cost_effective` decision does no "
+              f"better than always inline, and the minimum is {values[low]:.3f}, with `{low}` as "
+              f"the parent")
+    return md, readme
+
+
+@BREAKEVEN_RED
+def test_results_md_shows_the_breakeven_block_and_its_reading(dr):
+    md = RESULTS_MD.read_text(encoding="utf-8")
+    results = committed()
+    assert block(BREAKEVEN_COMMAND, dr.breakeven_table(results, 0.8, 1)) in md
+    reading = md.split("\n## Reading it\n", 1)[1].split("\n## ", 1)[0]
+    assert f"- {breakeven_reading(results)[0]}\n" in reading
+    for phrase in ("`del_margin` is always delegating's held-out success minus always inline's",
+                   "`dec_breakeven` is the decision's held-out success minus always inline's, "
+                   "divided by its `delegated` share",
+                   "exact here, where all 203 questions are one task",
+                   "`-` where the decision never delegates"):
+        assert phrase in md, phrase
+
+
+@BREAKEVEN_RED
+def test_readme_subsection_states_the_breakeven_numbers(dr):
+    assert f"- {breakeven_reading(committed())[1]}\n" in readme_subsection()
 
 
 # --- the pinned files, only when already cached ------------------------------------------------
