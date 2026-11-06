@@ -55,6 +55,8 @@ flowchart TD
     J -- best_available --> L[Best measured model, else best leaderboard prior, flagged below_bar]
 ```
 
+The cost of a call is its list price. A model whose stats hold measured token counts for the task is priced at its own mean input and output tokens per call on that task, each rounded up; any other model is priced at the task's `expected_input_tokens` and `expected_output_tokens`. So a model that is cheap per token but writes several times as much as the others can lose the cheapest place. The same per-model sizes price both paths of an inline-or-sub-agent decision. The context-window check always uses the task's expected tokens, because a mean says nothing about the longest call, so set them to the longest calls you expect.
+
 ### The quality bar is a confidence bound, not an average
 
 A model is admitted for a task only when the lower end of a two-sided Wilson score interval on its measured success rate against the task's acceptance check is at or above the task's bar, and only after at least `min_samples` trials. At 95% confidence:
@@ -244,11 +246,12 @@ On public data, [Delegation on AutoBench](#delegation-on-autobench) scores this 
    ```json
    {"task": "faithfulness_judge", "model": "anthropic/claude-haiku-5.5", "prediction": "unfaithful", "gold": "unfaithful"}
    {"task": "unit_test_codegen", "model": "openai/gpt-6-luna", "correct": false}
+   {"task": "support_ticket_triage", "model": "openai/gpt-6-luna", "correct": true, "input_tokens": 1240, "output_tokens": 35}
    ```
 
-   For `unit_test_codegen`, `correct` means the generated tests ran and passed; for an extraction task it might mean every field matched exactly. The library only counts.
+   For `unit_test_codegen`, `correct` means the generated tests ran and passed; for an extraction task it might mean every field matched exactly. The library only counts. A line may also record what the call read and wrote as `input_tokens` and `output_tokens` (both or neither); once a model has them on a task, the router prices it there at its own mean tokens per call instead of the task's expected tokens.
 
-3. **Fold the results into the stats file** (counts accumulate across runs):
+3. **Fold the results into the stats file** (counts and token totals accumulate across runs; a row with token counts also gets `input_tokens`, `output_tokens` and `token_trials`, the number of calls they were summed over):
 
    ```bash
    model-routing calibrate --results results.jsonl --stats stats.json
@@ -627,7 +630,7 @@ model_routing/
   __main__.py   python -m model_routing runs the CLI
   registry.py   models, list prices, context windows
   tasks.py      task definitions (bar, min_samples, isolation, fallbacks)
-  stats.py      Wilson lower bound, calibration counts
+  stats.py      Wilson lower bound, calibration counts and token totals
   priors.py     leaderboard priors (order only, never admit)
   router.py     the routing rules and both flavors
   providers.py  provider protocol, fake provider, OpenAI-compatible HTTP provider

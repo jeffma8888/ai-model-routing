@@ -1,13 +1,13 @@
 """v1.33 per-model measured token counts in the cost estimate (DESIGN 4.3, 5.2, 13.2 to
 13.4), written before the code.
 
-The new behaviour is held under strict xfail markers, each naming what the v1.32 code
-raises: ``TypeError`` where a test passes the new ``Stats.add`` keywords,
+The new behaviour was committed under strict xfail markers, each naming what the v1.32
+code raised: ``TypeError`` where a test passes the new ``Stats.add`` keywords,
 ``AttributeError`` where it reads the new ``Stats.tokens`` or ``Stats.mean_tokens``, and
-``AssertionError`` where v1.32 silently ignores the new keys. The implementing commit
-removes the markers (DESIGN 13.8). The unmarked tests pin that a Stats with no token
-totals prices, routes, delegates and saves exactly as v1.32 does; they pass before and
-after.
+``AssertionError`` where v1.32 silently ignored the new keys. The implementing commit
+(v1.34) removed the markers (DESIGN 13.8). The tests that were never marked pin that a
+Stats with no token totals prices, routes, delegates and saves exactly as v1.32 does;
+they passed before the implementation and pass after it.
 """
 
 import json
@@ -19,13 +19,6 @@ import model_routing
 from model_routing import Model, Registry, Router, Stats, Task, calibrate_from_results
 from model_routing.router import CONTEXT_TOO_SMALL, PASSES
 from model_routing.tasks import load_tasks
-
-NEW_ADD = pytest.mark.xfail(strict=True, raises=TypeError,
-                            reason="v1.33 Stats.add token keywords not implemented (P3b)")
-NEW_METHOD = pytest.mark.xfail(strict=True, raises=AttributeError,
-                               reason="v1.33 Stats.tokens and mean_tokens not implemented (P3b)")
-KEYS_IGNORED = pytest.mark.xfail(strict=True, raises=AssertionError,
-                                 reason="v1.32 ignores the v1.33 token keys (P3b)")
 
 TASK = "review"
 S_IN, S_OUT = 2000, 500
@@ -85,7 +78,6 @@ def calibration_error(rows):
 
 # ---- 4.3 Stats: token totals ------------------------------------------------------------
 
-@NEW_ADD
 def test_add_records_token_totals_over_trials_and_accumulates():
     stats = Stats()
     stats.add(TASK, "fiction/cheap", 9, 10, input_tokens=20_000, output_tokens=5_001)
@@ -100,7 +92,6 @@ def test_add_records_token_totals_over_trials_and_accumulates():
     assert stats.items() == [((TASK, "fiction/cheap"), (16, 19))]
 
 
-@NEW_ADD
 def test_mean_tokens_rounds_each_mean_up_in_integer_arithmetic():
     stats = Stats()
     stats.add(TASK, "a", 1, 3, input_tokens=10, output_tokens=9)
@@ -116,7 +107,6 @@ def test_mean_tokens_rounds_each_mean_up_in_integer_arithmetic():
     assert stats.mean_tokens(TASK, "unknown") is None
 
 
-@NEW_ADD
 @pytest.mark.parametrize("successes,trials,kwargs", [
     (3, 5, {"input_tokens": 10}),
     (3, 5, {"output_tokens": 10}),
@@ -144,7 +134,6 @@ def test_add_rejects_invalid_token_arguments_and_adds_nothing(successes, trials,
     assert stats.tokens(TASK, "m") == (10, 4, 2)
 
 
-@NEW_ADD
 def test_merge_sums_token_totals_without_mutating_either_operand():
     # "m" is measured on both sides, "p" only in a, "q" only in b, "n" has no tokens
     a = Stats()
@@ -166,7 +155,6 @@ def test_merge_sums_token_totals_without_mutating_either_operand():
     assert b.tokens(TASK, "p") == (0, 0, 0)
 
 
-@NEW_ADD
 def test_save_writes_token_keys_only_for_keys_with_tokens_and_round_trips(tmp_path):
     stats = Stats()
     stats.add(TASK, "b", 1, 2, input_tokens=10, output_tokens=4, token_trials=1)
@@ -190,7 +178,6 @@ def test_save_writes_token_keys_only_for_keys_with_tokens_and_round_trips(tmp_pa
     assert again.read_bytes() == path.read_bytes()
 
 
-@NEW_METHOD
 def test_load_reads_the_optional_token_keys_and_accumulates_rows(write_json):
     path = write_json("stats.json", {"stats": [
         {"task": TASK, "model": "a", "successes": 3, "trials": 4,
@@ -206,7 +193,6 @@ def test_load_reads_the_optional_token_keys_and_accumulates_rows(write_json):
     assert stats.tokens(TASK, "b") == (0, 0, 0)
 
 
-@KEYS_IGNORED
 @pytest.mark.parametrize("tokens", [
     {"input_tokens": 1, "output_tokens": 1},
     {"input_tokens": 1, "token_trials": 1},
@@ -230,7 +216,6 @@ def test_load_rejects_a_partial_or_invalid_token_set_naming_the_file(write_json,
     assert error is not None and str(path) in error
 
 
-@NEW_METHOD
 def test_calibration_counts_one_token_trial_per_row_with_token_counts():
     stats = calibrate_from_results([
         {"task": TASK, "model": "a", "correct": True, "input_tokens": 100, "output_tokens": 7},
@@ -244,7 +229,6 @@ def test_calibration_counts_one_token_trial_per_row_with_token_counts():
     assert stats.tokens(TASK, "b") == (0, 0, 0)
 
 
-@KEYS_IGNORED
 @pytest.mark.parametrize("tokens", [
     {"input_tokens": 1},
     {"output_tokens": 1},
@@ -269,7 +253,6 @@ PRICED = {"fiction/cheap": (95, 100, 210_001, 80_050), "fiction/mid": (96, 100),
           "fiction/best": (99, 100, 190_000, 30_000)}
 
 
-@NEW_ADD
 @pytest.mark.parametrize("flavor", ["cost_effective", "cost_blind"])
 def test_a_model_with_token_totals_is_priced_at_its_own_rounded_up_means(flavor):
     router = make_router(PRICED)
@@ -295,7 +278,6 @@ def test_without_tokens_the_cheapest_per_token_model_is_the_cost_effective_prima
     assert (decision.primary, decision.fallbacks) == ("fiction/cheap", ("fiction/mid", "fiction/best"))
 
 
-@NEW_ADD
 def test_a_model_that_writes_long_loses_the_cost_effective_primary():
     router = make_router(LONG_WRITER)
     decision = router.select(TASK)
@@ -304,7 +286,6 @@ def test_a_model_that_writes_long_loses_the_cost_effective_primary():
     assert router.select(TASK, flavor="cost_blind").primary == "fiction/best"
 
 
-@NEW_ADD
 def test_rule_5_checks_the_task_sizes_not_the_measured_means():
     # cheap fits 2000 + 500 but not its means 2000 + 1000; mid does not fit 2000 + 500
     # but would fit its means 1000 + 100
@@ -323,7 +304,6 @@ def test_without_tokens_best_available_breaks_a_quality_tie_on_cost():
     assert router.select(TASK).primary == "fiction/cheap"
 
 
-@NEW_ADD
 @pytest.mark.parametrize("flavor,primary", [("cost_effective", "fiction/mid"),
                                             ("cost_blind", "fiction/cheap")])
 def test_best_available_breaks_a_quality_tie_on_the_measured_cost(flavor, primary):
@@ -334,7 +314,6 @@ def test_best_available_breaks_a_quality_tie_on_the_measured_cost(flavor, primar
     assert decision.primary == primary
 
 
-@NEW_ADD
 def test_token_totals_of_another_task_do_not_change_this_tasks_price():
     router = make_router({"fiction/cheap": (95, 100), "fiction/mid": (96, 100),
                           "fiction/best": (99, 100)})
@@ -365,7 +344,6 @@ def test_without_token_totals_every_candidate_is_priced_at_the_task_sizes():
 
 # ---- 13.2 to 13.4 decide_delegation: each path at its model's sizes -----------------------
 
-@NEW_ADD
 @pytest.mark.parametrize("separate,turns", [(True, 0), (True, 2), (False, 0), (False, 3)])
 def test_each_path_is_charged_at_the_sizes_of_the_model_doing_it(separate, turns):
     router = make_router(PRICED)
@@ -393,7 +371,6 @@ def test_each_path_is_charged_at_the_sizes_of_the_model_doing_it(separate, turns
     assert router.tasks[TASK].expected_input_tokens == S_IN
 
 
-@NEW_ADD
 @pytest.mark.parametrize("window,allowed", [(22_500, True), (22_499, False)])
 def test_the_inline_context_check_uses_the_task_sizes_not_the_parents_means(window, allowed):
     # the parent's means (2000, 1000) do not fit 22,500 and (1000, 100) fit 22,499
@@ -421,7 +398,6 @@ def test_without_tokens_a_short_writing_parent_stays_inline_when_folded():
     assert (d.mode, d.model, d.reason) == ("inline", "fiction/mid", "inline_cheaper")
 
 
-@NEW_ADD
 def test_a_parent_that_writes_long_delegates_to_its_own_model_when_folded():
     # mid writes 2,000 tokens a call: 3 later turns re-reading 2,500 tokens cost more
     # than writing and re-reading a 300-token brief and a 200-token result

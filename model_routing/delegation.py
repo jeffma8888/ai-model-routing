@@ -11,8 +11,8 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from typing import Iterable, Optional
 
-from .router import FLAVORS, NoModelClearsBar, RouteDecision, Router
-from .stats import wilson_lower_bound
+from .router import FLAVORS, NoModelClearsBar, RouteDecision, Router, _sizes
+from .stats import Stats, wilson_lower_bound
 
 INLINE = "inline"
 DELEGATE = "delegate"
@@ -72,6 +72,25 @@ def _count(name: str, value) -> int:
     return value
 
 
+def _briefed_stats(stats: Stats, task_name: str, brief_tokens: int) -> Stats:
+    """A copy of the task's stats with the brief added to every recorded call's input.
+
+    Rounding up ``(I + B * n) / n`` gives the rounded-up ``I / n`` plus B exactly, so
+    the delegate's ``select`` prices a measured model at its mean input plus B (13.3).
+    """
+    copy = Stats()
+    for (name, model_id), (successes, trials) in stats.items():
+        if name != task_name:
+            continue
+        i, o, n = stats.tokens(name, model_id)
+        tokens = {}
+        if n:
+            tokens = {"input_tokens": i + brief_tokens * n, "output_tokens": o,
+                      "token_trials": n}
+        copy.add(name, model_id, successes, trials, **tokens)
+    return copy
+
+
 def decide_delegation(router: Router, task_name: str, parent_model: str,
                       flavor: str = "cost_effective", *, context_tokens: int,
                       brief_tokens: int, result_tokens: int, carry_turns: int = 0,
@@ -96,12 +115,14 @@ def decide_delegation(router: Router, task_name: str, parent_model: str,
         generator_family = router.registry.get(generator_model).family
     excluded = tuple(exclude_models)
     s_in, s_out = task.expected_input_tokens, task.expected_output_tokens
+    p_in, p_out = _sizes(router.stats, task, parent.id)
 
-    # 13.2: both paths are charged for the same parent calls, each for what it adds
+    # 13.2: both paths are charged for the same parent calls, each for what it adds,
+    # with the work at the sizes of the model doing it (v1.33)
     if inline_separate_call:
-        inline_cost = parent.cost(c + s_in, s_out) + (1 + t) * parent.cost(s_in + s_out, 0)
+        inline_cost = parent.cost(c + p_in, p_out) + (1 + t) * parent.cost(p_in + p_out, 0)
     else:
-        inline_cost = parent.cost(s_in, s_out) + t * parent.cost(s_in + s_out, 0)
+        inline_cost = parent.cost(p_in, p_out) + t * parent.cost(p_in + p_out, 0)
 
     # 13.4: the first rule that applies blocks inline
     block = None
@@ -115,7 +136,8 @@ def decide_delegation(router: Router, task_name: str, parent_model: str,
 
     # 13.3: the delegate reads the brief as well as the work's input
     briefed = replace(task, expected_input_tokens=s_in + b)
-    sub = Router(router.registry, {task.name: briefed}, router.stats, router.priors)
+    sub = Router(router.registry, {task.name: briefed},
+                 _briefed_stats(router.stats, task.name, b), router.priors)
     route: Optional[RouteDecision] = None
     failed: Optional[NoModelClearsBar] = None
     try:
@@ -127,7 +149,8 @@ def decide_delegation(router: Router, task_name: str, parent_model: str,
     delegate_cost = delegate_lb = None
     if route is not None:
         delegate = router.registry.get(route.primary)
-        delegate_cost = (parent.cost(0, b) + delegate.cost(b + s_in, s_out)
+        d_in, d_out = _sizes(router.stats, task, delegate.id)
+        delegate_cost = (parent.cost(0, b) + delegate.cost(b + d_in, d_out)
                          + (1 + t) * parent.cost(b + r, 0))
         delegate_lb = next(x.quality_lb for x in route.candidates
                            if x.model_id == route.primary)

@@ -24,6 +24,18 @@ FLAVORS = ("cost_effective", "cost_blind")
 _ELIGIBLE_REASONS = (INSUFFICIENT_SAMPLES, BELOW_BAR, PASSES)
 
 
+def _sizes(stats: Stats, task: Task, model_id: str) -> Tuple[int, int]:
+    """The input and output tokens a model is priced at on the task (DESIGN 5.2).
+
+    Its rounded-up mean tokens per call when the stats hold token counts for it,
+    else the task's expected tokens.
+    """
+    mean = stats.mean_tokens(task.name, model_id)
+    if mean is None:
+        return task.expected_input_tokens, task.expected_output_tokens
+    return mean
+
+
 @dataclass(frozen=True)
 class Candidate:
     """One registry model as evaluated for a task, with the rule that decided it."""
@@ -179,7 +191,7 @@ class Router:
             reason = BELOW_BAR
         else:
             reason = PASSES
-        list_cost = model.cost(task.expected_input_tokens, task.expected_output_tokens)
+        list_cost = model.cost(*_sizes(self.stats, task, model.id))
         return Candidate(
             model_id=model.id,
             family=model.family,
