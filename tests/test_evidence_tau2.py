@@ -20,7 +20,7 @@ from pathlib import Path
 
 import pytest
 
-from model_routing import evaluate, outcomes_from_rows
+from model_routing import evaluate, outcomes_from_rows, split_items
 
 pytestmark = pytest.mark.xfail(strict=True, raises=ModuleNotFoundError,
                                reason="evidence/tau2-bench/convert.py lands after its contract (DESIGN 12.14)")
@@ -232,6 +232,31 @@ def test_fetch_removes_the_part_file_when_the_download_fails_its_check(cv, monke
     assert list(tmp_path.iterdir()) == []
 
 
+class BrokenDownload:
+    def __init__(self):
+        self.reads = 0
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def read(self, *args):
+        self.reads += 1
+        if self.reads == 1:
+            return b'{"a"'
+        raise OSError("connection reset")
+
+
+def test_fetch_removes_the_part_file_when_the_download_breaks(cv, monkeypatch, tmp_path):
+    pin_files(cv, monkeypatch, {"a.json": b'{"a": 1}'})
+    monkeypatch.setattr(urllib.request, "urlopen", lambda *a, **k: BrokenDownload())
+    with pytest.raises(OSError):
+        cv.fetch(tmp_path)
+    assert list(tmp_path.iterdir()) == []
+
+
 # model ids
 
 @pytest.mark.parametrize("name, expected", [
@@ -429,6 +454,18 @@ def test_extract_refuses_a_run_that_is_not_an_object(cv, data):
                                     {"tokens": "yes"}, {"tokens": 1}, {"tokens": None}])
 def test_extract_refuses_bad_arguments(cv, kwargs):
     error(cv, cv.extract, run(), **kwargs)
+
+
+def test_extract_checks_simulations_in_file_order(cv):
+    bad_reward = sim("0", 0, reward=0.5)
+    unknown = sim("9", 0)
+    first = run(tasks=("0",), sims=[bad_reward, unknown])
+    assert "reward" in error(cv, cv.extract, first)
+    second = run(tasks=("0",), sims=[copy.deepcopy(unknown), copy.deepcopy(bad_reward)])
+    message = error(cv, cv.extract, second)
+    assert "'9'" in message and "reward" not in message
+    third = run(tasks=("0",), sims=[sim("0", 0, cost=-1.0)])
+    assert "agent_cost" in error(cv, cv.extract, third)
 
 
 def test_extract_checks_arguments_before_the_run(cv):
@@ -634,6 +671,42 @@ def test_main_hash_mismatch(cv, monkeypatch, tmp_path, capsys):
     assert not out.exists()
 
 
+def test_main_broken_download_writes_nothing(cv, monkeypatch, tmp_path, capsys):
+    cache = tmp_path / "cache"
+    install(cv, monkeypatch, cache, runs())
+    name = sorted(cv.FILES)[-1]
+    (cache / name).unlink()
+    monkeypatch.setattr(urllib.request, "urlopen", lambda *a, **k: BrokenDownload())
+    out = tmp_path / "m.jsonl"
+    assert cv.main(["--out", str(out), "--cache", str(cache)]) == 2
+    captured = capsys.readouterr()
+    assert captured.out == "" and captured.err.count("\n") == 1 and captured.err.startswith("error: ")
+    assert not out.exists() and not (cache / (name + ".part")).exists()
+
+
+def test_main_output_folder_missing(cv, monkeypatch, tmp_path, capsys):
+    cache = tmp_path / "cache"
+    install(cv, monkeypatch, cache, runs())
+    out = tmp_path / "missing" / "m.jsonl"
+    assert cv.main(["--out", str(out), "--cache", str(cache)]) == 2
+    captured = capsys.readouterr()
+    assert captured.out == "" and captured.err.count("\n") == 1 and captured.err.startswith("error: ")
+    assert not (tmp_path / "missing").exists()
+
+
+def test_main_output_that_is_a_folder_is_left_as_it_was(cv, monkeypatch, tmp_path, capsys):
+    cache = tmp_path / "cache"
+    install(cv, monkeypatch, cache, runs())
+    out = tmp_path / "out"
+    out.mkdir()
+    (out / "keep.txt").write_text("keep\n", encoding="utf-8")
+    assert cv.main(["--out", str(out), "--cache", str(cache)]) == 2
+    captured = capsys.readouterr()
+    assert captured.out == "" and captured.err.count("\n") == 1 and captured.err.startswith("error: ")
+    assert sorted(p.name for p in out.iterdir()) == ["keep.txt"]
+    assert not (tmp_path / "out.part").exists()
+
+
 def test_main_keeps_the_error_on_one_line(cv, monkeypatch, tmp_path, capsys):
     data = [run(domain="air\nline", agent=agent) for agent in AGENTS]
     data[0]["simulations"][0]["reward_info"]["reward"] = 0.5
@@ -669,6 +742,15 @@ def test_pinned_files_when_cached(cv, tmp_path, capsys):
     assert (min(r["cost_usd"] for r in rows), max(r["cost_usd"] for r in rows)) == (0.0013599999999999999, 6.446604)
     assert (min(r["input_tokens"] for r in rows), max(r["input_tokens"] for r in rows)) == (6629, 2096093)
     assert (min(r["output_tokens"] for r in rows), max(r["output_tokens"] for r in rows)) == (123, 26531)
+    halves = {}
+    for task in ("airline", "retail", "telecom"):
+        items = {row["item"] for row in rows if row["task"] == task}
+        sizes = [len(split_items(items, seed)[0]) for seed in range(50)]
+        halves[task] = (min(sizes), max(sizes), sum(1 for size in sizes if size < 30))
+    assert halves == {"airline": (16, 35, 40), "retail": (45, 65, 0), "telecom": (44, 68, 0)}
+    assert sum(1 for seed in range(10) if len(split_items({row["item"] for row in rows if row["task"] == "airline"}, seed)[0]) < 30) == 7
+    pooled = [len(split_items({row["item"] for row in rows}, seed)[0]) for seed in range(50)]
+    assert (min(pooled), max(pooled)) == (114, 158)
     seeds, stops, totals = set(), {}, {}
     for name, _, _ in PINNED:
         data = cv.read_run(folder / (name + TAIL))
