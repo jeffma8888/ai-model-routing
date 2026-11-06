@@ -99,8 +99,10 @@ def delegation_bullet(results):
     parents = config["parents"]
     bar, flavor = 0.8, "cost_effective"
     assert bar in config["bars"] and flavor in config["flavors"]
-    points = range(len(config["points"]))
-    sizes = [f"{p['context_tokens']:,}" for p in config["points"]]
+    # v1.40 (DESIGN 12.8): the claim is made on the points with inline work in a call of its own
+    points = [i for i, p in enumerate(config["points"]) if p["inline_separate_call"]]
+    assert points, "no point with inline work in a call of its own"
+    sizes = [f"{config['points'][i]['context_tokens']:,}" for i in points]
 
     def mean(point, strategy, key):
         return (math.fsum(rows[(bar, flavor, point, p, strategy)][key] for p in parents)
@@ -117,14 +119,14 @@ def delegation_bullet(results):
             assert dec["delegate_rate"] == 1.0, f"not every seed delegates at point {i}"
             assert (dec["success"], dec["cost_usd"]) == (dlg["success"], dlg["cost_usd"]), \
                 f"not always delegating at point {i}"
-    more = [sizes[i] for i in points
+    more = [size for i, size in zip(points, sizes)
             if mean(i, "decision", "cost_usd") > mean(i, "inline", "cost_usd")]
-    less = [sizes[i] for i in points
+    less = [size for i, size in zip(points, sizes)
             if mean(i, "decision", "cost_usd") < mean(i, "inline", "cost_usd")]
     assert more and less and more + less == sizes, f"more at {more}, less at {less}"
     return (link("Delegation on AutoBench") + f"at bar {bar}, with the brief assumed to carry the "
-            f"whole question, the `{flavor}` decision delegates on every seed for each of the "
-            f"{len(parents)} parents, so it scores and costs the same as always delegating; its "
+            f"whole question and inline work in a parent call of its own, the `{flavor}` decision "
+            f"delegates on every seed for each of the {len(parents)} parents, so it scores and costs the same as always delegating; its "
             f"mean held-out success over the parents is {same('decision')} against "
             f"{same('inline')} for always inline, and it costs more than always inline at "
             f"{words(more)} context tokens but less at {words(less)}")
@@ -147,6 +149,7 @@ def evidence_section():
 
 # --- the README ------------------------------------------------------------------------------
 
+@pytest.mark.xfail(strict=True, raises=AssertionError)  # v1.40 red: removed by the implementing commit
 def test_readme_opens_the_evidence_section_with_the_glance_list():
     intro = evidence_section().split("\n### ", 1)[0]
     paragraphs = intro.strip("\n").split("\n\n")

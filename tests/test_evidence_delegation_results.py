@@ -7,7 +7,9 @@ known answers, the next ones the committed file against RESULTS.md and the READM
 last one reads the pinned AutoBench files only when they are already in the default cache
 and skips otherwise (CI never downloads them). v1.37 adds the break-even table
 (``breakeven_table`` and ``--breakeven``), which puts a number on how much held-out success
-a lossy hand-off may lose before delegating does no better than working inline.
+a lossy hand-off may lose before delegating does no better than working inline. v1.40 adds a
+fourth grid point with the work folded into the parent's next call, on which the
+``cost_effective`` decision keeps some work inline, and a ``separate`` column to ``table``.
 """
 
 import importlib.util
@@ -47,7 +49,9 @@ MODELS = [
     "openai/gpt-oss-120b", "qwen/qwen3.5-9b", "qwen/qwen3.8-max", "tencent/hy3",
     "xai/grok-4.3", "xai/grok-4.6", "zai/glm-5.2", "zai/glm-5.3"]
 POINTS = [{"context_tokens": c, "brief_tokens": 500, "result_tokens": 500, "carry_turns": 1,
-           "inline_separate_call": True} for c in (8000, 64000, 200000)]
+           "inline_separate_call": True} for c in (8000, 64000, 200000)] + [
+    {"context_tokens": 8000, "brief_tokens": 500, "result_tokens": 500, "carry_turns": 1,
+     "inline_separate_call": False}]
 CONFIG = {"bars": [0.7, 0.8], "seeds": list(range(50)),
           "flavors": ["cost_effective", "cost_blind"], "points": POINTS, "parents": MODELS,
           "calibration_fraction": 0.5, "min_samples": 30, "confidence": 0.95}
@@ -70,10 +74,11 @@ def dr():
 
 # --- the script on small inputs ---------------------------------------------------------------
 
+@pytest.mark.xfail(strict=True, raises=AssertionError)  # v1.40 red: removed by the implementing commit
 def test_constants_name_the_stated_run(dr):
     assert dr.BARS == (0.7, 0.8) and dr.SEEDS == 50
     assert dr.points() == POINTS
-    assert [list(p) for p in dr.points()] == [list(POINTS[0])] * 3
+    assert [list(p) for p in dr.points()] == [list(POINTS[0])] * 4
     assert dr.points() is not dr.points()
 
 
@@ -90,6 +95,7 @@ def tiny():
     return rows, registry
 
 
+@pytest.mark.xfail(strict=True, raises=AssertionError)  # v1.40 red: removed by the implementing commit
 def test_run_is_evaluate_delegation_without_cells(dr):
     rows, registry = tiny()
     got = dr.run(rows, registry)
@@ -99,6 +105,23 @@ def test_run_is_evaluate_delegation_without_cells(dr):
     assert got["config"]["parents"] == ["v/cheap", "v/strong"]
     blocked = [c for c in full["cells"] if c["parent"] == "v/cheap" and c["point"] == 2]
     assert blocked and all(c["reason"] == "parent_context_full" for c in blocked)
+
+
+def test_a_folded_point_does_not_depend_on_c_while_every_window_has_room():
+    # v1.40 (DESIGN 13.10): at K = 1 no folded cost reads C, and C enters the decision only
+    # through the 13.4 rule 3 check, so one folded point stands for every C with room
+    rows, registry = tiny()
+
+    def without_point(result, index):
+        return [{k: v for k, v in r.items() if k != "point"} for r in result["summary"]
+                if r["point"] == index]
+
+    folded = evaluate_delegation(rows, registry, bars=[0.7, 0.8], seeds=range(20),
+                                 points=[dict(POINTS[3], context_tokens=c) for c in (8000, 64000)])
+    assert without_point(folded, 0) == without_point(folded, 1)
+    separate = evaluate_delegation(rows, registry, bars=[0.7, 0.8], seeds=range(20),
+                                   points=[dict(POINTS[0], context_tokens=c) for c in (8000, 64000)])
+    assert without_point(separate, 0) != without_point(separate, 1)
 
 
 def handmade():
@@ -117,12 +140,12 @@ def handmade():
 
 
 MEANS = "\n".join([
-    "bar  flavor          context  dec_success  dec_cost  inl_success  inl_cost  del_success"
-    "  del_cost  delegated",
-    "---  --------------  -------  -----------  --------  -----------  --------  -----------"
-    "  --------  ---------",
-    "0.5  cost_effective  10       0.600        2.0000    0.500        1.0000    0.700"
-    "        1.7500    0.500"])
+    "bar  flavor          context  separate  dec_success  dec_cost  inl_success  inl_cost"
+    "  del_success  del_cost  delegated",
+    "---  --------------  -------  --------  -----------  --------  -----------  --------"
+    "  -----------  --------  ---------",
+    "0.5  cost_effective  10       True      0.600        2.0000    0.500        1.0000"
+    "    0.700        1.7500    0.500"])
 PARENTS = "\n".join([
     "flavor          parent  delegated  dec_success  dec_cost  inl_success  inl_cost"
     "  del_success  del_cost",
@@ -134,8 +157,17 @@ PARENTS = "\n".join([
     "    0.900        2.5000"])
 
 
+@pytest.mark.xfail(strict=True, raises=AssertionError)  # v1.40 red: removed by the implementing commit
 def test_table_is_the_mean_over_parents(dr):
     assert dr.table(handmade()) == MEANS
+
+
+@pytest.mark.xfail(strict=True, raises=AssertionError)  # v1.40 red: removed by the implementing commit
+def test_table_names_whether_inline_work_takes_its_own_call(dr):
+    # v1.40: points 0 and 3 of the committed grid share C, so the `separate` column tells them apart
+    results = handmade()
+    results["config"]["points"][0]["inline_separate_call"] = False
+    assert dr.table(results) == MEANS.replace("True ", "False")
 
 
 def test_parent_table_is_one_row_per_flavor_and_parent(dr):
@@ -331,6 +363,7 @@ def committed():
     return json.loads(RESULTS.read_text(encoding="utf-8"))
 
 
+@pytest.mark.xfail(strict=True, raises=AssertionError)  # v1.40 red: removed by the implementing commit
 def test_committed_file_is_the_stated_run(dr):
     text = RESULTS.read_text(encoding="utf-8")
     assert len(text.encode("utf-8")) < 300_000
@@ -342,7 +375,7 @@ def test_committed_file_is_the_stated_run(dr):
     keys = [(r["bar"], r["flavor"], r["point"], r["parent"], r["strategy"])
             for r in results["summary"]]
     assert keys == [(b, f, p, m, s) for b in CONFIG["bars"] for f in CONFIG["flavors"]
-                    for p in range(3) for m in MODELS for s in STRATEGIES]
+                    for p in range(len(POINTS)) for m in MODELS for s in STRATEGIES]
 
 
 def block(command, text):
@@ -368,45 +401,51 @@ def reading_it(results):
     rows = {(r["bar"], r["flavor"], r["point"], r["parent"], r["strategy"]): r
             for r in results["summary"]}
     parents = results["config"]["parents"]
-    sizes = [f"{p['context_tokens']:,}" for p in results["config"]["points"]]
+    points = results["config"]["points"]
+    # v1.40: the every-seed and across-sizes sentences hold on the separate-call points only
+    separate = [i for i, p in enumerate(points) if p["inline_separate_call"]]
+    assert separate == [0, 1, 2], separate
+    sizes = [f"{points[i]['context_tokens']:,}" for i in separate]
     n = len(parents)
+    where = "at the three points where inline work takes a parent call of its own"
 
     def mean(bar, flavor, point, strategy, key):
         return math.fsum(rows[(bar, flavor, point, p, strategy)][key] for p in parents) / n
 
     def same(bar, flavor, strategy, key, fmt):
-        values = {format(mean(bar, flavor, i, strategy, key), fmt) for i in range(len(sizes))}
+        values = {format(mean(bar, flavor, i, strategy, key), fmt) for i in separate}
         assert len(values) == 1, (bar, flavor, strategy, key, values)
         return values.pop()
 
-    for i in range(len(sizes)):
+    for i in range(len(points)):
         for p in parents:
             assert len({(r["success"], r["cost_usd"]) for (b, f, j, q, s), r in rows.items()
                         if (j, q, s) == (i, p, "inline")}) == 1, (i, p)
     out = []
     assert {rows[(0.7, "cost_effective", i, p, "decision")]["delegate_rate"]
-            for i in range(len(sizes)) for p in parents} == {1.0}
-    out.append(f"At bar 0.7, `cost_effective` delegates on every seed for every parent and holds "
-               f"a mean held-out success of {same(0.7, 'cost_effective', 'decision', 'success', '.3f')}"
-               f" at {same(0.7, 'cost_effective', 'decision', 'cost_usd', '.4f')} USD at every point")
-    for i in range(len(sizes)):
+            for i in separate for p in parents} == {1.0}
+    out.append(f"At bar 0.7, {where}, `cost_effective` delegates on every seed for every parent "
+               f"and holds a mean held-out success of "
+               f"{same(0.7, 'cost_effective', 'decision', 'success', '.3f')} at "
+               f"{same(0.7, 'cost_effective', 'decision', 'cost_usd', '.4f')} USD at each of them")
+    for i in separate:
         for p in parents:
             dec, dlg = (rows[(0.8, "cost_effective", i, p, s)] for s in ("decision", "delegate"))
             assert dec["delegate_rate"] == 1.0, (i, p)
             assert (dec["success"], dec["cost_usd"]) == (dlg["success"], dlg["cost_usd"]), (i, p)
-    out.append(f"At bar 0.8, `cost_effective` delegates on every seed for every parent, so it "
-               f"scores and costs the same as always delegating: a mean held-out success over "
-               f"the {n} parents of {same(0.8, 'cost_effective', 'decision', 'success', '.3f')} "
-               f"at every point, against "
-               f"{same(0.8, 'cost_effective', 'inline', 'success', '.3f')} for always inline")
-    first = [mean(0.8, "cost_effective", 0, s, "cost_usd") for s in ("decision", "inline")]
-    last = [mean(0.8, "cost_effective", len(sizes) - 1, s, "cost_usd")
+    out.append(f"At bar 0.8, {where}, `cost_effective` delegates on every seed for every parent, "
+               f"so it scores and costs the same as always delegating: a mean held-out success "
+               f"over the {n} parents of {same(0.8, 'cost_effective', 'decision', 'success', '.3f')}"
+               f" at each of them, against {same(0.8, 'cost_effective', 'inline', 'success', '.3f')}"
+               f" for always inline")
+    first = [mean(0.8, "cost_effective", separate[0], s, "cost_usd") for s in ("decision", "inline")]
+    last = [mean(0.8, "cost_effective", separate[-1], s, "cost_usd")
             for s in ("decision", "inline")]
     assert first[0] > first[1] and last[0] < last[1]
-    out.append(f"At bar 0.8 the `cost_effective` decision costs more than always inline at "
-               f"{sizes[0]} context tokens ({first[0]:.4f} against {first[1]:.4f} USD) and far "
-               f"less at {sizes[-1]} ({last[0]:.4f} against {last[1]:.4f}), where the parent's "
-               f"own call for the work re-reads the whole context")
+    out.append(f"At bar 0.8, with inline work in a parent call of its own, the `cost_effective` "
+               f"decision costs more than always inline at {sizes[0]} context tokens "
+               f"({first[0]:.4f} against {first[1]:.4f} USD) and far less at {sizes[-1]} "
+               f"({last[0]:.4f} against {last[1]:.4f}), where that call re-reads the whole context")
     sol = {s: rows[(0.8, "cost_effective", 1, "openai/gpt-5.6-sol", s)] for s in STRATEGIES}
     assert sol["decision"]["success"] < sol["inline"]["success"]
     assert sol["decision"]["cost_usd"] < sol["inline"]["cost_usd"]
@@ -425,8 +464,49 @@ def reading_it(results):
                f"of seeds and scores {luna['decision']['success']:.3f} against "
                f"{luna['inline']['success']:.3f} inline, at {luna['decision']['cost_usd']:.4f} "
                f"against {luna['inline']['cost_usd']:.4f} USD")
+    out.append(folded_reading(results))
     return out
 
+
+def folded_reading(results):
+    """v1.40: the RESULTS.md and README bullet on the folded point (DESIGN 13.10)."""
+    rows = {(r["bar"], r["flavor"], r["point"], r["parent"], r["strategy"]): r
+            for r in results["summary"]}
+    parents = results["config"]["parents"]
+    points = results["config"]["points"]
+    folded = [i for i, p in enumerate(points) if not p["inline_separate_call"]]
+    assert len(folded) == 1, folded
+    f = folded[0]
+    n = len(parents)
+
+    def mean(bar, strategy, key):
+        return math.fsum(rows[(bar, "cost_effective", f, p, strategy)][key] for p in parents) / n
+
+    def share(bar):
+        rates = {p: rows[(bar, "cost_effective", f, p, "decision")]["delegate_rate"]
+                 for p in parents}
+        mixed = sum(0 < r < 1 for r in rates.values())
+        never = [f"`{p}`" for p in parents if rates[p] == 0]
+        assert mixed > 0, bar
+        text = f"{mean(bar, 'decision', 'delegate_rate'):.3f} at bar {bar}, where {mixed} mix "
+        text += "inline and delegated seeds"
+        if never:
+            text += f" and {', '.join(never)} never {'delegates' if len(never) == 1 else 'delegate'}"
+        return text
+
+    cost = {bar: [mean(bar, s, "cost_usd") for s in ("decision", "delegate")] for bar in (0.7, 0.8)}
+    success = {bar: [mean(bar, s, "success") for s in ("decision", "delegate")]
+               for bar in (0.7, 0.8)}
+    assert all(c[0] < c[1] for c in cost.values()), cost
+    return (f"With the work folded into the parent's next call (`inline_separate_call` False) at "
+            f"{points[f]['context_tokens']:,} context tokens, `cost_effective` keeps some work "
+            f"inline: its mean delegated share over the {n} parents is {share(0.7)}, and "
+            f"{share(0.8)}. It costs less than always delegating at both bars: "
+            f"{cost[0.7][0]:.4f} against {cost[0.7][1]:.4f} USD at bar 0.7 (held-out success "
+            f"{success[0.7][0]:.3f} against {success[0.7][1]:.3f}) and {cost[0.8][0]:.4f} against "
+            f"{cost[0.8][1]:.4f} at bar 0.8 ({success[0.8][0]:.3f} against "
+            f"{success[0.8][1]:.3f}), while always inline costs {mean(0.8, 'inline', 'cost_usd'):.4f}"
+            f" USD at {mean(0.8, 'inline', 'success'):.3f}")
 
 def test_results_md_method_states_the_per_model_sizes(dr):
     # v1.35 (DESIGN 13.9): each model is priced at its own mean calibration sizes, and the
@@ -440,6 +520,7 @@ def test_results_md_method_states_the_per_model_sizes(dr):
     assert "and the median input and output tokens of the half's answers)" not in method
 
 
+@pytest.mark.xfail(strict=True, raises=AssertionError)  # v1.40 red: removed by the implementing commit
 def test_results_md_reading_it_is_the_committed_results(dr):
     md = RESULTS_MD.read_text(encoding="utf-8")
     for sentence in reading_it(committed()):
@@ -458,16 +539,20 @@ def readme_subsection():
     return section.split("\n### Delegation on AutoBench\n", 1)[1]
 
 
+@pytest.mark.xfail(strict=True, raises=AssertionError)  # v1.40 red: removed by the implementing commit
 def test_readme_subsection_shows_the_table_and_links(dr):
     sub = readme_subsection()
     assert block(TABLE_COMMAND, dr.table(committed())) in sub
     for sentence in reading_it(committed())[1:3]:
         assert sentence in sub, sentence
+    assert f"- {folded_reading(committed())}\n" in sub
     assert REGENERATE in sub
     for phrase in ("[RESULTS.md](evidence/delegation/RESULTS.md)",
                    "[results.json](evidence/delegation/results.json)",
                    "8,000, 64,000 and 200,000", "brief of 500 tokens", "500-token result",
-                   "(`inline_separate_call` True)", "(licence CC-BY-4.0)",
+                   "(`inline_separate_call` True)", "(`inline_separate_call` False)",
+                   "`separate` whether inline work takes a parent call of its own (`True`) or "
+                   "folds into the next call (`False`)", "(licence CC-BY-4.0)",
                    "The decision prices each model at its own mean input and output tokens "
                    "per answer on the calibration half; the median sizes of all the half's "
                    "answers are used only for the context-window checks.",
