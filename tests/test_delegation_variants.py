@@ -6,11 +6,11 @@ and each file stays under about 300 KB. ``variant_points()`` holds the variant p
 takes ``grid="base"`` or ``grid="variants"``, the CLI takes ``--grid`` with ``--matrix`` only,
 and ``table`` gains a ``calls`` column when a config point carries ``work_calls``.
 
-Every test that needs the v1.45 script is held as strict xfail naming what the v1.44 script
-raises: ``AttributeError`` for ``variant_points``, ``TypeError`` for ``run(..., grid=...)``, and
-``AssertionError`` for the ``calls`` column and the ``--grid`` outcomes, since v1.44 prints no
-such column and rejects ``--grid`` as an unrecognized argument. The plain tests pass before and
-after. The tests of the committed ``variants.json`` come with that file.
+These tests were committed in v1.45 ahead of the script, each under a strict xfail naming what
+the v1.44 script raised (``AttributeError`` for ``variant_points``, ``TypeError`` for
+``run(..., grid=...)``, ``AssertionError`` for the ``calls`` column and the ``--grid``
+outcomes); v1.46 implements the script and removes the markers. The tests of the committed
+``variants.json`` come with that file, in v1.47.
 """
 
 import importlib.util
@@ -29,19 +29,6 @@ POINT_KEYS = ["context_tokens", "brief_tokens", "result_tokens", "carry_turns",
               "inline_separate_call", "work_calls"]
 VARIANTS = [{"context_tokens": 64000, "brief_tokens": 500, "result_tokens": 500,
              "carry_turns": 1, "inline_separate_call": False, "work_calls": 2}]
-
-no_variant_points = pytest.mark.xfail(
-    strict=True, raises=AttributeError,
-    reason="v1.44 results.py has no variant_points (DESIGN 13.10, v1.45)")
-no_grid = pytest.mark.xfail(
-    strict=True, raises=TypeError, reason="v1.44 run takes no grid (DESIGN 13.10, v1.45)")
-no_calls_column = pytest.mark.xfail(
-    strict=True, raises=AssertionError,
-    reason="v1.44 table prints no calls column (DESIGN 13.10, v1.45)")
-no_grid_option = pytest.mark.xfail(
-    strict=True, raises=AssertionError,
-    reason="v1.44 results.py rejects --grid as an unrecognized argument (DESIGN 13.10, v1.45)")
-
 
 @pytest.fixture
 def dr():
@@ -144,16 +131,14 @@ def test_a_table_without_work_calls_has_no_calls_column(dr):
     assert dr.table(committed).split("\n", 1)[0] == HEADER
 
 
-# --- variant_points and run(grid=...) (red until v1.45) ------------------------------------------
+# --- variant_points and run(grid=...) ------------------------------------------------------------
 
-@no_variant_points
 def test_variant_points_are_the_stated_variant_grid(dr):
     assert dr.variant_points() == VARIANTS
     assert [list(p) for p in dr.variant_points()] == [POINT_KEYS]
     assert dr.variant_points() is not dr.variant_points()
 
 
-@no_grid
 def test_run_on_the_variants_grid_is_evaluate_delegation_on_the_variant_points(dr):
     rows, registry = tiny()
     got = dr.run(rows, registry, grid="variants")
@@ -162,13 +147,11 @@ def test_run_on_the_variants_grid_is_evaluate_delegation_on_the_variant_points(d
     assert got == {key: full[key] for key in KEYS}
 
 
-@no_grid
 def test_run_on_the_base_grid_is_the_default_run(dr):
     rows, registry = tiny()
     assert dr.run(rows, registry, grid="base") == dr.run(rows, registry)
 
 
-@no_grid
 @pytest.mark.parametrize("grid", ["", "Base", "variant", "all", None, 1])
 def test_run_refuses_any_other_grid_before_evaluating(dr, grid):
     # no rows and no registry: evaluate_delegation would raise with another message
@@ -176,16 +159,14 @@ def test_run_refuses_any_other_grid_before_evaluating(dr, grid):
         dr.run([], None, grid=grid)
 
 
-# --- the calls column (red until v1.45) ------------------------------------------------------------
+# --- the calls column ------------------------------------------------------------------------------
 
-@no_calls_column
 def test_table_has_a_calls_column_when_a_point_carries_work_calls(dr):
     got = dr.table(handmade([point(10, True, work_calls=2)]))
     assert got == "\n".join([CALLS_HEADER, CALLS_DASHES,
                              "0.5  cost_effective  10       True      2      " + CALLS_TAIL])
 
 
-@no_calls_column
 def test_table_prints_1_for_a_point_without_work_calls_beside_one_with_it(dr):
     got = dr.table(handmade([point(10, True, work_calls=3), point(20, False)]))
     assert got == "\n".join([CALLS_HEADER, CALLS_DASHES,
@@ -193,9 +174,8 @@ def test_table_prints_1_for_a_point_without_work_calls_beside_one_with_it(dr):
                              "0.5  cost_effective  20       False     1      " + CALLS_TAIL])
 
 
-# --- the CLI (red until v1.45) ---------------------------------------------------------------------
+# --- the CLI ---------------------------------------------------------------------------------------
 
-@no_grid_option
 def test_cli_grid_variants_writes_the_variant_run_and_its_table(dr, tmp_path, capsys):
     matrix, pool = write_inputs(tmp_path)
     out = tmp_path / "variants.json"
@@ -212,7 +192,6 @@ def test_cli_grid_variants_writes_the_variant_run_and_its_table(dr, tmp_path, ca
     assert printed.split("\n", 1)[0] == CALLS_HEADER
 
 
-@no_grid_option
 def test_cli_grid_base_writes_the_same_bytes_as_no_grid(dr, tmp_path):
     matrix, pool = write_inputs(tmp_path)
     assert dr.main(["--matrix", matrix, "--registry", pool, "--grid", "base",
@@ -224,7 +203,6 @@ def test_cli_grid_base_writes_the_same_bytes_as_no_grid(dr, tmp_path):
 ONLY_MATRIX = "error: --grid is only used with --matrix\n"
 
 
-@no_grid_option
 @pytest.mark.parametrize("argv, err", [
     (["--table", "t", "--grid", "variants"], ONLY_MATRIX),
     (["--table", "t", "--bar", "0.8", "--point", "0", "--grid", "base"], ONLY_MATRIX),
@@ -237,7 +215,6 @@ def test_cli_grid_is_only_used_with_matrix(dr, argv, err, capsys):
     assert capsys.readouterr().err == err
 
 
-@no_grid_option
 def test_cli_refuses_an_unknown_grid_in_one_line(dr, capsys):
     assert dr.main(["--matrix", "m", "--registry", "r", "--out", "o", "--grid", "x"]) == 2
     err = capsys.readouterr().err

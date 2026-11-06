@@ -2,6 +2,7 @@
 
 Usage:
   python evidence/delegation/results.py --matrix MATRIX.jsonl --registry POOL.json --out results.json
+  python evidence/delegation/results.py --matrix MATRIX.jsonl --registry POOL.json --grid variants --out variants.json
   python evidence/delegation/results.py --table results.json
   python evidence/delegation/results.py --table results.json --bar 0.8 --point 1
   python evidence/delegation/results.py --breakeven results.json --bar 0.8 --point 1
@@ -10,6 +11,8 @@ Usage:
 --tokens`` matrix and ``--registry`` pool, at the bars, seeds and grid points named below,
 and keeps the config, tasks and summary (no cells). Points 0 to 2 put inline work in a
 parent call of its own at three context sizes; point 3 folds it into the parent's next call.
+With ``--grid variants`` it runs the variant points instead, which change a knob the base grid
+holds fixed (variant point 0: folded work of two calls at 64,000 context tokens).
 ``--table`` prints the mean over parents of each (bar, flavor, point); with ``--bar`` and ``--point`` it prints one row per
 (flavor, parent) for that bar and point. ``--breakeven`` with ``--bar`` and ``--point`` prints,
 per (flavor, parent), how much held-out success a lossy hand-off may lose before delegating
@@ -35,6 +38,9 @@ RESULT_TOKENS = 500
 CARRY_TURNS = 1
 STRATEGIES = ("decision", "inline", "delegate")
 KEYS = ("config", "tasks", "summary")
+VARIANT_CONTEXT_TOKENS = 64000
+VARIANT_WORK_CALLS = 2
+GRIDS = ("base", "variants")
 
 
 def points() -> list:
@@ -49,8 +55,18 @@ def points() -> list:
             for c, separate in grid]
 
 
-def run(rows, registry) -> dict:
-    result = evaluate_delegation(rows, registry, bars=list(BARS), points=points(),
+def variant_points() -> list:
+    """Variant point 0: folded work of two calls at 64,000 context tokens (DESIGN 13.10)."""
+    return [{"context_tokens": VARIANT_CONTEXT_TOKENS, "brief_tokens": BRIEF_TOKENS,
+             "result_tokens": RESULT_TOKENS, "carry_turns": CARRY_TURNS,
+             "inline_separate_call": False, "work_calls": VARIANT_WORK_CALLS}]
+
+
+def run(rows, registry, grid="base") -> dict:
+    if grid not in GRIDS:
+        raise ValueError(f"grid must be 'base' or 'variants', got {grid!r}")
+    grid_points = points() if grid == "base" else variant_points()
+    result = evaluate_delegation(rows, registry, bars=list(BARS), points=grid_points,
                                  seeds=range(SEEDS))
     return {key: result[key] for key in KEYS}
 
@@ -99,6 +115,7 @@ HEADERS = ["dec_success", "dec_cost", "inl_success", "inl_cost", "del_success", 
 def table(results: dict) -> str:
     rows = _index(results)
     config = results["config"]
+    multi = any("work_calls" in point for point in config["points"])
     lines = []
     for bar in config["bars"]:
         for flavor in config["flavors"]:
@@ -109,13 +126,14 @@ def table(results: dict) -> str:
                             for k in ("success", "cost_usd")} for s in STRATEGIES}
                 rate = math.fsum(r["delegate_rate"] for r in found["decision"]) / len(
                     found["decision"])
+                calls = [str(point.get("work_calls", 1))] if multi else []
                 lines.append([str(bar), flavor, str(point["context_tokens"]),
-                              str(point["inline_separate_call"])] + _cells(mean)
+                              str(point["inline_separate_call"])] + calls + _cells(mean)
                              + [f"{rate:.3f}"])
     if not lines:
         raise ValueError("config has no (bar, flavor, point)")
-    return "\n".join(_layout(["bar", "flavor", "context", "separate"] + HEADERS + ["delegated"],
-                             lines))
+    columns = ["bar", "flavor", "context", "separate"] + (["calls"] if multi else [])
+    return "\n".join(_layout(columns + HEADERS + ["delegated"], lines))
 
 
 def _check_bar_point(config: dict, bar, point: int) -> None:
@@ -214,6 +232,8 @@ def main(argv=None) -> int:
                                           "(with --bar and --point)")
     parser.add_argument("--registry", help="converter --registry output (with --matrix only)")
     parser.add_argument("--out", help="results file to write (with --matrix only)")
+    parser.add_argument("--grid", choices=GRIDS,
+                        help="with --matrix: the base grid (default) or the variant points")
     parser.add_argument("--bar", type=float,
                         help="with --point and --table or --breakeven: one row per parent")
     parser.add_argument("--point", type=int,
@@ -225,7 +245,8 @@ def main(argv=None) -> int:
                 raise _UsageError("--matrix needs --registry and --out")
             if args.bar is not None or args.point is not None:
                 raise _UsageError("--bar and --point are only used with --table or --breakeven")
-            result = run(_read_rows(args.matrix), Registry.load(args.registry))
+            result = run(_read_rows(args.matrix), Registry.load(args.registry),
+                         grid=args.grid or "base")
             text = json.dumps(result, indent=2) + "\n"
             out = Path(args.out)
             part = out.with_name(out.name + ".part")
@@ -237,6 +258,8 @@ def main(argv=None) -> int:
             return 0
         if args.registry is not None or args.out is not None:
             raise _UsageError("--registry and --out are only used with --matrix")
+        if args.grid is not None:
+            raise _UsageError("--grid is only used with --matrix")
         if args.breakeven is not None:
             if args.bar is None or args.point is None:
                 raise _UsageError("--breakeven needs --bar and --point")
