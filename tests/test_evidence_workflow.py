@@ -5,6 +5,7 @@ and both workflows run on one pinned runner image with a dated comment (v1.49).
 The workflow is read with a line parser for its own shape (no YAML library, so this runs in
 CI); the run itself is checked on GitHub, not here."""
 
+import datetime
 import re
 from pathlib import Path
 
@@ -309,6 +310,14 @@ def comment_above_jobs(text):
     return " ".join(lines)
 
 
+def is_date(text):
+    try:
+        datetime.date.fromisoformat(text)
+    except ValueError:
+        return False
+    return True
+
+
 def runner_problems(ci_text, text):
     """Every way the two workflows break the v1.49 runner clause of DESIGN 12.13."""
     found, labels = [], []
@@ -319,8 +328,9 @@ def runner_problems(ci_text, text):
             found.append(f"{name} does not run on one versioned ubuntu image")
             continue
         labels.append(pinned[0])
-        dated = rf"pinned to the {re.escape(pinned[0])} image \(\d{{4}}-\d\d-\d\d, "
-        if not re.search(dated, comment_above_jobs(body)):
+        dated = re.search(rf"pinned to the {re.escape(pinned[0])} image \((\d{{4}}-\d\d-\d\d), ",
+                          comment_above_jobs(body))
+        if not dated or not is_date(dated.group(1)):
             found.append(f"{name} has no dated comment above jobs: naming {pinned[0]}")
     if len(set(labels)) > 1:
         found.append("the two workflows run on different images")
@@ -346,6 +356,8 @@ RUNNER_MUTANTS = {
         r"(?m)^# .*\n(?=(?:# .*\n)*jobs:\n)", "", t)),
     "the evidence.yml comment without its date": ("evidence", lambda t: t.replace(
         "image (2026-11-06, ", "image (", 1)),
+    "the ci.yml comment with a date that does not exist": ("ci", lambda t: t.replace(
+        "image (2026-11-06, ", "image (2026-99-99, ", 1)),
 }
 
 
