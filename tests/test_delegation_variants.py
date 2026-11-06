@@ -306,8 +306,8 @@ def variant_reading(base, variants):
             f"0.7 and at bar 0.8, against {rate[0.7]:.3f} and {rate[0.8]:.3f} at point 3. Mean "
             f"costs in USD, variant point 0 against point 3: at bar 0.7 {costs(0.7)}; at bar 0.8 "
             f"{costs(0.8)}. On the inline path the second call re-reads the "
-            f"{point['context_tokens']:,}-token context; on the delegate path each call reads only "
-            f"the brief")
+            f"{point['context_tokens']:,}-token context; on the delegate path each call reads the "
+            f"brief in its place")
 
 
 def variant_part():
