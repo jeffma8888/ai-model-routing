@@ -8,8 +8,9 @@ Usage:
 
 ``--matrix`` runs ``evaluate_delegation`` (DESIGN 13.9) on the converter's ``--task-by all
 --tokens`` matrix and ``--registry`` pool, at the bars, seeds and grid points named below,
-and keeps the config, tasks and summary (no cells). ``--table`` prints the mean over
-parents of each (bar, flavor, point); with ``--bar`` and ``--point`` it prints one row per
+and keeps the config, tasks and summary (no cells). Points 0 to 2 put inline work in a
+parent call of its own at three context sizes; point 3 folds it into the parent's next call.
+``--table`` prints the mean over parents of each (bar, flavor, point); with ``--bar`` and ``--point`` it prints one row per
 (flavor, parent) for that bar and point. ``--breakeven`` with ``--bar`` and ``--point`` prints,
 per (flavor, parent), how much held-out success a lossy hand-off may lose before delegating
 does no better than working inline. Standard library and the model_routing package.
@@ -28,18 +29,24 @@ from model_routing import Registry, evaluate_delegation
 BARS = (0.7, 0.8)
 SEEDS = 50
 CONTEXT_TOKENS = (8000, 64000, 200000)
+FOLDED_CONTEXT_TOKENS = 8000
 BRIEF_TOKENS = 500
 RESULT_TOKENS = 500
 CARRY_TURNS = 1
-INLINE_SEPARATE_CALL = True
 STRATEGIES = ("decision", "inline", "delegate")
 KEYS = ("config", "tasks", "summary")
 
 
 def points() -> list:
+    """Points 0 to 2 with inline work in a call of its own, then point 3 with it folded.
+
+    At K = 1 a folded point's costs do not read C, which enters only the parent's context
+    check, so one folded point stands for every C that leaves every parent room (DESIGN 13.10).
+    """
+    grid = [(c, True) for c in CONTEXT_TOKENS] + [(FOLDED_CONTEXT_TOKENS, False)]
     return [{"context_tokens": c, "brief_tokens": BRIEF_TOKENS, "result_tokens": RESULT_TOKENS,
-             "carry_turns": CARRY_TURNS, "inline_separate_call": INLINE_SEPARATE_CALL}
-            for c in CONTEXT_TOKENS]
+             "carry_turns": CARRY_TURNS, "inline_separate_call": separate}
+            for c, separate in grid]
 
 
 def run(rows, registry) -> dict:
@@ -102,11 +109,13 @@ def table(results: dict) -> str:
                             for k in ("success", "cost_usd")} for s in STRATEGIES}
                 rate = math.fsum(r["delegate_rate"] for r in found["decision"]) / len(
                     found["decision"])
-                lines.append([str(bar), flavor, str(point["context_tokens"])] + _cells(mean)
+                lines.append([str(bar), flavor, str(point["context_tokens"]),
+                              str(point["inline_separate_call"])] + _cells(mean)
                              + [f"{rate:.3f}"])
     if not lines:
         raise ValueError("config has no (bar, flavor, point)")
-    return "\n".join(_layout(["bar", "flavor", "context"] + HEADERS + ["delegated"], lines))
+    return "\n".join(_layout(["bar", "flavor", "context", "separate"] + HEADERS + ["delegated"],
+                             lines))
 
 
 def _check_bar_point(config: dict, bar, point: int) -> None:

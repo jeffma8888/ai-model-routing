@@ -74,7 +74,6 @@ def dr():
 
 # --- the script on small inputs ---------------------------------------------------------------
 
-@pytest.mark.xfail(strict=True, raises=AssertionError)  # v1.40 red: removed by the implementing commit
 def test_constants_name_the_stated_run(dr):
     assert dr.BARS == (0.7, 0.8) and dr.SEEDS == 50
     assert dr.points() == POINTS
@@ -95,7 +94,6 @@ def tiny():
     return rows, registry
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError)  # v1.40 red: removed by the implementing commit
 def test_run_is_evaluate_delegation_without_cells(dr):
     rows, registry = tiny()
     got = dr.run(rows, registry)
@@ -157,12 +155,10 @@ PARENTS = "\n".join([
     "    0.900        2.5000"])
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError)  # v1.40 red: removed by the implementing commit
 def test_table_is_the_mean_over_parents(dr):
     assert dr.table(handmade()) == MEANS
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError)  # v1.40 red: removed by the implementing commit
 def test_table_names_whether_inline_work_takes_its_own_call(dr):
     # v1.40: points 0 and 3 of the committed grid share C, so the `separate` column tells them apart
     results = handmade()
@@ -363,7 +359,6 @@ def committed():
     return json.loads(RESULTS.read_text(encoding="utf-8"))
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError)  # v1.40 red: removed by the implementing commit
 def test_committed_file_is_the_stated_run(dr):
     text = RESULTS.read_text(encoding="utf-8")
     assert len(text.encode("utf-8")) < 300_000
@@ -520,7 +515,6 @@ def test_results_md_method_states_the_per_model_sizes(dr):
     assert "and the median input and output tokens of the half's answers)" not in method
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError)  # v1.40 red: removed by the implementing commit
 def test_results_md_reading_it_is_the_committed_results(dr):
     md = RESULTS_MD.read_text(encoding="utf-8")
     for sentence in reading_it(committed()):
@@ -539,7 +533,6 @@ def readme_subsection():
     return section.split("\n### Delegation on AutoBench\n", 1)[1]
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError)  # v1.40 red: removed by the implementing commit
 def test_readme_subsection_shows_the_table_and_links(dr):
     sub = readme_subsection()
     assert block(TABLE_COMMAND, dr.table(committed())) in sub

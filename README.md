@@ -368,7 +368,7 @@ Results at a glance, each number from the committed results of the subsection it
 - [RouterBench](#routerbench): at bar 0.6, `cost_effective` routing reaches held-out success 0.735 at 0.341 of the cost of the best single model, `openai/gpt-4-1106-preview`; no routed row at any bar reaches that model's held-out success
 - [AutoBench](#autobench): no routed row beats always calling `openai/gpt-5.6-luna` on held-out success and cost together (0.872 at 0.3092 USD)
 - [AutoBench judges](#autobench-judges): choosing a judge, scored by agreement with the other judges and not a human label, at bar 0.6, `cost_effective` routing reaches held-out success 0.816 at 0.518 of the cost of the best single judge, `tencent/hy3`; no routed row at any bar reaches that judge's held-out success
-- [Delegation on AutoBench](#delegation-on-autobench): at bar 0.8, with the brief assumed to carry the whole question, the `cost_effective` decision delegates on every seed for each of the 20 parents, so it scores and costs the same as always delegating; its mean held-out success over the parents is 0.855 against 0.670 for always inline, and it costs more than always inline at 8,000 context tokens but less at 64,000 and 200,000
+- [Delegation on AutoBench](#delegation-on-autobench): at bar 0.8, with the brief assumed to carry the whole question and inline work in a parent call of its own, the `cost_effective` decision delegates on every seed for each of the 20 parents, so it scores and costs the same as always delegating; its mean held-out success over the parents is 0.855 against 0.670 for always inline, and it costs more than always inline at 8,000 context tokens but less at 64,000 and 200,000
 
 ### RouterBench
 
@@ -525,28 +525,33 @@ python evidence/routerbench/results.py --table evidence/autobench-judges/results
 
 ### Delegation on AutoBench
 
-The same [AutoBench matrix](https://huggingface.co/datasets/AutoBench/router-benchmark-2026-10) at revision [4375518](https://huggingface.co/datasets/AutoBench/router-benchmark-2026-10/tree/43755180be7d8097068982d7a3f37fc04cd15379) (licence CC-BY-4.0), with each answer's token counts and the pool's list prices, scores the [inline or sub-agent](#inline-or-sub-agent) decision on held-out questions for every one of the 20 pool models as the parent, next to always working inline and always delegating ([RESULTS.md](evidence/delegation/RESULTS.md), [results.json](evidence/delegation/results.json), `DESIGN.md` 13.9 and 13.10). No public dataset records a real hand-off, so the parent's context and the hand-off sizes are a stated grid: 8,000, 64,000 and 200,000 context tokens, a brief of 500 tokens, a 500-token result, one later parent call, and inline work in a parent call of its own (`inline_separate_call` True). Each cost is a list-price estimate, and the delegate is credited with its recorded answer as if the brief carried the whole question, so a lossy brief is not measured. The decision prices each model at its own mean input and output tokens per answer on the calibration half; the median sizes of all the half's answers are used only for the context-window checks. Means over the 20 parents (`dec_` the decision, `inl_` always inline, `del_` always delegating; cost in USD, the mean over the 50 seeds of a held-out half's list-price cost; `delegated` the share of seeds the decision hands off):
+The same [AutoBench matrix](https://huggingface.co/datasets/AutoBench/router-benchmark-2026-10) at revision [4375518](https://huggingface.co/datasets/AutoBench/router-benchmark-2026-10/tree/43755180be7d8097068982d7a3f37fc04cd15379) (licence CC-BY-4.0), with each answer's token counts and the pool's list prices, scores the [inline or sub-agent](#inline-or-sub-agent) decision on held-out questions for every one of the 20 pool models as the parent, next to always working inline and always delegating ([RESULTS.md](evidence/delegation/RESULTS.md), [results.json](evidence/delegation/results.json), `DESIGN.md` 13.9 and 13.10). No public dataset records a real hand-off, so the parent's context and the hand-off sizes are a stated grid: 8,000, 64,000 and 200,000 context tokens with inline work in a parent call of its own (`inline_separate_call` True), and 8,000 with the work folded into the parent's next call (`inline_separate_call` False), each with a brief of 500 tokens, a 500-token result and one later parent call. Each cost is a list-price estimate, and the delegate is credited with its recorded answer as if the brief carried the whole question, so a lossy brief is not measured. The decision prices each model at its own mean input and output tokens per answer on the calibration half; the median sizes of all the half's answers are used only for the context-window checks. Means over the 20 parents (`dec_` the decision, `inl_` always inline, `del_` always delegating; cost in USD, the mean over the 50 seeds of a held-out half's list-price cost; `delegated` the share of seeds the decision hands off; `separate` whether inline work takes a parent call of its own (`True`) or folds into the next call (`False`)):
 
 ```text
 $ python evidence/delegation/results.py --table evidence/delegation/results.json
-bar  flavor          context  dec_success  dec_cost  inl_success  inl_cost  del_success  del_cost  delegated
----  --------------  -------  -----------  --------  -----------  --------  -----------  --------  ---------
-0.7  cost_effective  8000     0.869        0.6282    0.670        1.6931    0.869        0.6282    1.000
-0.7  cost_effective  64000    0.869        0.6282    0.670        6.1849    0.869        0.6282    1.000
-0.7  cost_effective  200000   0.869        0.6282    0.670        17.0936   0.869        0.6282    1.000
-0.7  cost_blind      8000     0.857        2.5582    0.670        1.6931    0.857        2.4768    0.944
-0.7  cost_blind      64000    0.857        3.0624    0.670        6.1849    0.857        2.4768    0.944
-0.7  cost_blind      200000   0.857        4.2869    0.670        17.0936   0.857        2.4768    0.944
-0.8  cost_effective  8000     0.855        2.1372    0.670        1.6931    0.855        2.1372    1.000
-0.8  cost_effective  64000    0.855        2.1372    0.670        6.1849    0.855        2.1372    1.000
-0.8  cost_effective  200000   0.855        2.1372    0.670        17.0936   0.855        2.1372    1.000
-0.8  cost_blind      8000     0.857        2.5582    0.670        1.6931    0.857        2.4768    0.944
-0.8  cost_blind      64000    0.857        3.0624    0.670        6.1849    0.857        2.4768    0.944
-0.8  cost_blind      200000   0.857        4.2869    0.670        17.0936   0.857        2.4768    0.944
+bar  flavor          context  separate  dec_success  dec_cost  inl_success  inl_cost  del_success  del_cost  delegated
+---  --------------  -------  --------  -----------  --------  -----------  --------  -----------  --------  ---------
+0.7  cost_effective  8000     True      0.869        0.6282    0.670        1.6931    0.869        0.6282    1.000
+0.7  cost_effective  64000    True      0.869        0.6282    0.670        6.1849    0.869        0.6282    1.000
+0.7  cost_effective  200000   True      0.869        0.6282    0.670        17.0936   0.869        0.6282    1.000
+0.7  cost_effective  8000     False     0.867        0.6237    0.670        0.8602    0.869        0.6282    0.936
+0.7  cost_blind      8000     True      0.857        2.5582    0.670        1.6931    0.857        2.4768    0.944
+0.7  cost_blind      64000    True      0.857        3.0624    0.670        6.1849    0.857        2.4768    0.944
+0.7  cost_blind      200000   True      0.857        4.2869    0.670        17.0936   0.857        2.4768    0.944
+0.7  cost_blind      8000     False     0.857        2.4601    0.670        0.8602    0.857        2.4768    0.944
+0.8  cost_effective  8000     True      0.855        2.1372    0.670        1.6931    0.855        2.1372    1.000
+0.8  cost_effective  64000    True      0.855        2.1372    0.670        6.1849    0.855        2.1372    1.000
+0.8  cost_effective  200000   True      0.855        2.1372    0.670        17.0936   0.855        2.1372    1.000
+0.8  cost_effective  8000     False     0.856        2.1215    0.670        0.8602    0.855        2.1372    0.947
+0.8  cost_blind      8000     True      0.857        2.5582    0.670        1.6931    0.857        2.4768    0.944
+0.8  cost_blind      64000    True      0.857        3.0624    0.670        6.1849    0.857        2.4768    0.944
+0.8  cost_blind      200000   True      0.857        4.2869    0.670        17.0936   0.857        2.4768    0.944
+0.8  cost_blind      8000     False     0.857        2.4601    0.670        0.8602    0.857        2.4768    0.944
 ```
 
-- At bar 0.8, `cost_effective` delegates on every seed for every parent, so it scores and costs the same as always delegating: a mean held-out success over the 20 parents of 0.855 at every point, against 0.670 for always inline
-- At bar 0.8 the `cost_effective` decision costs more than always inline at 8,000 context tokens (2.1372 against 1.6931 USD) and far less at 200,000 (2.1372 against 17.0936), where the parent's own call for the work re-reads the whole context
+- At bar 0.8, at the three points where inline work takes a parent call of its own, `cost_effective` delegates on every seed for every parent, so it scores and costs the same as always delegating: a mean held-out success over the 20 parents of 0.855 at each of them, against 0.670 for always inline
+- At bar 0.8, with inline work in a parent call of its own, the `cost_effective` decision costs more than always inline at 8,000 context tokens (2.1372 against 1.6931 USD) and far less at 200,000 (2.1372 against 17.0936), where that call re-reads the whole context
+- With the work folded into the parent's next call (`inline_separate_call` False) at 8,000 context tokens, `cost_effective` keeps some work inline: its mean delegated share over the 20 parents is 0.936 at bar 0.7, where 3 mix inline and delegated seeds and `openai/gpt-5.6-luna` never delegates, and 0.947 at bar 0.8, where 4 mix inline and delegated seeds. It costs less than always delegating at both bars: 0.6237 against 0.6282 USD at bar 0.7 (held-out success 0.867 against 0.869) and 2.1215 against 2.1372 at bar 0.8 (0.856 against 0.855), while always inline costs 0.8602 USD at 0.670
 - A lossy brief is not measured, but the break-even table in [RESULTS.md](evidence/delegation/RESULTS.md) puts a number on it: at bar 0.8 and 64,000 context tokens, it may lower the delegated held-out success by a mean of 0.186 over the 20 parents before the `cost_effective` decision does no better than always inline, and the minimum is -0.027, with `openai/gpt-5.6-sol` as the parent, one of the 3 that already score higher inline than the delegate does with a lossless brief
 
 Regenerate (a few seconds after the download):

@@ -149,7 +149,6 @@ def evidence_section():
 
 # --- the README ------------------------------------------------------------------------------
 
-@pytest.mark.xfail(strict=True, raises=AssertionError)  # v1.40 red: removed by the implementing commit
 def test_readme_opens_the_evidence_section_with_the_glance_list():
     intro = evidence_section().split("\n### ", 1)[0]
     paragraphs = intro.strip("\n").split("\n\n")
