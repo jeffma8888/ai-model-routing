@@ -4104,9 +4104,9 @@
       "parent": "anthropic/claude-sonnet-5",
       "strategy": "decision",
       "success": 0.8554320709167236,
-      "cost_usd": 2.80813648055,
+      "cost_usd": 2.73868760055,
       "below_bar_rate": 0.04,
-      "delegate_rate": 0.96
+      "delegate_rate": 1.0
     },
     {
       "bar": 0.8,
@@ -4335,9 +4335,9 @@
       "parent": "moonshotai/kimi-k2.6",
       "strategy": "decision",
       "success": 0.8554320709167236,
-      "cost_usd": 2.06987101515,
+      "cost_usd": 2.05122872055,
       "below_bar_rate": 0.04,
-      "delegate_rate": 0.98
+      "delegate_rate": 1.0
     },
     {
       "bar": 0.8,
@@ -4434,9 +4434,9 @@
       "parent": "openai/gpt-5.6-luna",
       "strategy": "decision",
       "success": 0.8554320709167236,
-      "cost_usd": 1.9362490645500001,
+      "cost_usd": 1.92716760055,
       "below_bar_rate": 0.04,
-      "delegate_rate": 0.94
+      "delegate_rate": 1.0
     },
     {
       "bar": 0.8,
@@ -4466,10 +4466,10 @@
       "point": 0,
       "parent": "openai/gpt-5.6-sol",
       "strategy": "decision",
-      "success": 0.8573844518691045,
-      "cost_usd": 3.14719216055,
+      "success": 0.8554320709167236,
+      "cost_usd": 2.73868760055,
       "below_bar_rate": 0.04,
-      "delegate_rate": 0.78
+      "delegate_rate": 1.0
     },
     {
       "bar": 0.8,
@@ -4566,9 +4566,9 @@
       "parent": "qwen/qwen3.8-max",
       "strategy": "decision",
       "success": 0.8554320709167236,
-      "cost_usd": 2.6049109605500003,
+      "cost_usd": 2.53580760055,
       "below_bar_rate": 0.04,
-      "delegate_rate": 0.96
+      "delegate_rate": 1.0
     },
     {
       "bar": 0.8,
@@ -4764,9 +4764,9 @@
       "parent": "anthropic/claude-sonnet-5",
       "strategy": "decision",
       "success": 0.8554320709167236,
-      "cost_usd": 3.26733648055,
+      "cost_usd": 2.73868760055,
       "below_bar_rate": 0.04,
-      "delegate_rate": 0.96
+      "delegate_rate": 1.0
     },
     {
       "bar": 0.8,
@@ -4995,9 +4995,9 @@
       "parent": "moonshotai/kimi-k2.6",
       "strategy": "decision",
       "success": 0.8554320709167236,
-      "cost_usd": 2.14628749515,
+      "cost_usd": 2.05122872055,
       "below_bar_rate": 0.04,
-      "delegate_rate": 0.98
+      "delegate_rate": 1.0
     },
     {
       "bar": 0.8,
@@ -5094,9 +5094,9 @@
       "parent": "openai/gpt-5.6-luna",
       "strategy": "decision",
       "success": 0.8554320709167236,
-      "cost_usd": 2.00277706455,
+      "cost_usd": 1.92716760055,
       "below_bar_rate": 0.04,
-      "delegate_rate": 0.94
+      "delegate_rate": 1.0
     },
     {
       "bar": 0.8,
@@ -5126,10 +5126,10 @@
       "point": 1,
       "parent": "openai/gpt-5.6-sol",
       "strategy": "decision",
-      "success": 0.8573844518691045,
-      "cost_usd": 5.63359216055,
+      "success": 0.8554320709167236,
+      "cost_usd": 2.73868760055,
       "below_bar_rate": 0.04,
-      "delegate_rate": 0.78
+      "delegate_rate": 1.0
     },
     {
       "bar": 0.8,
@@ -5226,9 +5226,9 @@
       "parent": "qwen/qwen3.8-max",
       "strategy": "decision",
       "success": 0.8554320709167236,
-      "cost_usd": 3.08203096055,
+      "cost_usd": 2.53580760055,
       "below_bar_rate": 0.04,
-      "delegate_rate": 0.96
+      "delegate_rate": 1.0
     },
     {
       "bar": 0.8,
@@ -5424,9 +5424,9 @@
       "parent": "anthropic/claude-sonnet-5",
       "strategy": "decision",
       "success": 0.8554320709167236,
-      "cost_usd": 4.38253648055,
+      "cost_usd": 2.73868760055,
       "below_bar_rate": 0.04,
-      "delegate_rate": 0.96
+      "delegate_rate": 1.0
     },
     {
       "bar": 0.8,
@@ -5655,9 +5655,9 @@
       "parent": "moonshotai/kimi-k2.6",
       "strategy": "decision",
       "success": 0.8554320709167236,
-      "cost_usd": 2.3318703751500003,
+      "cost_usd": 2.05122872055,
       "below_bar_rate": 0.04,
-      "delegate_rate": 0.98
+      "delegate_rate": 1.0
     },
     {
       "bar": 0.8,
@@ -5754,9 +5754,9 @@
       "parent": "openai/gpt-5.6-luna",
       "strategy": "decision",
       "success": 0.8554320709167236,
-      "cost_usd": 2.16434506455,
+      "cost_usd": 1.92716760055,
       "below_bar_rate": 0.04,
-      "delegate_rate": 0.94
+      "delegate_rate": 1.0
     },
     {
       "bar": 0.8,
@@ -5786,10 +5786,10 @@
       "point": 2,
       "parent": "openai/gpt-5.6-sol",
       "strategy": "decision",
-      "success": 0.8573844518691045,
-      "cost_usd": 11.671992160550001,
+      "success": 0.8554320709167236,
+      "cost_usd": 2.73868760055,
       "below_bar_rate": 0.04,
-      "delegate_rate": 0.78
+      "delegate_rate": 1.0
     },
     {
       "bar": 0.8,
@@ -5886,9 +5886,9 @@
       "parent": "qwen/qwen3.8-max",
       "strategy": "decision",
       "success": 0.8554320709167236,
-      "cost_usd": 4.24075096055,
+      "cost_usd": 2.53580760055,
       "below_bar_rate": 0.04,
-      "delegate_rate": 0.96
+      "delegate_rate": 1.0
     },
     {
       "bar": 0.8,

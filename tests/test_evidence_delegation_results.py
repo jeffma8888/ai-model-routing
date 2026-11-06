@@ -261,15 +261,16 @@ def reading_it(results):
     out.append(f"At bar 0.7, `cost_effective` delegates on every seed for every parent and holds "
                f"a mean held-out success of {same(0.7, 'cost_effective', 'decision', 'success', '.3f')}"
                f" at {same(0.7, 'cost_effective', 'decision', 'cost_usd', '.4f')} USD at every point")
-    always = {sum(1 for p in parents
-                  if rows[(0.8, "cost_effective", i, p, "decision")]["delegate_rate"] == 1.0)
-              for i in range(len(sizes))}
-    assert len(always) == 1
-    out.append(f"At bar 0.8, the `cost_effective` decision's mean held-out success over the {n} "
-               f"parents is {same(0.8, 'cost_effective', 'decision', 'success', '.3f')} at every "
-               f"point, against {same(0.8, 'cost_effective', 'inline', 'success', '.3f')} for "
-               f"always inline and {same(0.8, 'cost_effective', 'delegate', 'success', '.3f')} for "
-               f"always delegating; {always.pop()} of the {n} parents delegate on every seed")
+    for i in range(len(sizes)):
+        for p in parents:
+            dec, dlg = (rows[(0.8, "cost_effective", i, p, s)] for s in ("decision", "delegate"))
+            assert dec["delegate_rate"] == 1.0, (i, p)
+            assert (dec["success"], dec["cost_usd"]) == (dlg["success"], dlg["cost_usd"]), (i, p)
+    out.append(f"At bar 0.8, `cost_effective` delegates on every seed for every parent, so it "
+               f"scores and costs the same as always delegating: a mean held-out success over "
+               f"the {n} parents of {same(0.8, 'cost_effective', 'decision', 'success', '.3f')} "
+               f"at every point, against "
+               f"{same(0.8, 'cost_effective', 'inline', 'success', '.3f')} for always inline")
     first = [mean(0.8, "cost_effective", 0, s, "cost_usd") for s in ("decision", "inline")]
     last = [mean(0.8, "cost_effective", len(sizes) - 1, s, "cost_usd")
             for s in ("decision", "inline")]

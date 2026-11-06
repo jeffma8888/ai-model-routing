@@ -3,7 +3,7 @@
 The README evidence section opens with a short list, one bullet per subsection. Every
 number and model ID in it is built here from the committed results files (four since v1.28,
 which adds the AutoBench judges bullet), at the rounding of the subsection tables, and every word that depends on the data (no routed row
-reaches or beats, level, more, less) is asserted against those files, so the list cannot
+reaches or beats, every seed, more, less) is asserted against those files, so the list cannot
 drift from them or keep a claim a regenerated file no longer supports.
 """
 
@@ -112,21 +112,22 @@ def delegation_bullet(results):
         return values.pop()
 
     for i in points:
-        level = {f"{mean(i, s, 'success'):.2f}" for s in ("decision", "delegate")}
-        assert len(level) == 1, f"not level with always delegating at point {i}"
-        assert mean(i, "decision", "cost_usd") > mean(i, "delegate", "cost_usd"), \
-            f"costs no more than always delegating at point {i}"
+        for p in parents:
+            dec, dlg = (rows[(bar, flavor, i, p, s)] for s in ("decision", "delegate"))
+            assert dec["delegate_rate"] == 1.0, f"not every seed delegates at point {i}"
+            assert (dec["success"], dec["cost_usd"]) == (dlg["success"], dlg["cost_usd"]), \
+                f"not always delegating at point {i}"
     more = [sizes[i] for i in points
             if mean(i, "decision", "cost_usd") > mean(i, "inline", "cost_usd")]
     less = [sizes[i] for i in points
             if mean(i, "decision", "cost_usd") < mean(i, "inline", "cost_usd")]
     assert more and less and more + less == sizes, f"more at {more}, less at {less}"
     return (link("Delegation on AutoBench") + f"at bar {bar}, with the brief assumed to carry the "
-            f"whole question, the `{flavor}` decision's mean held-out success over the "
-            f"{len(parents)} parents is {same('decision')} against {same('inline')} for always "
-            f"inline and level with always delegating to two decimals; it costs more than always "
-            f"delegating at every context size, and more than always inline at {words(more)} "
-            f"context tokens but less at {words(less)}")
+            f"whole question, the `{flavor}` decision delegates on every seed for each of the "
+            f"{len(parents)} parents, so it scores and costs the same as always delegating; its "
+            f"mean held-out success over the parents is {same('decision')} against "
+            f"{same('inline')} for always inline, and it costs more than always inline at "
+            f"{words(more)} context tokens but less at {words(less)}")
 
 
 BULLETS = {"RouterBench": routerbench_bullet, "AutoBench": autobench_bullet,
@@ -186,7 +187,8 @@ def test_the_glance_numbers_are_those_of_the_committed_files():
     files = committed()
     text = glance(files)
     for needle in ("held-out success 0.735 at 0.341 of the cost", "`openai/gpt-4-1106-preview`",
-                   "(0.872 at 0.3092 USD)", "over the 20 parents is 0.856 against 0.670",
+                   "(0.872 at 0.3092 USD)", "for each of the 20 parents",
+                   "over the parents is 0.855 against 0.670 for always inline",
                    "at 8,000 context tokens but less at 64,000 and 200,000",
                    "held-out success 0.816 at 0.518 of the cost of the best single judge, "
                    "`tencent/hy3`; no routed row at any bar reaches that judge's"):
@@ -226,9 +228,10 @@ def cheap_decision(files):
         r["cost_usd"] = 0.0
 
 
-def costly_decision(files):
-    for r in delegation_rows(files, 2, "decision"):
-        r["cost_usd"] = 1000.0
+def costly_paths(files):
+    for strategy in ("decision", "delegate"):
+        for r in delegation_rows(files, 2, strategy):
+            r["cost_usd"] = 1000.0
 
 
 def worse_decision(files):
@@ -236,19 +239,25 @@ def worse_decision(files):
         r["success"] -= 0.02
 
 
-def cheaper_than_delegating(files):
-    for r in delegation_rows(files, 1, "decision"):
-        r["cost_usd"] = 2.0
+def one_seed_inline(files):
+    delegation_rows(files, 1, "decision")[0]["delegate_rate"] = 0.98
+
+
+def worse_paths(files):
+    for strategy in ("decision", "delegate"):
+        for r in delegation_rows(files, 1, strategy):
+            r["success"] -= 0.02
 
 
 @pytest.mark.parametrize("change, match", [
     (raise_routerbench, "a routed row reaches it"),
     (raise_judges, "a routed row reaches it"),
     (beat_luna, "bar 0.7 cost_effective beats it"),
-    (cheap_decision, "costs no more than always delegating at point 0"),
-    (costly_decision, r"more at \['8,000', '200,000'\], less at \['64,000'\]"),
-    (worse_decision, "not level with always delegating at point 1"),
-    (cheaper_than_delegating, "costs no more than always delegating at point 1"),
+    (cheap_decision, "not always delegating at point 0"),
+    (costly_paths, r"more at \['8,000', '200,000'\], less at \['64,000'\]"),
+    (worse_decision, "not always delegating at point 1"),
+    (one_seed_inline, "not every seed delegates at point 1"),
+    (worse_paths, r"\('decision', \{"),
 ])
 def test_a_file_that_breaks_a_claim_fails_the_builder(change, match):
     files = committed()

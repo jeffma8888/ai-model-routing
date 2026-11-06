@@ -350,7 +350,7 @@ Results at a glance, each number from the committed results of the subsection it
 - [RouterBench](#routerbench): at bar 0.6, `cost_effective` routing reaches held-out success 0.735 at 0.341 of the cost of the best single model, `openai/gpt-4-1106-preview`; no routed row at any bar reaches that model's held-out success
 - [AutoBench](#autobench): no routed row beats always calling `openai/gpt-5.6-luna` on held-out success and cost together (0.872 at 0.3092 USD)
 - [AutoBench judges](#autobench-judges): choosing a judge, scored by agreement with the other judges and not a human label, at bar 0.6, `cost_effective` routing reaches held-out success 0.816 at 0.518 of the cost of the best single judge, `tencent/hy3`; no routed row at any bar reaches that judge's held-out success
-- [Delegation on AutoBench](#delegation-on-autobench): at bar 0.8, with the brief assumed to carry the whole question, the `cost_effective` decision's mean held-out success over the 20 parents is 0.856 against 0.670 for always inline and level with always delegating to two decimals; it costs more than always delegating at every context size, and more than always inline at 8,000 context tokens but less at 64,000 and 200,000
+- [Delegation on AutoBench](#delegation-on-autobench): at bar 0.8, with the brief assumed to carry the whole question, the `cost_effective` decision delegates on every seed for each of the 20 parents, so it scores and costs the same as always delegating; its mean held-out success over the parents is 0.855 against 0.670 for always inline, and it costs more than always inline at 8,000 context tokens but less at 64,000 and 200,000
 
 ### RouterBench
 
@@ -519,16 +519,16 @@ bar  flavor          context  dec_success  dec_cost  inl_success  inl_cost  del_
 0.7  cost_blind      8000     0.857        2.5582    0.670        1.6931    0.857        2.4768    0.944
 0.7  cost_blind      64000    0.857        3.0624    0.670        6.1849    0.857        2.4768    0.944
 0.7  cost_blind      200000   0.857        4.2869    0.670        17.0936   0.857        2.4768    0.944
-0.8  cost_effective  8000     0.856        2.1659    0.670        1.6931    0.855        2.1372    0.981
-0.8  cost_effective  64000    0.856        2.3442    0.670        6.1849    0.855        2.1372    0.981
-0.8  cost_effective  200000   0.856        2.7772    0.670        17.0936   0.855        2.1372    0.981
+0.8  cost_effective  8000     0.855        2.1372    0.670        1.6931    0.855        2.1372    1.000
+0.8  cost_effective  64000    0.855        2.1372    0.670        6.1849    0.855        2.1372    1.000
+0.8  cost_effective  200000   0.855        2.1372    0.670        17.0936   0.855        2.1372    1.000
 0.8  cost_blind      8000     0.857        2.5582    0.670        1.6931    0.857        2.4768    0.944
 0.8  cost_blind      64000    0.857        3.0624    0.670        6.1849    0.857        2.4768    0.944
 0.8  cost_blind      200000   0.857        4.2869    0.670        17.0936   0.857        2.4768    0.944
 ```
 
-- At bar 0.8, the `cost_effective` decision's mean held-out success over the 20 parents is 0.856 at every point, against 0.670 for always inline and 0.855 for always delegating; 15 of the 20 parents delegate on every seed
-- At bar 0.8 the `cost_effective` decision costs more than always inline at 8,000 context tokens (2.1659 against 1.6931 USD) and far less at 200,000 (2.7772 against 17.0936), where the parent's own call for the work re-reads the whole context
+- At bar 0.8, `cost_effective` delegates on every seed for every parent, so it scores and costs the same as always delegating: a mean held-out success over the 20 parents of 0.855 at every point, against 0.670 for always inline
+- At bar 0.8 the `cost_effective` decision costs more than always inline at 8,000 context tokens (2.1372 against 1.6931 USD) and far less at 200,000 (2.1372 against 17.0936), where the parent's own call for the work re-reads the whole context
 
 Regenerate (a few seconds after the download):
 

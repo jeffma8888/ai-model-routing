@@ -171,6 +171,9 @@ def decide_delegation(router: Router, task_name: str, parent_model: str,
         raise refuse()
     if route is not None and route.basis == "measured" and (trials == 0 or delegate_lb > parent_lb):
         return decision(DELEGATE, NONE_CLEAR, True)
+    if (flavor == "cost_effective" and route is not None and route.basis == "measured"
+            and trials > 0 and delegate_lb == parent_lb and delegate_cost < inline_cost):
+        return decision(DELEGATE, NONE_CLEAR, True)
     if trials > 0:
         return decision(INLINE, NONE_CLEAR, True)
     if route is not None:

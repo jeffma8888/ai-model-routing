@@ -545,8 +545,6 @@ COST_TIE = {"context_tokens": 2500, "brief_tokens": 1000, "result_tokens": 1000}
 # also zero in exact arithmetic, but floating point makes delegating about 7e-18 USD
 # cheaper, and 13.5 compares the costs as computed, never with a tolerance
 ROUNDING_CHEAPER = {"context_tokens": 200, "brief_tokens": 300, "result_tokens": 1500}
-ROW_7_LATER = ("DESIGN 13.5 row 7 v1.31: on an equal bound, a cheaper delegate path is taken "
-               "in cost_effective; lands with the implementing commit")
 
 
 def test_row_7_equal_bound_fixtures_are_what_the_new_tests_assume():
@@ -576,7 +574,6 @@ def test_row_7_equal_bound_fixtures_are_what_the_new_tests_assume():
     assert near.delegate_cost_usd < near.inline_cost_usd
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason=ROW_7_LATER)
 @pytest.mark.parametrize("context", [WORK["context_tokens"], BIG_CONTEXT])
 def test_neither_clears_an_equal_bound_delegates_to_the_parent_model_when_cheaper(context):
     router = make_router(stats=ALL_BELOW, on_no_model="best_available")
@@ -585,7 +582,6 @@ def test_neither_clears_an_equal_bound_delegates_to_the_parent_model_when_cheape
         "delegate", "none_clear", "fiction/best", True)
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason=ROW_7_LATER)
 def test_neither_clears_an_equal_bound_delegates_when_cheaper_only_by_rounding():
     router = make_router(stats=ALL_BELOW, on_no_model="best_available")
     decision = decide(router, "fiction/best", **ROUNDING_CHEAPER)
@@ -593,7 +589,6 @@ def test_neither_clears_an_equal_bound_delegates_when_cheaper_only_by_rounding()
         "delegate", "none_clear", "fiction/best", True)
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason=ROW_7_LATER)
 def test_neither_clears_an_equal_bound_delegates_to_another_model_when_cheaper():
     router = make_router(stats=EQUAL_PAIR, on_no_model="best_available")
     decision = decide(router, "fiction/best", exclude_models=("fiction/best",))
