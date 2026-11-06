@@ -1,6 +1,6 @@
 # Delegation on AutoBench 2026: inline or sub-agent on held-out questions
 
-What the inline-or-sub-agent decision (`Router.decide_delegation`, `DESIGN.md` 13.5) does on questions it never saw, next to always working inline and always delegating, measured by `evaluate_delegation` (`DESIGN.md` 13.9) on the public [AutoBench Router Benchmark 2026](https://huggingface.co/datasets/AutoBench/router-benchmark-2026-10) matrix at revision [4375518](https://huggingface.co/datasets/AutoBench/router-benchmark-2026-10/tree/43755180be7d8097068982d7a3f37fc04cd15379) (licence CC-BY-4.0; the card asks users to cite its paper). The matrix and its labels are those of [the AutoBench results](../autobench-2026/RESULTS.md): 20 models from 2026, 203 questions pooled into one task, `all`, and a Delta-Hit label on every answer. The file behind every number here is [results.json](results.json) (269,163 bytes), made by `evidence/delegation/results.py` (`DESIGN.md` 13.10): one summary row per (bar, flavor, point, parent, strategy), with no per-seed cells.
+What the inline-or-sub-agent decision (`Router.decide_delegation`, `DESIGN.md` 13.5) does on questions it never saw, next to always working inline and always delegating, measured by `evaluate_delegation` (`DESIGN.md` 13.9) on the public [AutoBench Router Benchmark 2026](https://huggingface.co/datasets/AutoBench/router-benchmark-2026-10) matrix at revision [4375518](https://huggingface.co/datasets/AutoBench/router-benchmark-2026-10/tree/43755180be7d8097068982d7a3f37fc04cd15379) (licence CC-BY-4.0; the card asks users to cite its paper). The matrix and its labels are those of [the AutoBench results](../autobench-2026/RESULTS.md): 20 models from 2026, 203 questions pooled into one task, `all`, and a Delta-Hit label on every answer. The file behind every number here, apart from the [Variant points](#variant-points) part, is [results.json](results.json) (269,163 bytes), made by `evidence/delegation/results.py` (`DESIGN.md` 13.10): one summary row per (bar, flavor, point, parent, strategy), with no per-seed cells.
 
 ## Method
 
@@ -15,7 +15,7 @@ What the inline-or-sub-agent decision (`Router.decide_delegation`, `DESIGN.md` 1
 - From the pool registry (`convert.py --registry`): list prices, families and context windows. Every cost is a list-price estimate, never a billed cost
 - Assumed, the grid: C, B, R, T and `inline_separate_call`. Results are stated per point and never pooled across points
 - Assumed, quality: the delegate is credited with its recorded answer to the whole question, as if a brief of B tokens carried everything the item needs; the parent is credited with its recorded answer as if C more tokens of context did not change it. Neither a lossy brief nor long-context degradation is measured, and each would lower one path's success. So these numbers show what the decision rule does under these assumptions, not the quality of a real hand-off
-- One call per path and no prompt caching (`DESIGN.md` 13.8)
+- One work call per path at points 0 to 3, two at variant point 0, and no prompt caching (`DESIGN.md` 13.8)
 
 ## Results
 
@@ -148,6 +148,29 @@ cost_blind      zai/glm-5.3                        1.000      0.857        0.755
 - With `openai/gpt-5.6-luna` as the parent at bar 0.8 and 64,000 context tokens, `cost_blind` delegates on 76.0% of seeds and scores 0.858 against 0.872 inline, at 2.5326 against 1.7156 USD. `cost_blind` never compares cost: outside a full context it decides on the lower bounds alone (`DESIGN.md` 13.5 rows 2, 4, 5 and 7), and a higher bound on the calibration half is not always a higher rate on the held-out half
 - With the work folded into the parent's next call (`inline_separate_call` False) at 8,000 context tokens, `cost_effective` keeps some work inline: its mean delegated share over the 20 parents is 0.936 at bar 0.7, where 3 mix inline and delegated seeds and `openai/gpt-5.6-luna` never delegates, and 0.947 at bar 0.8, where 4 mix inline and delegated seeds. It costs less than always delegating at both bars: 0.6237 against 0.6282 USD at bar 0.7 (held-out success 0.867 against 0.869) and 2.1215 against 2.1372 at bar 0.8 (0.856 against 0.855), while always inline costs 0.8602 USD at 0.670
 - At bar 0.8 and 64,000 context tokens, `cost_effective` delegates on every seed for every parent, so `dec_breakeven` equals `del_margin`: a lossy brief may lower the delegated held-out success by a mean of 0.186 over the 20 parents before the decision does no better than always inline. The minimum is -0.027, with `openai/gpt-5.6-sol` as the parent, and 3 of the 20 parents are below zero: they already score higher inline than the delegate does with a lossless brief
+
+## Variant points
+
+A variant point changes a knob that the four points above hold fixed. It goes in a second file, [variants.json](variants.json) (68,573 bytes), made by the same script with `--grid variants`, so results.json keeps its bytes and each file stays under about 300 KB (`DESIGN.md` 13.10). Its config is that of results.json with the variant points in place of the four, with the same task, parents, bars, seeds and flavors, and one summary row per (bar, flavor, point, parent, strategy). Variant point 0 is point 3 at C = 64,000 tokens with the work in two calls (`work_calls` 2, the `calls` column) instead of one: folded work of K calls reads C in K - 1 of them on the inline path and only the brief on the delegate path (`DESIGN.md` 13.2). Point 3 stands for every context size that leaves every parent room, 64,000 among them, so the two compare at equal C and differ only in the number of calls. Each answer is still scored by its one recorded label, so whether the two calls succeed together is not measured (`DESIGN.md` 13.8).
+
+```text
+$ python evidence/delegation/results.py --table evidence/delegation/variants.json
+bar  flavor          context  separate  calls  dec_success  dec_cost  inl_success  inl_cost  del_success  del_cost  delegated
+---  --------------  -------  --------  -----  -----------  --------  -----------  --------  -----------  --------  ---------
+0.7  cost_effective  64000    False     2      0.869        1.0019    0.670        7.0451    0.869        1.0019    1.000
+0.7  cost_blind      64000    False     2      0.857        5.6883    0.670        7.0451    0.857        5.1050    0.944
+0.8  cost_effective  64000    False     2      0.855        4.3560    0.670        7.0451    0.855        4.3560    1.000
+0.8  cost_blind      64000    False     2      0.857        5.6883    0.670        7.0451    0.857        5.1050    0.944
+```
+
+- With the work in two folded calls at 64,000 context tokens (variant point 0) instead of one (point 3, which stands for every context size with room in every parent's window), `cost_effective` delegates on every seed for every parent at both bars: its mean delegated share over the 20 parents is 1.000 at bar 0.7 and at bar 0.8, against 0.936 and 0.947 at point 3. Mean costs in USD, variant point 0 against point 3: at bar 0.7 the decision 1.0019 against 0.6237, always inline 7.0451 against 0.8602, always delegating 1.0019 against 0.6282; at bar 0.8 the decision 4.3560 against 2.1215, always inline 7.0451 against 0.8602, always delegating 4.3560 against 2.1372. On the inline path the second call re-reads the 64,000-token context; on the delegate path each call reads only the brief
+
+Its two regenerate lines read the converter outputs of the Regenerate commands below:
+
+```bash
+python evidence/delegation/results.py --matrix autobench-tokens.jsonl --registry autobench-pool.json --grid variants --out evidence/delegation/variants.json
+python evidence/delegation/results.py --table evidence/delegation/variants.json
+```
 
 ## Regenerate
 
