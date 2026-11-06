@@ -27,6 +27,7 @@ pytestmark = pytest.mark.xfail(strict=True, raises=ModuleNotFoundError,
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "evidence" / "tau2-bench" / "convert.py"
+EVIDENCE_README = ROOT / "evidence" / "tau2-bench" / "README.md"
 REVISION = "033bf082f48e4a3c6a1256208e93cf2ce9c3bb6f"
 BASE_URL = f"https://raw.githubusercontent.com/sierra-research/tau2-bench/{REVISION}/data/tau2/results/final/"
 TAIL = "_gpt-4.1-2025-04-14_4trials.json"
@@ -232,9 +233,14 @@ def test_fetch_removes_the_part_file_when_the_download_fails_its_check(cv, monke
     assert list(tmp_path.iterdir()) == []
 
 
+class ProtocolBreak(Exception):
+    """Stands in for an HTTP protocol error such as an incomplete chunked read, which is not an OSError."""
+
+
 class BrokenDownload:
-    def __init__(self):
+    def __init__(self, failure=None):
         self.reads = 0
+        self.failure = failure if failure is not None else OSError("connection reset")
 
     def __enter__(self):
         return self
@@ -246,7 +252,7 @@ class BrokenDownload:
         self.reads += 1
         if self.reads == 1:
             return b'{"a"'
-        raise OSError("connection reset")
+        raise self.failure
 
 
 def test_fetch_removes_the_part_file_when_the_download_breaks(cv, monkeypatch, tmp_path):
@@ -255,6 +261,31 @@ def test_fetch_removes_the_part_file_when_the_download_breaks(cv, monkeypatch, t
     with pytest.raises(OSError):
         cv.fetch(tmp_path)
     assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.parametrize("failure", [OSError("connection reset"), ProtocolBreak("incomplete read")])
+def test_fetch_raises_a_broken_download_as_an_os_error_naming_the_file(cv, monkeypatch, tmp_path, failure):
+    pin_files(cv, monkeypatch, {"a.json": b'{"a": 1}'})
+    monkeypatch.setattr(urllib.request, "urlopen", lambda *a, **k: BrokenDownload(failure))
+    with pytest.raises(OSError) as caught:
+        cv.fetch(tmp_path)
+    assert "a.json" in str(caught.value) and str(failure) in str(caught.value)
+    assert caught.value is failure or caught.value.__cause__ is failure
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_fetch_downloads_with_a_timeout(cv, monkeypatch, tmp_path):
+    contents = {"a.json": b'{"a": 1}'}
+    pin_files(cv, monkeypatch, contents)
+    seen = []
+
+    def urlopen(url, *args, **kwargs):
+        seen.append((url, args, kwargs))
+        return io.BytesIO(contents["a.json"])
+
+    monkeypatch.setattr(urllib.request, "urlopen", urlopen)
+    cv.fetch(tmp_path)
+    assert seen == [(BASE_URL + "a.json", (), {"timeout": 60})]
 
 
 # model ids
@@ -428,9 +459,11 @@ BAD_RUNS = {
     "cost a bool": on_sim("agent_cost", False),
     "cost a string": on_sim("agent_cost", "0.1"),
     "cost none": on_sim("agent_cost", None),
+    "cost too large for a float": on_sim("agent_cost", 10 ** 400),
     "messages not a list": on_sim("messages", "x"),
     "message not a dict": put(("simulations", 0, "messages", 1), []),
     "usage not a dict": agent_usage([1, 2]),
+    "usage key missing": drop(("simulations", 0, "messages", 2, "usage")),
     "prompt tokens negative": agent_usage(usage(-1, 10)),
     "prompt tokens a float": agent_usage(usage(1.0, 10)),
     "completion tokens a bool": agent_usage(usage(1, True)),
@@ -466,6 +499,21 @@ def test_extract_checks_simulations_in_file_order(cv):
     assert "'9'" in message and "reward" not in message
     third = run(tasks=("0",), sims=[sim("0", 0, cost=-1.0)])
     assert "agent_cost" in error(cv, cv.extract, third)
+
+
+def test_extract_checks_the_names_before_the_bar_and_the_vendor_rule(cv):
+    data = run(domain="air|line", agent="gemini-x")
+    del data["info"]["user_info"]["llm"]
+    assert "info.user_info.llm" in error(cv, cv.extract, data)
+    message = error(cv, cv.extract, run(domain="air|line", agent="gemini-x"))
+    assert "air|line" in message and "gemini-x" not in message
+    message = error(cv, cv.extract, run(agent="gemini-x", user="vendor/gpt-user-1"))
+    assert "gemini-x" in message and "vendor/gpt-user-1" not in message
+
+
+def test_extract_refuses_a_cost_too_large_for_a_float(cv):
+    data = run(tasks=("a",), sims=[sim("a", 0, cost=10 ** 400)])
+    assert "agent_cost" in error(cv, cv.extract, data)
 
 
 def test_extract_checks_arguments_before_the_run(cv):
@@ -579,6 +627,13 @@ def test_read_run(cv, tmp_path):
     assert "run.json" in error(cv, cv.read_run, path)
 
 
+@pytest.mark.parametrize("blob", [b"\xff\xfe{}", b"[" * 200000, b'{"a": 1} trailing'])
+def test_read_run_refuses_an_unreadable_file(cv, tmp_path, blob):
+    path = tmp_path / "run.json"
+    path.write_bytes(blob)
+    assert "run.json" in error(cv, cv.read_run, path)
+
+
 def test_write_jsonl(cv, tmp_path):
     rows = expected_rows()
     path = tmp_path / "m.jsonl"
@@ -684,6 +739,20 @@ def test_main_broken_download_writes_nothing(cv, monkeypatch, tmp_path, capsys):
     assert not out.exists() and not (cache / (name + ".part")).exists()
 
 
+def test_main_reports_a_protocol_error_on_one_line(cv, monkeypatch, tmp_path, capsys):
+    cache = tmp_path / "cache"
+    install(cv, monkeypatch, cache, runs())
+    name = sorted(cv.FILES)[0]
+    (cache / name).unlink()
+    monkeypatch.setattr(urllib.request, "urlopen", lambda *a, **k: BrokenDownload(ProtocolBreak("incomplete read")))
+    out = tmp_path / "m.jsonl"
+    assert cv.main(["--out", str(out), "--cache", str(cache)]) == 2
+    captured = capsys.readouterr()
+    assert captured.out == "" and captured.err.count("\n") == 1 and captured.err.startswith("error: ")
+    assert name in captured.err and "incomplete read" in captured.err
+    assert not out.exists() and not (cache / (name + ".part")).exists()
+
+
 def test_main_output_folder_missing(cv, monkeypatch, tmp_path, capsys):
     cache = tmp_path / "cache"
     install(cv, monkeypatch, cache, runs())
@@ -717,6 +786,31 @@ def test_main_keeps_the_error_on_one_line(cv, monkeypatch, tmp_path, capsys):
     assert err.count("\n") == 1 and "air\\nline" in err
 
 
+# the evidence README (DESIGN 12.14, v1.51)
+
+# The README's default counts as written; test_pinned_files_when_cached builds the same phrases
+# from the converter report and rows on the pinned files
+README_COUNTS = [
+    "keeps 50 airline, 114 retail and 114 telecom tasks, drops none and writes 1,112 rows",
+    "0.5 to 0.58 in airline, 0.684 to 0.798 in retail and 0.368 to 0.439 in telecom",
+    "`cost_usd` runs from 0.00136 to 6.446604 USD",
+    "6,629 to 2,096,093 input tokens and 123 to 26,531 output tokens",
+]
+
+
+def test_evidence_readme():
+    text = EVIDENCE_README.read_text(encoding="utf-8")
+    for needle in ["https://github.com/sierra-research/tau2-bench", REVISION, "`data/tau2/results/final`",
+                   "MIT", "Copyright (c) 2025 Sierra Research", "~/.cache/ai-model-routing-evidence/tau2-bench/",
+                   "`reward_info.reward`", "`agent_cost`", "`user_cost`", "airline: 29 tasks differ, retail: 114",
+                   "openai/gpt-4.1-2025-04-14", "python evidence/tau2-bench/convert.py --out", "--trial",
+                   "--task-by all", "--tokens", "not committed yet", "DESIGN 12.14", *README_COUNTS]:
+        assert needle in text, needle
+    for name, size, sha in PINNED:
+        assert f"| `{name + TAIL}` | {size:,} | `{sha}` |" in text, name
+    assert text.isascii() and "\u2013" not in text and "\u2014" not in text
+
+
 # the pinned files, only when cached
 
 def test_pinned_files_when_cached(cv, tmp_path, capsys):
@@ -742,6 +836,15 @@ def test_pinned_files_when_cached(cv, tmp_path, capsys):
     assert (min(r["cost_usd"] for r in rows), max(r["cost_usd"] for r in rows)) == (0.0013599999999999999, 6.446604)
     assert (min(r["input_tokens"] for r in rows), max(r["input_tokens"] for r in rows)) == (6629, 2096093)
     assert (min(r["output_tokens"] for r in rows), max(r["output_tokens"] for r in rows)) == (123, 26531)
+    kept, spans = report["kept"], {task: f"{low:g} to {high:g} in {task}" for task, (low, high) in ranges.items()}
+    built = [f"keeps {kept['airline']} airline, {kept['retail']} retail and {kept['telecom']} telecom tasks, drops "
+             f"{'none' if not any(report['dropped_incomplete'].values()) else 'some'} and writes {report['rows']:,} rows",
+             f"{spans['airline']}, {spans['retail']} and {spans['telecom']}",
+             f"`cost_usd` runs from {round(min(r['cost_usd'] for r in rows), 6)!r} to "
+             f"{round(max(r['cost_usd'] for r in rows), 6)!r} USD",
+             f"{min(r['input_tokens'] for r in rows):,} to {max(r['input_tokens'] for r in rows):,} input tokens and "
+             f"{min(r['output_tokens'] for r in rows):,} to {max(r['output_tokens'] for r in rows):,} output tokens"]
+    assert built == README_COUNTS
     halves = {}
     for task in ("airline", "retail", "telecom"):
         items = {row["item"] for row in rows if row["task"] == task}
