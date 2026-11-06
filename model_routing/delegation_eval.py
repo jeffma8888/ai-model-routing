@@ -140,7 +140,7 @@ def evaluate_delegation(rows, registry: Registry, bars, points, seeds=range(10),
 
 
 def _calibrate(table, models, task, cal, held) -> dict:
-    """Calibration-half stats and median sizes, which do not depend on bar, flavor or point.
+    """Calibration-half stats with token totals, and median sizes, independent of bar, flavor and point.
 
     The stats hold each model's token totals over the half, so ``decide_delegation``
     prices it at its own mean sizes; the pooled medians are the task's expected sizes,

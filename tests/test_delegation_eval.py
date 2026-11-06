@@ -8,7 +8,8 @@ each hold 3 items for calibration and 5 out (seed 0 holds out q1 q2 q3 q7 q8,
 seed 1 holds out q1 q4 q5 q6 q8), every call reads 1,000 tokens and writes 200,
 `fiction/big` and `fiction/small` are right on every item and `fiction/weak` on
 none. At bar 0.4, 3 of 3 has a 95% Wilson lower bound of 0.438, so the first two
-clear and the third does not.
+clear and the third does not. The v1.35 tests at the end use a second matrix, in
+which `fiction/small` writes 20,000 tokens a call and `fiction/big` 200.
 """
 
 import importlib
@@ -740,6 +741,20 @@ def test_v135_the_decision_is_decide_delegation_on_stats_with_token_totals():
         moved += decided[True] != decided[False]
     # the fixture tells the two apart: some decisions differ without the token totals
     assert moved > 0
+
+
+def test_v135_the_sizes_come_from_the_calibration_half_only():
+    # q1 and q8 are held out on both seeds, and there `fiction/big` writes 400,000 tokens: a
+    # mean over the held-out half or over every item would price big above small, its mean
+    # over the calibration half (200) does not
+    rows = writer_rows(lambda item, m: (S_IN, 400_000 if m == "fiction/big"
+                                        and item in ("q1", "q8") else WRITES[m]))
+    result = run(rows=rows, flavors=["cost_effective"])
+    for c in result["cells"]:
+        assert c["delegate"] == "fiction/big", (c["parent"], c["point"], c["seed"])
+        assert (c["expected_input_tokens"], c["expected_output_tokens"]) == (1000, 300)
+    small = cell(result, "cost_effective", "fiction/small", 1, 0)
+    assert (small["mode"], small["reason"]) == ("delegate", "delegate_cheaper")
 
 
 def test_v135_cost_blind_does_not_depend_on_the_sizes():

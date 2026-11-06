@@ -340,6 +340,9 @@ def test_readme_subsection_shows_the_table_and_links(dr):
                    "[results.json](evidence/delegation/results.json)",
                    "8,000, 64,000 and 200,000", "brief of 500 tokens", "500-token result",
                    "(`inline_separate_call` True)", "(licence CC-BY-4.0)",
+                   "The decision prices each model at its own mean input and output tokens "
+                   "per answer on the calibration half; the median sizes of all the half's "
+                   "answers are used only for the context-window checks.",
                    "](https://huggingface.co/datasets/AutoBench/router-benchmark-2026-10/tree/43755180be7d8097068982d7a3f37fc04cd15379)",
                    "list-price estimate"):
         assert phrase in sub, phrase
