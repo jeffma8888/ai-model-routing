@@ -77,11 +77,14 @@ def _briefed_stats(stats: Stats, task_name: str, brief_tokens: int) -> Stats:
 
     Rounding up ``(I + B * n) / n`` gives the rounded-up ``I / n`` plus B exactly, so
     the delegate's ``select`` prices a measured model at its mean input plus B (13.3).
+    With no brief or no token totals on the task, ``stats`` itself is returned, as v1.32
+    passed it.
     """
+    rows = [(key, counts) for key, counts in stats.items() if key[0] == task_name]
+    if brief_tokens == 0 or not any(stats.tokens(*key)[2] for key, _ in rows):
+        return stats
     copy = Stats()
-    for (name, model_id), (successes, trials) in stats.items():
-        if name != task_name:
-            continue
+    for (name, model_id), (successes, trials) in rows:
         i, o, n = stats.tokens(name, model_id)
         tokens = {}
         if n:

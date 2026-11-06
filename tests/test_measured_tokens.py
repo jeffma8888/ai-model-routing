@@ -439,6 +439,30 @@ def test_without_token_totals_delegation_costs_are_the_v1_32_expressions(parent,
         "measured", "fiction/cheap", ("fiction/mid", "fiction/best"), False)
 
 
+class _AuditedStats(Stats):
+    """A Stats subclass that reports counts it keeps elsewhere, as a user's subclass might."""
+
+    def get(self, task, model_id):
+        if (task, model_id) == (TASK, "fiction/cheap"):
+            return (95, 100)
+        return super().get(task, model_id)
+
+
+def test_without_token_totals_the_delegate_select_reads_the_routers_own_stats():
+    # with no token totals the delegate select runs on router.stats itself, as in v1.32,
+    # so a Stats subclass that overrides get is honoured on both paths (review iter-045)
+    stats = _AuditedStats()
+    stats.add(TASK, "fiction/mid", 96, 100)
+    stats.add(TASK, "fiction/best", 99, 100)
+    task = Task(name=TASK, bar=0.8, min_samples=30, expected_input_tokens=S_IN,
+                expected_output_tokens=S_OUT)
+    router = Router(Registry(models()), {TASK: task}, stats)
+    assert router.select(TASK).primary == "fiction/cheap"
+    d = router.decide_delegation(TASK, "fiction/best", **WORK)
+    assert (d.route.primary, by_id(d.route)["fiction/cheap"].trials) == ("fiction/cheap", 100)
+    assert (d.mode, d.model, d.reason) == ("delegate", "fiction/cheap", "delegate_cheaper")
+
+
 # ---- 4.3 files without tokens stay v1.32 files -----------------------------------------
 
 def test_a_stats_file_without_token_keys_loads_and_saves_byte_identical(tmp_path):
