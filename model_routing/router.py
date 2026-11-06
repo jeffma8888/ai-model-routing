@@ -157,7 +157,9 @@ class Router:
 
         The work is ``work_calls`` successive calls of the task, one by default.
         Returns a :class:`~model_routing.delegation.DelegationDecision`; the delegate
-        is this router's ``select`` with the brief added to the task's input. Raises
+        is this router's ``select`` with the brief added to the task's input, and for
+        ``work_calls`` > 1 its window checked against its last call and its cost taken
+        over its K calls (DESIGN 13.3). Raises
         ``KeyError`` for an unknown task, parent or generator, ``ValueError`` for an
         unknown flavor, an invalid token count or ``work_calls`` below 1, and
         :class:`NoModelClearsBar` when neither path is allowed (DESIGN section 13).

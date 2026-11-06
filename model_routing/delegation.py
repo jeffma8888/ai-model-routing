@@ -95,16 +95,17 @@ class _WorkCallsRouter(Router):
     """
 
     def __init__(self, router: Router, task: Task, brief_tokens: int, work_calls: int):
-        k = work_calls
         last_call = replace(task, expected_input_tokens=brief_tokens
-                            + k * task.expected_input_tokens
-                            + (k - 1) * task.expected_output_tokens)
+                            + work_calls * task.expected_input_tokens
+                            + (work_calls - 1) * task.expected_output_tokens)
         super().__init__(router.registry, {task.name: last_call}, router.stats, router.priors)
         self._task = task
         self._brief_tokens = brief_tokens
         self._work_calls = work_calls
 
     def _list_cost(self, task: Task, model) -> float:
+        # ``task`` is the last-call copy, whose expected input is only for rule 5; a model
+        # without token counts is priced at the original task's expected sizes
         d_in, d_out = _sizes(self.stats, self._task, model.id)
         k = self._work_calls
         return _work_cost(model, k, k * self._brief_tokens, d_in, d_out)
