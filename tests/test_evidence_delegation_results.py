@@ -300,6 +300,20 @@ def reading_it(results):
     return out
 
 
+@pytest.mark.xfail(strict=True, raises=AssertionError,
+                   reason="v1.35 spec: RESULTS.md still states the pooled median sizes")
+def test_results_md_method_states_the_per_model_sizes(dr):
+    # v1.35 (DESIGN 13.9): each model is priced at its own mean calibration sizes, and the
+    # pooled medians are only the task's expected sizes for the context checks
+    method = RESULTS_MD.read_text(encoding="utf-8").split("\n## Method\n", 1)[1].split("\n## ", 1)[0]
+    for phrase in ("each model's accepted count there and its own mean input and output "
+                   "tokens per answer there, which price it",
+                   "the median input and output tokens of all the half's answers as the "
+                   "task's expected sizes for the context-window checks"):
+        assert phrase in method, phrase
+    assert "and the median input and output tokens of the half's answers)" not in method
+
+
 def test_results_md_reading_it_is_the_committed_results(dr):
     md = RESULTS_MD.read_text(encoding="utf-8")
     for sentence in reading_it(committed()):

@@ -652,3 +652,120 @@ def test_exported_from_the_package():
     module = load()
     assert "evaluate_delegation" in model_routing.__all__
     assert model_routing.evaluate_delegation is module.evaluate_delegation
+
+
+# --- v1.35: each model priced at its own mean calibration sizes (DESIGN 13.9) ---------------
+#
+# In this matrix every call reads 1,000 tokens, and `fiction/small` writes 100 times what
+# `fiction/big` does. Over the calibration rows of all three models the median_low sizes are
+# 1,000 in and 300 out, at which small is the cheaper delegate (0.0027 USD a call with the
+# 500-token brief against 0.027 for big); at each model's own mean sizes big is (0.023 against
+# 0.0815). Until the harness adds token totals to the stats these tests fail.
+
+WRITES = {"fiction/big": 200, "fiction/small": 20_000, "fiction/weak": 300}
+PER_MODEL_SIZES = pytest.mark.xfail(
+    strict=True, raises=AssertionError,
+    reason="v1.35 spec: evaluate_delegation does not add token totals to its stats yet")
+
+
+def writer_rows(tokens=None):
+    return matrix(tokens=tokens or (lambda item, m: (S_IN, WRITES[m])))
+
+
+# (parent, point) -> mode, model, reason, then the inline and the delegated cost per held-out
+# item, the delegate being fiction/big at (1,500, 200) for every parent
+WRITER_KNOWN = [
+    ("fiction/big", 0, "delegate", "fiction/big", "delegate_cheaper", 1.03, 0.051),
+    ("fiction/big", 1, "inline", "fiction/big", "inline_cheaper", 0.018, 0.051),
+    ("fiction/big", 2, "inline", "fiction/big", "inline_cheaper", 0.054, 0.067),
+    ("fiction/small", 0, "delegate", "fiction/big", "delegate_cheaper", 0.202, 0.0258),
+    ("fiction/small", 1, "delegate", "fiction/big", "delegate_cheaper", 0.081, 0.0258),
+    ("fiction/small", 2, "delegate", "fiction/big", "delegate_cheaper", 0.144, 0.0274),
+    ("fiction/weak", 0, "delegate", "fiction/big", "parent_below_bar", 0.01035, 0.02328),
+    ("fiction/weak", 1, "delegate", "fiction/big", "parent_below_bar", 0.00022, 0.02328),
+    ("fiction/weak", 2, "delegate", "fiction/big", "parent_below_bar", 0.00061, 0.02344),
+]
+
+
+@PER_MODEL_SIZES
+@pytest.mark.parametrize("parent,p,mode,model,reason,inline_each,delegate_each", WRITER_KNOWN)
+def test_v135_each_model_is_priced_at_its_own_mean_calibration_sizes(parent, p, mode, model,
+                                                                    reason, inline_each,
+                                                                    delegate_each):
+    result = run(rows=writer_rows(), flavors=["cost_effective"])
+    for seed in SEEDS:
+        c = cell(result, "cost_effective", parent, p, seed)
+        assert (c["mode"], c["model"], c["reason"], c["delegate"]) == (
+            mode, model, reason, "fiction/big")
+        assert c["below_bar"] is False and c["inline_allowed"] is True
+        assert (c["expected_input_tokens"], c["expected_output_tokens"]) == (1000, 300)
+        assert c["cost_usd"]["inline"] == pytest.approx(5 * inline_each, rel=1e-12)
+        assert c["cost_usd"]["delegate"] == pytest.approx(5 * delegate_each, rel=1e-12)
+        chosen = "inline" if mode == "inline" else "delegate"
+        assert c["cost_usd"]["decision"] == c["cost_usd"][chosen]
+
+
+def stats_for(rows, cal, tokens):
+    stats = Stats()
+    for m in MODELS:
+        own = [r for r in rows if r["model"] == m and r["item"] in cal]
+        totals = {}
+        if tokens:
+            totals = {"input_tokens": sum(r["input_tokens"] for r in own),
+                      "output_tokens": sum(r["output_tokens"] for r in own)}
+        stats.add("work", m, sum(r["correct"] for r in own), len(own), **totals)
+    return stats
+
+
+@PER_MODEL_SIZES
+def test_v135_the_decision_is_decide_delegation_on_stats_with_token_totals():
+    # seed 2 calibrates on 4 items; sizes differ by item and model, so means round up
+    rows = writer_rows(lambda item, m: (900 + 37 * int(item[1:]) + 5 * MODELS.index(m),
+                                        WRITES[m] + 11 * int(item[1:]) + MODELS.index(m)))
+    result = run(rows=rows, seeds=[0, 1, 2])
+    moved = 0
+    for c in result["cells"]:
+        cal, _ = split_items(ITEMS, c["seed"])
+        cal_rows = [r for r in rows if r["item"] in cal]
+        s_in = statistics.median_low([r["input_tokens"] for r in cal_rows])
+        s_out = statistics.median_low([r["output_tokens"] for r in cal_rows])
+        assert (c["expected_input_tokens"], c["expected_output_tokens"]) == (s_in, s_out)
+        task = Task(name="work", bar=0.4, min_samples=3, confidence=0.95,
+                    independent_of_generator=False, expected_input_tokens=s_in,
+                    expected_output_tokens=s_out, on_no_model="best_available",
+                    max_fallbacks=0)
+        got = (c["mode"], c["model"], c["reason"], c["below_bar"], c["inline_allowed"],
+               c["delegate"])
+        decided = {}
+        for tokens in (True, False):
+            d = Router(registry(), {"work": task}, stats_for(rows, cal, tokens)).decide_delegation(
+                "work", c["parent"], c["flavor"], **POINTS[c["point"]])
+            decided[tokens] = (d.mode, d.model, d.reason, d.below_bar, d.inline_allowed,
+                               d.route.primary)
+        assert got == decided[True], (c["flavor"], c["parent"], c["point"], c["seed"])
+        moved += decided[True] != decided[False]
+    # the fixture tells the two apart: some decisions differ without the token totals
+    assert moved > 0
+
+
+def test_v135_cost_blind_does_not_depend_on_the_sizes():
+    # cost_blind ranks and decides on the lower bounds alone (DESIGN 5.3, 13.5), so the
+    # writer matrix gives the decisions of the uniform one, before and after v1.35
+    uniform, writer = run(flavors=["cost_blind"]), run(rows=writer_rows(), flavors=["cost_blind"])
+    keys = ("parent", "point", "seed", "mode", "model", "reason", "below_bar",
+            "inline_allowed", "delegate", "correct")
+    assert [{k: c[k] for k in keys} for c in writer["cells"]] == \
+        [{k: c[k] for k in keys} for c in uniform["cells"]]
+
+
+def test_v135_the_context_check_keeps_the_pooled_median_sizes():
+    # small's own mean sizes (1,000 + 20,000) do not fit a 5,000-token window, the pooled
+    # medians (1,000 + 300) do: 13.4 rule 3 reads the task's expected sizes, before and after
+    reg = registry(windows={"fiction/small": 5000})
+    result = run(rows=writer_rows(), reg=reg, flavors=["cost_effective"],
+                 parents=["fiction/small"], points=[point(0, 500, 300, 0, False)])
+    for seed in SEEDS:
+        c = cell(result, "cost_effective", "fiction/small", 0, seed)
+        assert (c["expected_input_tokens"], c["expected_output_tokens"]) == (1000, 300)
+        assert c["inline_allowed"] is True and c["reason"] != "parent_context_full"
+        assert c["cost_usd"]["inline"] == pytest.approx(5 * 0.081, rel=1e-12)
