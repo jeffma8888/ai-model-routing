@@ -46,17 +46,23 @@ def _row(row) -> Tuple[str, str, str, Row]:
 def _points(points) -> List[dict]:
     out = []
     for p in list(points):
-        if not isinstance(p, dict) or set(p) != set(POINT_KEYS):
-            raise ValueError(f"a point needs exactly the keys {list(POINT_KEYS)}: {p!r}")
+        if not isinstance(p, dict) or set(p) - {"work_calls"} != set(POINT_KEYS):
+            raise ValueError(f"a point needs exactly the keys {list(POINT_KEYS)}, and "
+                             f"optionally 'work_calls': {p!r}")
         for key in POINT_KEYS[:4]:
             if not _is_int(p[key]) or p[key] < 0:
                 raise ValueError(f"{key!r} must be an integer >= 0: {p!r}")
         if not isinstance(p["inline_separate_call"], bool):
             raise ValueError(f"'inline_separate_call' must be true or false: {p!r}")
-        out.append({k: p[k] for k in POINT_KEYS})
+        if "work_calls" in p and (not _is_int(p["work_calls"]) or p["work_calls"] < 1):
+            raise ValueError(f"'work_calls' must be an integer >= 1: {p!r}")
+        q = {k: p[k] for k in POINT_KEYS}
+        if "work_calls" in p:
+            q["work_calls"] = p["work_calls"]
+        out.append(q)
     if not out:
         raise ValueError("no points")
-    if len({tuple(p.values()) for p in out}) != len(out):
+    if len({tuple(p[k] for k in POINT_KEYS) + (p.get("work_calls", 1),) for p in out}) != len(out):
         raise ValueError("points must be distinct")
     return out
 
@@ -179,16 +185,21 @@ def _cell(table, registry, router, calibration, task, bar, flavor, index, point,
     p = registry.get(parent)
     d = registry.get(decision.route.primary)
     c, b, r, t = (point[k] for k in POINT_KEYS[:4])
+    k = point.get("work_calls", 1)
+    w_in, w_out = k * (k + 1) // 2, k * (k - 1) // 2
 
     def inline_cost(item: str) -> float:
         _, tin, tout = table[task, item][p.id]
         if point["inline_separate_call"]:
-            return p.cost(c + tin, tout) + (1 + t) * p.cost(tin + tout, 0)
-        return p.cost(tin, tout) + t * p.cost(tin + tout, 0)
+            return (p.cost(k * c + w_in * tin + w_out * tout, k * tout)
+                    + (1 + t) * p.cost(k * (tin + tout), 0))
+        return (p.cost((k - 1) * c + w_in * tin + w_out * tout, k * tout)
+                + t * p.cost(k * (tin + tout), 0))
 
     def delegate_cost(item: str) -> float:
         _, tin, tout = table[task, item][d.id]
-        return p.cost(0, b) + d.cost(b + tin, tout) + (1 + t) * p.cost(b + r, 0)
+        return (p.cost(0, b) + d.cost(k * b + w_in * tin + w_out * tout, k * tout)
+                + (1 + t) * p.cost(b + r, 0))
 
     inline, delegate = (p.id, inline_cost), (d.id, delegate_cost)
     plans = {"decision": inline if decision.mode == "inline" else delegate,

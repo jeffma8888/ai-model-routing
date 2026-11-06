@@ -2,7 +2,7 @@
 
 Route every repeated kind of model call (ticket triage, field extraction, code generation, eval and judge calls) to the cheapest model that clears a quality bar you measured on that task, with fallback, monitoring and cost attribution. Or, if your team has decided spend does not matter, route to the best measured model with the exact same machinery.
 
-- Python 3.10+, standard library only, about 2,400 lines you can read in an afternoon
+- Python 3.10+, standard library only, about 2,700 lines you can read in an afternoon
 - Works with any OpenAI-compatible endpoint (vendor APIs, gateways, local servers) or your own provider class
 - Ships with a fully offline demo, so you can see the whole loop without an API key
 - Tested on public data that already holds each model's answers, correctness and cost, so no API key is needed: see [Evidence](#evidence-held-out-results-on-public-data)

@@ -5,12 +5,13 @@ A point of ``evaluate_delegation`` may carry ``work_calls`` K, an integer >= 1 t
 a bool. It reaches ``decide_delegation``, and the held-out cost of each item on each path
 follows the 13.2 K-call expressions with that item's recorded tokens as the sizes of each
 work call; the item's success is still its one recorded answer. A point without the key
-means K = 1 and serialises as before. The new behaviour is committed under strict xfail
-markers, each naming what the v1.42 harness raises: ``ValueError`` where a test runs a
-point with ``work_calls`` (``_points`` accepts exactly the five ``POINT_KEYS``), and
+means K = 1 and serialises as before. The new behaviour was committed under strict xfail
+markers, each naming what the v1.42 harness raised: ``ValueError`` where a test runs a
+point with ``work_calls`` (``_points`` accepted exactly the five ``POINT_KEYS``), and
 ``AssertionError`` where a test expects a v1.43 error message that the v1.42 key check
-raises first with other words. The tests that are not marked pin that points without the
-key give the v1.42 result bit for bit; they pass before the code and after it.
+raised first with other words. The implementing commit (v1.44) removed the markers
+(DESIGN 13.9). The tests that were never marked pin that points without the key give the
+v1.42 result bit for bit; they passed before the code and pass after it.
 
 The fixture is the one of tests/test_delegation_eval.py: two seeds that each hold 3 items
 for calibration and 5 out (seed 0 holds out q1 q2 q3 q7 q8), every call reads 1,000 tokens
@@ -41,13 +42,6 @@ KEYS = ["context_tokens", "brief_tokens", "result_tokens", "carry_turns",
         "inline_separate_call"]
 STRATEGIES = ["decision", "inline", "delegate"]
 ROOT = Path(__file__).resolve().parents[1]
-
-RUNS = pytest.mark.xfail(strict=True, raises=ValueError,
-                         reason="v1.42 _points accepts exactly the five POINT_KEYS")
-MESSAGE = pytest.mark.xfail(strict=True, raises=AssertionError,
-                            reason="v1.42 raises a ValueError in other words: its key "
-                                   "check runs first")
-
 
 def point(c, b, r, t, separate):
     return {"context_tokens": c, "brief_tokens": b, "result_tokens": r, "carry_turns": t,
@@ -131,7 +125,7 @@ def held_out_costs(pt, p, d, tokens_p, tokens_d):
     return inline, delegate
 
 
-# --- v1.43 behaviour, red until the harness takes work_calls ----------------------------
+# --- v1.43 behaviour, red until the v1.44 harness took work_calls -----------------------
 
 # (flavor, parent, point) -> mode, model, reason, delegate, inline and delegate cost per
 # item. K0 inline reads 2 * 100,000 + 3 * 1,000 + 1 * 200 = 203,200 and writes 400, then
@@ -139,9 +133,10 @@ def held_out_costs(pt, p, d, tokens_p, tokens_d):
 # K2 (K = 3) reads 6 * 1,000 + 3 * 200 = 6,600 and writes 600, then 2 later calls re-read
 # 3,600. Delegated, K0 and K1 brief 500, the delegate reads 2 * 500 + 3,200 = 4,200 and
 # writes 400, the next call re-reads 800; K2 reads 3 * 500 + 6,600 = 8,100 and writes 600,
-# and 3 calls re-read 800. Priced at their K calls on the brief, small (0.0058 for K = 2)
-# is cheaper than big (0.058), so cost_effective delegates to small; cost_blind ranks on
-# the bounds alone, and big and small tie, as at K = 1
+# and 3 calls re-read 800. The delegate's own K = 2 work calls on the brief cost 0.0058 on
+# small against 0.058 on big (that share alone, not a path cost like those below), so
+# cost_effective delegates to small; cost_blind ranks on the bounds alone, and big and
+# small tie, as at K = 1
 KNOWN = [
     ("cost_effective", "fiction/big", 0, "delegate", "fiction/small", "delegate_cheaper",
      "fiction/small", 2.072, 0.0338),
@@ -180,7 +175,6 @@ KNOWN = [
 ]
 
 
-@RUNS
 @pytest.mark.parametrize("flavor,parent,p,mode,model,reason,delegate,inline_each,"
                          "delegate_each", KNOWN)
 def test_known_answers_with_work_calls(flavor, parent, p, mode, model, reason, delegate,
@@ -201,7 +195,6 @@ def test_known_answers_with_work_calls(flavor, parent, p, mode, model, reason, d
         assert c["success"] == {s: c["correct"][s] / 5 for s in STRATEGIES}
 
 
-@RUNS
 def test_one_k2_cell_by_hand_for_each_inline_separate_call():
     big, small = registry().get("fiction/big"), registry().get("fiction/small")
     result = run(points=KPOINTS[:2], flavors=["cost_effective"], parents=["fiction/big"],
@@ -229,7 +222,6 @@ def varied_tokens(item, m):
     return 900 + 37 * k + 5 * MODELS.index(m), 150 + 11 * k + MODELS.index(m)
 
 
-@RUNS
 def test_the_decision_is_decide_delegation_with_the_points_work_calls():
     # seed 2 calibrates on 4 items, so the lower and the upper median differ
     rows = matrix(tokens=varied_tokens)
@@ -258,7 +250,6 @@ def test_the_decision_is_decide_delegation_with_the_points_work_calls():
     assert moved > 0
 
 
-@RUNS
 def test_held_out_cost_follows_the_k_call_expressions_with_each_items_own_tokens():
     def tokens(item, m):
         k = int(item[1:])
@@ -284,7 +275,6 @@ def test_held_out_cost_follows_the_k_call_expressions_with_each_items_own_tokens
         assert c["cost_usd"]["decision"] == c["cost_usd"][chosen]
 
 
-@RUNS
 def test_points_without_work_calls_keep_their_cells_beside_k_call_points():
     alone, mixed = run(), run(points=POINTS + KPOINTS)
     assert [c for c in mixed["cells"] if c["point"] < 3] == alone["cells"]
@@ -296,7 +286,6 @@ def test_points_without_work_calls_keep_their_cells_beside_k_call_points():
         assert list(p) == KEYS + ["work_calls"]
 
 
-@RUNS
 def test_work_calls_1_gives_the_cells_of_the_same_point_without_it():
     explicit = [dict(p, work_calls=1) for p in POINTS]
     alone, ones = run(), run(points=explicit)
@@ -308,7 +297,6 @@ def test_work_calls_1_gives_the_cells_of_the_same_point_without_it():
         assert list(p) == KEYS + ["work_calls"]
 
 
-@RUNS
 def test_success_is_each_items_one_recorded_answer_whatever_k():
     # small is wrong on q2, q5 and q8, weak right on q3 and q6, so counts are not 0 or 5
     def right(item, m):
@@ -328,20 +316,17 @@ def test_success_is_each_items_one_recorded_answer_whatever_k():
         assert c["success"] == {s: c["correct"][s] / 5 for s in STRATEGIES}
 
 
-@MESSAGE
 @pytest.mark.parametrize("value", [0, -1, True, False, 1.5, 2.0, "2", None])
 def test_an_invalid_work_calls_is_a_value_error_naming_it(value):
     with pytest.raises(ValueError, match=r"^'work_calls' must be an integer >= 1"):
         run(points=[dict(POINTS[0], work_calls=value)])
 
 
-@MESSAGE
 def test_work_calls_is_checked_after_inline_separate_call():
     with pytest.raises(ValueError, match=r"^'inline_separate_call' must be true or false"):
         run(points=[dict(POINTS[0], inline_separate_call=1, work_calls=0)])
 
 
-@MESSAGE
 @pytest.mark.parametrize("points", [
     [POINTS[0], dict(POINTS[0], work_calls=1)],
     [dict(POINTS[1], work_calls=1), POINTS[1]],
@@ -352,7 +337,6 @@ def test_a_repeated_point_is_a_value_error_with_a_missing_work_calls_read_as_1(p
         run(points=points)
 
 
-@MESSAGE
 def test_a_k_call_point_with_no_delegate_is_a_value_error_naming_it():
     # in a 2,000-token window one call fits inline (1,200) and delegated (1,300), but two
     # calls fit neither: inline 2 * 1,200 = 2,400, the delegate's last call
