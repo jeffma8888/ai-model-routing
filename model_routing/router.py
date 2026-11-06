@@ -151,6 +151,7 @@ class Router:
                           flavor: str = "cost_effective", *, context_tokens: int,
                           brief_tokens: int, result_tokens: int, carry_turns: int = 0,
                           work_calls: int = 1, inline_separate_call: bool = True,
+                          cached_read_ratio: float = 1.0,
                           generator_model: Optional[str] = None,
                           exclude_models: Iterable[str] = ()):
         """Decide whether ``parent_model`` does the work inline or delegates it.
@@ -159,9 +160,13 @@ class Router:
         Returns a :class:`~model_routing.delegation.DelegationDecision`; the delegate
         is this router's ``select`` with the brief added to the task's input, and for
         ``work_calls`` > 1 its window checked against its last call and its cost taken
-        over its K calls (DESIGN 13.3). Raises
+        over its K calls (DESIGN 13.3). ``cached_read_ratio`` prices the parent's
+        reads of its context in the inline work calls at that fraction of its list
+        input price, for a parent whose provider caches the prompt prefix; every other
+        read and all output stay at list price (DESIGN 13.2). Raises
         ``KeyError`` for an unknown task, parent or generator, ``ValueError`` for an
-        unknown flavor, an invalid token count or ``work_calls`` below 1, and
+        unknown flavor, an invalid token count, ``work_calls`` below 1 or a
+        ``cached_read_ratio`` that is not a number from 0 to 1, and
         :class:`NoModelClearsBar` when neither path is allowed (DESIGN section 13).
         """
         from .delegation import decide_delegation
@@ -170,6 +175,7 @@ class Router:
                                  result_tokens=result_tokens, carry_turns=carry_turns,
                                  work_calls=work_calls,
                                  inline_separate_call=inline_separate_call,
+                                 cached_read_ratio=cached_read_ratio,
                                  generator_model=generator_model,
                                  exclude_models=exclude_models)
 

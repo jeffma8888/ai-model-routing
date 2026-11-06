@@ -91,6 +91,9 @@ def _build_parser() -> argparse.ArgumentParser:
                     help="parent calls after the next one that still re-read this work")
     dg.add_argument("--work-calls", type=int, default=1,
                     help="successive calls of the task the work takes (default 1)")
+    dg.add_argument("--cached-read-ratio", type=float, default=1.0,
+                    help="price of the parent's cached reads of its context in inline "
+                         "work, as a fraction of its list input price (default 1.0)")
     dg.add_argument("--fold-inline", action="store_true",
                     help="inline work goes into the parent's next call, not a call of its own")
     dg.add_argument("--flavor", default="cost_effective", help="cost_effective or cost_blind")
@@ -270,6 +273,7 @@ def _cmd_delegate(args) -> int:
             brief_tokens=args.brief_tokens, result_tokens=args.result_tokens,
             carry_turns=args.carry_turns, work_calls=args.work_calls,
             inline_separate_call=not args.fold_inline,
+            cached_read_ratio=args.cached_read_ratio,
             generator_model=args.generator, exclude_models=tuple(args.exclude))
     except NoModelClearsBar as exc:
         print(f"error: {exc}", file=sys.stderr)

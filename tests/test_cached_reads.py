@@ -6,13 +6,13 @@ context C in the inline work calls (K * C with a call of its own, (K - 1) * C fo
 rho times its list input price, as the float first argument
 ``K * C * rho + w_in * S_in + w_out * S_out`` of ``Model.cost``. Every other read and all
 output stay at list price, and the delegate, its cost, the context checks and the bounds
-are the same for every rho. The new behaviour is committed under strict xfail markers,
-each naming what the v1.40 code raises: ``TypeError`` where a test passes
+are the same for every rho. The new behaviour was committed under strict xfail markers,
+each naming what the v1.40 code raised: ``TypeError`` where a test passes
 ``cached_read_ratio`` to ``decide_delegation``, ``AssertionError`` where a CLI test passes
 ``--cached-read-ratio`` (v1.40 exits 2 on an unknown option). The implementing commit
-removes the markers (DESIGN 13.8). The tests that are not marked pin that the v1.41
-expressions with rho = 1.0 and rho = 1 give the v1.40 costs bit for bit; they pass before
-the code and after it.
+(v1.42) removed the markers (DESIGN 13.8). The tests that were never marked pin that the
+v1.41 expressions with rho = 1.0 and rho = 1 give the v1.40 costs bit for bit; they
+passed before the code and pass after it.
 """
 
 import dataclasses
@@ -23,11 +23,6 @@ from fractions import Fraction
 import pytest
 
 from model_routing import Model, Registry, Router, Stats, Task, main
-
-RED = pytest.mark.xfail(strict=True, raises=TypeError,
-                        reason="v1.41 cached_read_ratio is not implemented yet (DESIGN 13.1)")
-RED_CLI = pytest.mark.xfail(strict=True, raises=AssertionError,
-                            reason="v1.41 --cached-read-ratio is not implemented yet (DESIGN 13.7)")
 
 TASK = "review"
 S_IN, S_OUT = 2000, 500
@@ -154,7 +149,6 @@ def test_a_float_argument_equal_to_the_integer_total_prices_the_same():
 
 # 13.1 the input
 
-@RED
 @pytest.mark.parametrize("ratio", [1.0, 1])
 @pytest.mark.parametrize("rows,parent,flavor,separate,carry", GRID)
 def test_ratio_one_is_the_v140_decision(rows, parent, flavor, separate, carry, ratio):
@@ -166,7 +160,6 @@ def test_ratio_one_is_the_v140_decision(rows, parent, flavor, separate, carry, r
                           inline_separate_call=separate, work_calls=k))
 
 
-@RED
 @pytest.mark.parametrize("flavor", ["cost_effective", "cost_blind"])
 def test_ratio_one_is_the_v140_decision_below_the_bar(flavor):
     router = make_router(BELOW, on_no_model="best_available")
@@ -175,7 +168,6 @@ def test_ratio_one_is_the_v140_decision_below_the_bar(flavor):
                 == decide(router, parent, flavor))
 
 
-@RED
 @pytest.mark.parametrize("value", [-0.1, -1, 1.0000001, 2, float("nan"), float("inf"),
                                    float("-inf"), True, False, "0.5", None, Fraction(1, 2)])
 def test_cached_read_ratio_must_be_an_int_or_float_in_0_1_and_not_a_bool(value):
@@ -183,14 +175,12 @@ def test_cached_read_ratio_must_be_an_int_or_float_in_0_1_and_not_a_bool(value):
         decide(make_router(), "fiction/best", cached_read_ratio=value)
 
 
-@RED
 @pytest.mark.parametrize("value", [0, 1, 0.0, 0.5, 1.0, 5e-324])
 def test_cached_read_ratio_accepts_ints_and_floats_from_0_to_1(value):
     decision = decide(make_router(), "fiction/best", cached_read_ratio=value)
     assert decision.inline_cost_usd == inline_v141(make_router(), "fiction/best", ratio=value)
 
 
-@RED
 @pytest.mark.parametrize("bad,name", [({"work_calls": 0, "cached_read_ratio": -1}, "work_calls"),
                                       ({"inline_separate_call": "yes",
                                         "cached_read_ratio": 2.0}, "inline_separate_call")])
@@ -199,7 +189,6 @@ def test_cached_read_ratio_is_checked_after_inline_separate_call(bad, name):
         decide(make_router(), "fiction/best", **bad)
 
 
-@RED
 def test_the_router_is_not_modified_and_the_fields_are_unchanged():
     router = make_router(TOKENS)
     task, stats = router.tasks[TASK], dict(router.stats.items())
@@ -211,7 +200,6 @@ def test_the_router_is_not_modified_and_the_fields_are_unchanged():
 
 # 13.2 cost of each path
 
-@RED
 @pytest.mark.parametrize("ratio", [0.0, 0.1, 0.5])
 @pytest.mark.parametrize("k", [1, 3])
 @pytest.mark.parametrize("rows,parent,flavor,separate,carry", GRID)
@@ -228,7 +216,6 @@ def test_the_ratio_prices_the_parents_reads_of_c_and_nothing_else(rows, parent, 
         listed.inline_allowed, listed.parent_quality_lb, listed.delegate_quality_lb)
 
 
-@RED
 @pytest.mark.parametrize("k,separate,carry,ratio,inline", [
     # best is 10/20 USD per 1M tokens; C 20,000, S_in 2,000, S_out 500
     (1, True, 0, 0.1, 0.075),     # (2,000 + 2,000) * 10 + 500 * 20, then 2,500 * 10
@@ -244,7 +231,6 @@ def test_hand_computed_inline_costs(k, separate, carry, ratio, inline):
     assert decision.route.primary == "fiction/mid"
 
 
-@RED
 @pytest.mark.parametrize("k,context,ratio", [(3, 123_457, 0.1), (3, 123_457, 0.3), (3, 77_777, 0.9),
                                              (7, 77_777, 0.1), (7, 77_777, 0.7),
                                              (4, 123_457, 0.1), (4, 77_777, 0.9)])
@@ -261,7 +247,6 @@ def test_the_cached_reads_are_the_integer_product_times_the_ratio(k, context, ra
                                                        context)
 
 
-@RED
 @pytest.mark.parametrize("ratio", [0, 0.3, 1.0])
 @pytest.mark.parametrize("rows,parent,flavor,carry",
                          [(rows, parent, flavor, carry)
@@ -273,7 +258,6 @@ def test_folded_work_of_one_call_costs_the_same_for_every_ratio(rows, parent, fl
         router, parent, flavor, **work)
 
 
-@RED
 def test_a_lower_ratio_can_keep_the_work_inline():
     # mid as the parent and its own delegate: with B = R = 2,000, delegating costs
     # 0.012 + 0.015 + 0.012 = 0.039 USD; inline costs 0.06 * rho + 0.0165, so it is the
@@ -291,7 +275,6 @@ def test_a_lower_ratio_can_keep_the_work_inline():
     assert cached.inline_cost_usd == pytest.approx(0.0315, rel=1e-12)
 
 
-@RED
 def test_cost_blind_never_compares_cost_so_the_ratio_cannot_move_it():
     router = make_router()
     work = {"brief_tokens": 2000, "result_tokens": 2000}
@@ -305,7 +288,6 @@ def test_cost_blind_never_compares_cost_so_the_ratio_cannot_move_it():
 
 # 13.4 the context check reads tokens, not prices
 
-@RED
 @pytest.mark.parametrize("k,window", [(1, 22_499), (2, 24_999)])
 def test_the_context_check_is_the_same_at_every_ratio(k, window):
     # C + K * (S_in + S_out) is 22,500 at K = 1 and 25,000 at K = 2
@@ -344,7 +326,6 @@ def delegate_args(files, parent="fiction/best", *extra):
     return args + list(extra)
 
 
-@RED_CLI
 @pytest.mark.parametrize("extra,kwargs", [((), {}),
                                           (("--fold-inline", "--work-calls", "2",
                                             "--carry-turns", "1"),
@@ -359,7 +340,6 @@ def test_cli_cached_read_ratio_reaches_the_api(delegate_files, capsys, extra, kw
     assert json.loads(out) == expected
 
 
-@RED_CLI
 @pytest.mark.parametrize("value", ["1", "1.0"])
 def test_cli_ratio_one_prints_what_no_flag_prints(delegate_files, capsys, value):
     assert main(delegate_args(delegate_files, "fiction/best", "--cached-read-ratio", value)) == 0
@@ -368,7 +348,6 @@ def test_cli_ratio_one_prints_what_no_flag_prints(delegate_files, capsys, value)
     assert flagged == capsys.readouterr().out
 
 
-@RED_CLI
 def test_cli_text_keeps_its_eight_lines_with_a_cached_read_ratio(delegate_files, capsys):
     code = main(delegate_args(delegate_files, "fiction/best", "--cached-read-ratio", "0.1"))
     text = capsys.readouterr().out
@@ -378,7 +357,6 @@ def test_cli_text_keeps_its_eight_lines_with_a_cached_read_ratio(delegate_files,
     assert re.search(r"^delegate_cost_usd:\s+0\.020900$", text, re.MULTILINE)
 
 
-@RED_CLI
 @pytest.mark.parametrize("value", ["-0.5", "1.5", "nan", "inf", "half"])
 def test_cli_bad_cached_read_ratio_exits_two_with_one_error_line(delegate_files, capsys, value):
     assert main(delegate_args(delegate_files, "fiction/best", "--cached-read-ratio", "0.5")) == 0

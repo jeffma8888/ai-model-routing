@@ -137,6 +137,7 @@ def decide_delegation(router: Router, task_name: str, parent_model: str,
                       flavor: str = "cost_effective", *, context_tokens: int,
                       brief_tokens: int, result_tokens: int, carry_turns: int = 0,
                       work_calls: int = 1, inline_separate_call: bool = True,
+                      cached_read_ratio: float = 1.0,
                       generator_model: Optional[str] = None,
                       exclude_models: Iterable[str] = ()) -> DelegationDecision:
     """The logic of :meth:`Router.decide_delegation` (DESIGN 13.1 to 13.5)."""
@@ -154,6 +155,9 @@ def decide_delegation(router: Router, task_name: str, parent_model: str,
     k = work_calls
     if not isinstance(inline_separate_call, bool):
         raise ValueError(f"inline_separate_call must be a bool, got {inline_separate_call!r}")
+    rho = cached_read_ratio
+    if isinstance(rho, bool) or not isinstance(rho, (int, float)) or not 0 <= rho <= 1:
+        raise ValueError(f"cached_read_ratio must be a number from 0 to 1, got {rho!r}")
     parent = router.registry.get(parent_model)
     generator_family = None
     if generator_model is not None:
@@ -164,12 +168,13 @@ def decide_delegation(router: Router, task_name: str, parent_model: str,
 
     # 13.2: both paths are charged for the same parent calls, each for what it adds,
     # with the work at the sizes of the model doing it (v1.33) and K calls long (v1.38);
-    # folded work takes only the last call into the next one, which re-reads C anyway
+    # folded work takes only the last call into the next one, which re-reads C anyway;
+    # the work calls' reads of C are priced at rho times the list input price (v1.41)
     if inline_separate_call:
-        inline_cost = (_work_cost(parent, k, k * c, p_in, p_out)
+        inline_cost = (_work_cost(parent, k, k * c * rho, p_in, p_out)
                        + (1 + t) * parent.cost(k * (p_in + p_out), 0))
     else:
-        inline_cost = (_work_cost(parent, k, (k - 1) * c, p_in, p_out)
+        inline_cost = (_work_cost(parent, k, (k - 1) * c * rho, p_in, p_out)
                        + t * parent.cost(k * (p_in + p_out), 0))
 
     # 13.4: the first rule that applies blocks inline
