@@ -4,8 +4,8 @@
 An autouse fixture imports ``model_routing.delegation`` before any other fixture or
 test code runs. The strict xfail these tests were committed under was removed by the
 implementing commit (DESIGN 13.8), so any failure here now fails the suite. The v1.31
-row 7 equal-bound tests that need the new branch carry their own strict xfail until the
-code that implements them lands (DESIGN 13.8).
+row 7 equal-bound tests that need the new branch were committed under their own strict
+xfail, removed by the v1.32 commit that implemented them (DESIGN 13.8).
 """
 
 import dataclasses
