@@ -30,6 +30,7 @@ POINT_KEYS = ["context_tokens", "brief_tokens", "result_tokens", "carry_turns",
 VARIANTS = [{"context_tokens": 64000, "brief_tokens": 500, "result_tokens": 500,
              "carry_turns": 1, "inline_separate_call": False, "work_calls": 2}]
 
+
 @pytest.fixture
 def dr():
     spec = importlib.util.spec_from_file_location("delegation_results_variants", SCRIPT)
@@ -207,6 +208,9 @@ ONLY_MATRIX = "error: --grid is only used with --matrix\n"
     (["--table", "t", "--grid", "variants"], ONLY_MATRIX),
     (["--table", "t", "--bar", "0.8", "--point", "0", "--grid", "base"], ONLY_MATRIX),
     (["--breakeven", "t", "--bar", "0.8", "--point", "0", "--grid", "variants"], ONLY_MATRIX),
+    # the --grid check comes before the --bar and --point checks (DESIGN 13.10, v1.46)
+    (["--table", "t", "--bar", "0.8", "--grid", "variants"], ONLY_MATRIX),
+    (["--breakeven", "t", "--grid", "variants"], ONLY_MATRIX),
     (["--table", "t", "--out", "o", "--grid", "variants"],
      "error: --registry and --out are only used with --matrix\n"),
 ])
