@@ -4,12 +4,13 @@ before the code.
 The work may be K successive calls of the task (``work_calls``, ``--work-calls``): call j
 reads its path's base context (C inline, B delegated) plus the j inputs and j - 1
 outputs so far and writes S_out, and each path prices its K calls as one ``Model.cost``
-of their integer token totals. The new behaviour is committed under strict xfail
-markers, each naming what the v1.37 code raises: ``TypeError`` where a test passes
+of their integer token totals. The new behaviour was committed under strict xfail
+markers, each naming what the v1.37 code raised: ``TypeError`` where a test passes
 ``work_calls`` to ``decide_delegation``, ``AssertionError`` where a CLI test passes
-``--work-calls`` (v1.37 exits 2 on an unknown option). The implementing commit removes
-the markers (DESIGN 13.8). The tests that are not marked pin that the v1.38 expressions
-with K = 1 give the v1.37 costs bit for bit; they pass before and after the code.
+``--work-calls`` (v1.37 exits 2 on an unknown option). The implementing commit (v1.39)
+removed the markers (DESIGN 13.8). The tests that were never marked pin that the v1.38
+expressions with K = 1 give the v1.37 costs bit for bit; they passed before the code and
+pass after it.
 """
 
 import dataclasses
@@ -38,12 +39,6 @@ TEXT_KEYS = ["mode", "model", "reason", "below_bar", "inline_cost_usd", "delegat
 FIELDS = ["task", "flavor", "parent", "mode", "model", "reason", "below_bar", "inline_allowed",
           "inline_cost_usd", "delegate_cost_usd", "parent_quality_lb", "delegate_quality_lb",
           "route"]
-
-RED = pytest.mark.xfail(strict=True, raises=TypeError,
-                        reason="v1.37 decide_delegation has no work_calls keyword (13.8)")
-RED_CLI = pytest.mark.xfail(strict=True, raises=AssertionError,
-                            reason="v1.37 delegate exits 2 on --work-calls (13.8)")
-
 
 def models(windows=None, extra=()):
     """cheap 1/2, mid 3/6, best 10/20 USD per 1M tokens; 100,000-token windows unless set."""
@@ -149,7 +144,6 @@ def test_k_call_totals_are_the_sum_of_the_calls(k, folded):
 
 # 13.1 the input
 
-@RED
 @pytest.mark.parametrize("rows,parent,flavor,separate,carry", GRID)
 def test_work_calls_one_is_the_v137_decision(rows, parent, flavor, separate, carry):
     router = make_router(rows)
@@ -158,7 +152,6 @@ def test_work_calls_one_is_the_v137_decision(rows, parent, flavor, separate, car
             == decide(router, parent, flavor, carry_turns=carry, inline_separate_call=separate))
 
 
-@RED
 @pytest.mark.parametrize("flavor", ["cost_effective", "cost_blind"])
 def test_work_calls_one_is_the_v137_decision_below_the_bar(flavor):
     router = make_router(BELOW, on_no_model="best_available")
@@ -167,14 +160,12 @@ def test_work_calls_one_is_the_v137_decision_below_the_bar(flavor):
                 == decide(router, parent, flavor))
 
 
-@RED
 @pytest.mark.parametrize("value", [0, -1, True, False, 1.0, 2.5, "2", None])
 def test_work_calls_must_be_an_integer_of_at_least_one_and_not_a_bool(value):
     with pytest.raises(ValueError, match="work_calls"):
         decide(make_router(), "fiction/best", work_calls=value)
 
 
-@RED
 @pytest.mark.parametrize("bad,name", [({"carry_turns": -1, "work_calls": 0}, "carry_turns"),
                                       ({"work_calls": 0, "inline_separate_call": "yes"},
                                        "work_calls")])
@@ -183,7 +174,6 @@ def test_work_calls_is_checked_after_carry_turns_and_before_inline_separate_call
         decide(make_router(), "fiction/best", **bad)
 
 
-@RED
 def test_the_router_is_not_modified_and_the_bounds_stay_per_call():
     router = make_router(TOKENS)
     task, stats = router.tasks[TASK], dict(router.stats.items())
@@ -198,7 +188,6 @@ def test_the_router_is_not_modified_and_the_bounds_stay_per_call():
 
 # 13.2 cost of each path
 
-@RED
 @pytest.mark.parametrize("k", [2, 3, 7])
 @pytest.mark.parametrize("rows,parent,flavor,separate,carry", GRID)
 def test_k_call_costs_are_the_v138_expressions(k, rows, parent, flavor, separate, carry):
@@ -210,7 +199,6 @@ def test_k_call_costs_are_the_v138_expressions(k, rows, parent, flavor, separate
                                                        carry)
 
 
-@RED
 def test_k_call_costs_by_hand():
     router = make_router()
     # separate, K = 3, T = 0: best reads 3 * 20,000 + 6 * 2,000 + 3 * 500 = 73,500 and
@@ -227,7 +215,6 @@ def test_k_call_costs_by_hand():
     assert two.delegate_cost_usd == pytest.approx(0.0018 + 0.0213 + 0.006 + 0.0015, rel=1e-12)
 
 
-@RED
 def test_from_two_calls_a_folded_parent_delegates_to_its_own_model_with_no_carry():
     # 13.2 v1.38: folded, inline minus delegating to its own model gains (K - 1) * C
     router = make_router(registry_models=models()[1:2], rows={"fiction/mid": (95, 100)})
@@ -239,7 +226,6 @@ def test_from_two_calls_a_folded_parent_delegates_to_its_own_model_with_no_carry
 
 # 13.4 the inline context check
 
-@RED
 @pytest.mark.parametrize("window,k,allowed", [(25_000, 2, True), (24_999, 2, False),
                                               (24_999, 1, True), (22_500, 1, True),
                                               (32_500, 5, True), (32_499, 5, False)])
@@ -253,7 +239,6 @@ def test_inline_context_check_holds_the_last_call(window, k, allowed):
         assert (decision.mode, decision.reason) == ("delegate", "parent_context_full")
 
 
-@RED
 @pytest.mark.parametrize("separate", [True, False])
 def test_inline_context_check_is_the_same_folded(separate):
     router = make_router(registry_models=models({"fiction/mid": 24_999}))
@@ -263,7 +248,6 @@ def test_inline_context_check_is_the_same_folded(separate):
 
 # 13.3 the delegate's select
 
-@RED
 @pytest.mark.parametrize("window,reason", [(7_800, PASSES), (7_799, CONTEXT_TOO_SMALL)])
 def test_delegate_window_holds_its_last_call_not_the_k_call_total(window, reason):
     # B + K * (S_in + S_out) = 300 + 3 * 2,500 = 7,800, under the K-call total of 15,900
@@ -272,7 +256,6 @@ def test_delegate_window_holds_its_last_call_not_the_k_call_total(window, reason
     assert by_id(decision.route)["fiction/mid"].reason == reason
 
 
-@RED
 @pytest.mark.parametrize("flavor", ["cost_effective", "cost_blind"])
 @pytest.mark.parametrize("rows", [COUNTS, TOKENS, ODD])
 @pytest.mark.parametrize("k", [1, 2, 4])
@@ -285,7 +268,6 @@ def test_each_candidate_is_priced_at_its_k_calls(flavor, rows, k):
                                           else 0.0)
 
 
-@RED
 def test_measured_means_are_rounded_up_before_k_applies():
     # mid: 3 * 300 + 6 * 2,601 + 3 * 301 = 17,409 in and 903 out, where rounding the
     # K-weighted raw totals instead would give 17,397 in
@@ -297,7 +279,6 @@ def test_measured_means_are_rounded_up_before_k_applies():
     assert decision.delegate_cost_usd == (0.006 + work + 0.005)
 
 
-@RED
 @pytest.mark.parametrize("rows", [COUNTS, TOKENS, ODD])
 @pytest.mark.parametrize("carry", [0, 3])
 def test_the_delegate_cost_holds_its_route_candidate_list_cost(rows, carry):
@@ -318,7 +299,6 @@ def two_price_shapes(out_price):
     return make_router(rows, models()[2:] + list(extra))
 
 
-@RED
 def test_the_delegate_is_the_cheapest_over_its_k_calls_not_its_largest_call():
     # K = 3: in-cheap costs 14,400 + 45,000 over its three calls against out-cheap's
     # 57,600 + 1,500, but its last call alone 7,300 + 15,000 against 29,200 + 500
@@ -326,7 +306,6 @@ def test_the_delegate_is_the_cheapest_over_its_k_calls_not_its_largest_call():
     assert decide(router, "fiction/best", work_calls=3).route.primary == "fiction/out-cheap"
 
 
-@RED
 def test_more_calls_can_move_the_delegate_to_cheaper_input():
     # out-cheap wins one call (9,700 against 12,300), in-cheap three (44,400 against 59,100)
     router = two_price_shapes(20.0)
@@ -334,7 +313,6 @@ def test_more_calls_can_move_the_delegate_to_cheaper_input():
     assert decide(router, "fiction/best", work_calls=3).route.primary == "fiction/in-cheap"
 
 
-@RED
 @pytest.mark.parametrize("k", [1, 3])
 def test_a_refusal_carries_candidates_priced_at_their_k_calls(k):
     router = make_router(BELOW)
@@ -344,7 +322,6 @@ def test_a_refusal_carries_candidates_priced_at_their_k_calls(k):
     assert costs == {m: delegate_work_v138(router, m, k) for m in BELOW}
 
 
-@RED
 @pytest.mark.parametrize("k,primary", [(1, "fiction/out-cheap"), (3, "fiction/out-cheap")])
 def test_a_prior_route_breaks_a_score_tie_by_the_k_call_cost(k, primary):
     # no stats: every model is unmeasured, priced at the task's expected sizes; at K = 3
@@ -363,7 +340,6 @@ def test_a_prior_route_breaks_a_score_tie_by_the_k_call_cost(k, primary):
         assert candidate.list_cost == delegate_work_v138(router, model_id, k)
 
 
-@RED
 @pytest.mark.parametrize("flavor,k,mode", [("cost_effective", 1, "inline"),
                                            ("cost_effective", 2, "delegate"),
                                            ("cost_blind", 2, "inline")])
@@ -403,7 +379,6 @@ def delegate_args(files, parent="fiction/best", *extra):
     return args + list(extra)
 
 
-@RED_CLI
 @pytest.mark.parametrize("extra,kwargs", [((), {}), (("--fold-inline", "--carry-turns", "2"),
                                                      {"inline_separate_call": False,
                                                       "carry_turns": 2})])
@@ -416,7 +391,6 @@ def test_cli_work_calls_reaches_the_api(delegate_files, capsys, extra, kwargs):
     assert json.loads(out) == expected
 
 
-@RED_CLI
 def test_cli_text_keeps_its_eight_lines_with_work_calls(delegate_files, capsys):
     code = main(delegate_args(delegate_files, "fiction/best", "--work-calls", "3"))
     text = capsys.readouterr().out
@@ -426,7 +400,6 @@ def test_cli_text_keeps_its_eight_lines_with_work_calls(delegate_files, capsys):
     assert re.search(r"^delegate_cost_usd:\s+0\.063200$", text, re.MULTILINE)
 
 
-@RED_CLI
 def test_cli_exit_three_table_prints_the_k_call_costs(delegate_files, capsys):
     build_stats(BELOW).save(delegate_files["stats"])
     code = main(delegate_args(delegate_files, "fiction/cheap", "--work-calls", "3"))
@@ -437,7 +410,6 @@ def test_cli_exit_three_table_prints_the_k_call_costs(delegate_files, capsys):
         assert f"{delegate_work_v138(router, model_id, 3):.6f}" in err
 
 
-@RED_CLI
 @pytest.mark.parametrize("value", ["0", "-1", "1.5", "many"])
 def test_cli_bad_work_calls_exits_two_with_one_error_line(delegate_files, capsys, value):
     assert main(delegate_args(delegate_files, "fiction/best", "--work-calls", "2")) == 0

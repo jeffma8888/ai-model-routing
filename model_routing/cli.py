@@ -77,7 +77,8 @@ def _build_parser() -> argparse.ArgumentParser:
     ev.add_argument("--json", action="store_true")
 
     dg = sub.add_parser("delegate",
-                        help="do one call of a task inline in the parent or hand it to a sub-agent")
+                        help="do work of one or more calls of a task inline in the parent "
+                             "or hand it to a sub-agent")
     dg.add_argument("task")
     dg.add_argument("--parent", required=True, help="the model of the agent doing the work")
     dg.add_argument("--context-tokens", required=True, type=int,
@@ -88,6 +89,8 @@ def _build_parser() -> argparse.ArgumentParser:
                     help="tokens the parent reads back from the sub-agent")
     dg.add_argument("--carry-turns", type=int, default=0,
                     help="parent calls after the next one that still re-read this work")
+    dg.add_argument("--work-calls", type=int, default=1,
+                    help="successive calls of the task the work takes (default 1)")
     dg.add_argument("--fold-inline", action="store_true",
                     help="inline work goes into the parent's next call, not a call of its own")
     dg.add_argument("--flavor", default="cost_effective", help="cost_effective or cost_blind")
@@ -265,7 +268,8 @@ def _cmd_delegate(args) -> int:
         decision = router.decide_delegation(
             args.task, args.parent, args.flavor, context_tokens=args.context_tokens,
             brief_tokens=args.brief_tokens, result_tokens=args.result_tokens,
-            carry_turns=args.carry_turns, inline_separate_call=not args.fold_inline,
+            carry_turns=args.carry_turns, work_calls=args.work_calls,
+            inline_separate_call=not args.fold_inline,
             generator_model=args.generator, exclude_models=tuple(args.exclude))
     except NoModelClearsBar as exc:
         print(f"error: {exc}", file=sys.stderr)

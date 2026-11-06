@@ -1,9 +1,10 @@
-"""Inline or sub-agent: should a running agent do one call of a task itself or hand it off?
+"""Inline or sub-agent: should a running agent do a piece of work itself or hand it off?
 
-The parent is a model already running with its own context. Doing the work inline
-costs a parent call over that context; delegating costs a brief, a call on the model
-``Router.select`` picks, and reading the result back. Both paths are held to the
-task's bar, and both flavors apply (DESIGN section 13).
+The work is one or more successive calls of a task. The parent is a model already
+running with its own context. Doing the work inline costs parent calls over that
+context; delegating costs a brief, calls on the model ``Router.select`` picks over the
+brief alone, and reading the result back. Both paths are held to the task's bar, and
+both flavors apply (DESIGN section 13).
 """
 
 from __future__ import annotations
@@ -13,6 +14,7 @@ from typing import Iterable, Optional
 
 from .router import FLAVORS, NoModelClearsBar, RouteDecision, Router, _sizes
 from .stats import Stats, wilson_lower_bound
+from .tasks import Task
 
 INLINE = "inline"
 DELEGATE = "delegate"
@@ -72,6 +74,42 @@ def _count(name: str, value) -> int:
     return value
 
 
+def _work_cost(model, k: int, base_reads: int, s_in: int, s_out: int) -> float:
+    """List cost of K work calls as one ``Model.cost`` of their token totals (13.2, v1.38).
+
+    Call j reads the path's base context, the j inputs and the j - 1 outputs so far,
+    and writes ``s_out``, so the K calls read ``base_reads + w_in * s_in + w_out * s_out``
+    and write ``K * s_out``, with w_in = K(K + 1) / 2 and w_out = K(K - 1) / 2.
+    ``base_reads`` is the base context times the calls charged for it.
+    """
+    w_in, w_out = k * (k + 1) // 2, k * (k - 1) // 2
+    return model.cost(base_reads + w_in * s_in + w_out * s_out, k * s_out)
+
+
+class _WorkCallsRouter(Router):
+    """The delegate's ``select`` for K > 1 work calls on the brief (13.3, v1.38).
+
+    Its one task is a copy whose expected input is the delegate's last call,
+    ``B + K * S_in + (K - 1) * S_out``, so 5.2 rule 5 checks that call; each candidate
+    is priced at its K calls at its own 5.2 sizes on the original task.
+    """
+
+    def __init__(self, router: Router, task: Task, brief_tokens: int, work_calls: int):
+        k = work_calls
+        last_call = replace(task, expected_input_tokens=brief_tokens
+                            + k * task.expected_input_tokens
+                            + (k - 1) * task.expected_output_tokens)
+        super().__init__(router.registry, {task.name: last_call}, router.stats, router.priors)
+        self._task = task
+        self._brief_tokens = brief_tokens
+        self._work_calls = work_calls
+
+    def _list_cost(self, task: Task, model) -> float:
+        d_in, d_out = _sizes(self.stats, self._task, model.id)
+        k = self._work_calls
+        return _work_cost(model, k, k * self._brief_tokens, d_in, d_out)
+
+
 def _briefed_stats(stats: Stats, task_name: str, brief_tokens: int) -> Stats:
     """A copy of the task's stats with the brief added to every recorded call's input.
 
@@ -97,7 +135,7 @@ def _briefed_stats(stats: Stats, task_name: str, brief_tokens: int) -> Stats:
 def decide_delegation(router: Router, task_name: str, parent_model: str,
                       flavor: str = "cost_effective", *, context_tokens: int,
                       brief_tokens: int, result_tokens: int, carry_turns: int = 0,
-                      inline_separate_call: bool = True,
+                      work_calls: int = 1, inline_separate_call: bool = True,
                       generator_model: Optional[str] = None,
                       exclude_models: Iterable[str] = ()) -> DelegationDecision:
     """The logic of :meth:`Router.decide_delegation` (DESIGN 13.1 to 13.5)."""
@@ -110,6 +148,9 @@ def decide_delegation(router: Router, task_name: str, parent_model: str,
     b = _count("brief_tokens", brief_tokens)
     r = _count("result_tokens", result_tokens)
     t = _count("carry_turns", carry_turns)
+    if isinstance(work_calls, bool) or not isinstance(work_calls, int) or work_calls < 1:
+        raise ValueError(f"work_calls must be an integer >= 1, got {work_calls!r}")
+    k = work_calls
     if not isinstance(inline_separate_call, bool):
         raise ValueError(f"inline_separate_call must be a bool, got {inline_separate_call!r}")
     parent = router.registry.get(parent_model)
@@ -121,11 +162,14 @@ def decide_delegation(router: Router, task_name: str, parent_model: str,
     p_in, p_out = _sizes(router.stats, task, parent.id)
 
     # 13.2: both paths are charged for the same parent calls, each for what it adds,
-    # with the work at the sizes of the model doing it (v1.33)
+    # with the work at the sizes of the model doing it (v1.33) and K calls long (v1.38);
+    # folded work takes only the last call into the next one, which re-reads C anyway
     if inline_separate_call:
-        inline_cost = parent.cost(c + p_in, p_out) + (1 + t) * parent.cost(p_in + p_out, 0)
+        inline_cost = (_work_cost(parent, k, k * c, p_in, p_out)
+                       + (1 + t) * parent.cost(k * (p_in + p_out), 0))
     else:
-        inline_cost = parent.cost(p_in, p_out) + t * parent.cost(p_in + p_out, 0)
+        inline_cost = (_work_cost(parent, k, (k - 1) * c, p_in, p_out)
+                       + t * parent.cost(k * (p_in + p_out), 0))
 
     # 13.4: the first rule that applies blocks inline
     block = None
@@ -134,13 +178,17 @@ def decide_delegation(router: Router, task_name: str, parent_model: str,
     elif task.independent_of_generator and generator_model is not None and (
             parent.id == generator_model or parent.family == generator_family):
         block = PARENT_NOT_INDEPENDENT
-    elif parent.context_window < c + s_in + s_out:
+    elif parent.context_window < c + k * (s_in + s_out):
         block = PARENT_CONTEXT_FULL
 
-    # 13.3: the delegate reads the brief as well as the work's input
-    briefed = replace(task, expected_input_tokens=s_in + b)
-    sub = Router(router.registry, {task.name: briefed},
-                 _briefed_stats(router.stats, task.name, b), router.priors)
+    # 13.3: the delegate reads the brief as well as the work's input; with K = 1 this
+    # is the v1.34 select, and K > 1 checks the last call and prices the K calls
+    if k == 1:
+        briefed = replace(task, expected_input_tokens=s_in + b)
+        sub = Router(router.registry, {task.name: briefed},
+                     _briefed_stats(router.stats, task.name, b), router.priors)
+    else:
+        sub = _WorkCallsRouter(router, task, b, k)
     route: Optional[RouteDecision] = None
     failed: Optional[NoModelClearsBar] = None
     try:
@@ -153,7 +201,7 @@ def decide_delegation(router: Router, task_name: str, parent_model: str,
     if route is not None:
         delegate = router.registry.get(route.primary)
         d_in, d_out = _sizes(router.stats, task, delegate.id)
-        delegate_cost = (parent.cost(0, b) + delegate.cost(b + d_in, d_out)
+        delegate_cost = (parent.cost(0, b) + _work_cost(delegate, k, k * b, d_in, d_out)
                          + (1 + t) * parent.cost(b + r, 0))
         delegate_lb = next(x.quality_lb for x in route.candidates
                            if x.model_id == route.primary)

@@ -150,21 +150,23 @@ class Router:
     def decide_delegation(self, task_name: str, parent_model: str,
                           flavor: str = "cost_effective", *, context_tokens: int,
                           brief_tokens: int, result_tokens: int, carry_turns: int = 0,
-                          inline_separate_call: bool = True,
+                          work_calls: int = 1, inline_separate_call: bool = True,
                           generator_model: Optional[str] = None,
                           exclude_models: Iterable[str] = ()):
-        """Decide whether ``parent_model`` does one call of the task inline or delegates it.
+        """Decide whether ``parent_model`` does the work inline or delegates it.
 
+        The work is ``work_calls`` successive calls of the task, one by default.
         Returns a :class:`~model_routing.delegation.DelegationDecision`; the delegate
         is this router's ``select`` with the brief added to the task's input. Raises
         ``KeyError`` for an unknown task, parent or generator, ``ValueError`` for an
-        unknown flavor or an invalid token count, and :class:`NoModelClearsBar` when
-        neither path is allowed (DESIGN section 13).
+        unknown flavor, an invalid token count or ``work_calls`` below 1, and
+        :class:`NoModelClearsBar` when neither path is allowed (DESIGN section 13).
         """
         from .delegation import decide_delegation
         return decide_delegation(self, task_name, parent_model, flavor,
                                  context_tokens=context_tokens, brief_tokens=brief_tokens,
                                  result_tokens=result_tokens, carry_turns=carry_turns,
+                                 work_calls=work_calls,
                                  inline_separate_call=inline_separate_call,
                                  generator_model=generator_model,
                                  exclude_models=exclude_models)
@@ -191,7 +193,7 @@ class Router:
             reason = BELOW_BAR
         else:
             reason = PASSES
-        list_cost = model.cost(*_sizes(self.stats, task, model.id))
+        list_cost = self._list_cost(task, model)
         return Candidate(
             model_id=model.id,
             family=model.family,
@@ -204,6 +206,10 @@ class Router:
             passes=reason == PASSES,
             reason=reason,
         )
+
+    def _list_cost(self, task: Task, model) -> float:
+        """A candidate's list-price cost of one call of the task at its 5.2 sizes."""
+        return model.cost(*_sizes(self.stats, task, model.id))
 
     @staticmethod
     def _decision(task: Task, flavor: str, ordered: Sequence[Candidate], below_bar: bool,
