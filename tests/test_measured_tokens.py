@@ -146,17 +146,24 @@ def test_add_rejects_invalid_token_arguments_and_adds_nothing(successes, trials,
 
 @NEW_ADD
 def test_merge_sums_token_totals_without_mutating_either_operand():
+    # "m" is measured on both sides, "p" only in a, "q" only in b, "n" has no tokens
     a = Stats()
     a.add(TASK, "m", 1, 2, input_tokens=10, output_tokens=4)
+    a.add(TASK, "p", 2, 4, input_tokens=40, output_tokens=8, token_trials=3)
     b = Stats()
     b.add(TASK, "m", 3, 3, input_tokens=5, output_tokens=6, token_trials=1)
     b.add(TASK, "n", 1, 1)
+    b.add(TASK, "q", 0, 2, input_tokens=7, output_tokens=9)
     merged = a.merge(b)
     assert merged.get(TASK, "m") == (4, 5)
     assert merged.tokens(TASK, "m") == (15, 10, 3)
     assert merged.tokens(TASK, "n") == (0, 0, 0)
+    assert merged.tokens(TASK, "p") == (40, 8, 3)
+    assert merged.tokens(TASK, "q") == (7, 9, 2)
     assert a.tokens(TASK, "m") == (10, 4, 2)
+    assert a.tokens(TASK, "q") == (0, 0, 0)
     assert b.tokens(TASK, "m") == (5, 6, 1)
+    assert b.tokens(TASK, "p") == (0, 0, 0)
 
 
 @NEW_ADD
@@ -446,6 +453,14 @@ def test_without_token_totals_delegation_costs_are_the_v1_32_expressions(parent,
     delegate = reg.get(d.route.primary)
     assert d.delegate_cost_usd == (p.cost(0, b) + delegate.cost(b + S_IN, S_OUT)
                                    + (1 + turns) * p.cost(b + r, 0))
+    # the v1.32 decisions on these fixtures, read from v1.32: only the cheap parent folding
+    # the work into its next call with no later turns stays inline
+    stays = parent == "fiction/cheap" and not separate and turns == 0
+    expected = (("inline", parent, "inline_cheaper") if stays
+                else ("delegate", "fiction/cheap", "delegate_cheaper"))
+    assert (d.mode, d.model, d.reason, d.inline_allowed, d.below_bar) == expected + (True, False)
+    assert (d.route.basis, d.route.primary, tuple(d.route.fallbacks), d.route.below_bar) == (
+        "measured", "fiction/cheap", ("fiction/mid", "fiction/best"), False)
 
 
 # ---- 4.3 files without tokens stay v1.32 files -----------------------------------------
