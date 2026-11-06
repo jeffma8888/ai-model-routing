@@ -18,7 +18,7 @@ import re
 
 import pytest
 
-from model_routing import Model, Registry, Router, Stats, Task, main
+from model_routing import Model, NoModelClearsBar, Priors, Registry, Router, Stats, Task, main
 from model_routing.router import CONTEXT_TOO_SMALL, PASSES
 
 TASK = "review"
@@ -28,6 +28,10 @@ WORK = {"context_tokens": C, "brief_tokens": B, "result_tokens": R}
 COUNTS = {"fiction/cheap": (70, 100), "fiction/mid": (95, 100), "fiction/best": (99, 100)}
 TOKENS = {"fiction/cheap": (70, 100, 150_000, 40_000), "fiction/mid": (95, 100, 260_000, 30_000),
           "fiction/best": (99, 100, 310_000, 81_000)}
+# totals that 100 trials do not divide, next to a model with counts only: the 5.2 sizes
+# round each mean up before K applies (mid: 2,601 in, 301 out)
+ODD = {"fiction/cheap": (70, 100), "fiction/mid": (95, 100, 260_001, 30_001),
+       "fiction/best": (99, 100, 310_000, 81_000)}
 BELOW = {"fiction/cheap": (70, 100), "fiction/mid": (75, 100), "fiction/best": (78, 100)}
 TEXT_KEYS = ["mode", "model", "reason", "below_bar", "inline_cost_usd", "delegate_cost_usd",
              "parent_quality_lb", "delegate_quality_lb"]
@@ -114,7 +118,7 @@ def by_id(route):
 
 
 GRID = [(rows, parent, flavor, separate, carry)
-        for rows in (COUNTS, TOKENS)
+        for rows in (COUNTS, TOKENS, ODD)
         for parent in ("fiction/cheap", "fiction/mid", "fiction/best")
         for flavor in ("cost_effective", "cost_blind")
         for separate in (True, False)
@@ -168,6 +172,15 @@ def test_work_calls_one_is_the_v137_decision_below_the_bar(flavor):
 def test_work_calls_must_be_an_integer_of_at_least_one_and_not_a_bool(value):
     with pytest.raises(ValueError, match="work_calls"):
         decide(make_router(), "fiction/best", work_calls=value)
+
+
+@RED
+@pytest.mark.parametrize("bad,name", [({"carry_turns": -1, "work_calls": 0}, "carry_turns"),
+                                      ({"work_calls": 0, "inline_separate_call": "yes"},
+                                       "work_calls")])
+def test_work_calls_is_checked_after_carry_turns_and_before_inline_separate_call(bad, name):
+    with pytest.raises(ValueError, match=name):
+        decide(make_router(), "fiction/best", **bad)
 
 
 @RED
@@ -261,7 +274,7 @@ def test_delegate_window_holds_its_last_call_not_the_k_call_total(window, reason
 
 @RED
 @pytest.mark.parametrize("flavor", ["cost_effective", "cost_blind"])
-@pytest.mark.parametrize("rows", [COUNTS, TOKENS])
+@pytest.mark.parametrize("rows", [COUNTS, TOKENS, ODD])
 @pytest.mark.parametrize("k", [1, 2, 4])
 def test_each_candidate_is_priced_at_its_k_calls(flavor, rows, k):
     router = make_router(rows)
@@ -273,7 +286,19 @@ def test_each_candidate_is_priced_at_its_k_calls(flavor, rows, k):
 
 
 @RED
-@pytest.mark.parametrize("rows", [COUNTS, TOKENS])
+def test_measured_means_are_rounded_up_before_k_applies():
+    # mid: 3 * 300 + 6 * 2,601 + 3 * 301 = 17,409 in and 903 out, where rounding the
+    # K-weighted raw totals instead would give 17,397 in
+    router = make_router(ODD)
+    decision = decide(router, "fiction/best", work_calls=3)
+    assert decision.route.primary == "fiction/mid"
+    work = by_id(decision.route)["fiction/mid"].list_cost
+    assert work == pytest.approx(0.057645, rel=1e-12)
+    assert decision.delegate_cost_usd == (0.006 + work + 0.005)
+
+
+@RED
+@pytest.mark.parametrize("rows", [COUNTS, TOKENS, ODD])
 @pytest.mark.parametrize("carry", [0, 3])
 def test_the_delegate_cost_holds_its_route_candidate_list_cost(rows, carry):
     router = make_router(rows)
@@ -307,6 +332,48 @@ def test_more_calls_can_move_the_delegate_to_cheaper_input():
     router = two_price_shapes(20.0)
     assert decide(router, "fiction/best", work_calls=1).route.primary == "fiction/out-cheap"
     assert decide(router, "fiction/best", work_calls=3).route.primary == "fiction/in-cheap"
+
+
+@RED
+@pytest.mark.parametrize("k", [1, 3])
+def test_a_refusal_carries_candidates_priced_at_their_k_calls(k):
+    router = make_router(BELOW)
+    with pytest.raises(NoModelClearsBar) as caught:
+        decide(router, "fiction/cheap", work_calls=k)
+    costs = {c.model_id: c.list_cost for c in caught.value.candidates}
+    assert costs == {m: delegate_work_v138(router, m, k) for m in BELOW}
+
+
+@RED
+@pytest.mark.parametrize("k,primary", [(1, "fiction/out-cheap"), (3, "fiction/out-cheap")])
+def test_a_prior_route_breaks_a_score_tie_by_the_k_call_cost(k, primary):
+    # no stats: every model is unmeasured, priced at the task's expected sizes; at K = 3
+    # out-cheap is cheaper over its three calls though in-cheap's last call is cheaper
+    base = two_price_shapes(30.0)
+    priors = Priors({TASK: {"metric": "fictional", "source": "https://example.org/scores",
+                            "as_of": "2026-01-01",
+                            "scores": {"fiction/in-cheap": 0.9, "fiction/out-cheap": 0.9}}})
+    task = dataclasses.replace(base.tasks[TASK], on_no_model="best_available",
+                               prior_category=TASK)
+    router = Router(base.registry, {TASK: task}, Stats(), priors)
+    decision = decide(router, "fiction/best", work_calls=k)
+    assert (decision.route.basis, decision.route.primary) == ("prior", primary)
+    assert (decision.mode, decision.reason, decision.below_bar) == ("delegate", "none_clear", True)
+    for model_id, candidate in by_id(decision.route).items():
+        assert candidate.list_cost == delegate_work_v138(router, model_id, k)
+
+
+@RED
+@pytest.mark.parametrize("flavor,k,mode", [("cost_effective", 1, "inline"),
+                                           ("cost_effective", 2, "delegate"),
+                                           ("cost_blind", 2, "inline")])
+def test_row_7_equal_bound_compares_the_k_call_costs(flavor, k, mode):
+    # mid alone, below the bar: delegating to its own model ties the bound, and folded
+    # work costs 0.009 inline against 0.0132 delegated at K = 1, 0.0855 against 0.0306 at
+    # K = 2 (13.5 row 7, v1.31)
+    router = make_router({"fiction/mid": (75, 100)}, models()[1:2], on_no_model="best_available")
+    decision = decide(router, "fiction/mid", flavor, inline_separate_call=False, work_calls=k)
+    assert (decision.mode, decision.reason, decision.below_bar) == (mode, "none_clear", True)
 
 
 # 13.7 CLI
@@ -357,6 +424,17 @@ def test_cli_text_keeps_its_eight_lines_with_work_calls(delegate_files, capsys):
     assert [line.split(":", 1)[0] for line in text.splitlines()] == TEXT_KEYS
     assert re.search(r"^inline_cost_usd:\s+0\.840000$", text, re.MULTILINE)
     assert re.search(r"^delegate_cost_usd:\s+0\.063200$", text, re.MULTILINE)
+
+
+@RED_CLI
+def test_cli_exit_three_table_prints_the_k_call_costs(delegate_files, capsys):
+    build_stats(BELOW).save(delegate_files["stats"])
+    code = main(delegate_args(delegate_files, "fiction/cheap", "--work-calls", "3"))
+    err = capsys.readouterr().err
+    assert code == 3
+    router = make_router(BELOW)
+    for model_id in BELOW:
+        assert f"{delegate_work_v138(router, model_id, 3):.6f}" in err
 
 
 @RED_CLI
