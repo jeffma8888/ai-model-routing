@@ -1,5 +1,5 @@
 """v1.74 per-call sizes in the delegation evidence harness (DESIGN 13.9), written before
-the code.
+the code and passing since v1.75.
 
 A row of ``evaluate_delegation`` may carry ``call_input_tokens`` and
 ``call_output_tokens``, two lists of the same length K: the first call's whole read and
@@ -8,14 +8,14 @@ its own K calls by position (call j reads a_1 to a_j and b_1 to b_{j-1}), each p
 the calls of the model doing the work, and the row's ``input_tokens`` and
 ``output_tokens`` must be what those calls read and write. The decision on such a task
 reads the calibration half's median call count and rounded-up per-call means, a stated
-forecast. The new behaviour is committed under strict xfail markers naming what the
-v1.73 harness raises: ``AssertionError`` everywhere, since v1.73 ignores the two keys as
-extra keys (DESIGN 13.9 rows), so a test sees the one-call cost of ``input_tokens`` and
-``output_tokens``, no ``expected_work_calls`` and no error. The implementing commit
-removes the markers. The tests that are never marked pin that rows without the keys give
+forecast. The new behaviour was committed in v1.74 under strict xfail markers naming what
+the v1.73 harness raised: ``AssertionError`` everywhere, since v1.73 ignored the two keys
+as extra keys (DESIGN 13.9 rows), so a test saw the one-call cost of ``input_tokens`` and
+``output_tokens``, no ``expected_work_calls`` and no error. The implementing commit, v1.75,
+removed the markers. The tests that were never marked pin that rows without the keys give
 the v1.73 result bit for bit, that the closed form of the reads is the sum of the calls'
-reads, and that a point with ``work_calls`` 1 is the point without it; they pass before
-the code and after it.
+reads, and that a point with ``work_calls`` 1 is the point without it; they passed before
+the code and pass after it.
 
 The fixture is the one of tests/test_delegation_eval_work_calls.py: two seeds that each
 hold 3 items for calibration and 5 out (seed 0 holds out q1 q2 q3 q7 q8), prices per 1M
@@ -38,8 +38,6 @@ HELD = {0: ("q1", "q2", "q3", "q7", "q8"), 1: ("q1", "q4", "q5", "q6", "q8")}
 MODELS = ["fiction/big", "fiction/small", "fiction/weak"]
 RIGHT = {"fiction/big": True, "fiction/small": True, "fiction/weak": False}
 S_IN, S_OUT = 1000, 200
-RED = pytest.mark.xfail(strict=True, raises=AssertionError,
-                        reason="v1.73 ignores the per-call keys as extra keys (DESIGN 13.9 v1.74)")
 
 
 def point(c, b, r, t, separate, **extra):
@@ -174,9 +172,8 @@ def test_a_point_with_work_calls_1_is_the_point_without_it_on_per_call_rows():
     assert with_one["summary"] == without["summary"]
 
 
-# ---- red tests: v1.74 behaviour ----
+# ---- v1.74 behaviour, red until v1.75 ----
 
-@RED
 @pytest.mark.parametrize("k", [2, 3])
 def test_k_equal_calls_price_as_the_plain_row_at_a_point_with_work_calls_k(k):
     rows = call_matrix({m: ([S_IN] * k, [S_OUT] * k) for m in MODELS})
@@ -189,7 +186,20 @@ def test_k_equal_calls_price_as_the_plain_row_at_a_point_with_work_calls_k(k):
     assert per_call["summary"] == plain["summary"]
 
 
-@RED
+@pytest.mark.parametrize("k", [2, 3])
+def test_k_equal_calls_at_a_whole_cached_read_count_price_as_the_plain_row(k):
+    # 100,000 * K * 0.5 and 100,000 * (K - 1) * 0.5 are whole numbers, so adding Rd once
+    # and v1.57's two integer terms one at a time give the same float (DESIGN 13.9 v1.75)
+    pts = [point(100_000, 500, 300, 0, True, cached_read_ratio=0.5),
+           point(100_000, 500, 300, 2, False, cached_read_ratio=0.5)]
+    per_call = run(call_matrix({m: ([S_IN] * k, [S_OUT] * k) for m in MODELS}), pts)
+    plain = run(plain_matrix(), [dict(p, work_calls=k) for p in pts])
+    for got, want in zip(per_call["cells"], plain["cells"]):
+        assert got.pop("expected_work_calls") == k
+        assert got == want
+    assert per_call["summary"] == plain["summary"]
+
+
 def test_unequal_calls_are_priced_by_position_on_each_path():
     calls = {m: ([1_000, 9_000], [200, 200]) for m in MODELS}
     assert reads(*calls["fiction/big"]) == 11_200
@@ -203,7 +213,6 @@ def test_unequal_calls_are_priced_by_position_on_each_path():
         assert (cell["expected_input_tokens"], cell["expected_output_tokens"]) == (5_000, 200)
 
 
-@RED
 def test_each_path_uses_the_calls_of_the_model_doing_the_work():
     calls = {"fiction/big": ([S_IN] * 3, [S_OUT] * 3), "fiction/small": ([S_IN], [S_OUT]),
              "fiction/weak": ([S_IN] * 2, [S_OUT] * 2)}
@@ -225,7 +234,6 @@ def _bad(change):
     return rows
 
 
-@RED
 @pytest.mark.parametrize("change, start", [
     (lambda r: r.pop("call_output_tokens"),
      "'call_input_tokens' and 'call_output_tokens' go together"),
@@ -252,7 +260,6 @@ def test_an_invalid_per_call_row_is_refused(change, start):
     raises_value_error(start, lambda: run(_bad(change), POINTS))
 
 
-@RED
 def test_a_task_mixes_no_per_call_rows_with_plain_rows():
     rows = call_matrix({m: ([S_IN, 300], [S_OUT, 100]) for m in MODELS})
     plain = plain_matrix()
@@ -261,7 +268,6 @@ def test_a_task_mixes_no_per_call_rows_with_plain_rows():
                        lambda: run(rows, POINTS))
 
 
-@RED
 def test_per_call_and_plain_tasks_run_together():
     rows = (call_matrix({m: ([S_IN, 300], [S_OUT, 100]) for m in MODELS}, task="calls")
             + plain_matrix(task="plain"))
@@ -271,7 +277,6 @@ def test_per_call_and_plain_tasks_run_together():
     assert all("expected_work_calls" not in c for c in result["cells"] if c["task"] == "plain")
 
 
-@RED
 def test_a_point_with_work_calls_above_1_is_refused_on_a_per_call_task():
     rows = call_matrix({m: ([S_IN, 300], [S_OUT, 100]) for m in MODELS})
     pts = [POINTS[0], dict(POINTS[1], work_calls=2)]
@@ -279,7 +284,6 @@ def test_a_point_with_work_calls_above_1_is_refused_on_a_per_call_task():
                        lambda: run(rows, pts))
 
 
-@RED
 def test_the_decision_reads_rounded_up_per_call_means_and_the_median_call_count():
     # every model: K = 3, new inputs 1,000 + 10 + 1 and outputs 200 + 1 + 0, so the
     # rounded-up per-call means are ceil(1011 / 3) = 337 and ceil(201 / 3) = 67
