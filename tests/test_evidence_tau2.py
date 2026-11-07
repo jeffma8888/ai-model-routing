@@ -15,6 +15,7 @@ import io
 import json
 import math
 import random
+import statistics
 import urllib.request
 from pathlib import Path
 
@@ -42,7 +43,7 @@ PINNED = [
     ("o4-mini-2025-04-16_retail_default", 22066527, "7135f38bbbbd46d6babe830574c8623bb276d8fd6da316580b905cf513853f98"),
     ("o4-mini-2025-04-16_telecom_default", 36801670, "1f46a6f296694bdb3ae203e6b379cdada0b8f17b648a4cf90d6343de1f1fb070"),
 ]
-EXTRACT_KEYS = ["domain", "agent", "user", "trial", "tokens", "cells", "missing_trial"]
+EXTRACT_KEYS = ["domain", "agent", "user", "trial", "tokens", "calls", "cells", "missing_trial"]  # calls from v1.77
 ROW_KEYS = ["task", "item", "model", "correct", "cost_usd"]
 TOKEN_ROW_KEYS = ROW_KEYS + ["input_tokens", "output_tokens"]
 REPORT_KEYS = ["models", "user_models", "trial", "task_by", "kept", "dropped_incomplete", "rows"]
@@ -796,6 +797,13 @@ README_COUNTS = [
     "`cost_usd` runs from 0.00136 to 6.446604 USD",
     "6,629 to 2,096,093 input tokens and 123 to 26,531 output tokens",
 ]
+# v1.77: the README's --calls sentence; test_pinned_files_calls_when_cached builds its counts
+README_CALLS_COUNTS = ("at trial 0 it leaves out `openai/o4-mini-2025-04-16`, whose new input is negative on "
+                       "2,962 of its calls, and keeps 3 agents and 834 rows of 2 to 100 calls each (median 14).")
+README_CALLS = ("With `--calls`, which implies `--tokens`, each row also lists its conversation's agent calls in "
+                "order, every call's new input (`call_input_tokens`: the first prompt, then each prompt less the "
+                "previous prompt and completion) and output (`call_output_tokens`), the per-call rows of DESIGN "
+                "13.9; " + README_CALLS_COUNTS)
 
 
 def test_evidence_readme():
@@ -808,10 +816,31 @@ def test_evidence_readme():
         assert needle in text, needle
     for name, size, sha in PINNED:
         assert f"| `{name + TAIL}` | {size:,} | `{sha}` |" in text, name
+    assert text.count(README_CALLS) == 1  # v1.77, its own line
+    assert ("\n" + README_CALLS + "\n") in text
     assert text.isascii() and "\u2013" not in text and "\u2014" not in text
 
 
 # the pinned files, only when cached
+
+def test_pinned_files_calls_when_cached(cv, tmp_path, capsys):
+    """v1.77: the README's --calls counts, built from the report and rows at trial 0."""
+    folder = cv.default_cache_dir()
+    if not all((folder / (name + TAIL)).is_file() for name, _, _ in PINNED):
+        pytest.skip("the 12 pinned tau2-bench run files are not in the default cache")
+    out = tmp_path / "m.jsonl"
+    assert cv.main(["--out", str(out), "--calls"]) == 0
+    report = json.loads(capsys.readouterr().out)
+    rows = [json.loads(line) for line in out.read_text(encoding="utf-8").splitlines()]
+    (agent, negative), = report["left_out"].items()
+    counts = [len(row["call_input_tokens"]) for row in rows]
+    median = statistics.median(counts)
+    assert median == int(median)
+    built = (f"at trial {report['trial']} it leaves out `{agent}`, whose new input is negative on {negative:,} of "
+             f"its calls, and keeps {len(report['models'])} agents and {report['rows']:,} rows of {min(counts)} to "
+             f"{max(counts)} calls each (median {int(median)}).")
+    assert built == README_CALLS_COUNTS
+
 
 def test_pinned_files_when_cached(cv, tmp_path, capsys):
     folder = cv.default_cache_dir()

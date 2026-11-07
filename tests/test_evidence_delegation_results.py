@@ -640,12 +640,13 @@ def test_readme_and_design_say_the_delegation_evidence_reads_one_dataset():
                    "before any tau2-bench delegation converter"):
         assert figure in note, figure
     sub = readme_subsection()
-    # v1.75: the harness prices a conversation on its own calls from per-call rows (13.9)
+    # v1.75: the harness prices a conversation on its own calls from per-call rows (13.9);
+    # v1.77: the tau2-bench converter writes them with --calls (12.14)
     sentence = ("It is the only dataset the delegation evidence reads: tau2-bench, which the "
                 "routing evidence above also reads, records each item as a conversation of 2 to "
                 "100 model calls, which the harness prices on the item's own calls only from "
-                "rows that list each call's tokens, and no converter writes such rows from it "
-                f"yet ({DATASETS_LINK}).")
+                "rows that list each call's tokens; its converter's `--calls` writes such rows, "
+                f"and no delegation results on them are committed yet ({DATASETS_LINK}).")
     assert sub.count(sentence) == 1
     assert sub.index(sentence) < sub.index("[research/hand-off-data.md]") < sub.index("```text\n")
     readme = README.read_text(encoding="utf-8")
@@ -656,8 +657,9 @@ def test_readme_and_design_say_the_delegation_evidence_reads_one_dataset():
         "success label and per-call token counts for each agent on each item, but each item is a "
         "conversation of 2 to 100 model calls. The `DESIGN.md` 13.9 harness prices such an item "
         "on its own calls only from rows that list each call's input and output tokens "
-        "(`call_input_tokens`, `call_output_tokens`), and no converter writes those rows from "
-        "tau2-bench yet; fed a conversation's summed counts instead, it would mis-price both "
+        "(`call_input_tokens`, `call_output_tokens`), which the tau2-bench converter writes with "
+        "`--calls`, but no delegation results on them are committed yet; fed a conversation's "
+        "summed counts instead, it would mis-price both "
         "paths, by amounts that grow with the number of calls. Its list prices also leave out the "
         "prompt-cache discount that the recorded costs of the three OpenAI agents imply on about "
         f"three quarters of their prompt tokens ({DATASETS_LINK})"]

@@ -4,14 +4,15 @@ With ``calls``, ``extract`` writes each conversation's agent calls as two lists,
 prompt and then each prompt less the previous prompt and completion (``call_input_tokens``),
 and each completion (``call_output_tokens``), the per-call rows of DESIGN 13.9 v1.74; the
 summed counts of ``--tokens`` are then the lists' Rd and O. ``convert`` leaves out, and reports
-as ``left_out``, every agent with a negative new input in any cell. The new behaviour is held
-under strict xfail markers naming what the v1.75 converter raises: ``TypeError`` where a test
-calls ``extract`` with ``calls`` (an unexpected keyword), ``AssertionError`` where it runs
-``main`` with ``--calls`` (refused, so ``main`` returns 2) or converts hand-made extracts that
-carry ``calls`` (no lists, no ``left_out``, and no error where ``refused`` expects one). The
-unmarked tests pass before and after the code: the closed form of the reads, ``convert``
-without ``calls``, and, when the 12 pinned files are cached, the bytes v1.75 writes without
-``--calls``. The implementing commit, v1.77, removes the markers.
+as ``left_out``, every agent with a negative new input in any cell. The tests of the new
+behaviour were committed under strict xfail markers naming what the v1.75 converter raised:
+``TypeError`` where a test called ``extract`` with ``calls`` (an unexpected keyword),
+``AssertionError`` where it ran ``main`` with ``--calls`` (refused, so ``main`` returned 2) or
+converted hand-made extracts that carry ``calls`` (no lists, no ``left_out``, and no error where
+``refused`` expects one). The implementing commit, v1.77, removed the markers, so they are plain
+tests. The tests that were unmarked from the start pass before and after the code: the closed
+form of the reads, ``convert`` without ``calls``, and, when the 12 pinned files are cached, the
+bytes v1.75 writes without ``--calls``.
 """
 
 import hashlib
@@ -36,12 +37,6 @@ REPORT_KEYS = ["models", "user_models", "trial", "task_by", "kept", "dropped_inc
 O4 = "openai/o4-mini-2025-04-16"
 MINI = "openai/gpt-4.1-mini-2025-04-14"
 KEPT = ["anthropic/claude-3-7-sonnet-20250219", "openai/gpt-4.1-2025-04-14", MINI]
-
-NEEDS_CALLS = pytest.mark.xfail(strict=True, raises=TypeError,
-                                reason="v1.76 spec: extract(calls=...) lands in v1.77")
-NEEDS_MODE = pytest.mark.xfail(strict=True, raises=AssertionError,
-                               reason="v1.76 spec: the per-call mode lands in v1.77")
-
 
 @pytest.fixture
 def cv():
@@ -121,7 +116,6 @@ def three_agents(calls=True):
 
 # ---- extract ----
 
-@NEEDS_CALLS
 def test_extract_writes_each_call_by_position(cv):
     data = run([sim("a", ((100, 10), (150, 20), (400, 5)))])
     result = cv.extract(data, tokens=True, calls=True)
@@ -135,14 +129,12 @@ def test_extract_writes_each_call_by_position(cv):
     assert cell["input_tokens"] == reads(cell["call_input_tokens"], cell["call_output_tokens"])
 
 
-@NEEDS_CALLS
 def test_extract_records_a_negative_new_input(cv):
     cell = cv.extract(run([sim("a", ((100, 50), (120, 5)))]), tokens=True, calls=True)["cells"]["a"]
     assert cell["call_input_tokens"] == [100, -30] and cell["call_output_tokens"] == [50, 5]
     assert cell["input_tokens"] == 220 == reads([100, -30], [50, 5])
 
 
-@NEEDS_CALLS
 def test_extract_without_calls_carries_the_key_and_no_lists(cv):
     data = run([sim("a", ((100, 10), (150, 20)))])
     for tokens in (False, True):
@@ -152,24 +144,20 @@ def test_extract_without_calls_carries_the_key_and_no_lists(cv):
     assert cv.extract(data) == cv.extract(data, calls=False)
 
 
-@NEEDS_CALLS
 def test_extract_calls_needs_tokens(cv):
     assert refused(cv.extract, run([sim("a", ((100, 10),))]), calls=True).startswith("calls needs tokens")
 
 
-@NEEDS_CALLS
 @pytest.mark.parametrize("calls", [1, 0, "yes", None, 1.0])
 def test_extract_calls_must_be_a_bool(cv, calls):
     text = refused(cv.extract, run([sim("a", ((100, 10),))]), tokens=True, calls=calls)
     assert text.startswith("calls ") and "is not a bool" in text
 
 
-@NEEDS_CALLS
 def test_extract_checks_tokens_before_calls(cv):
     assert refused(cv.extract, run([sim("a", ((100, 10),))]), tokens="x", calls="y").startswith("tokens ")
 
 
-@NEEDS_CALLS
 def test_extract_refuses_a_conversation_with_no_model_call(cv):
     data = run([sim("a", ((100, 10),)), sim("b", ())])
     text = refused(cv.extract, data, tokens=True, calls=True)
@@ -179,7 +167,6 @@ def test_extract_refuses_a_conversation_with_no_model_call(cv):
 
 # ---- convert ----
 
-@NEEDS_MODE
 def test_convert_leaves_out_an_agent_with_a_negative_new_input(cv):
     rows, report = cv.convert(three_agents())
     assert list(report) == REPORT_KEYS + ["left_out"]
@@ -193,14 +180,12 @@ def test_convert_leaves_out_an_agent_with_a_negative_new_input(cv):
     assert first["input_tokens"] == reads([90, 1, 2], [3, 4, 5])
 
 
-@NEEDS_MODE
 def test_convert_reports_an_empty_left_out(cv):
     extracts = [e for e in three_agents() if e["agent"] != "openai/gpt-b"]
     _, report = cv.convert(extracts)
     assert report.get("left_out") == {} and report["models"] == ["anthropic/claude-c", "openai/gpt-a"]
 
 
-@NEEDS_MODE
 def test_convert_rows_hold_new_lists(cv):
     extracts = three_agents()
     rows, _ = cv.convert(extracts)
@@ -212,7 +197,6 @@ def test_convert_rows_hold_new_lists(cv):
     assert row["call_output_tokens"] is not cell["call_output_tokens"]
 
 
-@NEEDS_MODE
 def test_convert_counts_kept_items_over_the_kept_agents(cv):
     extracts = three_agents()
     for e in extracts:
@@ -225,13 +209,11 @@ def test_convert_counts_kept_items_over_the_kept_agents(cv):
     assert report["dropped_incomplete"] == {"airline": 0, "retail": 0}
 
 
-@NEEDS_MODE
 def test_convert_refuses_when_every_agent_is_left_out(cv):
     extracts = [e for e in three_agents() if e["agent"] == "openai/gpt-b"]
     assert refused(cv.convert, extracts).startswith("every agent has a call whose new input is negative")
 
 
-@NEEDS_MODE
 def test_convert_refuses_mixed_calls_settings(cv):
     on, off = three_agents(calls=True), three_agents(calls=False)
     assert "calls setting" in refused(cv.convert, on[:3] + off[3:])
@@ -281,7 +263,6 @@ def synthetic_runs():
             for domain in ("airline", "retail") for agent in turns]
 
 
-@NEEDS_MODE
 def test_main_calls_writes_per_call_rows(cv, monkeypatch, tmp_path, capsys):
     cache = tmp_path / "cache"
     install(cv, monkeypatch, cache, synthetic_runs())
@@ -297,7 +278,6 @@ def test_main_calls_writes_per_call_rows(cv, monkeypatch, tmp_path, capsys):
     assert (alpha["input_tokens"], alpha["output_tokens"]) == (250, 30)
 
 
-@NEEDS_MODE
 def test_main_calls_implies_tokens(cv, monkeypatch, tmp_path, capsys):
     cache = tmp_path / "cache"
     install(cv, monkeypatch, cache, synthetic_runs())
@@ -311,7 +291,6 @@ def test_main_calls_implies_tokens(cv, monkeypatch, tmp_path, capsys):
 
 # ---- the delegation harness reads the rows ----
 
-@NEEDS_CALLS
 def test_per_call_rows_feed_the_delegation_harness(cv):
     agents = {"gpt-alpha-1": ((100, 10), (150, 20)), "claude-beta-2": ((200, 5), (210, 9), (300, 1))}
     runs = [run([sim(str(t), turns, reward=float(t % 2)) for t in range(12)], agent=agent)
@@ -345,7 +324,6 @@ def test_pinned_matrices_without_calls_are_the_v175_bytes_when_cached(cv, tmp_pa
     assert '"left_out"' not in capsys.readouterr().out
 
 
-@NEEDS_MODE
 def test_pinned_files_calls_at_trial_0_when_cached(cv, tmp_path, capsys):
     cached(cv)
     out = tmp_path / "m.jsonl"
@@ -373,7 +351,6 @@ def test_pinned_files_calls_at_trial_0_when_cached(cv, tmp_path, capsys):
     assert max(last) == 33765
 
 
-@NEEDS_CALLS
 def test_pinned_files_calls_at_every_trial_when_cached(cv):
     folder = cached(cv)
     data = [cv.read_run(folder / name) for name in cv.FILES]

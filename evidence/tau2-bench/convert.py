@@ -1,12 +1,14 @@
 """Convert the tau2-bench paper results into the evaluator's outcome matrix (DESIGN 12.14).
 
-Usage: python evidence/tau2-bench/convert.py --out PATH [--cache DIR] [--trial N] [--task-by {domain,all}] [--tokens]
+Usage: python evidence/tau2-bench/convert.py --out PATH [--cache DIR] [--trial N] [--task-by {domain,all}] [--tokens] [--calls]
 
 Standard library only. The 12 default run files of the pinned commit are downloaded into a
 cache outside the repo, each checked by size and sha256 before it is read, and read one at a
 time. One trial of every task is kept (trial 0 by default), its program-checked reward of 0 or 1
 is the label and its recorded ``agent_cost`` is the cost; the user simulator's cost is never
-counted. One routing task per domain, or one task ``all`` over every domain.
+counted. One routing task per domain, or one task ``all`` over every domain. ``--calls`` adds
+each conversation's agent calls, every call's new input and output (DESIGN 12.14 v1.76), and
+leaves out an agent with a negative new input.
 """
 
 import argparse
@@ -126,11 +128,15 @@ def _check_trial(value, label) -> None:
         raise ValueError(f"{label} {value!r} is not an int >= 0")
 
 
-def extract(run, trial=0, tokens=False) -> dict:
+def extract(run, trial=0, tokens=False, calls=False) -> dict:
     """Reduce one parsed run file to the cells of one trial (DESIGN 12.14)."""
     _check_trial(trial, "trial")
     if not isinstance(tokens, bool):
         raise ValueError(f"tokens {tokens!r} is not a bool")
+    if not isinstance(calls, bool):
+        raise ValueError(f"calls {calls!r} is not a bool")
+    if calls and not tokens:
+        raise ValueError("calls needs tokens: a per-call row carries the summed counts too")
     if not isinstance(run, dict):
         raise ValueError(f"a run is a {type(run).__name__}, not an object")
     for key in ("info", "tasks", "simulations"):
@@ -198,20 +204,30 @@ def extract(run, trial=0, tokens=False) -> dict:
             raise ValueError(f"{at}: agent_cost {cost!r} is not a finite number >= 0")
         cell = {"correct": reward == 1, "cost_usd": float(cost) + 0.0}  # + 0.0 turns -0.0 into 0.0
         if tokens:
-            cell["input_tokens"], cell["output_tokens"] = _agent_tokens(entry.get("messages"), at)
+            cell["input_tokens"], cell["output_tokens"], new_in, outs = _agent_tokens(entry.get("messages"), at)
+            if calls:
+                if not outs:
+                    raise ValueError(f"{at}: no agent message has a usage, so the conversation has no model call")
+                cell["call_input_tokens"], cell["call_output_tokens"] = new_in, outs
         cells[task_id] = cell
     if not cells:
         raise ValueError(f"{where}: no simulation has trial {trial}")
-    return {"domain": domain, "agent": agent, "user": user, "trial": trial, "tokens": tokens,
+    return {"domain": domain, "agent": agent, "user": user, "trial": trial, "tokens": tokens, "calls": calls,
             "cells": {task_id: cells[task_id] for task_id in sorted(cells)},
             "missing_trial": sorted(task_id for task_id in ids if task_id not in cells)}
 
 
 def _agent_tokens(messages, at) -> tuple:
-    """Sum prompt and completion tokens over the agent's messages; user and tool messages are skipped."""
+    """Sum prompt and completion tokens over the agent's messages, and list each call's new input and output.
+
+    User and tool messages are skipped. The j-th new input is the first prompt for j = 1, then the
+    prompt less the previous prompt and completion, so it may be negative (DESIGN 12.14 v1.76).
+    """
     if not isinstance(messages, list):
         raise ValueError(f"{at}: messages is not a list")
     total_in = total_out = 0
+    new_in, outs = [], []
+    previous = None
     for message in messages:
         if not isinstance(message, dict):
             raise ValueError(f"{at}: a message is a {type(message).__name__}, not an object")
@@ -227,9 +243,13 @@ def _agent_tokens(messages, at) -> tuple:
         for key in ("prompt_tokens", "completion_tokens"):
             if not _count(usage.get(key)):
                 raise ValueError(f"{at}: usage {key} {usage.get(key)!r} is not an int >= 0")
-        total_in += usage["prompt_tokens"]
-        total_out += usage["completion_tokens"]
-    return total_in, total_out
+        prompt, completion = usage["prompt_tokens"], usage["completion_tokens"]
+        total_in += prompt
+        total_out += completion
+        new_in.append(prompt if previous is None else prompt - previous)
+        outs.append(completion)
+        previous = prompt + completion
+    return total_in, total_out, new_in, outs
 
 
 def convert(extracts, task_by="domain") -> tuple:
@@ -238,7 +258,8 @@ def convert(extracts, task_by="domain") -> tuple:
         raise ValueError(f"task_by {task_by!r} is not one of {', '.join(TASK_BY)}")
     if not isinstance(extracts, (list, tuple)) or not extracts:
         raise ValueError("no runs to convert")
-    for key, label in (("user", "user model"), ("trial", "trial"), ("tokens", "tokens setting")):
+    for key, label in (("user", "user model"), ("trial", "trial"), ("tokens", "tokens setting"),
+                       ("calls", "calls setting")):
         values = sorted({repr(e[key]) for e in extracts})
         if len(values) > 1:
             raise ValueError(f"the runs differ in their {label}: {', '.join(values)}")
@@ -253,16 +274,28 @@ def convert(extracts, task_by="domain") -> tuple:
         missing = [model for model in models if model not in domains[domain]]
         if missing:
             raise ValueError(f"{domain}: no run for {', '.join(missing)}")
+    calls = extracts[0]["calls"]
+    left_out = {}
+    if calls:
+        for model in models:
+            negative = sum(1 for e in extracts if e["agent"] == model for cell in e["cells"].values()
+                           for value in cell["call_input_tokens"] if value < 0)
+            if negative:
+                left_out[model] = negative
+        if len(left_out) == len(models):
+            raise ValueError("every agent has a call whose new input is negative: "
+                             + ", ".join(f"{m} ({n})" for m, n in left_out.items()))
+        models = [model for model in models if model not in left_out]
 
     rows, kept, dropped = [], {}, {}
     for domain in sorted(domains):
         by_agent = domains[domain]
         task = domain if task_by == "domain" else "all"
         task_ids = set()
-        for e in by_agent.values():
-            task_ids.update(e["cells"])
-            task_ids.update(e["missing_trial"])
-        complete = sorted(t for t in task_ids if all(t in e["cells"] for e in by_agent.values()))
+        for model in models:
+            task_ids.update(by_agent[model]["cells"])
+            task_ids.update(by_agent[model]["missing_trial"])
+        complete = sorted(t for t in task_ids if all(t in by_agent[m]["cells"] for m in models))
         kept[task] = kept.get(task, 0) + len(complete)
         dropped[task] = dropped.get(task, 0) + len(task_ids) - len(complete)
         for task_id in complete:
@@ -273,11 +306,16 @@ def convert(extracts, task_by="domain") -> tuple:
                 if "input_tokens" in cell:
                     row["input_tokens"] = cell["input_tokens"]
                     row["output_tokens"] = cell["output_tokens"]
+                if calls:
+                    row["call_input_tokens"] = list(cell["call_input_tokens"])
+                    row["call_output_tokens"] = list(cell["call_output_tokens"])
                 rows.append(row)
     rows.sort(key=lambda r: (r["task"], r["item"], r["model"]))
     report = {"models": models, "user_models": [extracts[0]["user"]], "trial": extracts[0]["trial"],
               "task_by": task_by, "kept": {t: kept[t] for t in sorted(kept)},
               "dropped_incomplete": {t: dropped[t] for t in sorted(dropped)}, "rows": len(rows)}
+    if calls:
+        report["left_out"] = left_out
     return rows, report
 
 
@@ -316,6 +354,8 @@ def main(argv=None) -> int:
     parser.add_argument("--trial", default="0", help="the trial kept of every task (default: %(default)s)")
     parser.add_argument("--task-by", default="domain", help="domain (one task per domain, the default) or all")
     parser.add_argument("--tokens", action="store_true", help="add the agent's summed input and output tokens")
+    parser.add_argument("--calls", action="store_true",
+                        help="add each call's new input and output (implies --tokens; leaves out agents it cannot split)")
     try:
         args = parser.parse_args(argv)
         if not re.fullmatch(r"[0-9]+", args.trial):
@@ -332,7 +372,7 @@ def main(argv=None) -> int:
     part = out.with_name(out.name + ".part")
     try:
         folder = fetch(args.cache)
-        extracts = [extract(read_run(folder / name), trial, args.tokens) for name in FILES]
+        extracts = [extract(read_run(folder / name), trial, args.tokens or args.calls, args.calls) for name in FILES]
         rows, report = convert(extracts, args.task_by)
         try:
             write_jsonl(rows, part)

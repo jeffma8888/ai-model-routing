@@ -48,6 +48,8 @@ model-routing evaluate --outcomes tau2-matrix.jsonl --bar 0.6
 
 With the default options on the pinned files the converter reports 4 agent models and the user model `openai/gpt-4.1-2025-04-14`, keeps 50 airline, 114 retail and 114 telecom tasks, drops none and writes 1,112 rows, with the same counts at every trial from 0 to 3. At trial 0 the agents' success rates per domain run from 0.5 to 0.58 in airline, 0.684 to 0.798 in retail and 0.368 to 0.439 in telecom, and `cost_usd` runs from 0.00136 to 6.446604 USD. With `--tokens`, one conversation's agent calls used 6,629 to 2,096,093 input tokens and 123 to 26,531 output tokens.
 
+With `--calls`, which implies `--tokens`, each row also lists its conversation's agent calls in order, every call's new input (`call_input_tokens`: the first prompt, then each prompt less the previous prompt and completion) and output (`call_output_tokens`), the per-call rows of DESIGN 13.9; at trial 0 it leaves out `openai/o4-mini-2025-04-16`, whose new input is negative on 2,962 of its calls, and keeps 3 agents and 834 rows of 2 to 100 calls each (median 14).
+
 Airline has only 50 tasks, and the evaluator draws each item's half from a hash of its ID, so the airline calibration half holds 16 to 35 items over the seeds 0 to 49, fewer than the default `min_samples` of 30 on 40 of them, and on those seeds no model can clear a bar in airline at that default. `--task-by all` pools the three domains into one task whose calibration half holds 114 to 158 items over those seeds.
 
 ## Reading it
