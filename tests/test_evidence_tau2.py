@@ -2,9 +2,9 @@
 
 The converter is a standard-library script outside the package (``evidence/tau2-bench/convert.py``),
 so it is loaded from its path by an autouse fixture. Every test uses small synthetic run dicts
-shaped like a run file (top keys timestamp, info, tasks, simulations), except the last, which
-reads the pinned files only when all 12 are already in the default cache and skips otherwise
-(CI never downloads them).
+shaped like a run file (top keys timestamp, info, tasks, simulations), except the last two, which
+read the pinned files only when all 12 are already in the default cache and skip otherwise
+(CI never downloads them); the first of them, from v1.77, builds the README's ``--calls`` counts.
 """
 
 import ast

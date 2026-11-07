@@ -97,7 +97,7 @@ def hand_cell(a, b, correct=True, cost=0.01):
 
 
 def hand_extract(domain, agent, cells, calls=True, missing=()):
-    """An extract as v1.76 specifies it, made by hand so that v1.75's convert can read it."""
+    """An extract as v1.76 specifies it, made by hand (so that v1.75's convert could read it before v1.77)."""
     if not calls:
         cells = {t: {k: v for k, v in c.items() if not k.startswith("call_")} for t, c in cells.items()}
     return {"domain": domain, "agent": agent, "user": "openai/gpt-user-1", "trial": 0, "tokens": True,
