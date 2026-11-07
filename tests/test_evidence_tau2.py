@@ -804,7 +804,7 @@ def test_evidence_readme():
                    "MIT", "Copyright (c) 2025 Sierra Research", "~/.cache/ai-model-routing-evidence/tau2-bench/",
                    "`reward_info.reward`", "`agent_cost`", "`user_cost`", "airline: 29 tasks differ, retail: 114",
                    "openai/gpt-4.1-2025-04-14", "python evidence/tau2-bench/convert.py --out", "--trial",
-                   "--task-by all", "--tokens", "not committed yet", "DESIGN 12.14", *README_COUNTS]:
+                   "--task-by all", "--tokens", "(RESULTS.md)", "DESIGN 12.14", *README_COUNTS]:
         assert needle in text, needle
     for name, size, sha in PINNED:
         assert f"| `{name + TAIL}` | {size:,} | `{sha}` |" in text, name
