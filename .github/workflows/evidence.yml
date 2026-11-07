@@ -1,10 +1,10 @@
 name: evidence
 
 # Reruns the regenerate commands of the README subsections AutoBench, AutoBench judges,
-# tau2-bench and Delegation on AutoBench, which download the pinned dataset files and check
-# their sha256, then fails if a committed results file changed (DESIGN.md 12.13). RouterBench
-# is left out of it, since its source is a 99,567,659-byte pickle that needs pandas and its
-# evaluate step takes about 70 seconds.
+# tau2-bench, LiveCodeBench and Delegation on AutoBench, which download the pinned dataset
+# files and check their sha256, then fails if a committed results file changed (DESIGN.md
+# 12.13). RouterBench is left out of it, since its source is a 99,567,659-byte pickle that
+# needs pandas and its evaluate step takes about 70 seconds.
 
 on:
   workflow_dispatch:
@@ -54,6 +54,10 @@ jobs:
           model-routing evaluate --outcomes tau2-matrix.jsonl --bar 0.3 0.4 0.5 0.6 0.7 0.8 --seeds 50 --json > tau2-evaluate.json
           python evidence/routerbench/results.py --evaluate tau2-evaluate.json --out evidence/tau2-bench/results.json
           python evidence/routerbench/results.py --table evidence/tau2-bench/results.json
+          python evidence/livecodebench/convert.py --out livecodebench-matrix.jsonl
+          model-routing evaluate --outcomes livecodebench-matrix.jsonl --bar 0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 --seeds 50 --flavor cost_blind --json > livecodebench-evaluate.json
+          python evidence/routerbench/results.py --evaluate livecodebench-evaluate.json --out evidence/livecodebench/results.json
+          python evidence/routerbench/results.py --table evidence/livecodebench/results.json
           python evidence/autobench-2026/convert.py --out autobench-tokens.jsonl --task-by all --tokens --registry autobench-pool.json
           python evidence/delegation/results.py --matrix autobench-tokens.jsonl --registry autobench-pool.json --out evidence/delegation/results.json
           python evidence/delegation/results.py --table evidence/delegation/results.json
@@ -61,4 +65,4 @@ jobs:
           python evidence/delegation/results.py --matrix autobench-tokens.jsonl --registry autobench-pool.json --grid variants --out evidence/delegation/variants.json
           python evidence/delegation/results.py --table evidence/delegation/variants.json
       - name: Compare
-        run: git diff --exit-code -- evidence/autobench-2026/results.json evidence/autobench-judges/results.json evidence/tau2-bench/results.json evidence/delegation/results.json evidence/delegation/variants.json
+        run: git diff --exit-code -- evidence/autobench-2026/results.json evidence/autobench-judges/results.json evidence/tau2-bench/results.json evidence/livecodebench/results.json evidence/delegation/results.json evidence/delegation/variants.json

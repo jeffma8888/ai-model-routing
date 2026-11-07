@@ -376,7 +376,7 @@ for row in report(monitor.records, by="tag:team"):
 
 ## Evidence: held-out results on public data
 
-Each dataset here already holds every model's answer to every item, a label for whether that answer was good enough (right or wrong on RouterBench, a Delta-Hit from a judge committee's scores on AutoBench, agreement with the other judges' grades for a judge model's grade in AutoBench judges, and whether an agent's conversation passed the run's program checks on tau2-bench) and the cost of each call (of each whole conversation on tau2-bench) or the token counts to estimate it at list prices, so the router is tested offline with no API key: for each task and seed, calibrate on one half of the items, route at a bar, and score the routed model on the other half, next to fixed baselines (`model-routing evaluate`, `DESIGN.md` 12). The test suite rebuilds every number in these tables from that dataset's committed results file, so they cannot drift from it. On GitHub, the `evidence` workflow ([.github/workflows/evidence.yml](.github/workflows/evidence.yml)) reruns the regenerate commands of the AutoBench, AutoBench judges, tau2-bench and delegation subsections, downloading the pinned files, and fails if `evidence/autobench-2026/results.json`, `evidence/autobench-judges/results.json`, `evidence/tau2-bench/results.json`, `evidence/delegation/results.json` or `evidence/delegation/variants.json` changes by a byte; RouterBench is left out of it, since its source is a 99,567,659-byte pickle that needs pandas and its evaluate step takes about 70 seconds.
+Each dataset here already holds every model's answer to every item, a label for whether that answer was good enough (right or wrong on RouterBench, a Delta-Hit from a judge committee's scores on AutoBench, agreement with the other judges' grades for a judge model's grade in AutoBench judges, whether an agent's conversation passed the run's program checks on tau2-bench, and whether a model's first sample passed the problem's test cases on LiveCodeBench) and the cost of each call (of each whole conversation on tau2-bench) or the token counts to estimate it at list prices (LiveCodeBench records neither, so it is `cost_blind` evidence only), so the router is tested offline with no API key: for each task and seed, calibrate on one half of the items, route at a bar, and score the routed model on the other half, next to fixed baselines (`model-routing evaluate`, `DESIGN.md` 12). The test suite rebuilds every number in these tables from that dataset's committed results file, so they cannot drift from it. On GitHub, the `evidence` workflow ([.github/workflows/evidence.yml](.github/workflows/evidence.yml)) reruns the regenerate commands of the AutoBench, AutoBench judges, tau2-bench, LiveCodeBench and delegation subsections, downloading the pinned files, and fails if `evidence/autobench-2026/results.json`, `evidence/autobench-judges/results.json`, `evidence/tau2-bench/results.json`, `evidence/livecodebench/results.json`, `evidence/delegation/results.json` or `evidence/delegation/variants.json` changes by a byte; RouterBench is left out of it, since its source is a 99,567,659-byte pickle that needs pandas and its evaluate step takes about 70 seconds.
 
 Results at a glance, each number from the committed results of the subsection it links:
 
@@ -384,6 +384,7 @@ Results at a glance, each number from the committed results of the subsection it
 - [AutoBench](#autobench): no routed row beats always calling `openai/gpt-5.6-luna` on held-out success and cost together (0.872 at 0.3092 USD)
 - [AutoBench judges](#autobench-judges): choosing a judge, scored by agreement with the other judges and not a human label, at bar 0.6, `cost_effective` routing reaches held-out success 0.816 at 0.518 of the cost of the best single judge, `tencent/hy3`; no routed row at any bar reaches that judge's held-out success
 - [tau2-bench](#tau2-bench): on trial 0, no routed row beats any of the 4 single agents on held-out success and cost together, and at bar 0.3 `cost_effective` routing costs 9.1340 USD against 3.6044 for always calling the cheapest agent, `openai/gpt-4.1-mini-2025-04-14`, for no more held-out success
+- [LiveCodeBench](#livecodebench): the dataset records no cost, so only `cost_blind` routing is run; it reaches held-out success 0.902 at every bar, below the 0.909 of always calling the best single model, `openai/o4-mini-high`
 - [Delegation on AutoBench](#delegation-on-autobench): at bar 0.8, with the brief assumed to carry the whole question and inline work in a parent call of its own, the `cost_effective` decision delegates on every seed for each of the 20 parents, so it scores and costs the same as always delegating; its mean held-out success over the parents is 0.855 against 0.670 for always inline, and it costs more than always inline at 8,000 context tokens but less at 64,000 and 200,000
 
 ### RouterBench
@@ -601,6 +602,62 @@ python evidence/routerbench/results.py --evaluate tau2-evaluate.json --out evide
 python evidence/routerbench/results.py --table evidence/tau2-bench/results.json
 ```
 
+### LiveCodeBench
+
+- Dataset: the public submissions of [LiveCodeBench/submissions](https://github.com/LiveCodeBench/submissions) on GitHub (archived), pinned at revision [`6ca212e`](https://github.com/LiveCodeBench/submissions/tree/6ca212e9c2039373f6e5069d37ffa9db66e23736); the 67 files the converter reads are checked by size and sha256 before they are read
+- Licence: MIT, as the repo's LICENSE file states, with the line "Copyright (c) 2025 LiveCodeBench". This repo commits no part of the dataset, only numbers derived from it
+- What was run: 67 models, one routing task, `code_generation`, of 713 problems, 50 seeds; the problems are split in half per seed and routed at bars 0.1 to 0.9, `cost_blind` only. Each problem is a dated contest problem, and a success is the model's first sample passing the problem's test cases (`graded_list[0]`). The submissions record no cost, no token counts and no list price, so `cost_effective` is not run: with every cost 0 its routing sorts reduce to `cost_blind`'s (DESIGN 5.3), so its rows would only repeat the `cost_blind` rows
+- Full results, with every one of the 67 single models: [RESULTS.md](evidence/livecodebench/RESULTS.md) and [results.json](evidence/livecodebench/results.json); source, the 67 pinned files, the 6 dropped ones and the model ID rule: [evidence/livecodebench/README.md](evidence/livecodebench/README.md)
+
+Held-out success is the share of held-out problems the routed model's first sample solved, averaged over the 50 seeds. Every cost in the results file is 0, so the tables have no cost column. The cleared rate is the share of the 50 seeds on which some model cleared the bar on the calibration half, and the bar-violation rate is the share of cleared seeds whose held-out success fell below the bar.
+
+| Bar | Flavor | Held-out success | Cleared rate | Bar-violation rate |
+|---|---|---|---|---|
+| 0.1 | `cost_blind` | 0.902 | 1.000 | 0.000 |
+| 0.2 | `cost_blind` | 0.902 | 1.000 | 0.000 |
+| 0.3 | `cost_blind` | 0.902 | 1.000 | 0.000 |
+| 0.4 | `cost_blind` | 0.902 | 1.000 | 0.000 |
+| 0.5 | `cost_blind` | 0.902 | 1.000 | 0.000 |
+| 0.6 | `cost_blind` | 0.902 | 1.000 | 0.000 |
+| 0.7 | `cost_blind` | 0.902 | 1.000 | 0.000 |
+| 0.8 | `cost_blind` | 0.902 | 1.000 | 0.000 |
+| 0.9 | `cost_blind` | 0.902 | 0.180 | 1.000 |
+
+| Baseline | Held-out success |
+|---|---|
+| Per-item oracle: on each problem, a model whose first sample solved it, or a model counted wrong when none did | 0.972 |
+| Always `openai/o4-mini-high` (best single model) | 0.909 |
+| Always `deepseek/deepseek-r1-0528` | 0.904 |
+| Best model on the calibration half | 0.902 |
+
+The table leaves out one baseline: with every cost 0, the `cheapest` baseline is the model with the lowest ID, `agentica/deepcoder-14b-preview` (`DESIGN.md` 12.3 breaks a cost tie by model ID), so it is no cost baseline: its 0.766 is that model's success.
+
+Reading it:
+
+- `cost_blind` reaches a held-out success of 0.902 at every bar, the same as `best_on_calibration`: with no cost the router takes the model with the highest Wilson lower bound on the calibration half, and with the same number of calibration problems for every model that is the model with the highest calibration success, so the two pick the same model on every seed. It routes 29 of the 50 seeds to `openai/o4-mini-high` and 21 to `deepseek/deepseek-r1-0528`, at every bar
+- Against single models: always calling `openai/o4-mini-high` reaches 0.909 and always calling `deepseek/deepseek-r1-0528` 0.904; the other 65 of the 67 single models reach less than the routed 0.902. Choosing on half of the problems gives up a little held-out success to the best model in hindsight, which no router knows in advance
+- The bar holds where the best models clear it with room: at bars 0.1 to 0.8 a model clears on every one of the 50 seeds and no cleared seed falls below the bar on held-out
+- Bar violations: 1.000 at bar 0.9 is 9 of the 9 seeds that cleared, against 13 of the 41 seeds that did not clear, and a nominal one-sided 0.025 for the 0.95 Wilson bound. The split cuts one pool of 713 problems in two, so a model's rate on all of them is the mean of its two halves weighted by size, and a calibration half that comes out above it leaves the held-out half below it. On the 9 seeds that cleared bar 0.9 the router took `openai/o4-mini-high`, whose rate on all 713 problems is 0.913: its calibration-half rate was 0.932 to 0.946 and its held-out rate 0.878 to 0.895. Read the rates as resampling estimates for this pool, never as a guarantee (`DESIGN.md` 12.3)
+- The per-item oracle reaches 0.972, against the routed 0.902: on many problems some model passes where the routed one fails, and routing per task cannot pick per problem
+
+Limits:
+
+- The models date from 2023 to 2025 and the 713 problems from 2023-05-07 to 2024-10-05, so many problems predate a model's training data: the contamination LiveCodeBench dates its problems to expose. A later model's rate on old problems can overstate what it does on new ones
+- A label is the test cases passing for the first sample at the run's own sampling settings, and the runs do not share them: they drew 1, 4 or 10 samples per problem
+- The problems come from LeetCode, AtCoder and Codeforces, so nothing of them is kept but the question id and the contest date
+- With no cost, this matrix says which model clears a bar, never what it costs
+- Routing here is one task, so the router picks one model for all 713 problems, and those are the problems every one of the 67 kept files holds; a later date window would keep fewer models (`DESIGN.md` 12.16)
+
+Regenerate (the converter downloads the 67 pinned files, about 1.23 GB, into a cache folder outside the repo; the evaluate step took about 5.5 seconds on one laptop):
+
+```bash
+python -m pip install -e .
+python evidence/livecodebench/convert.py --out livecodebench-matrix.jsonl
+model-routing evaluate --outcomes livecodebench-matrix.jsonl --bar 0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 --seeds 50 --flavor cost_blind --json > livecodebench-evaluate.json
+python evidence/routerbench/results.py --evaluate livecodebench-evaluate.json --out evidence/livecodebench/results.json
+python evidence/routerbench/results.py --table evidence/livecodebench/results.json
+```
+
 ### Delegation on AutoBench
 
 The same [AutoBench matrix](https://huggingface.co/datasets/AutoBench/router-benchmark-2026-10) at revision [4375518](https://huggingface.co/datasets/AutoBench/router-benchmark-2026-10/tree/43755180be7d8097068982d7a3f37fc04cd15379) (licence CC-BY-4.0), with each answer's token counts and the pool's list prices, scores the [inline or sub-agent](#inline-or-sub-agent) decision on held-out questions for every one of the 20 pool models as the parent, next to always working inline and always delegating ([RESULTS.md](evidence/delegation/RESULTS.md), [results.json](evidence/delegation/results.json), `DESIGN.md` 13.9 and 13.10). It is the only dataset the delegation evidence reads: tau2-bench, which the routing evidence above also reads, records each item as a conversation of 2 to 100 model calls, while the harness prices an item as one call, or as one number of calls for every item of a grid point, so it would mis-price both paths there ([research/delegation-datasets.md](research/delegation-datasets.md)). No public dataset we found records a real hand-off together with a success label for the parent's task and the same work done inline ([research/hand-off-data.md](research/hand-off-data.md)), so the parent's context and the hand-off sizes are a stated grid: 8,000, 64,000 and 200,000 context tokens with inline work in a parent call of its own (`inline_separate_call` True), and 8,000 with the work folded into the parent's next call (`inline_separate_call` False), each with a brief of 500 tokens, a 500-token result and one later parent call. Each cost is a list-price estimate, and the delegate is credited with its recorded answer as if the brief carried the whole question, so a lossy brief is not measured. The decision prices each model at its own mean input and output tokens per answer on the calibration half; the median sizes of all the half's answers are used only for the context-window checks. Means over the 20 parents (`dec_` the decision, `inl_` always inline, `del_` always delegating; cost in USD, the mean over the 50 seeds of a held-out half's list-price cost; `delegated` the share of seeds the decision hands off; `separate` whether inline work takes a parent call of its own (`True`) or folds into the next call (`False`)):
@@ -768,6 +825,7 @@ evidence/       public datasets turned into outcome matrices, with committed res
                 (RouterBench: evidence/routerbench/RESULTS.md)
                 (AutoBench 2026: evidence/autobench-2026/RESULTS.md)
                 (tau2-bench: evidence/tau2-bench/RESULTS.md)
+                (LiveCodeBench: evidence/livecodebench/RESULTS.md)
                 (delegation on AutoBench: evidence/delegation/RESULTS.md)
 DESIGN.md       the spec the tests were written from
 ```
