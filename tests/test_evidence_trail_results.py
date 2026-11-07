@@ -197,9 +197,20 @@ def test_results_md_states_the_counts_table_source_command_and_caveats():
                    "observed usage, not the inputs of DESIGN 13.1",
                    "must never be read as K times the work's input per call",
                    "\n- No success label", "\n- No run of a task without its sub-agent",
-                   "\n- The sub-agent is its parent's model", "feed no decision and no results file",
+                   "\n- The sub-agent is its parent's model", "So its numbers feed no decision:",
                    "The `evidence` workflow does not rerun it"):
         assert phrase in md, phrase
+    median = num(summary["stats"]["model_calls"]["median"])
+    for phrase in (
+            "The committed delegation points do one work call (`evidence/delegation/results.json`), "
+            "two (variant point 0 of `evidence/delegation/variants.json`) or "
+            f"{median} (variant point 2 of the same file, the median below); every run here makes "
+            "more than one or two.",
+            f"One of them sets a grid size: the median of `model_calls`, {median}, is the "
+            "`work_calls` of variant point 2 of [variants.json](../delegation/variants.json)",
+            "never a measured hand-off"):
+        assert md.count(phrase) == 1, phrase
+    assert "no results file" not in md
     assert md.count("```bash\n") == 1
     assert not (FOLDER / "README.md").exists()
 
