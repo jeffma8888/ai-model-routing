@@ -15,7 +15,7 @@ What the inline-or-sub-agent decision (`Router.decide_delegation`, `DESIGN.md` 1
 - From the pool registry (`convert.py --registry`): list prices, families and context windows. Every cost is a list-price estimate, never a billed cost
 - Assumed, the grid: C, B, R, T and `inline_separate_call`. Results are stated per point and never pooled across points
 - Assumed, quality: the delegate is credited with its recorded answer to the whole question, as if a brief of B tokens carried everything the item needs; the parent is credited with its recorded answer as if C more tokens of context did not change it. Neither a lossy brief nor long-context degradation is measured, and each would lower one path's success. So these numbers show what the decision rule does under these assumptions, not the quality of a real hand-off
-- One work call per path at points 0 to 3, two at variant point 0, and no prompt caching (`DESIGN.md` 13.8)
+- One work call per path at points 0 to 3 and at variant point 1, two at variant point 0, and no prompt caching except at variant point 1, where the parent's reads of C cost an assumed 0.1 of its list input price (`DESIGN.md` 13.8)
 
 ## Results
 
@@ -151,19 +151,24 @@ cost_blind      zai/glm-5.3                        1.000      0.857        0.755
 
 ## Variant points
 
-A variant point changes a knob that the four points above hold fixed. It goes in a second file, [variants.json](variants.json) (68,573 bytes), made by the same script with `--grid variants`, so results.json keeps its bytes and each file stays under about 300 KB (`DESIGN.md` 13.10). Its config is that of results.json with the variant points in place of the four, with the same task, parents, bars, seeds and flavors, and one summary row per (bar, flavor, point, parent, strategy). Variant point 0 is point 3 at C = 64,000 tokens with the work in two calls (`work_calls` 2, the `calls` column) instead of one: folded work of K calls reads C in K - 1 of them on the inline path and only the brief on the delegate path (`DESIGN.md` 13.2). Point 3 stands for every context size that leaves every parent room, 64,000 among them, so the two compare at equal C and differ only in the number of calls. Each answer is still scored by its one recorded label, so whether the two calls succeed together is not measured (`DESIGN.md` 13.8).
+A variant point changes a knob that the four points above hold fixed. It goes in a second file, [variants.json](variants.json) (135,360 bytes), made by the same script with `--grid variants`, so results.json keeps its bytes and each file stays under about 300 KB (`DESIGN.md` 13.10). Its config is that of results.json with the variant points in place of the four, with the same task, parents, bars, seeds and flavors, and one summary row per (bar, flavor, point, parent, strategy). Variant point 0 is point 3 at C = 64,000 tokens with the work in two calls (`work_calls` 2, the `calls` column) instead of one: folded work of K calls reads C in K - 1 of them on the inline path and only the brief on the delegate path (`DESIGN.md` 13.2). Point 3 stands for every context size that leaves every parent room, 64,000 among them, so the two compare at equal C and differ only in the number of calls. Each answer is still scored by its one recorded label, so whether the two calls succeed together is not measured (`DESIGN.md` 13.8). Variant point 1 is point 2 (C = 200,000 tokens, inline work in a parent call of its own, one work call) with `cached_read_ratio` 0.1 (the `cached` column): the parent's reads of C in its inline work call cost 0.1 of its list input price, as with prompt caching (`DESIGN.md` 13.2). 0.1 is an assumption: the AutoBench pool records no cached price, and 0.1 is the ratio of the README's cached-read `delegate` example. The ratio moves no context-window check, so `meta/muse-glimmer-30b` and `openai/gpt-oss-120b` still have no room at variant point 1, and it never reaches the delegate's choice, so always delegating and the success of always inline are those of point 2; only always inline's cost moves, and through it the decision.
 
 ```text
 $ python evidence/delegation/results.py --table evidence/delegation/variants.json
-bar  flavor          context  separate  calls  dec_success  dec_cost  inl_success  inl_cost  del_success  del_cost  delegated
----  --------------  -------  --------  -----  -----------  --------  -----------  --------  -----------  --------  ---------
-0.7  cost_effective  64000    False     2      0.869        1.0019    0.670        7.0451    0.869        1.0019    1.000
-0.7  cost_blind      64000    False     2      0.857        5.6883    0.670        7.0451    0.857        5.1050    0.944
-0.8  cost_effective  64000    False     2      0.855        4.3560    0.670        7.0451    0.855        4.3560    1.000
-0.8  cost_blind      64000    False     2      0.857        5.6883    0.670        7.0451    0.857        5.1050    0.944
+bar  flavor          context  separate  calls  cached  dec_success  dec_cost  inl_success  inl_cost  del_success  del_cost  delegated
+---  --------------  -------  --------  -----  ------  -----------  --------  -----------  --------  -----------  --------  ---------
+0.7  cost_effective  64000    False     2      1.0     0.869        1.0019    0.670        7.0451    0.869        1.0019    1.000
+0.7  cost_effective  200000   True      1      0.1     0.869        0.6282    0.670        2.6556    0.869        0.6282    1.000
+0.7  cost_blind      64000    False     2      1.0     0.857        5.6883    0.670        7.0451    0.857        5.1050    0.944
+0.7  cost_blind      200000   True      1      0.1     0.857        2.6663    0.670        2.6556    0.857        2.4768    0.944
+0.8  cost_effective  64000    False     2      1.0     0.855        4.3560    0.670        7.0451    0.855        4.3560    1.000
+0.8  cost_effective  200000   True      1      0.1     0.855        2.1372    0.670        2.6556    0.855        2.1372    1.000
+0.8  cost_blind      64000    False     2      1.0     0.857        5.6883    0.670        7.0451    0.857        5.1050    0.944
+0.8  cost_blind      200000   True      1      0.1     0.857        2.6663    0.670        2.6556    0.857        2.4768    0.944
 ```
 
 - With the work in two folded calls at 64,000 context tokens (variant point 0) instead of one (point 3, which stands for every context size with room in every parent's window), `cost_effective` delegates on every seed for every parent at both bars: its mean delegated share over the 20 parents is 1.000 at bar 0.7 and at bar 0.8, against 0.936 and 0.947 at point 3. Mean costs in USD, variant point 0 against point 3: at bar 0.7 the decision 1.0019 against 0.6237, always inline 7.0451 against 0.8602, always delegating 1.0019 against 0.6282; at bar 0.8 the decision 4.3560 against 2.1215, always inline 7.0451 against 0.8602, always delegating 4.3560 against 2.1372. On the inline path the second call re-reads the 64,000-token context; on the delegate path each call reads the brief in its place
+- With the parent's reads of its 200,000-token context at 0.1 of the list input price (variant point 1, an assumed ratio) instead of at the list price (point 2), `cost_effective` still delegates on every seed for every parent at both bars: its mean delegated share over the 20 parents is 1.000 at bar 0.7 and 1.000 at bar 0.8, against 1.000 and 1.000 at point 2. Mean costs in USD, variant point 1 against point 2: at bar 0.7 the decision 0.6282 against 0.6282, always inline 2.6556 against 17.0936, always delegating 0.6282 against 0.6282; at bar 0.8 the decision 2.1372 against 2.1372, always inline 2.6556 against 17.0936, always delegating 2.1372 against 2.1372. The cached reads cut always inline's cost to 16% of point 2's, and it stays above the decision's at both bars
 
 Its two regenerate lines read the converter outputs of the Regenerate commands below:
 

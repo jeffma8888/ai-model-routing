@@ -5,7 +5,10 @@ a matrix does measure (each model's acceptance and token counts on each item)
 with a stated grid of what it does not (the parent's context and the hand-off
 sizes). The decision comes from ``Router.decide_delegation`` on calibration-half
 stats that hold each model's token totals, so each model is priced at its own mean
-sizes, and each held-out item is costed at list price from its own tokens.
+sizes, and each held-out item is costed at list price from its own tokens. A point
+may also carry ``work_calls`` (K work calls per path) and ``cached_read_ratio`` (the
+parent's reads of its context in the inline work calls at that fraction of its list input
+price), both assumed like the rest of the grid.
 """
 
 from __future__ import annotations
@@ -22,6 +25,7 @@ from .tasks import Task
 
 POINT_KEYS = ("context_tokens", "brief_tokens", "result_tokens", "carry_turns",
               "inline_separate_call")
+OPTIONAL_KEYS = ("work_calls", "cached_read_ratio")
 STRATEGIES = ("decision", "inline", "delegate")
 
 # (correct, input_tokens, output_tokens) of one model's row for one item
@@ -46,9 +50,9 @@ def _row(row) -> Tuple[str, str, str, Row]:
 def _points(points) -> List[dict]:
     out = []
     for p in list(points):
-        if not isinstance(p, dict) or set(p) - {"work_calls"} != set(POINT_KEYS):
+        if not isinstance(p, dict) or set(p) - set(OPTIONAL_KEYS) != set(POINT_KEYS):
             raise ValueError(f"a point needs exactly the keys {list(POINT_KEYS)}, and "
-                             f"optionally 'work_calls': {p!r}")
+                             f"optionally 'work_calls' and 'cached_read_ratio': {p!r}")
         for key in POINT_KEYS[:4]:
             if not _is_int(p[key]) or p[key] < 0:
                 raise ValueError(f"{key!r} must be an integer >= 0: {p!r}")
@@ -56,13 +60,19 @@ def _points(points) -> List[dict]:
             raise ValueError(f"'inline_separate_call' must be true or false: {p!r}")
         if "work_calls" in p and (not _is_int(p["work_calls"]) or p["work_calls"] < 1):
             raise ValueError(f"'work_calls' must be an integer >= 1: {p!r}")
+        if "cached_read_ratio" in p:
+            rho = p["cached_read_ratio"]
+            if isinstance(rho, bool) or not isinstance(rho, (int, float)) or not 0 <= rho <= 1:
+                raise ValueError(f"'cached_read_ratio' must be a number from 0 to 1: {p!r}")
         q = {k: p[k] for k in POINT_KEYS}
-        if "work_calls" in p:
-            q["work_calls"] = p["work_calls"]
+        for key in OPTIONAL_KEYS:
+            if key in p:
+                q[key] = p[key]
         out.append(q)
     if not out:
         raise ValueError("no points")
-    if len({tuple(p[k] for k in POINT_KEYS) + (p.get("work_calls", 1),) for p in out}) != len(out):
+    if len({tuple(p[k] for k in POINT_KEYS) + (p.get("work_calls", 1), p.get("cached_read_ratio", 1.0))
+            for p in out}) != len(out):
         raise ValueError("points must be distinct")
     return out
 
@@ -187,13 +197,16 @@ def _cell(table, registry, router, calibration, task, bar, flavor, index, point,
     c, b, r, t = (point[k] for k in POINT_KEYS[:4])
     k = point.get("work_calls", 1)
     w_in, w_out = k * (k + 1) // 2, k * (k - 1) // 2
+    reads = k * c if point["inline_separate_call"] else (k - 1) * c
+    if "cached_read_ratio" in point:
+        reads = reads * point["cached_read_ratio"]
 
     def inline_cost(item: str) -> float:
         _, tin, tout = table[task, item][p.id]
         if point["inline_separate_call"]:
-            return (p.cost(k * c + w_in * tin + w_out * tout, k * tout)
+            return (p.cost(reads + w_in * tin + w_out * tout, k * tout)
                     + (1 + t) * p.cost(k * (tin + tout), 0))
-        return (p.cost((k - 1) * c + w_in * tin + w_out * tout, k * tout)
+        return (p.cost(reads + w_in * tin + w_out * tout, k * tout)
                 + t * p.cost(k * (tin + tout), 0))
 
     def delegate_cost(item: str) -> float:

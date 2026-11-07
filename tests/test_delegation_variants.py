@@ -15,7 +15,10 @@ check the file, that part and its bullet against both committed files; the cache
 reads the pinned AutoBench files only when they are already in the default cache. v1.48 shows
 the same block and bullet in the README delegation subsection, whose regenerate block is the
 RESULTS.md one followed by the two variant lines, and README Limitations names the one
-multi-call point; the README tests check them against both committed files.
+multi-call point; the README tests check them against both committed files. v1.58 appends
+variant point 1, base point 2 with ``cached_read_ratio`` 0.1 (tests/test_delegation_cached_point.py),
+so the pins here read two variant points, and a second bullet, variant point 1 against base
+point 2, joins the RESULTS.md part and the README subsection.
 """
 
 import importlib.util
@@ -46,7 +49,10 @@ KEYS = ["config", "tasks", "summary"]
 POINT_KEYS = ["context_tokens", "brief_tokens", "result_tokens", "carry_turns",
               "inline_separate_call", "work_calls"]
 VARIANTS = [{"context_tokens": 64000, "brief_tokens": 500, "result_tokens": 500,
-             "carry_turns": 1, "inline_separate_call": False, "work_calls": 2}]
+             "carry_turns": 1, "inline_separate_call": False, "work_calls": 2},
+            {"context_tokens": 200000, "brief_tokens": 500, "result_tokens": 500,
+             "carry_turns": 1, "inline_separate_call": True, "cached_read_ratio": 0.1}]
+VARIANT_KEYS = [POINT_KEYS, POINT_KEYS[:5] + ["cached_read_ratio"]]
 
 
 @pytest.fixture
@@ -119,15 +125,17 @@ CALLS_HEADER = ("bar  flavor          context  separate  calls  dec_success  dec
 CALLS_DASHES = ("---  --------------  -------  --------  -----  -----------  --------  -----------"
                 "  --------  -----------  --------  ---------")
 CALLS_TAIL = ("0.600        2.0000    0.500        1.0000    0.700        1.7500    0.500")
+CALLS_CACHED_HEADER = ("bar  flavor          context  separate  calls  cached  dec_success  dec_cost"
+                       "  inl_success  inl_cost  del_success  del_cost  delegated")
 
 
-# --- the variant point, plain (true before and after v1.45) -------------------------------------
+# --- the variant points, plain (true before and after v1.45; two points from v1.58) ------------
 
-def test_the_variant_point_is_a_13_9_point_that_serialises_work_calls_last():
+def test_the_variant_points_are_13_9_points_that_serialise_their_optional_key_last():
     rows, registry = tiny()
     result = evaluate_delegation(rows, registry, bars=[0.7, 0.8], points=VARIANTS, seeds=range(5))
     assert result["config"]["points"] == VARIANTS
-    assert [list(p) for p in result["config"]["points"]] == [POINT_KEYS]
+    assert [list(p) for p in result["config"]["points"]] == VARIANT_KEYS
 
 
 def test_the_variant_point_costs_more_inline_than_the_same_folded_point_at_k_1():
@@ -154,7 +162,7 @@ def test_a_table_without_work_calls_has_no_calls_column(dr):
 
 def test_variant_points_are_the_stated_variant_grid(dr):
     assert dr.variant_points() == VARIANTS
-    assert [list(p) for p in dr.variant_points()] == [POINT_KEYS]
+    assert [list(p) for p in dr.variant_points()] == VARIANT_KEYS
     assert dr.variant_points() is not dr.variant_points()
 
 
@@ -208,7 +216,7 @@ def test_cli_grid_variants_writes_the_variant_run_and_its_table(dr, tmp_path, ca
     assert dr.main(["--table", str(out)]) == 0
     printed = capsys.readouterr().out
     assert printed == dr.table(json.loads(out.read_text(encoding="utf-8"))) + "\n"
-    assert printed.split("\n", 1)[0] == CALLS_HEADER
+    assert printed.split("\n", 1)[0] == CALLS_CACHED_HEADER
 
 
 def test_cli_grid_base_writes_the_same_bytes_as_no_grid(dr, tmp_path):
@@ -315,6 +323,62 @@ def variant_reading(base, variants):
             f"brief in its place")
 
 
+def cached_reading(base, variants):
+    """The second Variant points bullet: variant point 1 against base point 2 (DESIGN 13.10, v1.58)."""
+    def index(results):
+        return {(r["bar"], r["flavor"], r["point"], r["parent"], r["strategy"]): r
+                for r in results["summary"]}
+
+    rows = {"base": index(base), "variants": index(variants)}
+    point = variants["config"]["points"][1]
+    rho = point["cached_read_ratio"]
+    assert point == dict(base["config"]["points"][2], cached_read_ratio=rho)
+    assert "work_calls" not in point and point["inline_separate_call"] is True
+    at = {"base": 2, "variants": 1}
+    parents = variants["config"]["parents"]
+    assert parents == base["config"]["parents"]
+    n = len(parents)
+
+    def values(grid, bar, strategy, key):
+        return [rows[grid][(bar, "cost_effective", at[grid], p, strategy)][key] for p in parents]
+
+    def mean(grid, bar, strategy, key):
+        return math.fsum(values(grid, bar, strategy, key)) / n
+
+    bars = variants["config"]["bars"]
+    assert bars == [0.7, 0.8]
+    for bar in bars:
+        for grid in ("base", "variants"):
+            assert all(r == 1.0 for r in values(grid, bar, "decision", "delegate_rate")), (grid, bar)
+        for s in ("decision", "delegate"):
+            assert values("variants", bar, s, "cost_usd") == values("base", bar, s, "cost_usd"), (s, bar)
+    rate = {(grid, bar): mean(grid, bar, "decision", "delegate_rate")
+            for grid in ("base", "variants") for bar in bars}
+    inline = {(grid, bar): mean(grid, bar, "inline", "cost_usd")
+              for grid in ("base", "variants") for bar in bars}
+    assert inline["variants", 0.7] == inline["variants", 0.8]
+    assert inline["base", 0.7] == inline["base", 0.8]
+    for bar in bars:
+        assert inline["variants", bar] > mean("variants", bar, "decision", "cost_usd"), bar
+    share = inline["variants", 0.7] / inline["base", 0.7]
+
+    def costs(bar):
+        pairs = [(label, mean("variants", bar, s, "cost_usd"), mean("base", bar, s, "cost_usd"))
+                 for label, s in (("the decision", "decision"), ("always inline", "inline"),
+                                  ("always delegating", "delegate"))]
+        return ", ".join(f"{label} {v:.4f} against {b:.4f}" for label, v, b in pairs)
+
+    return (f"With the parent's reads of its {point['context_tokens']:,}-token context at {rho} "
+            f"of the list input price (variant point 1, an assumed ratio) instead of at the list "
+            f"price (point 2), `cost_effective` still delegates on every seed for every parent at "
+            f"both bars: its mean delegated share over the {n} parents is "
+            f"{rate['variants', 0.7]:.3f} at bar 0.7 and {rate['variants', 0.8]:.3f} at bar 0.8, "
+            f"against {rate['base', 0.7]:.3f} and {rate['base', 0.8]:.3f} at point 2. Mean costs "
+            f"in USD, variant point 1 against point 2: at bar 0.7 {costs(0.7)}; at bar 0.8 "
+            f"{costs(0.8)}. The cached reads cut always inline's cost to {share:.0%} of point 2's, "
+            f"and it stays above the decision's at both bars")
+
+
 def variant_part():
     md = RESULTS_MD.read_text(encoding="utf-8")
     assert md.count("\n## Variant points\n") == 1
@@ -328,16 +392,33 @@ def test_results_md_variant_part_shows_the_table_bullet_and_regenerate_lines(dr)
     part = variant_part()
     variants = committed(VARIANTS_FILE)
     assert f"```text\n{VARIANTS_COMMAND}\n{dr.table(variants)}\n```\n" in part
-    assert f"- {variant_reading(committed(RESULTS), variants)}\n" in part
+    first = f"- {variant_reading(committed(RESULTS), variants)}\n"
+    second = f"- {cached_reading(committed(RESULTS), variants)}\n"
+    assert first in part and second in part
+    assert part.index(first) < part.index(second) < part.index(VARIANTS_REGENERATE)
     assert VARIANTS_REGENERATE in part
     assert f"[variants.json](variants.json) ({VARIANTS_FILE.stat().st_size:,} bytes)" in part
     for phrase in ("`work_calls` 2", "the `calls` column", "`DESIGN.md` 13.10", "`DESIGN.md` 13.2",
-                   "whether the two calls succeed together is not measured"):
+                   "whether the two calls succeed together is not measured",
+                   "`cached_read_ratio` 0.1", "the `cached` column", "0.1 is an assumption",
+                   "records no cached price"):
         assert phrase in part, phrase
     md = RESULTS_MD.read_text(encoding="utf-8")
     assert "apart from the [Variant points](#variant-points) part" in md
-    assert ("- One work call per path at points 0 to 3, two at variant point 0, and no prompt "
-            "caching (`DESIGN.md` 13.8)\n") in md
+    assert ("- One work call per path at points 0 to 3 and at variant point 1, two at variant "
+            "point 0, and no prompt caching except at variant point 1, where the parent's reads "
+            "of C cost an assumed 0.1 of its list input price (`DESIGN.md` 13.8)\n") in md
+
+
+def test_cached_reading_refuses_a_file_where_the_decision_keeps_work_inline():
+    base, variants = committed(RESULTS), committed(VARIANTS_FILE)
+    for row in variants["summary"]:
+        if (row["bar"], row["flavor"], row["point"], row["strategy"]) == (
+                0.8, "cost_effective", 1, "decision"):
+            row["delegate_rate"] = 0.98
+            break
+    with pytest.raises(AssertionError):
+        cached_reading(base, variants)
 
 
 def test_variant_reading_refuses_a_file_where_the_decision_keeps_work_inline():
@@ -371,13 +452,17 @@ def test_readme_subsection_shows_the_variant_table_bullet_link_and_regenerate_li
     assert table in sub
     bullet = f"- {variant_reading(committed(RESULTS), variants)}\n"
     assert bullet in sub
+    cached = f"- {cached_reading(committed(RESULTS), variants)}\n"
+    assert cached in sub
     base_command = "$ python evidence/delegation/results.py --table evidence/delegation/results.json\n"
-    assert sub.index(base_command) < sub.index(table) < sub.index(bullet) < sub.index("```bash\n")
+    assert (sub.index(base_command) < sub.index(table) < sub.index(bullet) < sub.index(cached)
+            < sub.index("```bash\n"))
     for phrase in ("[variants.json](evidence/delegation/variants.json)",
                    "[Variant points](evidence/delegation/RESULTS.md#variant-points)",
                    "`work_calls` 2", "the `calls` column", "`DESIGN.md` 13.10",
                    "whether the two calls succeed together is not measured",
-                   "point 3 stands for every context size that leaves every parent room"):
+                   "point 3 stands for every context size that leaves every parent room",
+                   "`cached_read_ratio` 0.1", "the `cached` column", "0.1 is an assumption"):
         assert phrase in sub, phrase
     md = RESULTS_MD.read_text(encoding="utf-8")
     base = bash_blocks(md.split("\n## Regenerate\n", 1)[1])
@@ -387,17 +472,22 @@ def test_readme_subsection_shows_the_variant_table_bullet_link_and_regenerate_li
     assert bash_blocks(sub) == [base[0] + two[0]]
 
 
-def test_readme_limitations_name_the_one_multi_call_point():
+def test_readme_limitations_name_the_one_multi_call_point_and_the_one_cached_point():
     text = README.read_text(encoding="utf-8")
     limits = text.split("\n## Limitations and non-goals (v1)\n", 1)[1].split("\n## ", 1)[0]
-    assert all("work_calls" not in p for p in committed(RESULTS)["config"]["points"])
+    base = committed(RESULTS)["config"]["points"]
+    assert all("work_calls" not in p and "cached_read_ratio" not in p for p in base)
     points = committed(VARIANTS_FILE)["config"]["points"]
-    assert [p.get("work_calls", 1) > 1 for p in points] == [True]
-    point = points[0]
+    assert [p.get("work_calls", 1) > 1 for p in points] == [True, False]
+    assert [p.get("cached_read_ratio", 1.0) < 1 for p in points] == [False, True]
+    point, cached = points
     assert (point["work_calls"], point["inline_separate_call"]) == (2, False)
     assert ("The committed evidence has one multi-call point, variant point 0 in "
             "[variants.json](evidence/delegation/variants.json): two folded calls at "
-            f"{point['context_tokens']:,} context tokens") in limits
+            f"{point['context_tokens']:,} context tokens, and one cached point, variant point 1 "
+            f"in the same file: point 2's {cached['context_tokens']:,} context tokens with the "
+            f"parent's reads of them at an assumed {cached['cached_read_ratio']} of the list "
+            "input price") in limits
 
 
 # --- the pinned files, only when already cached ------------------------------------------------

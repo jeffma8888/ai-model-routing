@@ -12,7 +12,8 @@ Usage:
 and keeps the config, tasks and summary (no cells). Points 0 to 2 put inline work in a
 parent call of its own at three context sizes; point 3 folds it into the parent's next call.
 With ``--grid variants`` it runs the variant points instead, which change a knob the base grid
-holds fixed (variant point 0: folded work of two calls at 64,000 context tokens).
+holds fixed (variant point 0: folded work of two calls at 64,000 context tokens; variant
+point 1: point 2 with the parent's reads of the context at 0.1 of its list input price).
 ``--table`` prints the mean over parents of each (bar, flavor, point); with ``--bar`` and ``--point`` it prints one row per
 (flavor, parent) for that bar and point. ``--breakeven`` with ``--bar`` and ``--point`` prints,
 per (flavor, parent), how much held-out success a lossy hand-off may lose before delegating
@@ -40,6 +41,7 @@ STRATEGIES = ("decision", "inline", "delegate")
 KEYS = ("config", "tasks", "summary")
 VARIANT_CONTEXT_TOKENS = 64000
 VARIANT_WORK_CALLS = 2
+VARIANT_CACHED_READ_RATIO = 0.1
 GRIDS = ("base", "variants")
 
 
@@ -56,10 +58,12 @@ def points() -> list:
 
 
 def variant_points() -> list:
-    """Variant point 0: folded work of two calls at 64,000 context tokens (DESIGN 13.10)."""
+    """Variant point 0: folded work of two calls at 64,000 context tokens; variant point 1:
+    base point 2 with ``cached_read_ratio`` 0.1, an assumed ratio (DESIGN 13.10)."""
     return [{"context_tokens": VARIANT_CONTEXT_TOKENS, "brief_tokens": BRIEF_TOKENS,
              "result_tokens": RESULT_TOKENS, "carry_turns": CARRY_TURNS,
-             "inline_separate_call": False, "work_calls": VARIANT_WORK_CALLS}]
+             "inline_separate_call": False, "work_calls": VARIANT_WORK_CALLS},
+            dict(points()[2], cached_read_ratio=VARIANT_CACHED_READ_RATIO)]
 
 
 def run(rows, registry, grid="base") -> dict:
@@ -116,6 +120,7 @@ def table(results: dict) -> str:
     rows = _index(results)
     config = results["config"]
     multi = any("work_calls" in point for point in config["points"])
+    cached = any("cached_read_ratio" in point for point in config["points"])
     lines = []
     for bar in config["bars"]:
         for flavor in config["flavors"]:
@@ -127,12 +132,14 @@ def table(results: dict) -> str:
                 rate = math.fsum(r["delegate_rate"] for r in found["decision"]) / len(
                     found["decision"])
                 calls = [str(point.get("work_calls", 1))] if multi else []
+                calls += [str(point.get("cached_read_ratio", 1.0))] if cached else []
                 lines.append([str(bar), flavor, str(point["context_tokens"]),
                               str(point["inline_separate_call"])] + calls + _cells(mean)
                              + [f"{rate:.3f}"])
     if not lines:
         raise ValueError("config has no (bar, flavor, point)")
-    columns = ["bar", "flavor", "context", "separate"] + (["calls"] if multi else [])
+    columns = (["bar", "flavor", "context", "separate"] + (["calls"] if multi else [])
+               + (["cached"] if cached else []))
     return "\n".join(_layout(columns + HEADERS + ["delegated"], lines))
 
 

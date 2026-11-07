@@ -9,13 +9,13 @@ point without the key. A point without it means rho = 1.0 and serialises as befo
 13.10 variant grid gains variant point 1, base point 2 with rho = 0.1, and ``table`` gains a
 ``cached`` column when a config point carries the ratio.
 
-The new behaviour is committed under strict xfail markers, each naming what the v1.56 code
-raises: ``ValueError`` where a test runs a point with ``cached_read_ratio`` (``_points``
-accepts the five ``POINT_KEYS`` and ``work_calls`` only), and ``AssertionError`` where a test
-expects a v1.57 error message that the v1.56 key check raises first with other words, or
-the two variant points or the ``cached`` column. The implementing commit (v1.58) removes the
-markers. The tests that are never marked pin that points without the key give the v1.56
-result bit for bit; they pass before the code and after it.
+The new behaviour was committed in v1.57 under strict xfail markers, each naming what the
+v1.56 code raised: ``ValueError`` where a test runs a point with ``cached_read_ratio``
+(``_points`` accepted the five ``POINT_KEYS`` and ``work_calls`` only), and ``AssertionError``
+where a test expects a v1.57 error message that the v1.56 key check raised first with other
+words, or the two variant points or the ``cached`` column. The implementing commit (v1.58)
+removed the markers (DESIGN 13.9). The tests that were never marked pin that points without
+the key give the v1.56 result bit for bit; they passed before the code and pass after it.
 
 The harness fixture is the one of tests/test_delegation_eval_work_calls.py: two seeds that
 each hold 3 items for calibration and 5 out, every call reads 1,000 tokens and writes 200,
@@ -50,14 +50,6 @@ S_IN, S_OUT = 1000, 200
 KEYS = ["context_tokens", "brief_tokens", "result_tokens", "carry_turns",
         "inline_separate_call"]
 STRATEGIES = ["decision", "inline", "delegate"]
-
-RED_RUN = pytest.mark.xfail(strict=True, raises=ValueError,
-                            reason="v1.56 _points rejects cached_read_ratio as an extra key")
-RED_MESSAGE = pytest.mark.xfail(strict=True, raises=AssertionError,
-                                reason="v1.56 raises its key-check message first")
-RED_SCRIPT = pytest.mark.xfail(strict=True, raises=AssertionError,
-                               reason="v1.56 has one variant point and no cached column")
-
 
 def point(c, b, r, t, separate, **extra):
     return dict({"context_tokens": c, "brief_tokens": b, "result_tokens": r, "carry_turns": t,
@@ -150,9 +142,8 @@ def without_ratio(pt):
     return {k: v for k, v in pt.items() if k != "cached_read_ratio"}
 
 
-# --- v1.57 harness behaviour, red until the v1.58 harness takes cached_read_ratio ---------
+# --- v1.57 harness behaviour, implemented by the v1.58 harness ---------------------------
 
-@RED_RUN
 def test_a_cached_point_serialises_the_ratio_last():
     given = [point(100_000, 500, 300, 0, True, cached_read_ratio=0.1),
              {"cached_read_ratio": 0.5, "work_calls": 2, "inline_separate_call": False,
@@ -164,14 +155,12 @@ def test_a_cached_point_serialises_the_ratio_last():
                                  KEYS + ["work_calls", "cached_read_ratio"]]
 
 
-@RED_RUN
 def test_points_without_the_ratio_keep_their_cells_beside_cached_points():
     alone, mixed = run(points=POINTS + KPOINTS), run(points=POINTS + KPOINTS + RPOINTS)
     assert [c for c in mixed["cells"] if c["point"] < 6] == alone["cells"]
     assert [r for r in mixed["summary"] if r["point"] < 6] == alone["summary"]
 
 
-@RED_RUN
 def test_the_decision_is_decide_delegation_with_the_points_ratio():
     # seed 2 calibrates on 4 items, so the lower and the upper median differ
     rows = matrix(tokens=varied_tokens)
@@ -199,7 +188,6 @@ def test_the_decision_is_decide_delegation_with_the_points_ratio():
     assert moved > 0
 
 
-@RED_RUN
 def test_held_out_cost_prices_the_parents_reads_of_c_at_rho():
     def tokens(item, m):
         k = int(item[1:])
@@ -219,7 +207,6 @@ def test_held_out_cost_prices_the_parents_reads_of_c_at_rho():
         assert c["cost_usd"]["decision"] == c["cost_usd"][chosen]
 
 
-@RED_RUN
 def test_held_out_inline_cost_by_hand_at_rho_0_1_and_0():
     # every call reads 1,000 and writes 200, T = 0, a call of its own over C = 100,000, so
     # one item inline reads 100,000 * rho + 1,000 and writes 200, then the next call
@@ -241,7 +228,6 @@ def test_held_out_inline_cost_by_hand_at_rho_0_1_and_0():
             assert c["cost_usd"]["inline"] == pytest.approx(5.15, rel=1e-12, abs=0)
 
 
-@RED_RUN
 def test_rho_moves_only_the_inline_cost_and_through_it_the_decision():
     # one run per point: RPOINTS 0 and 1 are the same point without the ratio
     for pt in RPOINTS:
@@ -259,7 +245,6 @@ def test_rho_moves_only_the_inline_cost_and_through_it_the_decision():
             assert a["cost_usd"]["inline"] < b["cost_usd"]["inline"]
 
 
-@RED_RUN
 def test_folded_work_of_one_call_costs_the_same_for_every_rho():
     # (K - 1) * C = 0, so the ratio has nothing to price (DESIGN 13.2 v1.41)
     folded = point(100_000, 500, 300, 2, False)
@@ -270,7 +255,6 @@ def test_folded_work_of_one_call_costs_the_same_for_every_rho():
         assert cached["summary"] == base["summary"], rho
 
 
-@RED_RUN
 @pytest.mark.parametrize("rho", [1.0, 1])
 def test_ratio_1_gives_the_cells_of_the_same_point_without_it(rho):
     reg = varied_registry()
@@ -285,7 +269,6 @@ def test_ratio_1_gives_the_cells_of_the_same_point_without_it(rho):
     assert ones["config"]["points"] == explicit
 
 
-@RED_MESSAGE
 @pytest.mark.parametrize("value", [-0.1, 1.000001, 2, -1, True, False, "0.1", None,
                                    math.nan, math.inf, -math.inf])
 def test_an_invalid_ratio_is_a_value_error_naming_it(value):
@@ -293,13 +276,11 @@ def test_an_invalid_ratio_is_a_value_error_naming_it(value):
         run(points=[dict(POINTS[0], cached_read_ratio=value)])
 
 
-@RED_MESSAGE
 def test_the_ratio_is_checked_after_work_calls():
     with pytest.raises(ValueError, match=r"^'work_calls' must be an integer >= 1"):
         run(points=[dict(POINTS[0], work_calls=0, cached_read_ratio=2)])
 
 
-@RED_MESSAGE
 @pytest.mark.parametrize("points", [
     [POINTS[0], dict(POINTS[0], cached_read_ratio=1.0)],
     [dict(POINTS[1], cached_read_ratio=1), POINTS[1]],
@@ -311,7 +292,6 @@ def test_a_repeated_point_is_a_value_error_with_a_missing_ratio_read_as_1(points
         run(points=points)
 
 
-@RED_MESSAGE
 @pytest.mark.parametrize("pt", [dict(POINTS[0], extra=1),
                                 dict(POINTS[0], cached_read_ratio=0.1, extra=1),
                                 {k: v for k, v in POINTS[0].items() if k != "carry_turns"}])
@@ -321,7 +301,7 @@ def test_the_key_message_names_both_optional_keys(pt):
         run(points=[pt])
 
 
-# --- v1.57 results script, red until v1.58 -------------------------------------------------
+# --- v1.57 results script, implemented in v1.58 ------------------------------------------
 
 @pytest.fixture
 def dr():
@@ -353,7 +333,6 @@ def tiny():
     return rows, reg
 
 
-@RED_SCRIPT
 def test_variant_points_append_base_point_2_with_a_cached_ratio(dr):
     got = dr.variant_points()
     assert got == VARIANTS
@@ -362,7 +341,6 @@ def test_variant_points_append_base_point_2_with_a_cached_ratio(dr):
     assert got[1]["cached_read_ratio"] == 0.1
 
 
-@RED_SCRIPT
 def test_run_on_the_variants_grid_has_both_points_and_keeps_variant_point_0(dr):
     rows, reg = tiny()
     got = dr.run(rows, reg, grid="variants")
@@ -373,7 +351,6 @@ def test_run_on_the_variants_grid_has_both_points_and_keeps_variant_point_0(dr):
     assert [r for r in got["summary"] if r["point"] == 0] == first["summary"]
 
 
-@RED_SCRIPT
 def test_variant_point_1_costs_less_inline_than_base_point_2_and_the_same_delegated(dr):
     rows, reg = tiny()
     base, variants = dr.run(rows, reg), dr.run(rows, reg, grid="variants")
@@ -429,7 +406,6 @@ NO_CACHED_HEADER = ("bar  flavor          context  separate  dec_success  dec_co
                     "  inl_cost  del_success  del_cost  delegated")
 
 
-@RED_SCRIPT
 def test_table_has_a_cached_column_after_separate_when_a_point_carries_the_ratio(dr):
     got = dr.table(handmade([tpoint(10, True, cached_read_ratio=0.1), tpoint(20, True)]))
     assert got == "\n".join([CACHED_HEADER, CACHED_DASHES,
@@ -437,7 +413,6 @@ def test_table_has_a_cached_column_after_separate_when_a_point_carries_the_ratio
                              "0.5  cost_effective  20       True      1.0     " + TAIL])
 
 
-@RED_SCRIPT
 def test_table_puts_cached_after_calls_and_prints_each_default(dr):
     got = dr.table(handmade([tpoint(10, True, work_calls=3),
                              tpoint(20, False, cached_read_ratio=0.25),
