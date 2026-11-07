@@ -1,4 +1,4 @@
-"""v1.50 tau2-bench converter contract (DESIGN 12.14), written before the converter exists.
+"""tau2-bench converter contract (DESIGN 12.14, v1.50 and v1.51), written before the converter and kept as its tests.
 
 The converter is a standard-library script outside the package (``evidence/tau2-bench/convert.py``),
 so it is loaded from its path by an autouse fixture. Every test uses small synthetic run dicts
@@ -21,9 +21,6 @@ from pathlib import Path
 import pytest
 
 from model_routing import evaluate, outcomes_from_rows, split_items
-
-pytestmark = pytest.mark.xfail(strict=True, raises=ModuleNotFoundError,
-                               reason="evidence/tau2-bench/convert.py lands after its contract (DESIGN 12.14)")
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "evidence" / "tau2-bench" / "convert.py"
