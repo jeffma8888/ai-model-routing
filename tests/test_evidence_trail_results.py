@@ -2,13 +2,14 @@
 
 ``evidence/trail/summary.json``, its ``RESULTS.md``, the README delegation sentence and Layout line,
 and the TRAIL figures of ``research/hand-off-data.md``, each built from the committed summary. Every
-test reads a committed TRAIL file first, so each one failed with ``FileNotFoundError`` under a
+test reads a committed TRAIL file before any assertion that could fail, so each one failed with ``FileNotFoundError`` under a
 strict xfail until v1.71 committed the files and removed the mark. One test reads the pinned traces only when all 117 are already in the
 default cache and skips otherwise (CI never downloads them).
 """
 
 import importlib.util
 import json
+import re
 import statistics
 from pathlib import Path
 
@@ -65,6 +66,23 @@ def counts_sentence(summary):
     return (f"In {summary['traces_with_runs']} of the {summary['traces']} GAIA traces the top agent "
             "(`CodeAgent.run`) hands work to a sub-agent (`ToolCallingAgent.run`), "
             f"{summary['run_count']} sub-agent runs in all.")
+
+
+def split_sentence(summary):
+    per_trace = {}
+    for run in summary["runs"]:
+        per_trace[run["trace_id"]] = per_trace.get(run["trace_id"], 0) + 1
+    counts = sorted(per_trace.values())
+    assert sorted(set(counts)) == [1, 2, 3]
+    return (f"{counts.count(1)} traces hold one run, {counts.count(2)} two and "
+            f"{counts.count(3)} three.")
+
+
+def commit_date():
+    note = HAND_OFF.read_text(encoding="utf-8")
+    dates = re.findall(rf"GitHub {REVISION} \(commit date (\d{{4}}-\d{{2}}-\d{{2}})\)", note)
+    assert len(dates) == 1
+    return dates[0]
 
 
 def stats_table(summary):
@@ -167,10 +185,11 @@ def test_results_md_states_the_counts_table_source_command_and_caveats():
     tr = load_script()
     assert md.startswith("# TRAIL sub-agent sizes\n")
     assert md.count(counts_sentence(summary)) == 1
+    assert md.count(counts_sentence(summary) + " " + split_sentence(summary)) == 1
     assert md.count(stats_table(summary)) == 1
     total = sum(size for size, _ in tr.FILES.values())
     for phrase in (f"[summary.json](summary.json) ({SUMMARY.stat().st_size:,} bytes)",
-                   REPO_URL, f"[`{REVISION}`]({REPO_URL}/tree/{REVISION})",
+                   REPO_URL, f"[`{REVISION}`]({REPO_URL}/tree/{REVISION}) (commit date {commit_date()})",
                    "`benchmarking/data/GAIA`", "Licence: MIT", "Copyright (c) 2025 patronus-ai",
                    f"```bash\n{COMMAND}\n```\n", f"{len(tr.FILES)} pinned files ({total:,} bytes)",
                    "observed usage, not the inputs of DESIGN 13.1",
@@ -184,10 +203,10 @@ def test_results_md_states_the_counts_table_source_command_and_caveats():
 
 
 def test_stats_table_writes_whole_medians_without_a_decimal():
+    RESULTS_MD.read_text(encoding="utf-8")
     summary = {"stats": {k: {"min": 1, "median": 2.0, "max": 1234} for k in STATS}}
     assert "| `model_calls` | 1 | 2 | 1,234 |\n" in stats_table(summary)
     assert num(94868.5) == "94,868.5" and num(15.0) == "15" and num(357993) == "357,993"
-    RESULTS_MD.read_text(encoding="utf-8")
 
 
 def test_workflow_does_not_rerun_the_trail_script():
