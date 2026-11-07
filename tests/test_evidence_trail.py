@@ -15,6 +15,7 @@ import importlib.util
 import io
 import json
 import re
+import sys
 from pathlib import Path
 
 import pytest
@@ -331,6 +332,16 @@ def test_read_trace_refuses(tr, tmp_path, data):
         tr.read_trace(f)
 
 
+def test_read_trace_names_the_file_for_a_number_past_the_int_limit(tr, tmp_path):
+    limit = sys.get_int_max_str_digits() if hasattr(sys, "get_int_max_str_digits") else 0
+    if not limit:
+        pytest.skip("this interpreter converts digit strings of any length")
+    f = tmp_path / "bad.json"
+    f.write_bytes(b'{"a": ' + b"1" * (limit + 1) + b"}")
+    with pytest.raises(ValueError, match="bad.json"):
+        tr.read_trace(f)
+
+
 def test_read_trace_reads_json(tr, tmp_path):
     f = tmp_path / NAME
     f.write_text(json.dumps(sample_trace()), encoding="utf-8")
@@ -362,6 +373,23 @@ def test_int_counts_are_accepted(tr):
     trace = sample_trace()
     find(trace, "d")["span_attributes"].update({"llm.token_count.prompt": 7, "llm.token_count.completion": 0})
     assert tr.runs(trace, NAME)[0] == run_row(TID, "r1", 3, 21, 8, 5)
+
+
+def test_counts_up_to_the_int64_max_are_accepted(tr):
+    trace = sample_trace()
+    find(trace, "d")["span_attributes"].update({"llm.token_count.prompt": str(INT64_MAX),
+                                               "llm.token_count.completion": INT64_MAX})
+    find(trace, "e")["span_attributes"]["llm.token_count.prompt"] = "0" * 18 + "9"
+    assert tr.runs(trace, NAME)[0] == run_row(TID, "r1", 3, 5 + INT64_MAX + 9, 3 + INT64_MAX + 5, 5)
+
+
+def test_a_deep_tree_of_spans_is_walked_without_recursion(tr):
+    trace = sample_trace()
+    node = call("deep", 2, 1)
+    for i in range(5000):
+        node = span("Step", f"n{i}", node)
+    find(trace, "r2")["child_spans"].append(node)
+    assert tr.runs(trace, NAME)[1] == run_row(TID, "r2", 2, 102, 7, 100)
 
 
 def test_first_call_is_first_in_walk_order_not_by_timestamp(tr):
@@ -421,7 +449,9 @@ def broken(edit):
     return trace
 
 
-BAD_COUNTS = ["", "1.5", "-1", " 7", "7 ", "1e3", "\u0661\u0662", True, False, -1, 1.0, None, [7]]
+INT64_MAX = 2**63 - 1
+BAD_COUNTS = ["", "1.5", "-1", " 7", "7 ", "1e3", "\u0661\u0662", True, False, -1, 1.0, None, [7],
+              "1" * 5000, "9" * 19, str(INT64_MAX + 1), "0" * 19 + "7", INT64_MAX + 1]
 
 
 @pytest.mark.parametrize("trace", [
