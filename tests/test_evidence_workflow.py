@@ -1,5 +1,6 @@
 """The `evidence` workflow reruns the README regenerate commands of the AutoBench-based
-subsections on GitHub and fails when a committed results file changes (DESIGN 12.13, v1.30),
+subsections and, from v1.55, the tau2-bench one on GitHub and fails when a committed results
+file changes (DESIGN 12.13, v1.30),
 and both workflows run on one pinned runner image with a dated comment (v1.49).
 
 The workflow is read with a line parser for its own shape (no YAML library, so this runs in
@@ -17,7 +18,7 @@ CI = ROOT / ".github" / "workflows" / "ci.yml"
 README = ROOT / "README.md"
 ROUTERBENCH_CONVERT = ROOT / "evidence" / "routerbench" / "convert.py"
 EVIDENCE = "## Evidence: held-out results on public data\n"
-SUBSECTIONS = ("AutoBench", "AutoBench judges", "Delegation on AutoBench")
+SUBSECTIONS = ("AutoBench", "AutoBench judges", "tau2-bench", "Delegation on AutoBench")
 INSTALL = "python -m pip install -e ."
 ON = (
     "on:\n"
@@ -44,7 +45,7 @@ def subsection(text, heading):
 
 
 def readme_blocks(text):
-    """Each AutoBench-based subsection's one regenerate block, as a list of lines."""
+    """Each rerun subsection's one regenerate block, in README heading order, as lines."""
     blocks = []
     for heading in SUBSECTIONS:
         found = re.findall(r"```bash\n(.*?)```", subsection(text, heading), re.S)
@@ -83,7 +84,8 @@ def readme_sentence(text):
     return (
         "On GitHub, the `evidence` workflow "
         "([.github/workflows/evidence.yml](.github/workflows/evidence.yml)) reruns the "
-        "regenerate commands of the AutoBench, AutoBench judges and delegation subsections, "
+        "regenerate commands of the AutoBench, AutoBench judges, tau2-bench and delegation "
+        "subsections, "
         f"downloading the pinned files, and fails if {named} changes by a byte; RouterBench "
         f"is left out of it, since its source is a {routerbench_size():,}-byte pickle that "
         "needs pandas and its evaluate step takes about 70 seconds.")
@@ -215,11 +217,12 @@ def test_workflow_reruns_the_readme_commands_and_compares_the_results():
     assert problems(workflow_text(), readme(), CI.read_text(encoding="utf-8")) == []
 
 
-def test_readme_commands_are_the_three_autobench_blocks():
+def test_readme_commands_are_the_four_rerun_blocks():
     commands = expected_commands(readme())
-    assert len(commands) == 4 + 4 + 6
+    assert len(commands) == 4 + 4 + 4 + 6
     assert out_paths(commands) == ["evidence/autobench-2026/results.json",
                                    "evidence/autobench-judges/results.json",
+                                   "evidence/tau2-bench/results.json",
                                    "evidence/delegation/results.json",
                                    "evidence/delegation/variants.json"]
     assert all((ROOT / p).is_file() for p in out_paths(commands))

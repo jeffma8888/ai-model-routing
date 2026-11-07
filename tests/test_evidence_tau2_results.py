@@ -6,12 +6,15 @@ no download: they check the committed file and RESULTS.md against each other. Th
 read the 12 pinned run files only when they are already in the default cache and skip
 otherwise (CI never downloads them): one rebuilds results.json and requires the committed
 bytes, one rebuilds the split sizes and the success span behind the bars, and one rebuilds
-every sensitivity line in RESULTS.md.
+every sensitivity line in RESULTS.md. The README part (v1.55, DESIGN 12.8) builds the
+`### tau2-bench` subsection's tables, counts, single-agent sentence and Reading it numbers from
+the committed file, and requires each limit phrase it takes from RESULTS.md in both files.
 """
 
 import importlib.util
 import json
 import math
+import re
 from pathlib import Path
 
 import pytest
@@ -22,6 +25,7 @@ ROOT = Path(__file__).resolve().parents[1]
 FOLDER = ROOT / "evidence" / "tau2-bench"
 RESULTS = FOLDER / "results.json"
 RESULTS_MD = FOLDER / "RESULTS.md"
+README = ROOT / "README.md"
 TABLE_COMMAND = ("$ python evidence/routerbench/results.py --table "
                  "evidence/tau2-bench/results.json")
 BARS = [0.3, 0.4, 0.5, 0.6, 0.7, 0.8]
@@ -265,6 +269,107 @@ def test_evidence_readme_links_the_results():
     text = (FOLDER / "README.md").read_text(encoding="utf-8")
     assert "(RESULTS.md)" in text and "(results.json)" in text
     assert "not committed yet" not in text
+
+
+# --- the README subsection (DESIGN 12.8, v1.55) ---------------------------------------------
+
+HEADINGS = ["RouterBench", "AutoBench", "AutoBench judges", "tau2-bench", "Delegation on AutoBench"]
+LIMITS = ["date from 2025, and the costs are those the runs recorded at the prices of their time",
+          '("airline: 29 tasks differ, retail: 114")',
+          "plays the user in every conversation",
+          "the airline calibration half holds 16 to 35 tasks over the 50 seeds, under "
+          "`min_samples` 30 on 40 of them",
+          "holds on trials 1 and 3 but not on trial 2"]
+
+
+def readme_subsection():
+    text = README.read_text(encoding="utf-8")
+    heading = "\n## Evidence: held-out results on public data\n"
+    assert text.count(heading) == 1
+    section = text.split(heading, 1)[1].split("\n## ", 1)[0]
+    assert re.findall(r"^### (.*)$", section, re.M) == HEADINGS
+    return section.split("\n### tau2-bench\n", 1)[1].split("\n### ", 1)[0]
+
+
+def readme_tables(results):
+    """The two tables of the README `### tau2-bench` subsection (DESIGN 12.8, v1.55)."""
+    config = results["config"]
+    first = (config["bars"][0], config["flavors"][0])
+    models, best, cheapest_agent = single_models(results)
+    cheapest = summary_row(results, *first, "cheapest")
+    lines = ["| Bar | Flavor | Held-out success | Cost (USD) | Cost / best single agent "
+             "| Cost / cheapest agent | Cleared rate | Bar-violation rate |",
+             "|---|---|---|---|---|---|---|---|"]
+    for bar in config["bars"]:
+        for flavor in config["flavors"]:
+            r = summary_row(results, bar, flavor, "routed")
+            lines.append(f"| {bar} | `{flavor}` | {r['success']:.3f} | {r['cost_usd']:.4f} "
+                         f"| {r['cost_usd'] / best['cost_usd']:.3f} "
+                         f"| {r['cost_usd'] / cheapest['cost_usd']:.1f} "
+                         f"| {rate(r['cleared_rate'])} | {rate(r['bar_violation_rate'])} |")
+    assert summary_row(results, *first, "oracle")["success"] < 1.0
+    marks = {best["strategy"]: " (best single agent)", cheapest_agent["strategy"]: " (cheapest single agent)"}
+    baselines = [("Per-item oracle: on each task, the cheapest agent that succeeded on it, or the "
+                  "cheapest agent, counted wrong, when none did", "oracle")]
+    baselines += [(f"Always `{name(m)}`{marks.get(m['strategy'], '')}", m["strategy"]) for m in models]
+    baselines += [("Best agent on the calibration half, per domain", "best_on_calibration"),
+                  ("Cheapest agent on the calibration half, per domain", "cheapest")]
+    lines += ["", "| Baseline | Held-out success | Cost (USD) |", "|---|---|---|"]
+    for label, strategy in baselines:
+        r = summary_row(results, *first, strategy)
+        lines.append(f"| {label} | {r['success']:.3f} | {r['cost_usd']:.4f} |")
+    return "\n".join(lines) + "\n"
+
+
+def readme_counts(results):
+    tasks, config = results["tasks"], results["config"]
+    models = {tuple(t["models"]) for t in tasks.values()}
+    assert len(models) == 1
+    sizes = [f"{task} {t['items']}" for task, t in tasks.items()]
+    sizes[0] += " tasks"
+    return (f"{len(models.pop())} agents, one routing task per domain ({', '.join(sizes)}), "
+            f"trial 0 of the 4 trials, {len(config['seeds'])} seeds; each domain is split in half "
+            f"per seed and routed at bars {config['bars'][0]} to {config['bars'][-1]} in both "
+            f"flavors")
+
+
+def test_readme_tau2_tables_counts_and_single_agent_sentence_are_the_committed_results():
+    results, section = committed(), readme_subsection()
+    assert "\n" + readme_tables(results) in section
+    assert readme_counts(results) in section
+    assert beats_statement(results) in section
+
+
+def test_readme_tau2_reading_numbers_are_the_committed_results():
+    section = readme_subsection()
+    phrases = [p for p in reading_phrases(committed()) if not p.startswith("the committed file,")]
+    assert len(phrases) == len(reading_phrases(committed())) - 1
+    for phrase in phrases:
+        assert phrase in section, phrase
+
+
+def test_readme_tau2_links_source_licence_limits_and_commands(cv):
+    section, md = readme_subsection(), results_md()
+    revision = cv.REVISION
+    for needle in ("[sierra-research/tau2-bench](https://github.com/sierra-research/tau2-bench)",
+                   f"[`{revision[:7]}`](https://github.com/sierra-research/tau2-bench/tree/"
+                   f"{revision})", "`data/tau2/results/final`", "MIT",
+                   '"Copyright (c) 2025 Sierra Research"', "(evidence/tau2-bench/RESULTS.md)",
+                   "(evidence/tau2-bench/results.json)", "(evidence/tau2-bench/README.md)",
+                   "`reward_info.reward`", "`agent_cost`", "`user_cost`",
+                   "chosen after a first run at 0.6 to 0.9"):
+        assert needle in section, needle
+    for phrase in LIMITS:
+        assert phrase in section and phrase in md, phrase
+    assert REGENERATE in section and REGENERATE in md
+    assert section.isascii()
+
+
+def test_readme_tau2_tables_print_a_dash_for_no_rate():
+    fake = json.loads(json.dumps(committed()))
+    summary_row(fake, 0.3, "cost_blind", "routed")["bar_violation_rate"] = None
+    row = [line for line in readme_tables(fake).split("\n") if "| 0.3 | `cost_blind` |" in line]
+    assert len(row) == 1 and row[0].endswith(" | - |")
 
 
 # --- the pinned files, only when already cached ---------------------------------------------

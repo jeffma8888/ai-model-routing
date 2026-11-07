@@ -64,7 +64,7 @@ LUNA = "openai/gpt-5.6-luna"
 SECTION_LINK = "../autobench-2026/README.md#judge-evidence-one-item-per-graded-answer"
 README = ROOT / "README.md"
 EVIDENCE_README = ROOT / "evidence" / "autobench-2026" / "README.md"
-HEADINGS = ["RouterBench", "AutoBench", "AutoBench judges", "Delegation on AutoBench"]
+HEADINGS = ["RouterBench", "AutoBench", "AutoBench judges", "tau2-bench", "Delegation on AutoBench"]
 RESULTS_LINK = "([AutoBench results](../autobench-2026/RESULTS.md))"
 
 

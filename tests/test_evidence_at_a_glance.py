@@ -2,7 +2,7 @@
 
 The README evidence section opens with a short list, one bullet per subsection. Every
 number and model ID in it is built here from the committed results files (four since v1.28,
-which adds the AutoBench judges bullet), at the rounding of the subsection tables, and every word that depends on the data (no routed row
+which adds the AutoBench judges bullet, five since v1.55, which adds tau2-bench), at the rounding of the subsection tables, and every word that depends on the data (no routed row
 reaches or beats, every seed, more, less) is asserted against those files, so the list cannot
 drift from them or keep a claim a regenerated file no longer supports.
 """
@@ -21,6 +21,7 @@ HEADING = "\n## Evidence: held-out results on public data\n"
 FILES = {"RouterBench": ROOT / "evidence" / "routerbench" / "results.json",
          "AutoBench": ROOT / "evidence" / "autobench-2026" / "results.json",
          "AutoBench judges": ROOT / "evidence" / "autobench-judges" / "results.json",
+         "tau2-bench": ROOT / "evidence" / "tau2-bench" / "results.json",
          "Delegation on AutoBench": ROOT / "evidence" / "delegation" / "results.json"}
 LEAD = ("Results at a glance, each number from the committed results of the subsection it "
         "links:")
@@ -92,6 +93,31 @@ def autobench_bullet(results):
             f"{luna['cost_usd']:.4f} USD)")
 
 
+def tau2_bullet(results):
+    """v1.55 (DESIGN 12.8): no routed row beats a single agent on both counts at trial 0, and at
+    the lowest bar cost_effective costs more than the cheapest agent for no more success."""
+    config = results["config"]
+    first = (config["bars"][0], config["flavors"][0])
+    models = [r for r in results["summary"]
+              if (r["bar"], r["flavor"]) == first and r["strategy"].startswith("model:")]
+    cheapest = min(models, key=lambda r: (r["cost_usd"], -r["success"], r["strategy"]))
+    for m in models:
+        for bar in config["bars"]:
+            for flavor in config["flavors"]:
+                r = summary_row(results, bar, flavor, "routed")
+                beats = (r["success"] >= m["success"] and r["cost_usd"] <= m["cost_usd"]
+                         and (r["success"] > m["success"] or r["cost_usd"] < m["cost_usd"]))
+                assert not beats, f"bar {bar} {flavor} beats {m['strategy']}"
+    low = summary_row(results, config["bars"][0], "cost_effective", "routed")
+    assert low["cost_usd"] > cheapest["cost_usd"], "the lowest bar costs no more"
+    assert low["success"] <= cheapest["success"], "the lowest bar has more success"
+    return (link("tau2-bench") + "on trial 0, no routed row beats any of "
+            f"the {len(models)} single agents on held-out success and cost together, and at bar "
+            f"{config['bars'][0]} `cost_effective` routing costs {low['cost_usd']:.4f} USD against "
+            f"{cheapest['cost_usd']:.4f} for always calling the cheapest agent, "
+            f"`{cheapest['strategy'][len('model:'):]}`, for no more held-out success")
+
+
 def delegation_bullet(results):
     config = results["config"]
     rows = {(r["bar"], r["flavor"], r["point"], r["parent"], r["strategy"]): r
@@ -133,7 +159,8 @@ def delegation_bullet(results):
 
 
 BULLETS = {"RouterBench": routerbench_bullet, "AutoBench": autobench_bullet,
-           "AutoBench judges": judges_bullet, "Delegation on AutoBench": delegation_bullet}
+           "AutoBench judges": judges_bullet, "tau2-bench": tau2_bullet,
+           "Delegation on AutoBench": delegation_bullet}
 
 
 def glance(files):
@@ -177,6 +204,7 @@ def test_anchor_rule_gives_the_anchors_the_readme_already_links():
         "#evidence-held-out-results-on-public-data"
     assert anchor("Delegation on AutoBench") == "#delegation-on-autobench"
     assert anchor("AutoBench judges") == "#autobench-judges"
+    assert anchor("tau2-bench") == "#tau2-bench"
 
 
 def test_each_bullet_holds_at_most_two_result_values():
@@ -193,7 +221,10 @@ def test_the_glance_numbers_are_those_of_the_committed_files():
                    "over the parents is 0.855 against 0.670 for always inline",
                    "at 8,000 context tokens but less at 64,000 and 200,000",
                    "held-out success 0.816 at 0.518 of the cost of the best single judge, "
-                   "`tencent/hy3`; no routed row at any bar reaches that judge's"):
+                   "`tencent/hy3`; no routed row at any bar reaches that judge's",
+                   "on trial 0, no routed row beats any of the 4 single agents",
+                   "costs 9.1340 USD against 3.6044 for always calling the cheapest agent, "
+                   "`openai/gpt-4.1-mini-2025-04-14`, for no more held-out success"):
         assert needle in text, needle
     changed = copy.deepcopy(files)
     summary_row(changed["AutoBench"], 0.6, "cost_effective", LUNA)["cost_usd"] = 0.3095
@@ -217,6 +248,21 @@ def beat_luna(files):
     luna = summary_row(files["AutoBench"], 0.6, "cost_effective", LUNA)
     row = summary_row(files["AutoBench"], 0.7, "cost_effective", "routed")
     row["success"], row["cost_usd"] = luna["success"], luna["cost_usd"] / 2
+
+
+def tau2_beats_an_agent(files):
+    best = max((r for r in files["tau2-bench"]["summary"] if r["strategy"].startswith("model:")),
+               key=lambda r: r["success"])
+    row = summary_row(files["tau2-bench"], 0.8, "cost_blind", "routed")
+    row["success"], row["cost_usd"] = best["success"], best["cost_usd"] / 2
+
+
+def tau2_more_success(files):
+    summary_row(files["tau2-bench"], 0.3, "cost_effective", "routed")["success"] = 0.55
+
+
+def tau2_cheaper(files):
+    summary_row(files["tau2-bench"], 0.3, "cost_effective", "routed")["cost_usd"] = 1.0
 
 
 def delegation_rows(files, point, strategy):
@@ -255,6 +301,9 @@ def worse_paths(files):
     (raise_routerbench, "a routed row reaches it"),
     (raise_judges, "a routed row reaches it"),
     (beat_luna, "bar 0.7 cost_effective beats it"),
+    (tau2_beats_an_agent, "bar 0.8 cost_blind beats model:anthropic/claude-3-7-sonnet-20250219"),
+    (tau2_more_success, "the lowest bar has more success"),
+    (tau2_cheaper, "the lowest bar costs no more"),
     (cheap_decision, "not always delegating at point 0"),
     (costly_paths, r"more at \['8,000', '200,000'\], less at \['64,000'\]"),
     (worse_decision, "not always delegating at point 1"),
