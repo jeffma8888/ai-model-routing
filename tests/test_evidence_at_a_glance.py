@@ -2,7 +2,8 @@
 
 The README evidence section opens with a short list, one bullet per subsection. Every
 number and model ID in it is built here from the committed results files (four since v1.28,
-which adds the AutoBench judges bullet, five since v1.55, which adds tau2-bench), at the rounding of the subsection tables, and every word that depends on the data (no routed row
+which adds the AutoBench judges bullet, five since v1.55, which adds tau2-bench, six since
+v1.65, which adds LiveCodeBench), at the rounding of the subsection tables, and every word that depends on the data (no routed row
 reaches or beats, every seed, more, less) is asserted against those files, so the list cannot
 drift from them or keep a claim a regenerated file no longer supports.
 """
@@ -22,6 +23,7 @@ FILES = {"RouterBench": ROOT / "evidence" / "routerbench" / "results.json",
          "AutoBench": ROOT / "evidence" / "autobench-2026" / "results.json",
          "AutoBench judges": ROOT / "evidence" / "autobench-judges" / "results.json",
          "tau2-bench": ROOT / "evidence" / "tau2-bench" / "results.json",
+         "LiveCodeBench": ROOT / "evidence" / "livecodebench" / "results.json",
          "Delegation on AutoBench": ROOT / "evidence" / "delegation" / "results.json"}
 LEAD = ("Results at a glance, each number from the committed results of the subsection it "
         "links:")
@@ -118,6 +120,24 @@ def tau2_bullet(results):
             f"`{cheapest['strategy'][len('model:'):]}`, for no more held-out success")
 
 
+def livecodebench_bullet(results):
+    """v1.65 (DESIGN 12.8): no cost recorded, so cost_blind only; one held-out success at every
+    bar, below always calling the best single model of 12.7."""
+    config = results["config"]
+    assert config["flavors"] == ["cost_blind"], "a flavor other than cost_blind"
+    first = (config["bars"][0], "cost_blind")
+    models = [r for r in results["summary"]
+              if (r["bar"], r["flavor"]) == first and r["strategy"].startswith("model:")]
+    best = min(models, key=lambda r: (-r["success"], r["cost_usd"], r["strategy"]))
+    routed = [summary_row(results, bar, "cost_blind", "routed") for bar in config["bars"]]
+    assert len({r["success"] for r in routed}) == 1, "the routed success differs between bars"
+    assert routed[0]["success"] < best["success"], "a routed row reaches it"
+    return (link("LiveCodeBench") + "the dataset records no cost, so only `cost_blind` routing "
+            f"is run; it reaches held-out success {routed[0]['success']:.3f} at every bar, below "
+            f"the {best['success']:.3f} of always calling the best single model, "
+            f"`{best['strategy'][len('model:'):]}`")
+
+
 def delegation_bullet(results):
     config = results["config"]
     rows = {(r["bar"], r["flavor"], r["point"], r["parent"], r["strategy"]): r
@@ -160,6 +180,7 @@ def delegation_bullet(results):
 
 BULLETS = {"RouterBench": routerbench_bullet, "AutoBench": autobench_bullet,
            "AutoBench judges": judges_bullet, "tau2-bench": tau2_bullet,
+           "LiveCodeBench": livecodebench_bullet,
            "Delegation on AutoBench": delegation_bullet}
 
 
@@ -205,6 +226,7 @@ def test_anchor_rule_gives_the_anchors_the_readme_already_links():
     assert anchor("Delegation on AutoBench") == "#delegation-on-autobench"
     assert anchor("AutoBench judges") == "#autobench-judges"
     assert anchor("tau2-bench") == "#tau2-bench"
+    assert anchor("LiveCodeBench") == "#livecodebench"
 
 
 def test_each_bullet_holds_at_most_two_result_values():
@@ -224,7 +246,10 @@ def test_the_glance_numbers_are_those_of_the_committed_files():
                    "`tencent/hy3`; no routed row at any bar reaches that judge's",
                    "on trial 0, no routed row beats any of the 4 single agents",
                    "costs 9.1340 USD against 3.6044 for always calling the cheapest agent, "
-                   "`openai/gpt-4.1-mini-2025-04-14`, for no more held-out success"):
+                   "`openai/gpt-4.1-mini-2025-04-14`, for no more held-out success",
+                   "only `cost_blind` routing is run; it reaches held-out success 0.902 at every "
+                   "bar, below the 0.909 of always calling the best single model, "
+                   "`openai/o4-mini-high`"):
         assert needle in text, needle
     changed = copy.deepcopy(files)
     summary_row(changed["AutoBench"], 0.6, "cost_effective", LUNA)["cost_usd"] = 0.3095
@@ -263,6 +288,25 @@ def tau2_more_success(files):
 
 def tau2_cheaper(files):
     summary_row(files["tau2-bench"], 0.3, "cost_effective", "routed")["cost_usd"] = 1.0
+
+
+def lcb_routed(files):
+    return [r for r in files["LiveCodeBench"]["summary"] if r["strategy"] == "routed"]
+
+
+def lcb_second_flavor(files):
+    files["LiveCodeBench"]["config"]["flavors"].append("cost_effective")
+
+
+def lcb_one_bar_differs(files):
+    lcb_routed(files)[-1]["success"] -= 0.01
+
+
+def lcb_reaches_best(files):
+    best = max(r["success"] for r in files["LiveCodeBench"]["summary"]
+               if r["strategy"].startswith("model:"))
+    for r in lcb_routed(files):
+        r["success"] = best
 
 
 def delegation_rows(files, point, strategy):
@@ -304,6 +348,9 @@ def worse_paths(files):
     (tau2_beats_an_agent, "bar 0.8 cost_blind beats model:anthropic/claude-3-7-sonnet-20250219"),
     (tau2_more_success, "the lowest bar has more success"),
     (tau2_cheaper, "the lowest bar costs no more"),
+    (lcb_second_flavor, "a flavor other than cost_blind"),
+    (lcb_one_bar_differs, "the routed success differs between bars"),
+    (lcb_reaches_best, "a routed row reaches it"),
     (cheap_decision, "not always delegating at point 0"),
     (costly_paths, r"more at \['8,000', '200,000'\], less at \['64,000'\]"),
     (worse_decision, "not always delegating at point 1"),

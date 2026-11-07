@@ -273,7 +273,8 @@ def test_evidence_readme_links_the_results():
 
 # --- the README subsection (DESIGN 12.8, v1.55) ---------------------------------------------
 
-HEADINGS = ["RouterBench", "AutoBench", "AutoBench judges", "tau2-bench", "Delegation on AutoBench"]
+HEADINGS = ["RouterBench", "AutoBench", "AutoBench judges", "tau2-bench", "LiveCodeBench",
+            "Delegation on AutoBench"]
 LIMITS = ["date from 2025, and the costs are those the runs recorded at the prices of their time",
           '("airline: 29 tasks differ, retail: 114")',
           "plays the user in every conversation",

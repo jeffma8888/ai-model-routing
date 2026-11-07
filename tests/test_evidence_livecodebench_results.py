@@ -9,11 +9,14 @@ committed file, RESULTS.md and the evidence README against each other. The last 
 downloads them): they rebuild results.json and require the committed bytes, rebuild the split
 sizes and the success span behind the bars, check cell by cell the two zero-cost identities
 RESULTS.md states, and build its sentence on the seeds that clear a bar they then miss.
+From v1.65 (DESIGN 12.8) the README `### LiveCodeBench` subsection is checked against the same
+file and RESULTS.md.
 """
 
 import importlib.util
 import json
 import math
+import re
 from pathlib import Path
 
 import pytest
@@ -242,6 +245,112 @@ def test_evidence_readme_links_the_results():
     assert "it is not the command for this matrix" not in text
 
 
+# --- the README subsection (DESIGN 12.8, v1.65) ---------------------------------------------
+
+README = ROOT / "README.md"
+HEADINGS = ["RouterBench", "AutoBench", "AutoBench judges", "tau2-bench", "LiveCodeBench",
+            "Delegation on AutoBench"]
+LIMITS = ["The models date from 2023 to 2025 and the 713 problems from 2023-05-07 to 2024-10-05, "
+          "so many problems predate a model's training data: the contamination LiveCodeBench "
+          "dates its problems to expose", *CAVEATS[1:]]
+ORACLE = ("Per-item oracle: on each problem, a model whose first sample solved it, or a model "
+          "counted wrong when none did")
+
+
+def readme_subsection():
+    text = README.read_text(encoding="utf-8")
+    heading = "\n## Evidence: held-out results on public data\n"
+    assert text.count(heading) == 1
+    section = text.split(heading, 1)[1].split("\n## ", 1)[0]
+    assert re.findall(r"^### (.*)$", section, re.M) == HEADINGS
+    return section.split("\n### LiveCodeBench\n", 1)[1].split("\n### ", 1)[0]
+
+
+def rate(value):
+    return "-" if value is None else f"{value:.3f}"
+
+
+def readme_tables(results):
+    """The two tables of the README `### LiveCodeBench` subsection (DESIGN 12.8, v1.65): no
+    cost column, since every cost is 0, and no `cheapest` row, the lowest model ID."""
+    config = results["config"]
+    assert config["flavors"] == ["cost_blind"]
+    b0 = config["bars"][0]
+    lines = ["| Bar | Flavor | Held-out success | Cleared rate | Bar-violation rate |",
+             "|---|---|---|---|---|"]
+    for bar in config["bars"]:
+        r = summary_row(results, bar, "cost_blind", "routed")
+        lines.append(f"| {bar} | `cost_blind` | {r['success']:.3f} | {rate(r['cleared_rate'])} "
+                     f"| {rate(r['bar_violation_rate'])} |")
+    routed = summary_row(results, b0, "cost_blind", "routed")
+    models = [r for r in results["summary"]
+              if (r["bar"], r["flavor"]) == (b0, "cost_blind") and r["strategy"].startswith("model:")]
+    best = min(models, key=lambda r: (-r["success"], r["cost_usd"], r["strategy"]))
+    above = sorted((m for m in models if m["success"] > routed["success"]),
+                   key=lambda m: (-m["success"], m["strategy"]))
+    assert above and above[0] is best
+    lines += ["", "| Baseline | Held-out success |", "|---|---|"]
+    rows = [(ORACLE, summary_row(results, b0, "cost_blind", "oracle"))]
+    rows += [(f"Always `{m['strategy'][6:]}`" + (" (best single model)" if m is best else ""), m)
+             for m in above]
+    rows.append(("Best model on the calibration half",
+                 summary_row(results, b0, "cost_blind", "best_on_calibration")))
+    lines += [f"| {label} | {r['success']:.3f} |" for label, r in rows]
+    return "\n".join(lines) + "\n"
+
+
+def readme_counts(results):
+    config, tasks = results["config"], results["tasks"]
+    assert list(tasks) == [TASK]
+    bars = config["bars"]
+    return (f"{len(tasks[TASK]['models'])} models, one routing task, `{TASK}`, of "
+            f"{tasks[TASK]['items']} problems, {len(config['seeds'])} seeds; the problems are split "
+            f"in half per seed and routed at bars {bars[0]} to {bars[-1]}, `cost_blind` only")
+
+
+def test_readme_livecodebench_tables_and_counts_are_the_committed_results():
+    results, section = committed(), readme_subsection()
+    assert "\n" + readme_tables(results) in section
+    assert readme_counts(results) in section
+    assert "| cheapest" not in section.lower() and "Cost (USD)" not in section
+
+
+def test_readme_livecodebench_reading_numbers_are_the_committed_results():
+    section = readme_subsection()
+    phrases = [p for p in reading_phrases(committed()) if not p.startswith("the committed file,")]
+    assert len(phrases) == len(reading_phrases(committed())) - 1
+    for phrase in phrases + [SAME_PICK, COMPLEMENT]:
+        assert phrase in section, phrase
+
+
+def test_readme_livecodebench_links_source_licence_limits_and_commands(cv):
+    section, md = readme_subsection(), results_md()
+    revision = cv.REVISION
+    for needle in ("[LiveCodeBench/submissions](https://github.com/LiveCodeBench/submissions)",
+                   f"[`{revision[:7]}`](https://github.com/LiveCodeBench/submissions/tree/"
+                   f"{revision})", "MIT", '"Copyright (c) 2025 LiveCodeBench"',
+                   "(evidence/livecodebench/RESULTS.md)", "(evidence/livecodebench/results.json)",
+                   "(evidence/livecodebench/README.md)", "`graded_list[0]`", NOT_RUN):
+        assert needle in section, needle
+    for phrase in LIMITS:
+        assert phrase in section and phrase in md, phrase
+    assert REGENERATE in section and REGENERATE in md
+    assert section.count("`cost_effective`") == NOT_RUN.count("`cost_effective`")
+    assert section.isascii() and "\u2013" not in section and "\u2014" not in section
+
+
+def test_readme_livecodebench_tables_follow_the_file():
+    fake = json.loads(json.dumps(committed()))
+    summary_row(fake, 0.9, "cost_blind", "routed")["bar_violation_rate"] = None
+    row = [line for line in readme_tables(fake).split("\n") if line.startswith("| 0.9 |")]
+    assert len(row) == 1 and row[0].endswith(" | - |")
+    for r in fake["summary"]:
+        if r["strategy"] == "model:openai/o4-mini-high":
+            r["success"] = 0.5
+    assert "`openai/o4-mini-high`" not in readme_tables(fake)
+    assert "| Always `deepseek/deepseek-r1-0528` (best single model) | 0.904 |" in readme_tables(fake)
+
+
 # --- the pinned files, only when already cached ---------------------------------------------
 
 @pytest.fixture(scope="module")
@@ -324,9 +433,11 @@ def test_real_cleared_seeds_sentence_is_in_results_md(real):
             held_rates.append(sum(mine[i] for i in held) / len(held))
             assert held_rates[-1] == c["success"]["routed"]
         assert min(cal_rates) > whole > max(held_rates)
-        assert (f"On the {len(cleared)} seeds that cleared bar {bar} the router took `{model}`, whose "
-                f"rate on all {len(mine)} problems is {whole:.3f}: its calibration-half rate was "
-                f"{min(cal_rates):.3f} to {max(cal_rates):.3f} and its held-out rate "
-                f"{min(held_rates):.3f} to {max(held_rates):.3f}") in text
+        sentence = (f"On the {len(cleared)} seeds that cleared bar {bar} the router took `{model}`, "
+                    f"whose rate on all {len(mine)} problems is {whole:.3f}: its calibration-half "
+                    f"rate was {min(cal_rates):.3f} to {max(cal_rates):.3f} and its held-out rate "
+                    f"{min(held_rates):.3f} to {max(held_rates):.3f}")
+        assert sentence in text
+        assert sentence in readme_subsection()  # v1.65 (DESIGN 12.8)
         said += 1
     assert said >= 1
