@@ -622,6 +622,56 @@ def test_readme_subsection_states_the_breakeven_numbers(dr):
     assert f"- {breakeven_reading(committed())[1]}\n" in readme_subsection()
 
 
+# --- v1.59: the delegation evidence reads one dataset (research/delegation-datasets.md) --------
+
+DATASETS_NOTE = ROOT / "research" / "delegation-datasets.md"
+DATASETS_LINK = "[research/delegation-datasets.md](research/delegation-datasets.md)"
+
+
+def test_readme_and_design_say_the_delegation_evidence_reads_one_dataset():
+    note = DATASETS_NOTE.read_text(encoding="utf-8")
+    for figure in ("each item is a conversation of 2 to 100 agent model calls",
+                   "2 to 100 model calls per conversation",
+                   "every one of the 4 agents on each of the 278 items",
+                   "about three quarters of their prompt tokens",
+                   "mis-prices both paths in directions that grow with K",
+                   "a point's `work_calls` would not help: it sets one K for every item",
+                   "before any tau2-bench delegation converter"):
+        assert figure in note, figure
+    sub = readme_subsection()
+    sentence = ("It is the only dataset the delegation evidence reads: tau2-bench, which the "
+                "routing evidence above also reads, records each item as a conversation of 2 to "
+                "100 model calls, while the harness prices an item as one call, or as one number "
+                "of calls for every item of a grid point, so it would mis-price both paths there "
+                f"({DATASETS_LINK}).")
+    assert sub.count(sentence) == 1
+    assert sub.index(sentence) < sub.index("[research/hand-off-data.md]") < sub.index("```text\n")
+    readme = README.read_text(encoding="utf-8")
+    limits = readme.split("\n## Limitations and non-goals (v1)\n", 1)[1].split("\n## ", 1)[0]
+    bullets = [b for b in limits.split("\n") if b.startswith("- The delegation evidence reads")]
+    assert bullets == [
+        "- The delegation evidence reads one dataset, the AutoBench 2026 matrix. tau2-bench has a "
+        "success label and per-call token counts for each agent on each item, but each item is a "
+        "conversation of 2 to 100 model calls, and the `DESIGN.md` 13.9 harness prices an item as "
+        "one call, or as one number of calls (`work_calls`) for every item of a point: fed a "
+        "conversation's summed counts, it would mis-price both paths, by amounts that grow with "
+        "the number of calls, and its list prices leave out the prompt-cache discount that the "
+        "recorded costs of the three OpenAI agents imply on about three quarters of their prompt "
+        f"tokens ({DATASETS_LINK}). That file recommends pricing each item on its own calls "
+        "before any tau2-bench delegation run"]
+    design = (ROOT / "DESIGN.md").read_text(encoding="utf-8")
+    section = design.split("\n### 13.9 ", 1)[1].split("\n### ", 1)[0]
+    measured = section.split("\n- What is measured and what is assumed:\n", 1)[1].split("\n- ", 1)[0]
+    one = [b for b in measured.split("\n") if b.startswith("  - (v1.59) one dataset:")]
+    assert len(one) == 1
+    for phrase in ("read only the AutoBench matrix (12.9)",
+                   "[`research/delegation-datasets.md`](research/delegation-datasets.md)",
+                   "each item is a conversation of 2 to 100 model calls",
+                   "a point's `work_calls` sets one K for every item",
+                   "about three quarters of their prompt tokens"):
+        assert phrase in one[0], phrase
+
+
 # --- the pinned files, only when already cached ------------------------------------------------
 
 def test_real_results_regenerate_byte_identical(dr, tmp_path):
