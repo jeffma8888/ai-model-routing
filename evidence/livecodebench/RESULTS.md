@@ -129,4 +129,4 @@ python evidence/routerbench/results.py --evaluate livecodebench-evaluate.json --
 python evidence/routerbench/results.py --table evidence/livecodebench/results.json
 ```
 
-The converter downloads the 67 pinned files (about 1.23 GB) into `~/.cache/ai-model-routing-evidence/livecodebench/` on its first run and checks each against its pinned size and sha256. The evaluate step takes about 6 seconds.
+The converter downloads the 67 pinned files (about 1.23 GB) into `~/.cache/ai-model-routing-evidence/livecodebench/` on its first run and checks each against its pinned size and sha256. The evaluate step took about 5.5 seconds on one laptop when the committed file was made; the time is not checked.

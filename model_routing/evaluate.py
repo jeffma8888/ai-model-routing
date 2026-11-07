@@ -133,7 +133,7 @@ def _strategies(models: Sequence[str]) -> List[str]:
 
 def evaluate(outcomes, bars, seeds=range(10), flavors=("cost_effective", "cost_blind"),
              calibration_fraction=0.5, min_samples=30, confidence=0.95) -> dict:
-    """Calibrate on one split, route both flavors at each bar, score on the other (DESIGN 12.3).
+    """Calibrate on one split, route each flavor at each bar, score on the other (DESIGN 12.3).
 
     Returns ``config``, ``tasks``, ``cells``, ``summary`` and ``per_task``; the
     routed choice comes from ``Router.select`` so the shipped rules are what is
