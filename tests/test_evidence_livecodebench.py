@@ -8,6 +8,7 @@ downloads them).
 """
 
 import ast
+import contextlib
 import copy
 import hashlib
 import importlib.util
@@ -224,9 +225,19 @@ def test_model_id_refuses(cv, folder):
     ("AzeroGPT-64b", "no vendor rule"),
     ("Claude-3-Haiku", None),
     ("QwQ-32B_temp", None),
+    ("Gemini-Flash-2.0-Exp (N=10) copy", "copy of another folder"),
+    ("O1-2024-12-17 (N=10)_prompt_old", "10-sample run"),
+    ("AzeroGPT-64b_prompt_old", "superseded prompt"),
+    ("AzeroGPT-64b copy", "copy of another folder"),
 ])
 def test_skip_reason(cv, folder, reason):
     assert cv.skip_reason(folder) == reason
+
+
+@pytest.mark.parametrize("folder", ["", None, 7])
+def test_skip_reason_refuses_non_names(cv, folder):
+    with pytest.raises(ValueError):
+        cv.skip_reason(folder)
 
 
 # --- extract -----------------------------------------------------------------------------
@@ -348,12 +359,18 @@ def test_convert_contest_date_range(cv):
     assert report["dropped_not_common"] == {"anthropic/claude-3-haiku": 0, "openai/o3-high": 0}
 
 
-@pytest.mark.parametrize("bad", ["none", "empty", "tuple-empty", "dup"])
+@pytest.mark.parametrize("bad", ["none", "empty", "tuple-empty", "dup", "str", "dict"])
 def test_convert_refuses(cv, bad):
     exs = three_models(cv)
-    arg = {"none": None, "empty": [], "tuple-empty": (), "dup": exs + [exs[0]]}[bad]
+    arg = {"none": None, "empty": [], "tuple-empty": (), "dup": exs + [exs[0]], "str": "x",
+           "dict": {e["model"]: e for e in exs}}[bad]
     with pytest.raises(ValueError):
         cv.convert(arg)
+
+
+def test_convert_accepts_a_tuple(cv):
+    exs = three_models(cv)
+    assert cv.convert(tuple(exs)) == cv.convert(exs)
 
 
 def test_convert_refuses_conflicting_contest_dates(cv):
@@ -483,13 +500,14 @@ def test_main_writes_matrix_and_prints_report(cv, monkeypatch, tmp_path, capsys)
         ("p2", "anthropic/claude-3-haiku", False), ("p2", "openai/o3-high", True)]
     report = json.loads(capsys.readouterr().out)
     assert list(report) == REPORT_KEYS and report["rows"] == 4
+    assert out.read_text(encoding="utf-8") == "".join(json.dumps(r) + "\n" for r in rows)
     assert not out.with_name("m.jsonl.part").exists()
 
 
 @pytest.mark.parametrize("argv", [[], ["--out", ""], ["--out", "."], ["--out", "/"], ["--out", "x", "--bogus"]])
 def test_main_bad_options(cv, monkeypatch, argv, capsys):
     monkeypatch.setattr(cv, "fetch", lambda *a, **k: pytest.fail("fetched on a bad option"))
-    assert cv.main(argv) == 2
+    assert cv.main(argv) == 2  # a return value, never SystemExit from argparse
     captured = capsys.readouterr()
     assert captured.out == ""
     assert len(captured.err.splitlines()) == 1 and captured.err.startswith("error: ")
@@ -504,7 +522,7 @@ def test_main_bad_data_leaves_out_untouched(cv, monkeypatch, tmp_path, capsys):
     out.write_text("old\n")
     assert cv.main(["--out", str(out), "--cache", str(cache)]) == 2
     captured = capsys.readouterr()
-    assert captured.out == "" and len(captured.err.splitlines()) == 1
+    assert captured.out == "" and len(captured.err.splitlines()) == 1 and captured.err.startswith("error: ")
     assert out.read_text() == "old\n"
     assert not out.with_name("m.jsonl.part").exists()
 
@@ -517,7 +535,6 @@ def test_pinned_files_when_cached(cv, tmp_path):
         pytest.skip("the 67 pinned LiveCodeBench files are not in the default cache")
     out = tmp_path / "m.jsonl"
     buf = io.StringIO()
-    import contextlib
     with contextlib.redirect_stdout(buf):
         assert cv.main(["--out", str(out)]) == 0
     report = json.loads(buf.getvalue())
