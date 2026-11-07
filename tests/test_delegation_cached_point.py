@@ -220,6 +220,28 @@ def test_held_out_cost_prices_the_parents_reads_of_c_at_rho():
 
 
 @RED_RUN
+def test_held_out_inline_cost_by_hand_at_rho_0_1_and_0():
+    # every call reads 1,000 and writes 200, T = 0, a call of its own over C = 100,000, so
+    # one item inline reads 100,000 * rho + 1,000 and writes 200, then the next call
+    # re-reads 1,200; per 1M tokens big 10/40, small 1/4, weak 0.1/0.4, 5 held-out items.
+    # rho 0.1: big (11,000 * 10 + 200 * 40 + 1,200 * 10) / 1e6 = 0.13 an item, 0.65 in all;
+    # rho 0: big (1,000 * 10 + 8,000 + 12,000) / 1e6 = 0.03 an item, 0.15 in all;
+    # list price, for contrast: big (101,000 * 10 + 8,000 + 12,000) / 1e6 = 1.03, 5.15 in all
+    expected = {(0, "fiction/big"): 0.65, (0, "fiction/small"): 0.065,
+                (0, "fiction/weak"): 0.0065, (1, "fiction/big"): 0.15,
+                (1, "fiction/small"): 0.015, (1, "fiction/weak"): 0.0015}
+    result = run(points=RPOINTS[:2])
+    assert len(result["cells"]) == 2 * 3 * 2 * 2
+    for c in result["cells"]:
+        want = expected[c["point"], c["parent"]]
+        assert c["cost_usd"]["inline"] == pytest.approx(want, rel=1e-12, abs=0), c
+    full = run(points=[without_ratio(RPOINTS[0])])
+    for c in full["cells"]:
+        if c["parent"] == "fiction/big":
+            assert c["cost_usd"]["inline"] == pytest.approx(5.15, rel=1e-12, abs=0)
+
+
+@RED_RUN
 def test_rho_moves_only_the_inline_cost_and_through_it_the_decision():
     # one run per point: RPOINTS 0 and 1 are the same point without the ratio
     for pt in RPOINTS:
