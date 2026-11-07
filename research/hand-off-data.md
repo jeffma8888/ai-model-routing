@@ -1,0 +1,74 @@
+# Public data with real hand-offs (as of 2026-11-06)
+
+Question: is there a public dataset that records a parent agent handing work to a sub-agent, with per-call token counts and a success label for the parent's task, so that the delegation evidence could measure what it now assumes? The committed delegation results (`DESIGN.md` 13.9 and 13.10) come from single-call AutoBench answers with a stated grid for the parent's context C, the brief B, the result R and the later parent calls T, and they credit the delegate with its answer to the whole question, as if the brief lost nothing. The break-even table in `evidence/delegation/RESULTS.md` only bounds how lossy a brief may be before delegating stops paying.
+
+Method: every revision below is the commit or dataset SHA that the GitHub or Hugging Face API returned on 2026-11-06. Licences are as the repo's LICENSE file, the API's licence field or the dataset card states them ("none stated" if absent). Sizes are the API's file sizes. Files were downloaded outside the repo and read with the standard-library `json` module; nothing from them is committed. Counts are from those reads unless a line says they come from a card.
+
+The 13.1 inputs named below are those of `Router.decide_delegation`: the context C (`context_tokens`), the brief B (`brief_tokens`), the result R (`result_tokens`), the work's own input and output tokens per call, the number of work calls K (`work_calls`), the later parent calls T (`carry_turns`) and whether inline work takes a parent call of its own (`inline_separate_call`).
+
+## Summary
+
+- None of the four candidates can test the lossless-brief assumption. None runs the same work both inline and through a sub-agent, so none can show what a brief loses
+- TRAIL comes closest: MIT, real hand-offs from a manager agent to a search sub-agent, and per-call token counts (1,507 model-call spans with prompt and completion counts in its GAIA traces). Its 60 sub-agent runs make 3 to 31 model calls each (median 15), so real delegated work is far more calls than the one or two the committed grid assumes. But its files hold no success label, and the manager and the sub-agent are the same model
+- Who&When records 689 hand-off messages in 57 of its 58 hand-crafted multi-agent logs, but without token counts, and every log was picked because it failed
+- MAD (CC-BY-4.0) has the most traces, 1,642 over 7 multi-agent frameworks, but each trace is free text, with no structured success label or token counts
+- So the delegation evidence keeps its stated grid. The last section says what the smallest dataset that could test the assumption would have to record
+
+## Candidates
+
+### 1. TRAIL (closest; no success label in the files)
+
+- URL: https://github.com/patronus-ai/trail-benchmark, folder `benchmarking/data`. The gated Hugging Face dataset https://huggingface.co/datasets/PatronusAI/TRAIL lists trace files under the same names (the first 39 GAIA names it lists match the GitHub ones); its files were not read
+- Revision: GitHub 0ffbed9db859b4a66250dc783fa4dccf86869595 (commit date 2025-05-14); Hugging Face b424ce63d5973d5dcd7169b1bc3c07ccdee276d1 (last modified 2025-05-15)
+- Licence: MIT (the GitHub repo's LICENSE file and API licence field, and the dataset card). The Hugging Face copy is gated: its card asks users "to not reshare this dataset outside of a gated or private repository on the HF hub", and says it must not be used to train systems "intended to automate human evaluation". The GitHub copy is public. A converter would commit only derived numbers, as this repo does for every dataset
+- Files: 117 GAIA traces (111,205,744 bytes) and 31 SWE-bench traces (74,366,103 bytes), one JSON file each, plus annotation files in `benchmarking/processed_annotations_gaia` and `benchmarking/processed_annotations_swe_bench`. The card's text says 118 and 30; its `dataset_info` block says 117 and 31, as the files do
+- What it records: OpenTelemetry spans from a smolagents system. Every GAIA trace has a top agent span, `CodeAgent.run` (117 in 117 traces); in the one trace whose attributes were read in full it lists one managed agent, `search_agent` ("A team member that will search the internet to answer your question"). In 47 of the 117 GAIA traces the top agent hands work to a sub-agent: 60 sub-agent runs in all (`ToolCallingAgent.run` spans inside the top agent's run). Each model call is a span (name ending `__call__`) with `llm.token_count.prompt` and `llm.token_count.completion`: 1,507 such spans over the 117 GAIA traces. The 1,507 spans that carry a model name all name `o3-mini` (`openai/o3-mini`)
+- The 60 sub-agent runs: 3 to 31 model calls each (median 15); 5,508 to 357,993 prompt tokens per run (median 94,868.5) and 1,990 to 21,188 completion tokens (median 8,343.5); the first model call of each run reads 549 to 765 prompt tokens. The run's recorded input (`input.value`, the brief with the framework's wrapping) is 1,448 to 2,418 characters, and its recorded output (`output.value`) 384 to 4,345
+- Annotations: each trace has located errors (keys `category`, `description`, `evidence`, `impact`, `location`) and scores such as `reliability_score`, `instruction_adherence_score` and `plan_opt_score`, each with a reasoning text. These grade the trace, not whether its answer is right
+- What it lacks: a success label. The files hold each run's final answer, but not the GAIA reference answers (the string `true_answer` occurs in all 117 GAIA traces, but as a column name in a dataset description); a label would need the answers from the GAIA validation set, a separate dataset not checked here. No GAIA task is also run without the sub-agent, and the sub-agent is the same model as its parent, so a cheaper delegate is never tried. The SWE-bench traces were not scanned for sub-agent runs
+- 13.1 inputs it could measure: K (model calls per sub-agent run) and the work's own tokens per call, both from the sub-agent's spans; C as the top agent's prompt tokens on the call that hands off; B and R only as text lengths (the input and output values), unless a tokenizer is assumed. Not `inline_separate_call` (no inline run) and not T without parsing which later calls re-read the result
+
+### 2. Who&When (failure logs only; no token counts)
+
+- URL: https://github.com/mingyin1/Agents_Failure_Attribution, folder `Who&When` (the counts below are from this copy). The Hugging Face dataset https://huggingface.co/datasets/Kevin355/Who_and_When holds a `Who&When` folder with the same two subfolders, beside two parquet files
+- Revision: GitHub b2bae5c5b06d681d04ea5e9b63b7a30525c04925 (commit date 2026-01-06); Hugging Face 59b9fcba1aaed7bbf206b5f4d3c68b8face2f49c (last modified 2025-12-21)
+- Licence: MIT on GitHub (the repo's LICENSE file and API licence field); none stated in the Hugging Face card data or tags
+- Files: `Algorithm-Generated` (126 JSON files) and `Hand-Crafted` (58), each a log of one question from GAIA or AssistantBench, as the card says; the one file sized here, `Algorithm-Generated/1.json` from the Hugging Face copy, is 11,626 bytes
+- What it records: the card calls them "184 annotated failure tasks", each with the agent the annotators hold responsible, the decisive step and a reason. The card names Magentic-One among the hand-crafted systems, and in the 58 Hand-Crafted logs an orchestrator addresses one agent at a time: 57 of them hold such messages, 689 in all (602 `Orchestrator (-> WebSurfer)`, 41 to `Assistant`, 36 to `FileSurfer`, 10 to `ComputerTerminal`). The 126 Algorithm-Generated logs come from CaptainAgent systems, as the card says: named experts take turns, and no message's speaker name contains `->`
+- Labels: `is_correct` is False in all 126 Algorithm-Generated logs and null in all 58 Hand-Crafted ones (which carry a key named `is_corrected` instead). Every log is a failure picked for annotation, so no success rate can be read from them
+- What it lacks: token counts (each message has `content` and `role`, plus `name` in the Algorithm-Generated logs), model IDs per call, cost, successful runs, and any run of the same question without hand-offs
+- 13.1 inputs it could measure: the number of hand-offs per task, and B and R only as message text lengths. Not C, the work's own tokens, K, T or `inline_separate_call`
+
+### 3. MAD, the MAST traces (most traces; free text)
+
+- URL: https://huggingface.co/datasets/mcemri/MAST-Data (code: https://github.com/multi-agent-systems-failure-taxonomy/MAST)
+- Revision: 95118ac951421753cf1deb87ddea3b01e693c41b (last modified 2026-08-13)
+- Licence: CC-BY-4.0 (the card and the API tags). The GitHub code repo has no licence in its API licence field
+- Files: `MAD_full_dataset.json` (199,574,367 bytes, 1,642 records) and `MAD_human_labelled_dataset.json` (2,662,908 bytes, 19 records)
+- What it records: per record `mas_name`, `llm_name`, `benchmark_name`, `trace_id`, `trace` (keys `key`, `index`, `trajectory`) and `mast_annotation`, the 14 failure-mode codes of the MAST taxonomy, which the card says "are produced by an LLM judge, not by human labelling". Frameworks: AG2 597, MetaGPT 430, ChatDev 330, Magentic 195, OpenManus 30, AppWorld 30, HyperAgent 30. Models as the card names them: GPT-4o 751 and GPT-4o-mini 168 (`openai/gpt-4o`, `openai/gpt-4o-mini`), and three named by family only, Claude 323, Qwen 200 and CodeLlama 200. Benchmarks: ProgramDev-v2 400, ProgramDev 390, GSM 223, Olympiad 206, GAIA 195, MMLU 168, Test-C 30, SWE-Bench-Lite 30
+- What it lacks: a structured success label (words such as "success" occur in the trajectory text of many records, but no field holds an outcome) and structured token counts. The string `prompt_tokens` occurs in the trajectory text of 330 records (all 330 ChatDev ones) and 2 HyperAgent ones, so token counts might be parsed from those logs; that parse was not attempted. No task is run both with and without hand-offs
+- 13.1 inputs it could measure: possibly per-call token counts in the ChatDev logs, after a text parser; nothing else without one
+
+### 4. HAL traces (not taken: no stated licence)
+
+- URL: https://huggingface.co/datasets/agent-evals/hal_traces
+- Revision: e7dcedc82b4f4bc819a170fd6616bdb44841c71e (last modified 2026-02-01)
+- Licence: none stated. The card data and tags have no licence, and the dataset has no README (`README.md` at that revision is "Entry not found")
+- Files: the API lists 381 files; the first 14 after `.gitattributes` are zip archives named by benchmark, agent and model (for example `assistantbench_assistantbench_browser_agent_gpt5_1754598271_UPLOAD.zip`). None was opened
+- It stays out by the rule `research/datasets.md` applies to SWE-bench experiments and the two routing datasets: no results from a dataset without a stated licence
+
+## What the smallest dataset that could test the lossless brief would record
+
+- One task with a program check (tests passing, a database state, an exact answer), so the label needs no judge
+- Each item run three ways and scored by the same check: inline (the parent does the work with its context), delegated (the parent writes a brief, a named delegate does the work from the brief alone, the parent uses the result), and the delegate given the whole item in one call, as AutoBench already records. Delegated success minus the delegate's whole-item success is then the brief's loss, measured, where the committed evidence assumes it is zero; delegated against inline is the decision's real trade
+- Every model call with its model ID (`vendor/model`), its path (inline or delegated), its role (parent or delegate), prompt tokens, cached prompt tokens and completion tokens; with them C, B, R, the work's own tokens, K, T and `inline_separate_call` are read from the records instead of a grid
+- The brief and the result as text, or at least their token counts, so the brief's length can be set against its loss
+- At least two delegate models, one cheaper than the parent, since the `cost_effective` decision is about handing work to a cheaper model, and TRAIL's sub-agent is its parent's model
+- At least 60 items per (parent, delegate) pair, so that each half of the evaluator's seeded split can reach its default `min_samples` of 30 (`model_routing/evaluate.py`)
+- A stated licence and a pinned revision, as for every dataset here
+
+## Recommendation
+
+- Keep the stated grid and the lossless-brief caveat in the README and `DESIGN.md` 13.9: no candidate measures the brief's loss
+- TRAIL is the one candidate worth a converter, and only to report real sub-agent sizes beside the grid: its 60 runs make 3 to 31 model calls (median 15) against the grid's one or two, and read 5,508 to 357,993 prompt tokens per run. That would test the sizes the grid assumes, not the brief's loss or the decision's outcome
+- Look again when a public agent benchmark publishes paired inline and delegated runs with per-call usage, or adds a sub-agent mode to a test-checked benchmark whose per-item results are already public, as tau2-bench publishes its paper runs
