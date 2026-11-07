@@ -1,4 +1,4 @@
-"""TRAIL summary contract (DESIGN 13.11, v1.67), written before the script and kept as its tests.
+"""TRAIL summary contract (DESIGN 13.11, v1.67 and v1.68), written before the script and kept as its tests.
 
 The script is a standard-library file outside the package (``evidence/trail/summary.py``), so it is
 loaded from its path by an autouse fixture. Every test uses small synthetic traces shaped like a
@@ -19,9 +19,6 @@ import sys
 from pathlib import Path
 
 import pytest
-
-pytestmark = pytest.mark.xfail(strict=True, raises=ModuleNotFoundError,
-                               reason="evidence/trail/summary.py lands after its contract (DESIGN 13.11)")
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "evidence" / "trail" / "summary.py"
@@ -629,8 +626,8 @@ def test_main_writes_summary_and_prints_it_without_runs(tr, monkeypatch, tmp_pat
     assert not out.with_name("summary.json.part").exists()
 
 
-@pytest.mark.parametrize("argv", [[], ["--out", ""], ["--out", "."], ["--out", "/"], ["--out", "x", "--bogus"],
-                                  ["--cache", "c"]])
+@pytest.mark.parametrize("argv", [[], ["--out", ""], ["--out", "."], ["--out", "/"], ["--out", ".."], ["--out", "x/"],
+                                  ["--out", "x", "--bogus"], ["--cache", "c"]])
 def test_main_bad_options(tr, monkeypatch, argv, capsys):
     monkeypatch.setattr(tr, "fetch", lambda *a, **k: pytest.fail("fetched on a bad option"))
     assert tr.main(argv) == 2
