@@ -27,6 +27,7 @@ pytestmark = pytest.mark.xfail(strict=True, raises=ModuleNotFoundError,
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "evidence" / "livecodebench" / "convert.py"
+EVIDENCE_README = ROOT / "evidence" / "livecodebench" / "README.md"
 REVISION = "6ca212e9c2039373f6e5069d37ffa9db66e23736"
 BASE_URL = f"https://raw.githubusercontent.com/LiveCodeBench/submissions/{REVISION}/"
 PINNED = [
@@ -105,6 +106,16 @@ DROPPED = {
     "Gemini-Flash-2.0-Exp (N=10)/Scenario.codegeneration_1_0.2_eval_all.json": "10-sample run",
     "O1-2024-12-17 (Low)_prompt_old/Scenario.codegeneration_1_0.2_eval_all.json": "superseded prompt",
     "XBai-o4-medium/Scenario.codegeneration_1_0.6_eval_all.json": "no vendor rule",
+}
+# bytes and sha256 of the 6 dropped files at REVISION, for the evidence README table (v1.61);
+# the converter never downloads them
+DROPPED_PINS = {
+    "AzeroGPT-64b/Scenario.codegeneration_10_0.2_eval_all.json": (19352799, "f2afe8bf8937d36fab7a7a95e426f6a845be3485f941610eda4e94126784748b"),
+    "DeepSeek-V3 copy/Scenario.codegeneration_10_0.2_eval_all.json": (28351686, "06e7b8340903a1154fea69cf63a7deed78ef575f72a95b5d16537a6b6436b142"),
+    "Gemini-Flash-2.0-Exp (N=10)/Scenario.codegeneration_10_0.2_eval_all.json": (23790224, "0eeba1e8eb984976c9e4dafa03c1f000cebf6d646c5f1e4690b3f0e2f3a7a3f8"),
+    "Gemini-Flash-2.0-Exp (N=10)/Scenario.codegeneration_1_0.2_eval_all.json": (6955936, "9c0b4f222c428d627ae8fee677a031b203b30e45a396a1c41ad8358ebb5bc42c"),
+    "O1-2024-12-17 (Low)_prompt_old/Scenario.codegeneration_1_0.2_eval_all.json": (4932645, "81104861ab7d19b18cc8581187a30bf93174b7479518282645960225d05acc55"),
+    "XBai-o4-medium/Scenario.codegeneration_1_0.6_eval_all.json": (36137643, "8f80d42f61beee24468a744839df254888f9ce8192bd7563a3d530f515795cc8"),
 }
 EXTRACT_KEYS = ["folder", "model", "cells"]
 CELL_KEYS = ["correct", "contest_date", "samples"]
@@ -527,6 +538,57 @@ def test_main_bad_data_leaves_out_untouched(cv, monkeypatch, tmp_path, capsys):
     assert not out.with_name("m.jsonl.part").exists()
 
 
+# --- the evidence README (DESIGN 12.16, v1.61) -------------------------------------------
+
+# The README's default counts as written; test_pinned_files_when_cached builds the same phrases
+# from the converter report and rows on the pinned files
+README_COUNTS = [
+    "reports 67 models, keeps the 713 problems every kept file has, with contest dates 2023-05-07 to 2024-10-05, and writes 47,771 rows",
+    "0 for 12 models, 163 for 1, 167 for 22 and 342 for 32",
+    "1 for 34 models, 10 for 32 and 4 for 1",
+    "from 0.093 (`deepseek/dscoder-1.3b-ins`) to 0.913 (`openai/o4-mini-high`)",
+]
+
+
+def spread(counts, key):
+    """'a for n models, b for m and c for k' from {value: models}, ordered by key."""
+    parts = [f"{value} for {n}" for value, n in sorted(counts.items(), key=key)]
+    parts[0] += " models"
+    return ", ".join(parts[:-1]) + " and " + parts[-1]
+
+
+def test_spread():
+    assert spread({163: 1, 0: 12}, key=lambda kv: kv[0]) == "0 for 12 models and 163 for 1"
+    assert spread({4: 1, 1: 34, 10: 32}, key=lambda kv: -kv[1]) == "1 for 34 models, 10 for 32 and 4 for 1"
+
+
+def test_evidence_readme():
+    text = EVIDENCE_README.read_text(encoding="utf-8")
+    for needle in ["https://github.com/LiveCodeBench/submissions", REVISION, "MIT", "Copyright (c) 2025 LiveCodeBench",
+                   "~/.cache/ai-model-routing-evidence/livecodebench/", "1,353,069,054 bytes", "1,233,548,121 bytes",
+                   "`graded_list[0]`", "`cost_usd`", "`cost_blind`", "`cost_effective`", "`code_generation`",
+                   "`openai/o3-high`", "python evidence/livecodebench/convert.py --out", "--cache", "DESIGN 12.16",
+                   "contamination", "LeetCode, AtCoder and Codeforces", "not committed yet", *README_COUNTS]:
+        assert needle in text, needle
+    rows = [f"| `{path}` | {size:,} | `{sha}` |" for path, size, sha, _ in PINNED]
+    at = [text.find(row) for row in rows]
+    assert -1 not in at and at == sorted(at), "kept-file table rows missing or out of FILES order"
+    dropped = [f"| `{path}` | {DROPPED_PINS[path][0]:,} | `{DROPPED_PINS[path][1]}` | {reason} |" for path, reason in DROPPED.items()]
+    at = [text.find(row) for row in dropped]
+    assert -1 not in at and at == sorted(at), "dropped-file table rows missing or out of DROPPED order"
+    assert text.isascii() and "\u2013" not in text and "\u2014" not in text
+
+
+def test_dropped_pins_back_the_readme_duplicate_claims():
+    assert list(DROPPED_PINS) == list(DROPPED)
+    kept = {path: (size, sha) for path, size, sha, _ in PINNED}
+    assert DROPPED_PINS["Gemini-Flash-2.0-Exp (N=10)/Scenario.codegeneration_1_0.2_eval_all.json"] == \
+        kept["Gemini-Flash-2.0-Exp/Scenario.codegeneration_1_0.2_eval_all.json"]
+    assert DROPPED_PINS["DeepSeek-V3 copy/Scenario.codegeneration_10_0.2_eval_all.json"][1] != \
+        kept["DeepSeek-V3/Scenario.codegeneration_10_0.2_eval_all.json"][1]
+    assert sum(size for size, _ in DROPPED_PINS.values()) + sum(size for _, size, _, _ in PINNED) == 1_353_069_054
+
+
 # --- the pinned files, when cached -------------------------------------------------------
 
 def test_pinned_files_when_cached(cv, tmp_path):
@@ -545,3 +607,22 @@ def test_pinned_files_when_cached(cv, tmp_path):
     assert counts.count(0) == 12 and counts.count(163) == 1 and counts.count(167) == 22 and counts.count(342) == 32
     samples = [tuple(v) for v in report["samples"].values()]
     assert samples.count((1,)) == 34 and samples.count((10,)) == 32 and samples.count((4,)) == 1
+    rows = [json.loads(line) for line in out.read_text(encoding="utf-8").splitlines()]
+    hits = {}
+    for row in rows:
+        hits.setdefault(row["model"], []).append(row["correct"])
+    rates = sorted((sum(v) / len(v), m) for m, v in hits.items())
+    (low, low_model), (high, high_model) = rates[0], rates[-1]
+    assert rates[0][0] < rates[1][0] and rates[-2][0] < rates[-1][0]  # one model at each end
+    dropped = {}
+    for n in report["dropped_not_common"].values():
+        dropped[n] = dropped.get(n, 0) + 1
+    by_samples = {}
+    for v in report["samples"].values():
+        by_samples[",".join(map(str, v))] = by_samples.get(",".join(map(str, v)), 0) + 1
+    built = [f"reports {len(report['models'])} models, keeps the {report['items']} problems every kept file has, with contest "
+             f"dates {report['contest_dates'][0]} to {report['contest_dates'][1]}, and writes {report['rows']:,} rows",
+             spread(dropped, key=lambda kv: kv[0]),
+             spread(by_samples, key=lambda kv: -kv[1]),
+             f"from {round(low, 3)} (`{low_model}`) to {round(high, 3)} (`{high_model}`)"]
+    assert built == README_COUNTS
