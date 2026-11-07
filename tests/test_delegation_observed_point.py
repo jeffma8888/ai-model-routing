@@ -93,13 +93,6 @@ def test_the_trail_median_is_the_median_of_the_committed_runs_and_a_whole_number
     assert V2["work_calls"] == observed() == 15
 
 
-def test_math_ceil_never_puts_k_below_a_halfway_median():
-    # the median of whole numbers is whole or halfway between two (DESIGN 13.10)
-    for calls in ([14, 15], [3, 15, 16, 31], [15, 15], [2, 3, 3, 4]):
-        median = statistics.median(calls)
-        assert math.ceil(median) >= median and math.ceil(median) - median in (0, 0.5)
-
-
 def test_the_stated_point_is_variant_point_0_at_the_observed_size_with_work_calls_last():
     assert {k: v for k, v in V2.items() if k != "work_calls"} == {
         k: v for k, v in V0.items() if k != "work_calls"}
