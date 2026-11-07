@@ -563,7 +563,7 @@ def test_cli_prices_token_rows_with_the_registry_option(tmp_path, capsys, cli_fi
 
 
 @pytest.mark.parametrize("case", ["missing-file", "bad-row", "incomplete", "bar", "seeds",
-                                  "fraction", "unpriced-tokens"])
+                                  "fraction", "unpriced-tokens", "flavor", "repeated-flavor"])
 def test_cli_bad_input_exits_2(tmp_path, capsys, case):
     load_ev()
     good = write_jsonl(tmp_path / "good.jsonl", known_rows())
@@ -584,6 +584,10 @@ def test_cli_bad_input_exits_2(tmp_path, capsys, case):
         row_ = {k: v for k, v in GOOD.items() if k != "cost_usd"}
         row_.update(model="fiction/not-in-registry", input_tokens=1, output_tokens=1)
         args[2] = str(write_jsonl(tmp_path / "tokens.jsonl", [row_]))
+    elif case == "flavor":
+        args += ["--flavor", "cheap"]
+    elif case == "repeated-flavor":
+        args += ["--flavor", "cost_blind", "--flavor", "cost_blind"]
     assert main(args) == 2
     captured = capsys.readouterr()
     assert captured.out == ""
@@ -624,6 +628,79 @@ def test_cli_text_layout_follows_the_summary(tmp_path, capsys):
             expected += _layout(["strategy", "success", "cost_usd", "below_bar_rate",
                                  "cleared_rate", "bar_violation_rate"], rows)
     assert out == "\n".join(expected) + "\n"
+
+
+# v1.63 --flavor (12.4)
+
+@pytest.mark.parametrize("argv, flavors", [
+    (["--flavor", "cost_blind"], ["cost_blind"]),
+    (["--flavor", "cost_effective"], ["cost_effective"]),
+    (["--flavor", "cost_blind", "cost_effective"], ["cost_blind", "cost_effective"]),
+    (["--flavor", "cost_blind", "--flavor", "cost_effective"], ["cost_blind", "cost_effective"]),
+    ([], ["cost_effective", "cost_blind"]),
+])
+def test_cli_flavor_option_runs_the_flavors_given_in_order(tmp_path, capsys, argv, flavors):
+    ev = load_ev()
+    path = write_jsonl(tmp_path / "outcomes.jsonl", known_rows())
+    code = main(["evaluate", "--outcomes", str(path), "--bar", "0.8", "0.9", "--seeds", "2",
+                 "--json", *argv])
+    captured = capsys.readouterr()
+    assert code == 0, captured.err
+    out = json.loads(captured.out)
+    expected = ev.evaluate(ev.load_outcomes(path), bars=[0.8, 0.9], seeds=range(2),
+                           flavors=flavors)
+    expected.pop("cells")
+    assert out == json.loads(json.dumps(expected))
+    assert out["config"]["flavors"] == flavors
+    assert [r["flavor"] for r in out["summary"]] == [
+        f for _ in (0.8, 0.9) for f in flavors for _ in STRATEGIES]
+
+
+def test_cli_text_with_one_flavor_has_one_table_per_bar(tmp_path, capsys):
+    ev = load_ev()
+    path = write_jsonl(tmp_path / "outcomes.jsonl", known_rows())
+    code = main(["evaluate", "--outcomes", str(path), "--bar", "0.8", "0.9", "--seeds", "2",
+                 "--flavor", "cost_blind"])
+    captured = capsys.readouterr()
+    assert code == 0, captured.err
+    result = ev.evaluate(ev.load_outcomes(path), bars=[0.8, 0.9], seeds=range(2),
+                         flavors=["cost_blind"])
+
+    def fmt(v):
+        return "-" if v is None else f"{v:.3f}"
+    expected = []
+    for bar in (0.8, 0.9):
+        if expected:
+            expected.append("")
+        expected.append(f"bar {bar}, cost_blind")
+        rows = [[r["strategy"], fmt(r["success"]), f"{r['cost_usd']:.4f}",
+                 fmt(r["below_bar_rate"]), fmt(r["cleared_rate"]), fmt(r["bar_violation_rate"])]
+                for r in result["summary"] if r["bar"] == bar]
+        assert [r[0] for r in rows] == STRATEGIES
+        expected += _layout(["strategy", "success", "cost_usd", "below_bar_rate",
+                             "cleared_rate", "bar_violation_rate"], rows)
+    assert captured.out == "\n".join(expected) + "\n"
+    assert "cost_effective" not in captured.out
+
+
+def test_cli_bad_flavor_error_is_one_line_naming_the_flavors(tmp_path, capsys):
+    load_ev()
+    path = write_jsonl(tmp_path / "outcomes.jsonl", known_rows())
+    for bad in (["cheap"], ["cost_blind", "cost_blind"]):
+        assert main(["evaluate", "--outcomes", str(path), "--seeds", "1", "--flavor", *bad]) == 2
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert captured.err == "error: flavors must be distinct names from ('cost_effective', 'cost_blind')\n"
+
+
+def test_readme_evaluate_paragraph_names_the_flavor_option():
+    from pathlib import Path
+    text = (Path(__file__).resolve().parents[1] / "README.md").read_text(encoding="utf-8")
+    section = text.split("\n### Check the choice on items the router never saw\n", 1)[1]
+    paragraph = section.lstrip("\n").split("\n\n", 1)[0]
+    assert paragraph.startswith("`model-routing evaluate` takes an outcome matrix")
+    assert ("`--flavor` runs only the flavors given, so `--flavor cost_blind` serves a matrix "
+            "that records no cost (DESIGN 12.4)") in paragraph
 
 
 # v1.5 demo outcome matrix (11)

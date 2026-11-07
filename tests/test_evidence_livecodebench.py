@@ -591,7 +591,7 @@ def test_evidence_readme():
                    "~/.cache/ai-model-routing-evidence/livecodebench/", "1,353,069,054 bytes", "1,233,548,121 bytes",
                    "`graded_list[0]`", "`cost_usd`", "`cost_blind`", "`cost_effective`", "`code_generation`",
                    "`openai/o3-high`", "python evidence/livecodebench/convert.py --out", "--cache", "DESIGN 12.16",
-                   "contamination", "LeetCode, AtCoder and Codeforces", "not committed yet",
+                   "contamination", "LeetCode, AtCoder and Codeforces",
                    "Every row has `cost_usd` 0.0, which is what `cost_blind` assumes of every model's token cost",
                    "the 0.0 is never a measured or list-price cost",
                    "`cost_effective` is never run on this matrix: with every cost equal it would rank every model as equally cheap",
