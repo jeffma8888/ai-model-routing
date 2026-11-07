@@ -5,10 +5,10 @@ to ``VARIANT_OBSERVED_WORK_CALLS``, the median of the TRAIL sub-agent runs' mode
 committed ``evidence/trail/summary.json`` (DESIGN 13.11), rounded up with ``math.ceil`` when it is
 not a whole number. It is a cost sensitivity at an observed size, never a measured hand-off.
 
-The tests that need the new script are committed in v1.72 under strict xfail markers, each naming
-what the v1.71 script raises: ``AttributeError`` where a test reads ``VARIANT_OBSERVED_WORK_CALLS``
+The tests that need the new script were committed in v1.72 under strict xfail markers, each naming
+what the v1.71 script raised: ``AttributeError`` where a test reads ``VARIANT_OBSERVED_WORK_CALLS``
 and ``AssertionError`` where it expects three variant points. v1.73 implements the point,
-regenerates ``variants.json`` and removes the markers. The plain tests hold before and after: the
+regenerates ``variants.json`` and removes the markers. The other tests held before and after: the
 summary's median, the stated point on a small matrix, SHA-256 pins of ``results.json`` and of the
 committed summary rows of variant points 0 and 1 (taken on v1.71), and, only when the pinned
 AutoBench files are already in the default cache, the window facts DESIGN 13.10 states for K = 15.
@@ -30,6 +30,9 @@ SCRIPT = ROOT / "evidence" / "delegation" / "results.py"
 RESULTS = ROOT / "evidence" / "delegation" / "results.json"
 VARIANTS_FILE = ROOT / "evidence" / "delegation" / "variants.json"
 TRAIL = ROOT / "evidence" / "trail" / "summary.json"
+RESULTS_MD = ROOT / "evidence" / "delegation" / "RESULTS.md"
+README = ROOT / "README.md"
+VARIANTS_COMMAND = "$ python evidence/delegation/results.py --table evidence/delegation/variants.json"
 KEYS = ["config", "tasks", "summary"]
 STRATEGIES = ("decision", "inline", "delegate")
 POINT_KEYS = ["context_tokens", "brief_tokens", "result_tokens", "carry_turns",
@@ -166,17 +169,13 @@ def test_real_window_checks_drop_no_parent_or_delegate_at_the_observed_size(tmp_
     assert (smallest - c) // max(sums) == 39 and c + 31 * max(sums) == 116018
 
 
-# --- v1.72 script, implemented in v1.73 --------------------------------------------------------------
+# --- v1.72 script tests, plain since v1.73 ---------------------------------------------------------
 
-@pytest.mark.xfail(strict=True, raises=AttributeError,
-                   reason="v1.71 results.py has no VARIANT_OBSERVED_WORK_CALLS")
 def test_the_observed_work_calls_constant_is_the_rounded_up_trail_median(dr):
     k = dr.VARIANT_OBSERVED_WORK_CALLS
     assert type(k) is int and k == observed() == 15
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError,
-                   reason="v1.71 variant_points() has two points")
 def test_variant_points_append_variant_point_0_at_the_observed_size(dr):
     got = dr.variant_points()
     assert got == VARIANTS
@@ -185,8 +184,6 @@ def test_variant_points_append_variant_point_0_at_the_observed_size(dr):
     assert dr.variant_points() is not dr.variant_points()
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError,
-                   reason="v1.71 run(grid='variants') has two points")
 def test_run_on_the_variants_grid_has_three_points_and_keeps_points_0_and_1(dr):
     rows, registry = tiny()
     got = dr.run(rows, registry, grid="variants")
@@ -197,8 +194,6 @@ def test_run_on_the_variants_grid_has_three_points_and_keeps_points_0_and_1(dr):
     assert [r for r in got["summary"] if r["point"] < 2] == two["summary"]
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError,
-                   reason="v1.71 variants table has no third point")
 def test_the_variants_table_prints_15_calls_for_the_third_point(dr):
     rows, registry = tiny()
     lines = dr.table(dr.run(rows, registry, grid="variants")).split("\n")
@@ -207,3 +202,114 @@ def test_the_variants_table_prints_15_calls_for_the_third_point(dr):
     assert [tuple(row[2:6]) for row in body] == [
         ("64000", "False", "2", "1.0"), ("200000", "True", "1", "0.1"),
         ("64000", "False", "15", "1.0")] * 4
+
+
+# --- v1.73: the committed file's third bullet, in RESULTS.md and the README ------------------
+
+def committed(path):
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def observed_reading(variants):
+    """The third Variant points bullet: variant point 2 against variant point 0 (DESIGN 13.10)."""
+    rows = {(r["bar"], r["flavor"], r["point"], r["parent"], r["strategy"]): r
+            for r in variants["summary"]}
+    points = variants["config"]["points"]
+    k0, k2 = points[0]["work_calls"], points[2]["work_calls"]
+    assert (k0, k2) == (2, observed())
+    assert points[2] == dict(points[0], work_calls=k2)
+    parents = variants["config"]["parents"]
+    n = len(parents)
+    bars = variants["config"]["bars"]
+    assert bars == [0.7, 0.8]
+
+    def values(at, bar, strategy, key):
+        return [rows[(bar, "cost_effective", at, p, strategy)][key] for p in parents]
+
+    def mean(at, bar, strategy, key):
+        return math.fsum(values(at, bar, strategy, key)) / n
+
+    for bar in bars:
+        for at in (0, 2):
+            assert all(r == 1.0 for r in values(at, bar, "decision", "delegate_rate")), (at, bar)
+        assert mean(2, bar, "inline", "cost_usd") > mean(2, bar, "decision", "cost_usd"), bar
+    for at in (0, 2):
+        assert mean(at, 0.7, "inline", "cost_usd") == mean(at, 0.8, "inline", "cost_usd"), at
+    ratio = mean(2, 0.7, "inline", "cost_usd") / mean(0, 0.7, "inline", "cost_usd")
+
+    def pair(bar, strategy, key, places):
+        return (f"{mean(2, bar, strategy, key):.{places}f} against "
+                f"{mean(0, bar, strategy, key):.{places}f}")
+
+    def costs(bar):
+        return ", ".join(f"{label} {pair(bar, s, 'cost_usd', 4)}"
+                         for label, s in (("the decision", "decision"), ("always inline", "inline"),
+                                          ("always delegating", "delegate")))
+
+    c = points[2]["context_tokens"]
+    return (f"With the work in {k2} folded calls at {c:,} context tokens (variant point 2, the "
+            f"median size of TRAIL's sub-agent runs) instead of {k0} (variant point 0), "
+            f"`cost_effective` still delegates on every seed for every parent at both bars: its "
+            f"mean delegated share over the {n} parents is {mean(2, 0.7, 'decision', 'delegate_rate'):.3f} "
+            f"at bar 0.7 and {mean(2, 0.8, 'decision', 'delegate_rate'):.3f} at bar 0.8, against "
+            f"{mean(0, 0.7, 'decision', 'delegate_rate'):.3f} and "
+            f"{mean(0, 0.8, 'decision', 'delegate_rate'):.3f} at variant point 0. Its mean held-out "
+            f"success is {pair(0.7, 'decision', 'success', 3)} at bar 0.7 and "
+            f"{pair(0.8, 'decision', 'success', 3)} at bar 0.8: a delegate's input over its calls "
+            "grows with the square of their number and its output only in step with it, so more "
+            "calls can change which delegate that clears the bar costs least (`DESIGN.md` 13.3). "
+            f"Mean costs in USD, variant point 2 against variant point 0: at bar 0.7 {costs(0.7)}; "
+            f"at bar 0.8 {costs(0.8)}. On the inline path {k2 - 1} of the {k2} calls re-read the "
+            f"{c:,}-token context, so always inline costs {ratio:.1f} times as much as at variant "
+            "point 0, and it stays above the decision's at both bars")
+
+
+def bullets(text):
+    return [line for line in text.split("\n") if line.startswith("- ")]
+
+
+def test_observed_reading_refuses_a_file_where_the_decision_keeps_work_inline():
+    variants = committed(VARIANTS_FILE)
+    for row in variants["summary"]:
+        if (row["bar"], row["flavor"], row["point"], row["strategy"]) == (
+                0.8, "cost_effective", 2, "decision"):
+            row["delegate_rate"] = 0.98
+            break
+    with pytest.raises(AssertionError):
+        observed_reading(variants)
+
+
+def test_results_md_variant_part_shows_variant_point_2_and_its_bullet(dr):
+    md = RESULTS_MD.read_text(encoding="utf-8")
+    part = md.split("\n## Variant points\n", 1)[1].split("\n## ", 1)[0]
+    variants = committed(VARIANTS_FILE)
+    table = f"```text\n{VARIANTS_COMMAND}\n{dr.table(variants)}\n```\n"
+    bullet = f"- {observed_reading(variants)}"
+    assert len(bullets(part)) == 3 and bullets(part)[2] == bullet
+    assert part.index(table) < part.index(bullet) < part.index("```bash\n")
+    for phrase in ("Variant point 2 is variant point 0 with the work in 15 calls (`work_calls` 15)",
+                   "[the TRAIL summary](../trail/RESULTS.md)", "`DESIGN.md` 13.11",
+                   "rounded up when it is not a whole number", "never a measured hand-off",
+                   "whether the 15 calls succeed together is not measured",
+                   "the bar is held per call"):
+        assert phrase in part, phrase
+
+
+def test_readme_subsection_shows_variant_point_2_and_its_bullet(dr):
+    text = README.read_text(encoding="utf-8")
+    section = text.split("\n## Evidence: held-out results on public data\n", 1)[1].split("\n## ", 1)[0]
+    sub = section.split("\n### Delegation on AutoBench\n", 1)[1].split("\n### ", 1)[0]
+    variants = committed(VARIANTS_FILE)
+    table = f"```text\n{VARIANTS_COMMAND}\n{dr.table(variants)}\n```\n"
+    bullet = f"- {observed_reading(variants)}"
+    lines = sub.split("\n")
+    assert lines.count(bullet) == 1
+    at = lines.index(bullet)
+    assert lines[at - 1].startswith("- With the parent's reads of its ") and lines[at + 1] == ""
+    assert sub.index(table) < sub.index(bullet) < sub.index("```bash\n")
+    for phrase in ("Variant point 2 is variant point 0 with the work in 15 calls (`work_calls` 15)",
+                   "[evidence/trail/RESULTS.md](evidence/trail/RESULTS.md)",
+                   "never a measured hand-off",
+                   "whether the 15 calls succeed together is not measured",
+                   "the bar is held per call"):
+        assert phrase in sub, phrase

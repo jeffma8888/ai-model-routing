@@ -17,8 +17,10 @@ the same block and bullet in the README delegation subsection, whose regenerate 
 RESULTS.md one followed by the two variant lines, and README Limitations names the one
 multi-call point; the README tests check them against both committed files. v1.58 appends
 variant point 1, base point 2 with ``cached_read_ratio`` 0.1 (tests/test_delegation_cached_point.py),
-so the pins here read two variant points, and a second bullet, variant point 1 against base
-point 2, joins the RESULTS.md part and the README subsection.
+and a second bullet, variant point 1 against base point 2, joins the RESULTS.md part and the
+README subsection. v1.73 appends variant point 2, variant point 0 at 15 work calls
+(tests/test_delegation_observed_point.py, which also checks its bullet), so the pins here read
+three variant points and README Limitations names two multi-call points.
 """
 
 import importlib.util
@@ -51,8 +53,10 @@ POINT_KEYS = ["context_tokens", "brief_tokens", "result_tokens", "carry_turns",
 VARIANTS = [{"context_tokens": 64000, "brief_tokens": 500, "result_tokens": 500,
              "carry_turns": 1, "inline_separate_call": False, "work_calls": 2},
             {"context_tokens": 200000, "brief_tokens": 500, "result_tokens": 500,
-             "carry_turns": 1, "inline_separate_call": True, "cached_read_ratio": 0.1}]
-VARIANT_KEYS = [POINT_KEYS, POINT_KEYS[:5] + ["cached_read_ratio"]]
+             "carry_turns": 1, "inline_separate_call": True, "cached_read_ratio": 0.1},
+            {"context_tokens": 64000, "brief_tokens": 500, "result_tokens": 500,
+             "carry_turns": 1, "inline_separate_call": False, "work_calls": 15}]
+VARIANT_KEYS = [POINT_KEYS, POINT_KEYS[:5] + ["cached_read_ratio"], POINT_KEYS]
 
 
 @pytest.fixture
@@ -406,8 +410,9 @@ def test_results_md_variant_part_shows_the_table_bullet_and_regenerate_lines(dr)
     md = RESULTS_MD.read_text(encoding="utf-8")
     assert "apart from the [Variant points](#variant-points) part" in md
     assert ("- One work call per path at points 0 to 3 and at variant point 1, two at variant "
-            "point 0, and no prompt caching except at variant point 1, where the parent's reads "
-            "of C cost an assumed 0.1 of its list input price (`DESIGN.md` 13.8)\n") in md
+            "point 0 and 15 at variant point 2, and no prompt caching except at variant point 1, "
+            "where the parent's reads of C cost an assumed 0.1 of its list input price "
+            "(`DESIGN.md` 13.8)\n") in md
 
 
 def test_cached_reading_refuses_a_file_where_the_decision_keeps_work_inline():
@@ -472,22 +477,23 @@ def test_readme_subsection_shows_the_variant_table_bullet_link_and_regenerate_li
     assert bash_blocks(sub) == [base[0] + two[0]]
 
 
-def test_readme_limitations_name_the_one_multi_call_point_and_the_one_cached_point():
+def test_readme_limitations_name_the_two_multi_call_points_and_the_one_cached_point():
     text = README.read_text(encoding="utf-8")
     limits = text.split("\n## Limitations and non-goals (v1)\n", 1)[1].split("\n## ", 1)[0]
     base = committed(RESULTS)["config"]["points"]
     assert all("work_calls" not in p and "cached_read_ratio" not in p for p in base)
     points = committed(VARIANTS_FILE)["config"]["points"]
-    assert [p.get("work_calls", 1) > 1 for p in points] == [True, False]
-    assert [p.get("cached_read_ratio", 1.0) < 1 for p in points] == [False, True]
-    point, cached = points
+    assert [p.get("work_calls", 1) > 1 for p in points] == [True, False, True]
+    assert [p.get("cached_read_ratio", 1.0) < 1 for p in points] == [False, True, False]
+    point, cached, observed = points
     assert (point["work_calls"], point["inline_separate_call"]) == (2, False)
-    assert ("The committed evidence has one multi-call point, variant point 0 in "
-            "[variants.json](evidence/delegation/variants.json): two folded calls at "
-            f"{point['context_tokens']:,} context tokens, and one cached point, variant point 1 "
-            f"in the same file: point 2's {cached['context_tokens']:,} context tokens with the "
-            f"parent's reads of them at an assumed {cached['cached_read_ratio']} of the list "
-            "input price") in limits
+    assert observed == dict(point, work_calls=15)
+    assert ("The committed evidence has two multi-call points, variant points 0 and 2 in "
+            "[variants.json](evidence/delegation/variants.json): two and "
+            f"{observed['work_calls']} folded calls at {point['context_tokens']:,} context tokens, "
+            "and one cached point, variant point 1 in the same file: point 2's "
+            f"{cached['context_tokens']:,} context tokens with the parent's reads of them at an "
+            f"assumed {cached['cached_read_ratio']} of the list input price") in limits
 
 
 # --- the pinned files, only when already cached ------------------------------------------------

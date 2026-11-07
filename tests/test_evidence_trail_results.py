@@ -9,6 +9,7 @@ default cache and skips otherwise (CI never downloads them).
 
 import importlib.util
 import json
+import math
 import re
 import statistics
 from pathlib import Path
@@ -96,7 +97,8 @@ def stats_table(summary):
 def readme_sentence(summary):
     calls = summary["stats"]["model_calls"]
     return ("Real sub-agent runs make more model calls than the grid's one, or two at variant "
-            "point 0 below (`work_calls`): in the public TRAIL traces (licence MIT), the top agent "
+            "point 0 below, and variant point 2 below takes their median (`work_calls`): in the "
+            "public TRAIL traces (licence MIT), the top agent "
             f"hands work to a sub-agent {summary['run_count']} times in "
             f"{summary['traces_with_runs']} of {summary['traces']} GAIA traces, and each of those "
             f"runs makes {num(calls['min'])} to {num(calls['max'])} model calls (median "
@@ -219,8 +221,10 @@ def test_workflow_does_not_rerun_the_trail_script():
 def test_readme_delegation_sentence_is_built_from_the_summary_and_the_points():
     summary = committed()
     base, variants = committed_work_calls()
-    assert set(base) == {1} and variants[0] == 2
-    assert summary["stats"]["model_calls"]["min"] > max(base + variants)
+    assert set(base) == {1} and variants[0] == 2 and len(variants) == 3
+    calls = summary["stats"]["model_calls"]
+    assert calls["min"] > max(base + variants[:2])
+    assert variants[2] == math.ceil(calls["median"]) == 15
     sub = readme_delegation()
     sentence = readme_sentence(summary)
     assert sub.count(sentence) == 1

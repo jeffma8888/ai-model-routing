@@ -13,7 +13,8 @@ and keeps the config, tasks and summary (no cells). Points 0 to 2 put inline wor
 parent call of its own at three context sizes; point 3 folds it into the parent's next call.
 With ``--grid variants`` it runs the variant points instead, which change a knob the base grid
 holds fixed (variant point 0: folded work of two calls at 64,000 context tokens; variant
-point 1: point 2 with the parent's reads of the context at 0.1 of its list input price).
+point 1: point 2 with the parent's reads of the context at 0.1 of its list input price;
+variant point 2: variant point 0 at 15 work calls, the median run size of TRAIL's sub-agents).
 ``--table`` prints the mean over parents of each (bar, flavor, point); with ``--bar`` and ``--point`` it prints one row per
 (flavor, parent) for that bar and point. ``--breakeven`` with ``--bar`` and ``--point`` prints,
 per (flavor, parent), how much held-out success a lossy hand-off may lose before delegating
@@ -42,6 +43,7 @@ KEYS = ("config", "tasks", "summary")
 VARIANT_CONTEXT_TOKENS = 64000
 VARIANT_WORK_CALLS = 2
 VARIANT_CACHED_READ_RATIO = 0.1
+VARIANT_OBSERVED_WORK_CALLS = 15
 GRIDS = ("base", "variants")
 
 
@@ -59,11 +61,14 @@ def points() -> list:
 
 def variant_points() -> list:
     """Variant point 0: folded work of two calls at 64,000 context tokens; variant point 1:
-    base point 2 with ``cached_read_ratio`` 0.1, an assumed ratio (DESIGN 13.10)."""
-    return [{"context_tokens": VARIANT_CONTEXT_TOKENS, "brief_tokens": BRIEF_TOKENS,
+    base point 2 with ``cached_read_ratio`` 0.1, an assumed ratio; variant point 2: variant
+    point 0 with ``work_calls`` 15, the rounded-up median of the runs' model calls in
+    evidence/trail/summary.json, held here as a literal (DESIGN 13.10)."""
+    first = {"context_tokens": VARIANT_CONTEXT_TOKENS, "brief_tokens": BRIEF_TOKENS,
              "result_tokens": RESULT_TOKENS, "carry_turns": CARRY_TURNS,
-             "inline_separate_call": False, "work_calls": VARIANT_WORK_CALLS},
-            dict(points()[2], cached_read_ratio=VARIANT_CACHED_READ_RATIO)]
+             "inline_separate_call": False, "work_calls": VARIANT_WORK_CALLS}
+    return [first, dict(points()[2], cached_read_ratio=VARIANT_CACHED_READ_RATIO),
+            dict(first, work_calls=VARIANT_OBSERVED_WORK_CALLS)]
 
 
 def run(rows, registry, grid="base") -> dict:

@@ -316,6 +316,8 @@ VARIANTS = [
      "inline_separate_call": False, "work_calls": 2},
     {"context_tokens": 200000, "brief_tokens": 500, "result_tokens": 500, "carry_turns": 1,
      "inline_separate_call": True, "cached_read_ratio": 0.1},
+    {"context_tokens": 64000, "brief_tokens": 500, "result_tokens": 500, "carry_turns": 1,
+     "inline_separate_call": False, "work_calls": 15},
 ]
 
 
@@ -336,12 +338,13 @@ def tiny():
 def test_variant_points_append_base_point_2_with_a_cached_ratio(dr):
     got = dr.variant_points()
     assert got == VARIANTS
-    assert [list(p) for p in got] == [KEYS + ["work_calls"], KEYS + ["cached_read_ratio"]]
+    assert [list(p) for p in got] == [KEYS + ["work_calls"], KEYS + ["cached_read_ratio"],
+                                      KEYS + ["work_calls"]]
     assert without_ratio(got[1]) == dr.points()[2]
     assert got[1]["cached_read_ratio"] == 0.1
 
 
-def test_run_on_the_variants_grid_has_both_points_and_keeps_variant_point_0(dr):
+def test_run_on_the_variants_grid_has_every_variant_point_and_keeps_variant_point_0(dr):
     rows, reg = tiny()
     got = dr.run(rows, reg, grid="variants")
     assert got["config"]["points"] == VARIANTS
@@ -354,7 +357,7 @@ def test_run_on_the_variants_grid_has_both_points_and_keeps_variant_point_0(dr):
 def test_variant_point_1_costs_less_inline_than_base_point_2_and_the_same_delegated(dr):
     rows, reg = tiny()
     base, variants = dr.run(rows, reg), dr.run(rows, reg, grid="variants")
-    assert len(variants["config"]["points"]) == 2
+    assert len(variants["config"]["points"]) == 3
 
     def index(results, at):
         return {(r["bar"], r["flavor"], r["parent"], r["strategy"]): r
