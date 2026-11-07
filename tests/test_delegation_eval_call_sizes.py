@@ -26,7 +26,7 @@ item and weak on none, so at bar 0.4 big and small clear and weak does not.
 import hashlib
 import importlib
 import json
-from math import ceil, fsum
+from math import fsum
 
 import pytest
 
@@ -139,9 +139,9 @@ def test_the_closed_form_of_the_reads_is_the_sum_of_the_calls_reads():
              ([1_000] * 15, [200] * 15)]
     for a, b in cases:
         assert reads(a, b) == by_call(a, b)
-    # review iter-072 must-fix 1: the two reads are 1 and 12, while means give 17
+    # review iter-072 must-fix 1: the two reads are 1 and 12, while means of 5 and 2 give
+    # 3 * 5 + 1 * 2 = 17
     assert reads([1, 9], [2, 2]) == 13
-    assert 3 * 5 + 1 * 2 == 17
     for k in (1, 2, 15):
         assert reads([S_IN] * k, [S_OUT] * k) == (k * (k + 1) // 2 * S_IN
                                                   + k * (k - 1) // 2 * S_OUT)
@@ -213,7 +213,8 @@ def test_each_path_uses_the_calls_of_the_model_doing_the_work():
         inline, delegated = expected_costs(cell, UNEQUAL_POINTS[cell["point"]], calls, reg)
         assert cell["cost_usd"]["inline"] == inline
         assert cell["cost_usd"]["delegate"] == delegated
-        # median_low of the call counts 3, 1 and 2 over the three calibration items
+        # median_low of the nine pooled call counts, 3, 1 and 2 of each model on each of the
+        # three calibration items
         assert cell.get("expected_work_calls") == 2
         assert (cell["expected_input_tokens"], cell["expected_output_tokens"]) == (S_IN, S_OUT)
 
@@ -284,7 +285,6 @@ def test_the_decision_reads_rounded_up_per_call_means_and_the_median_call_count(
     # rounded-up per-call means are ceil(1011 / 3) = 337 and ceil(201 / 3) = 67
     calls = {m: ([1_000, 10, 1], [200, 1, 0]) for m in MODELS}
     result = run(call_matrix(calls), POINTS)
-    assert (ceil(1_011 / 3), ceil(201 / 3)) == (337, 67)
     for cell in result["cells"]:
         assert cell.get("expected_work_calls") == 3
         assert (cell["expected_input_tokens"], cell["expected_output_tokens"]) == (337, 67)
