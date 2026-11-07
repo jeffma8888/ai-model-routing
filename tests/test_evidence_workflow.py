@@ -282,7 +282,7 @@ MUTANTS = {
         "      - name: Compare\n", "      - name: Compare\n        shell: sh\n", 1),
     "a comment in Regenerate": lambda t: with_lines(t, lambda ls: ls[:1] + ["          # x"] + ls[1:]),
     "a job after the steps": lambda t: t + "  other:\n    runs-on: ubuntu-24.04\n",
-    "the RouterBench reason dropped": lambda t: t.replace("# takes about 70 seconds.\n", "", 1),
+    "the RouterBench reason dropped": lambda t: t.replace(" about 70 seconds.\n", "\n", 1),
 }
 
 

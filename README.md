@@ -376,13 +376,14 @@ for row in report(monitor.records, by="tag:team"):
 
 ## Evidence: held-out results on public data
 
-Each dataset here already holds every model's answer to every item, a label for whether that answer was good enough (right or wrong on RouterBench, a Delta-Hit from a judge committee's scores on AutoBench, and agreement with the other judges' grades for a judge model's grade in AutoBench judges) and the cost of each call or the token counts to estimate it at list prices, so the router is tested offline with no API key: for each task and seed, calibrate on one half of the items, route at a bar, and score the routed model on the other half, next to fixed baselines (`model-routing evaluate`, `DESIGN.md` 12). The test suite rebuilds every number in these tables from that dataset's committed results file, so they cannot drift from it. On GitHub, the `evidence` workflow ([.github/workflows/evidence.yml](.github/workflows/evidence.yml)) reruns the regenerate commands of the AutoBench, AutoBench judges and delegation subsections, downloading the pinned files, and fails if `evidence/autobench-2026/results.json`, `evidence/autobench-judges/results.json`, `evidence/delegation/results.json` or `evidence/delegation/variants.json` changes by a byte; RouterBench is left out of it, since its source is a 99,567,659-byte pickle that needs pandas and its evaluate step takes about 70 seconds.
+Each dataset here already holds every model's answer to every item, a label for whether that answer was good enough (right or wrong on RouterBench, a Delta-Hit from a judge committee's scores on AutoBench, agreement with the other judges' grades for a judge model's grade in AutoBench judges, and whether an agent's conversation passed the run's program checks on tau2-bench) and the cost of each call (of each whole conversation on tau2-bench) or the token counts to estimate it at list prices, so the router is tested offline with no API key: for each task and seed, calibrate on one half of the items, route at a bar, and score the routed model on the other half, next to fixed baselines (`model-routing evaluate`, `DESIGN.md` 12). The test suite rebuilds every number in these tables from that dataset's committed results file, so they cannot drift from it. On GitHub, the `evidence` workflow ([.github/workflows/evidence.yml](.github/workflows/evidence.yml)) reruns the regenerate commands of the AutoBench, AutoBench judges, tau2-bench and delegation subsections, downloading the pinned files, and fails if `evidence/autobench-2026/results.json`, `evidence/autobench-judges/results.json`, `evidence/tau2-bench/results.json`, `evidence/delegation/results.json` or `evidence/delegation/variants.json` changes by a byte; RouterBench is left out of it, since its source is a 99,567,659-byte pickle that needs pandas and its evaluate step takes about 70 seconds.
 
 Results at a glance, each number from the committed results of the subsection it links:
 
 - [RouterBench](#routerbench): at bar 0.6, `cost_effective` routing reaches held-out success 0.735 at 0.341 of the cost of the best single model, `openai/gpt-4-1106-preview`; no routed row at any bar reaches that model's held-out success
 - [AutoBench](#autobench): no routed row beats always calling `openai/gpt-5.6-luna` on held-out success and cost together (0.872 at 0.3092 USD)
 - [AutoBench judges](#autobench-judges): choosing a judge, scored by agreement with the other judges and not a human label, at bar 0.6, `cost_effective` routing reaches held-out success 0.816 at 0.518 of the cost of the best single judge, `tencent/hy3`; no routed row at any bar reaches that judge's held-out success
+- [tau2-bench](#tau2-bench): on trial 0, no routed row beats any of the 4 single agents on held-out success and cost together, and at bar 0.3 `cost_effective` routing costs 9.1340 USD against 3.6044 for always calling the cheapest agent, `openai/gpt-4.1-mini-2025-04-14`, for no more held-out success
 - [Delegation on AutoBench](#delegation-on-autobench): at bar 0.8, with the brief assumed to carry the whole question and inline work in a parent call of its own, the `cost_effective` decision delegates on every seed for each of the 20 parents, so it scores and costs the same as always delegating; its mean held-out success over the parents is 0.855 against 0.670 for always inline, and it costs more than always inline at 8,000 context tokens but less at 64,000 and 200,000
 
 ### RouterBench
@@ -536,6 +537,68 @@ python evidence/autobench-2026/judges.py --out autobench-judges.jsonl --registry
 model-routing evaluate --outcomes autobench-judges.jsonl --registry autobench-models.json --bar 0.6 0.7 0.8 0.9 --seeds 50 --json > autobench-judges-evaluate.json
 python evidence/routerbench/results.py --evaluate autobench-judges-evaluate.json --out evidence/autobench-judges/results.json
 python evidence/routerbench/results.py --table evidence/autobench-judges/results.json
+```
+
+### tau2-bench
+
+- Dataset: the paper results of [sierra-research/tau2-bench](https://github.com/sierra-research/tau2-bench) on GitHub, pinned at revision [`033bf08`](https://github.com/sierra-research/tau2-bench/tree/033bf082f48e4a3c6a1256208e93cf2ce9c3bb6f), folder `data/tau2/results/final`; the 12 default run files the converter reads are checked by size and sha256 before they are read
+- Licence: MIT, as the repo's LICENSE file states, with the line "Copyright (c) 2025 Sierra Research". This repo commits no part of the dataset, only numbers derived from it
+- What was run: 4 agents, one routing task per domain (airline 50 tasks, retail 114, telecom 114), trial 0 of the 4 trials, 50 seeds; each domain is split in half per seed and routed at bars 0.3 to 0.8 in both flavors. The bars were chosen after a first run at 0.6 to 0.9, where no cell cleared 0.8 or 0.9. Each task is a customer-service conversation between an agent model and a simulated user; a success is a conversation that passed the run's own program checks (`reward_info.reward` of 1), and the cost is the agent's recorded cost of that conversation (`agent_cost`; the simulated user's `user_cost` is never counted)
+- Full results, with how many seeds were routed to each agent in each domain and the pooled and trial 1 to 3 sensitivity runs: [RESULTS.md](evidence/tau2-bench/RESULTS.md) and [results.json](evidence/tau2-bench/results.json); source, the 12 pinned files and what the converter reads: [evidence/tau2-bench/README.md](evidence/tau2-bench/README.md)
+
+Held-out success is the share of held-out tasks whose conversation passed the program checks, pooled over the three domains, and cost is the recorded agent cost of those conversations, both averaged over the seeds. The two ratios divide that cost by the cost of always calling the best single agent and by that of the cheapest agent on the calibration half, per domain, in the baseline table. The cleared rate is the share of the 150 (domain, seed) cells where some agent cleared the bar on the calibration half, and a `-` means that no cell cleared, so there is no bar-violation rate.
+
+| Bar | Flavor | Held-out success | Cost (USD) | Cost / best single agent | Cost / cheapest agent | Cleared rate | Bar-violation rate |
+|---|---|---|---|---|---|---|---|
+| 0.3 | `cost_effective` | 0.547 | 9.1340 | 0.144 | 2.5 | 0.667 | 0.000 |
+| 0.3 | `cost_blind` | 0.589 | 40.3751 | 0.639 | 11.2 | 0.667 | 0.000 |
+| 0.4 | `cost_effective` | 0.544 | 15.6738 | 0.248 | 4.3 | 0.400 | 0.033 |
+| 0.4 | `cost_blind` | 0.589 | 40.3751 | 0.639 | 11.2 | 0.400 | 0.033 |
+| 0.5 | `cost_effective` | 0.545 | 16.4831 | 0.261 | 4.6 | 0.333 | 0.000 |
+| 0.5 | `cost_blind` | 0.589 | 40.3751 | 0.639 | 11.2 | 0.333 | 0.000 |
+| 0.6 | `cost_effective` | 0.559 | 24.2031 | 0.383 | 6.7 | 0.327 | 0.061 |
+| 0.6 | `cost_blind` | 0.589 | 40.3751 | 0.639 | 11.2 | 0.327 | 0.000 |
+| 0.7 | `cost_effective` | 0.578 | 30.7979 | 0.487 | 8.5 | 0.080 | 0.083 |
+| 0.7 | `cost_blind` | 0.589 | 40.3751 | 0.639 | 11.2 | 0.080 | 0.000 |
+| 0.8 | `cost_effective` | 0.578 | 31.0962 | 0.492 | 8.6 | 0.000 | - |
+| 0.8 | `cost_blind` | 0.589 | 40.3751 | 0.639 | 11.2 | 0.000 | - |
+
+| Baseline | Held-out success | Cost (USD) |
+|---|---|---|
+| Per-item oracle: on each task, the cheapest agent that succeeded on it, or the cheapest agent, counted wrong, when none did | 0.801 | 7.6369 |
+| Always `anthropic/claude-3-7-sonnet-20250219` (best single agent) | 0.612 | 63.2133 |
+| Always `openai/gpt-4.1-2025-04-14` | 0.562 | 11.3983 |
+| Always `openai/gpt-4.1-mini-2025-04-14` (cheapest single agent) | 0.548 | 3.6044 |
+| Always `openai/o4-mini-2025-04-16` | 0.571 | 10.2499 |
+| Best agent on the calibration half, per domain | 0.578 | 31.0962 |
+| Cheapest agent on the calibration half, per domain | 0.548 | 3.6044 |
+
+No routed row beats any of the 4 single agents on both counts: against each of them, every routed row in the table has lower held-out success or a higher cost.
+
+Reading it:
+
+- `cost_effective`: At bar 0.3 a model clears on 100 of the 150 (domain, seed) cells, and the router spends 0.144 of the best single agent's cost for a held-out success of 0.547, against 0.612 for that agent (`anthropic/claude-3-7-sonnet-20250219`). Always calling the cheapest agent, `openai/gpt-4.1-mini-2025-04-14`, reaches 0.548 at 3.6044 USD, so at bar 0.3 the router pays 2.5 times as much for no more held-out success
+- Where routing per domain works: On retail at bars 0.3 and 0.4 `cost_effective` routes all 50 seeds to `openai/gpt-4.1-mini-2025-04-14`, for a held-out success of 0.692 at 0.7711 USD, against `cost_blind`'s 0.795 at 18.1069 USD there. The cost at the lowest bars comes from the other two domains: on airline a model clears on 10 of the 50 seeds at bar 0.3 and on none from bar 0.5, and on a cell where no agent clears, the router takes the best agent available on the calibration half, whatever its cost (`DESIGN.md` 12.3)
+- `cost_blind` reaches 0.589 at 0.639 of the best single agent's cost at every bar, against `best_on_calibration`'s 0.578 at 0.492
+- Bar violations: 0.033 at bar 0.4 is 2 of the 60 cells that cleared, 0.061 at bar 0.6 is 3 of the 49 cells that cleared, and 0.083 at bar 0.7 is 1 of the 12 cells that cleared. Read them next to a nominal one-sided 0.025 for the 0.95 Wilson bound on one agent, as resampling estimates for this matrix, never as a guarantee (`DESIGN.md` 12.3)
+- The per-item oracle reaches 0.801 at 7.6369 USD, while the highest routed success of either flavor at any bar is 0.589: a hindsight bound, since routing per domain cannot pick an agent per task
+
+Limits:
+
+- The 4 agents date from 2025, and the costs are those the runs recorded at the prices of their time, not today's list prices
+- The airline and retail tasks are the June 2025 task sets, which the folder's README says differ from the current base tasks ("airline: 29 tasks differ, retail: 114")
+- A model, `openai/gpt-4.1-2025-04-14`, plays the user in every conversation, so a reward is the agent's success with that simulated user, and a failed conversation can be the simulator's fault
+- Routing here is per domain, not per task, and the airline calibration half holds 16 to 35 tasks over the 50 seeds, under `min_samples` 30 on 40 of them, so on those seeds no agent can clear a bar on airline; RESULTS.md has a run that pools all 278 tasks into one task
+- One trial of the 4 is used. The sentence under the tables holds on trials 1 and 3 but not on trial 2, where the `cost_blind` rows beat always calling the strongest agent by a gap in held-out success too small to be evidence of better success ([RESULTS.md](evidence/tau2-bench/RESULTS.md#sensitivity))
+
+Regenerate (the converter downloads the 12 pinned files, about 296 MB, into a cache folder outside the repo; the evaluate step takes well under a second; the sensitivity commands are in RESULTS.md):
+
+```bash
+python -m pip install -e .
+python evidence/tau2-bench/convert.py --out tau2-matrix.jsonl
+model-routing evaluate --outcomes tau2-matrix.jsonl --bar 0.3 0.4 0.5 0.6 0.7 0.8 --seeds 50 --json > tau2-evaluate.json
+python evidence/routerbench/results.py --evaluate tau2-evaluate.json --out evidence/tau2-bench/results.json
+python evidence/routerbench/results.py --table evidence/tau2-bench/results.json
 ```
 
 ### Delegation on AutoBench
@@ -698,6 +761,7 @@ research/       public evidence behind the defaults
 evidence/       public datasets turned into outcome matrices, with committed results
                 (RouterBench: evidence/routerbench/RESULTS.md)
                 (AutoBench 2026: evidence/autobench-2026/RESULTS.md)
+                (tau2-bench: evidence/tau2-bench/RESULTS.md)
                 (delegation on AutoBench: evidence/delegation/RESULTS.md)
 DESIGN.md       the spec the tests were written from
 ```
