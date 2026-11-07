@@ -220,7 +220,7 @@ def test_model_id_rule(cv, folder, expected):
 
 @pytest.mark.parametrize("folder", ["", None, 7, "AzeroGPT-64b", "XBai-o4-medium", "Oracle-1",
                                     "O5-Mini", "a/Claude-3", "Claude-3/x", "Claude-3 (\u00dcnicode)",
-                                    "Claude-3 \u00e9"])
+                                    "Claude-3 \u00e9", "Claude-3-\u212a", "GPT-4-\u212aelvin"])
 def test_model_id_refuses(cv, folder):
     with pytest.raises(ValueError):
         cv.model_id(folder)
@@ -521,6 +521,32 @@ def test_main_bad_options(cv, monkeypatch, argv, capsys):
     assert len(captured.err.splitlines()) == 1 and captured.err.startswith("error: ")
 
 
+def failing_fetch(*a, **k):
+    raise OSError("down\nload failed")
+
+
+@pytest.mark.parametrize("how", ["fetch", "data"])
+def test_main_failure_removes_a_stale_part(cv, monkeypatch, tmp_path, capsys, how):
+    cache = cli_files(monkeypatch, cv, tmp_path)
+    if how == "fetch":
+        monkeypatch.setattr(cv, "fetch", failing_fetch)
+    else:
+        bad = json.dumps([problem("p1", graded_list=[])]).encode()
+        (cache / "O3 (High)/S.json").write_bytes(bad)
+        monkeypatch.setattr(cv, "FILES", dict(cv.FILES, **{"O3 (High)/S.json": (len(bad), hashlib.sha256(bad).hexdigest())}))
+    out = tmp_path / "m.jsonl"
+    out.write_text("old\n")
+    part = out.with_name("m.jsonl.part")
+    part.write_text("stale\n")
+    assert cv.main(["--out", str(out), "--cache", str(cache)]) == 2
+    captured = capsys.readouterr()
+    assert captured.out == "" and len(captured.err.splitlines()) == 1 and captured.err.startswith("error: ")
+    if how == "fetch":
+        assert "down\\nload failed" in captured.err
+    assert out.read_text() == "old\n"
+    assert not part.exists()
+
+
 def test_main_bad_data_leaves_out_untouched(cv, monkeypatch, tmp_path, capsys):
     cache = cli_files(monkeypatch, cv, tmp_path)
     bad = json.dumps([problem("p1", graded_list=["yes\nno"])]).encode()
@@ -565,7 +591,14 @@ def test_evidence_readme():
                    "~/.cache/ai-model-routing-evidence/livecodebench/", "1,353,069,054 bytes", "1,233,548,121 bytes",
                    "`graded_list[0]`", "`cost_usd`", "`cost_blind`", "`cost_effective`", "`code_generation`",
                    "`openai/o3-high`", "python evidence/livecodebench/convert.py --out", "--cache", "DESIGN 12.16",
-                   "contamination", "LeetCode, AtCoder and Codeforces", "not committed yet", *README_COUNTS]:
+                   "contamination", "LeetCode, AtCoder and Codeforces", "not committed yet",
+                   "Every row has `cost_usd` 0.0, which is what `cost_blind` assumes of every model's token cost",
+                   "the 0.0 is never a measured or list-price cost",
+                   "`cost_effective` is never run on this matrix: with every cost equal it would rank every model as equally cheap",
+                   "`DeepSeek-V3 copy`, whose file differs from the one in `DeepSeek-V3`",
+                   "its `_1_` file has the sha256 of the kept `Gemini-Flash-2.0-Exp` file",
+                   "a fixed table of name prefixes gives the vendor", "so `O3 (High)` is `openai/o3-high`",
+                   "the problem text, the starter code and the generated code are never kept", *README_COUNTS]:
         assert needle in text, needle
     rows = [f"| `{path}` | {size:,} | `{sha}` |" for path, size, sha, _ in PINNED]
     at = [text.find(row) for row in rows]

@@ -129,6 +129,8 @@ def model_id(folder) -> str:
         raise ValueError(f"folder name must be a non-empty string, got {folder!r}")
     if "/" in folder:
         raise ValueError(f"folder name {folder!r} contains '/'")
+    if not folder.isascii():  # before lower(): U+212A, the Kelvin sign, lowercases to an ASCII k
+        raise ValueError(f"folder name {folder!r} is not ASCII")
     for pattern, vendor in VENDORS:
         if re.match(pattern, folder):
             slug = folder.lower().replace(" (", "-").replace(")", "").replace(" ", "-")
@@ -288,16 +290,15 @@ def main(argv=None) -> int:
         out = Path(args.out)
         if args.out in ("", ".", "/") or args.out.endswith("/") or not out.name:
             raise ValueError(f"--out must end in a file name, got {args.out!r}")
-        root = fetch(args.cache)
-        extracts = [extract(read_file(root / name), name.split("/")[0]) for name in FILES]
-        rows, report = convert(extracts)
         part = out.with_name(out.name + ".part")
-        try:
+        try:  # on any failure from here on, <out>.part goes, a stale one from an earlier run included
+            root = fetch(args.cache)
+            extracts = [extract(read_file(root / name), name.split("/")[0]) for name in FILES]
+            rows, report = convert(extracts)
             write_jsonl(rows, part)
             part.replace(out)
         finally:
-            if part.exists():
-                part.unlink()
+            part.unlink(missing_ok=True)
     except (ValueError, OSError) as exc:
         msg = str(exc).replace("\r", "\\r").replace("\n", "\\n")
         print(f"error: {msg}", file=sys.stderr)

@@ -96,11 +96,11 @@ The other 6 files are never downloaded. A folder is dropped by the first of thes
 
 ## What counts as a success, and why there is no cost
 
-- A problem is a success for a model when `graded_list[0]` is true: the first sample of the model's program passed the problem's test cases. The matrix takes one boolean per (item, model), so later samples are not read; the number of samples is read from `graded_list`, not from the file name
+- A problem is a success for a model when `graded_list[0]` is true: the first sample of the model's program passed the problem's test cases. The matrix takes one boolean per (item, model), so later samples are not scored; the number of samples is read from `graded_list`, not from the file name
 - There is no cost: the files carry no cost, no token counts and no list price. Every row has `cost_usd` 0.0, which is what `cost_blind` assumes of every model's token cost, and the 0.0 is never a measured or list-price cost. `cost_effective` is never run on this matrix: with every cost equal it would rank every model as equally cheap, so its rows would say nothing about cost
 - The items are the problems every kept file has. The files' problem sets nest, each inside the next, so the items are the problems of the smallest files, and a problem given two contest dates is an error
-- Model IDs come from a rule over the folder name: a fixed table of name prefixes gives the vendor (for example `Claude-` anthropic, `GPT-` or `O1`, `O3` and `O4` openai, `Gemini-` google, `DeepSeek-` and `DSCoder-` deepseek), then the name is lowercased with ` (` written as `-`, `)` removed and other spaces written as `-`, so `O3 (High)` is `openai/o3-high`. Each reasoning-effort or thinking setting is a model of its own, since a router would choose between them. A name that no rule covers, or that gives a model name outside `[a-z0-9][a-z0-9._-]*`, is an error, not a guess
-- Only the model, the question id, the contest date and the label are read from each problem; the problem text, the starter code and the generated code are never kept
+- Model IDs come from a rule over the folder name: a fixed table of name prefixes gives the vendor (for example `Claude-` anthropic, `GPT-` or `O1`, `O3` and `O4` openai, `Gemini-` google, `DeepSeek-` and `DSCoder-` deepseek), then the name is lowercased with ` (` written as `-`, `)` removed and other spaces written as `-`, so `O3 (High)` is `openai/o3-high`. Each reasoning-effort or thinking setting is a model of its own, since a router would choose between them. A name that is not ASCII, that no rule covers, or that gives a model name outside `[a-z0-9][a-z0-9._-]*` is an error, not a guess
+- Only the model, the question id, the contest date and the label are kept from each problem; the problem text, the starter code and the generated code are never kept
 
 ## Regenerate the matrix
 
