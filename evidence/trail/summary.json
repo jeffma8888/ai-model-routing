@@ -1,0 +1,515 @@
+{
+  "source": {
+    "repo": "https://github.com/patronus-ai/trail-benchmark",
+    "folder": "benchmarking/data/GAIA",
+    "revision": "0ffbed9db859b4a66250dc783fa4dccf86869595",
+    "licence": "MIT"
+  },
+  "traces": 117,
+  "traces_with_runs": 47,
+  "run_count": 60,
+  "stats": {
+    "model_calls": {
+      "min": 3,
+      "median": 15.0,
+      "max": 31
+    },
+    "prompt_tokens": {
+      "min": 5508,
+      "median": 94868.5,
+      "max": 357993
+    },
+    "completion_tokens": {
+      "min": 1990,
+      "median": 8343.5,
+      "max": 21188
+    },
+    "first_call_prompt_tokens": {
+      "min": 549,
+      "median": 594.5,
+      "max": 765
+    }
+  },
+  "runs": [
+    {
+      "trace_id": "0140b3f657eddf76ca82f72c49ac8e58",
+      "span_id": "a956bff6d033b36a",
+      "model_calls": 21,
+      "prompt_tokens": 147471,
+      "completion_tokens": 8364,
+      "first_call_prompt_tokens": 618
+    },
+    {
+      "trace_id": "01c5727165fc43899b3b594b9bef5f19",
+      "span_id": "e76f7f1752aaecb6",
+      "model_calls": 17,
+      "prompt_tokens": 163551,
+      "completion_tokens": 9628,
+      "first_call_prompt_tokens": 596
+    },
+    {
+      "trace_id": "14be0e98b825d2da5665e2e10f6cc927",
+      "span_id": "02761927a1dacaf7",
+      "model_calls": 31,
+      "prompt_tokens": 289721,
+      "completion_tokens": 13678,
+      "first_call_prompt_tokens": 596
+    },
+    {
+      "trace_id": "21f0c6c8d76ac61f4388f36ddffe1c38",
+      "span_id": "4431feb59986faab",
+      "model_calls": 9,
+      "prompt_tokens": 41264,
+      "completion_tokens": 7446,
+      "first_call_prompt_tokens": 613
+    },
+    {
+      "trace_id": "2cb6924caac94b32d2bf4b40bdf4ab51",
+      "span_id": "672e25ea48280e64",
+      "model_calls": 15,
+      "prompt_tokens": 99435,
+      "completion_tokens": 9235,
+      "first_call_prompt_tokens": 601
+    },
+    {
+      "trace_id": "3205fa0cb2135fe671bf7cd0e5a26151",
+      "span_id": "3c7675ae36e993c2",
+      "model_calls": 4,
+      "prompt_tokens": 9753,
+      "completion_tokens": 3101,
+      "first_call_prompt_tokens": 626
+    },
+    {
+      "trace_id": "3205fa0cb2135fe671bf7cd0e5a26151",
+      "span_id": "1b53e3fd1cca0b59",
+      "model_calls": 4,
+      "prompt_tokens": 12131,
+      "completion_tokens": 4465,
+      "first_call_prompt_tokens": 765
+    },
+    {
+      "trace_id": "3215fc75e81bdb73706a4fb37b66427f",
+      "span_id": "3ce413bb6e7e4dcd",
+      "model_calls": 4,
+      "prompt_tokens": 8847,
+      "completion_tokens": 1990,
+      "first_call_prompt_tokens": 571
+    },
+    {
+      "trace_id": "331aece579d942bb4c345a86c86efb83",
+      "span_id": "711d7bea4fbebd18",
+      "model_calls": 3,
+      "prompt_tokens": 6482,
+      "completion_tokens": 3734,
+      "first_call_prompt_tokens": 634
+    },
+    {
+      "trace_id": "33cedc57294f33839f1acc3ee5182788",
+      "span_id": "0dd1339940e88f25",
+      "model_calls": 15,
+      "prompt_tokens": 91663,
+      "completion_tokens": 7548,
+      "first_call_prompt_tokens": 588
+    },
+    {
+      "trace_id": "387546b0d3e81503bd8d392c6f1b6b25",
+      "span_id": "74f2c7cd838ab9d3",
+      "model_calls": 11,
+      "prompt_tokens": 72694,
+      "completion_tokens": 8292,
+      "first_call_prompt_tokens": 604
+    },
+    {
+      "trace_id": "396b6aa1ab86eb2e20d27582eb5eebd9",
+      "span_id": "cd9322216063ec6f",
+      "model_calls": 28,
+      "prompt_tokens": 349184,
+      "completion_tokens": 21188,
+      "first_call_prompt_tokens": 608
+    },
+    {
+      "trace_id": "3acaa3150977e199eddb95c64f2ada2e",
+      "span_id": "a2e382417dcc3c2b",
+      "model_calls": 9,
+      "prompt_tokens": 33270,
+      "completion_tokens": 5068,
+      "first_call_prompt_tokens": 585
+    },
+    {
+      "trace_id": "41bbc898aa7de0f31d2382ff57700a76",
+      "span_id": "4061983bf659963e",
+      "model_calls": 4,
+      "prompt_tokens": 9242,
+      "completion_tokens": 2777,
+      "first_call_prompt_tokens": 599
+    },
+    {
+      "trace_id": "512475a321c616e45337da3575f6a185",
+      "span_id": "c9ba23fb38831074",
+      "model_calls": 4,
+      "prompt_tokens": 9845,
+      "completion_tokens": 3248,
+      "first_call_prompt_tokens": 696
+    },
+    {
+      "trace_id": "59365b27641e501d105b0e8f5e7c5af7",
+      "span_id": "f3285483d5600453",
+      "model_calls": 24,
+      "prompt_tokens": 218600,
+      "completion_tokens": 10925,
+      "first_call_prompt_tokens": 580
+    },
+    {
+      "trace_id": "5a6c51d59f870513c68745e2e0f9269f",
+      "span_id": "af582beff7cb8b0a",
+      "model_calls": 17,
+      "prompt_tokens": 169172,
+      "completion_tokens": 11564,
+      "first_call_prompt_tokens": 624
+    },
+    {
+      "trace_id": "5b5a35053775cbf29701c171e6675853",
+      "span_id": "dbc680645e0f8180",
+      "model_calls": 4,
+      "prompt_tokens": 9175,
+      "completion_tokens": 3253,
+      "first_call_prompt_tokens": 608
+    },
+    {
+      "trace_id": "5bbd1534b199c57861f55b58be9949a0",
+      "span_id": "a7ec49fd21ecc6ef",
+      "model_calls": 23,
+      "prompt_tokens": 184175,
+      "completion_tokens": 9759,
+      "first_call_prompt_tokens": 565
+    },
+    {
+      "trace_id": "5f3a0a7fc572f49630c069e4e5a64ae3",
+      "span_id": "4db1874906a9756f",
+      "model_calls": 17,
+      "prompt_tokens": 96743,
+      "completion_tokens": 9651,
+      "first_call_prompt_tokens": 566
+    },
+    {
+      "trace_id": "5f3a0a7fc572f49630c069e4e5a64ae3",
+      "span_id": "7bf1e96640aa5ac4",
+      "model_calls": 4,
+      "prompt_tokens": 9545,
+      "completion_tokens": 4372,
+      "first_call_prompt_tokens": 557
+    },
+    {
+      "trace_id": "6cc6dc35a28bbed6cfd873756094bc16",
+      "span_id": "040ca24f762a6137",
+      "model_calls": 22,
+      "prompt_tokens": 152678,
+      "completion_tokens": 10412,
+      "first_call_prompt_tokens": 590
+    },
+    {
+      "trace_id": "6cc6dc35a28bbed6cfd873756094bc16",
+      "span_id": "0830d180eca22e0c",
+      "model_calls": 21,
+      "prompt_tokens": 139919,
+      "completion_tokens": 9019,
+      "first_call_prompt_tokens": 570
+    },
+    {
+      "trace_id": "6cc6dc35a28bbed6cfd873756094bc16",
+      "span_id": "3996acc1cb14659f",
+      "model_calls": 11,
+      "prompt_tokens": 57344,
+      "completion_tokens": 6137,
+      "first_call_prompt_tokens": 559
+    },
+    {
+      "trace_id": "772605f0794b0fa96bc942a8a7736571",
+      "span_id": "ebea5516363103ca",
+      "model_calls": 9,
+      "prompt_tokens": 40372,
+      "completion_tokens": 5723,
+      "first_call_prompt_tokens": 593
+    },
+    {
+      "trace_id": "860f9d45f2e50bfecb190bb26eff1f32",
+      "span_id": "c369003fb7a9fb62",
+      "model_calls": 28,
+      "prompt_tokens": 357993,
+      "completion_tokens": 10935,
+      "first_call_prompt_tokens": 551
+    },
+    {
+      "trace_id": "860f9d45f2e50bfecb190bb26eff1f32",
+      "span_id": "0ebc7dcdf02e7190",
+      "model_calls": 27,
+      "prompt_tokens": 296977,
+      "completion_tokens": 14519,
+      "first_call_prompt_tokens": 567
+    },
+    {
+      "trace_id": "860f9d45f2e50bfecb190bb26eff1f32",
+      "span_id": "3dece82984da352d",
+      "model_calls": 5,
+      "prompt_tokens": 17073,
+      "completion_tokens": 4294,
+      "first_call_prompt_tokens": 586
+    },
+    {
+      "trace_id": "915d2c66879657f694f88e0ed6f02cf5",
+      "span_id": "b68ad3337d69ac49",
+      "model_calls": 31,
+      "prompt_tokens": 312318,
+      "completion_tokens": 15533,
+      "first_call_prompt_tokens": 577
+    },
+    {
+      "trace_id": "915d2c66879657f694f88e0ed6f02cf5",
+      "span_id": "bec620d00751be54",
+      "model_calls": 29,
+      "prompt_tokens": 328866,
+      "completion_tokens": 12030,
+      "first_call_prompt_tokens": 675
+    },
+    {
+      "trace_id": "a32806e19bac45a34d3712ccc433ec9d",
+      "span_id": "10eb3a27dc103f77",
+      "model_calls": 12,
+      "prompt_tokens": 59990,
+      "completion_tokens": 4058,
+      "first_call_prompt_tokens": 580
+    },
+    {
+      "trace_id": "a5c2947f441d65edf60131463fb79999",
+      "span_id": "13bf6e5338f818f3",
+      "model_calls": 22,
+      "prompt_tokens": 207717,
+      "completion_tokens": 10089,
+      "first_call_prompt_tokens": 600
+    },
+    {
+      "trace_id": "a99faf782e8ad4d5f1ccdfcb7e143b9a",
+      "span_id": "bc648ac432e3030c",
+      "model_calls": 31,
+      "prompt_tokens": 321999,
+      "completion_tokens": 17446,
+      "first_call_prompt_tokens": 565
+    },
+    {
+      "trace_id": "b159cbc7eb989d874a0337cbee8a373c",
+      "span_id": "ce8fc60cc7f4f8f7",
+      "model_calls": 4,
+      "prompt_tokens": 9509,
+      "completion_tokens": 2390,
+      "first_call_prompt_tokens": 582
+    },
+    {
+      "trace_id": "b159cbc7eb989d874a0337cbee8a373c",
+      "span_id": "ddf00a00cf5df109",
+      "model_calls": 4,
+      "prompt_tokens": 9201,
+      "completion_tokens": 2633,
+      "first_call_prompt_tokens": 619
+    },
+    {
+      "trace_id": "b1f9b9baefa4c69d1d848e35c130e29d",
+      "span_id": "1ee7ccf592bf3dcc",
+      "model_calls": 21,
+      "prompt_tokens": 190905,
+      "completion_tokens": 9266,
+      "first_call_prompt_tokens": 610
+    },
+    {
+      "trace_id": "b241cb7deedf9646f01fa15095ed96d2",
+      "span_id": "0f7468b77a146671",
+      "model_calls": 27,
+      "prompt_tokens": 291259,
+      "completion_tokens": 12866,
+      "first_call_prompt_tokens": 572
+    },
+    {
+      "trace_id": "b241cb7deedf9646f01fa15095ed96d2",
+      "span_id": "9fe5d6d0fa1dfe4a",
+      "model_calls": 16,
+      "prompt_tokens": 112837,
+      "completion_tokens": 7736,
+      "first_call_prompt_tokens": 633
+    },
+    {
+      "trace_id": "b241cb7deedf9646f01fa15095ed96d2",
+      "span_id": "708ec1026eb9b60b",
+      "model_calls": 28,
+      "prompt_tokens": 346450,
+      "completion_tokens": 15820,
+      "first_call_prompt_tokens": 628
+    },
+    {
+      "trace_id": "b5576ffca7ad7cce0fc34b5aad7fc543",
+      "span_id": "0097a34049482eff",
+      "model_calls": 10,
+      "prompt_tokens": 48795,
+      "completion_tokens": 8630,
+      "first_call_prompt_tokens": 573
+    },
+    {
+      "trace_id": "b69bcf49516121f03e5809cbd776c21f",
+      "span_id": "38b3046f8e94c60e",
+      "model_calls": 21,
+      "prompt_tokens": 222872,
+      "completion_tokens": 11466,
+      "first_call_prompt_tokens": 610
+    },
+    {
+      "trace_id": "b69bcf49516121f03e5809cbd776c21f",
+      "span_id": "d16b4524887253a0",
+      "model_calls": 15,
+      "prompt_tokens": 132331,
+      "completion_tokens": 9220,
+      "first_call_prompt_tokens": 599
+    },
+    {
+      "trace_id": "b93b2145c5e2022c56bc2a50d5e94d8a",
+      "span_id": "c7f2e1ac35cb7907",
+      "model_calls": 10,
+      "prompt_tokens": 52917,
+      "completion_tokens": 6816,
+      "first_call_prompt_tokens": 636
+    },
+    {
+      "trace_id": "bc9c8f8dc13a51d0cd6762bd325ab17e",
+      "span_id": "6ee9be6daaa74ad0",
+      "model_calls": 15,
+      "prompt_tokens": 129143,
+      "completion_tokens": 9128,
+      "first_call_prompt_tokens": 639
+    },
+    {
+      "trace_id": "c60ad8608dd94271a6c6805eedfa26a8",
+      "span_id": "42dabefcdcc56146",
+      "model_calls": 27,
+      "prompt_tokens": 248393,
+      "completion_tokens": 11955,
+      "first_call_prompt_tokens": 624
+    },
+    {
+      "trace_id": "cac8b6b2d84841d9a5177e399f0595b4",
+      "span_id": "e30204f55220d287",
+      "model_calls": 9,
+      "prompt_tokens": 46323,
+      "completion_tokens": 7291,
+      "first_call_prompt_tokens": 587
+    },
+    {
+      "trace_id": "d277cf50c742ad43ddf128587f59b363",
+      "span_id": "97a9003fd549dfb8",
+      "model_calls": 9,
+      "prompt_tokens": 31782,
+      "completion_tokens": 6515,
+      "first_call_prompt_tokens": 610
+    },
+    {
+      "trace_id": "d2868d12880a41ad5ed1fb3bb39159d5",
+      "span_id": "65ba1793aee33d8b",
+      "model_calls": 4,
+      "prompt_tokens": 9649,
+      "completion_tokens": 2930,
+      "first_call_prompt_tokens": 579
+    },
+    {
+      "trace_id": "dcb89b6b049d424caf4c3e5fcd22c84c",
+      "span_id": "85e445b3d87b7468",
+      "model_calls": 29,
+      "prompt_tokens": 296819,
+      "completion_tokens": 18620,
+      "first_call_prompt_tokens": 587
+    },
+    {
+      "trace_id": "e7d5dd0d36db95a40a4fbe258edd0aba",
+      "span_id": "5bfbe22c7ebfd307",
+      "model_calls": 15,
+      "prompt_tokens": 116738,
+      "completion_tokens": 13308,
+      "first_call_prompt_tokens": 549
+    },
+    {
+      "trace_id": "ea313eef484bb042ddb079771359c8e6",
+      "span_id": "7e8750a773306e78",
+      "model_calls": 6,
+      "prompt_tokens": 39752,
+      "completion_tokens": 6007,
+      "first_call_prompt_tokens": 589
+    },
+    {
+      "trace_id": "eb42da715add1437eced9e494b0f62f7",
+      "span_id": "9ae29cfb0a9c9544",
+      "model_calls": 4,
+      "prompt_tokens": 9557,
+      "completion_tokens": 2210,
+      "first_call_prompt_tokens": 590
+    },
+    {
+      "trace_id": "ee9335fbe7329b273a8d922bd3f73b84",
+      "span_id": "dd74d9177782cd21",
+      "model_calls": 13,
+      "prompt_tokens": 92994,
+      "completion_tokens": 8323,
+      "first_call_prompt_tokens": 612
+    },
+    {
+      "trace_id": "ee939c276d2bdab808593f5121c52faf",
+      "span_id": "92b04ef8cd8cf115",
+      "model_calls": 23,
+      "prompt_tokens": 145648,
+      "completion_tokens": 12197,
+      "first_call_prompt_tokens": 582
+    },
+    {
+      "trace_id": "ee939c276d2bdab808593f5121c52faf",
+      "span_id": "670121ede988502d",
+      "model_calls": 3,
+      "prompt_tokens": 5508,
+      "completion_tokens": 2955,
+      "first_call_prompt_tokens": 589
+    },
+    {
+      "trace_id": "ee939c276d2bdab808593f5121c52faf",
+      "span_id": "2476b9aff3d1a109",
+      "model_calls": 9,
+      "prompt_tokens": 50187,
+      "completion_tokens": 6640,
+      "first_call_prompt_tokens": 613
+    },
+    {
+      "trace_id": "ef0207e4427fe22aeb1c2105932b74d7",
+      "span_id": "a4a103ee54a9da43",
+      "model_calls": 17,
+      "prompt_tokens": 114180,
+      "completion_tokens": 6441,
+      "first_call_prompt_tokens": 573
+    },
+    {
+      "trace_id": "f5a297c9b9bc74ca0b1060b1c4c99c0f",
+      "span_id": "670af0a5d79efd12",
+      "model_calls": 10,
+      "prompt_tokens": 68689,
+      "completion_tokens": 8390,
+      "first_call_prompt_tokens": 580
+    },
+    {
+      "trace_id": "f84e4dfe98f92d8d39a1e00115cd77df",
+      "span_id": "563f60be3475907a",
+      "model_calls": 24,
+      "prompt_tokens": 300755,
+      "completion_tokens": 17478,
+      "first_call_prompt_tokens": 666
+    },
+    {
+      "trace_id": "fcdcb46c7df316b571138b53bd3c822a",
+      "span_id": "880f73f67c2b5bd4",
+      "model_calls": 3,
+      "prompt_tokens": 5703,
+      "completion_tokens": 2977,
+      "first_call_prompt_tokens": 613
+    }
+  ]
+}

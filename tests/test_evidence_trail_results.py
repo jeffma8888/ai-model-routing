@@ -2,8 +2,8 @@
 
 ``evidence/trail/summary.json``, its ``RESULTS.md``, the README delegation sentence and Layout line,
 and the TRAIL figures of ``research/hand-off-data.md``, each built from the committed summary. Every
-test reads a committed TRAIL file first, so before the files exist each one fails with
-``FileNotFoundError``. One test reads the pinned traces only when all 117 are already in the
+test reads a committed TRAIL file first, so each one failed with ``FileNotFoundError`` under a
+strict xfail until v1.71 committed the files and removed the mark. One test reads the pinned traces only when all 117 are already in the
 default cache and skips otherwise (CI never downloads them).
 """
 
@@ -13,8 +13,6 @@ import statistics
 from pathlib import Path
 
 import pytest
-
-pytestmark = pytest.mark.xfail(strict=True, raises=FileNotFoundError)
 
 ROOT = Path(__file__).resolve().parents[1]
 FOLDER = ROOT / "evidence" / "trail"
