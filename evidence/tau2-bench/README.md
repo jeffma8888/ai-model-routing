@@ -2,7 +2,7 @@
 
 The tau2-bench paper results record, for 4 agent models in 3 customer-service domains (airline, retail and telecom), every conversation an agent had with a simulated user, whether the run's program checks passed at its end, and what the agent's model calls cost. That is enough to test routing offline with no API key, on an agentic task with a label from a program rather than a judge: `convert.py` turns the results into the outcome matrix that `model-routing evaluate` reads (DESIGN 12.1), one routing task per domain. The converter's full contract is DESIGN 12.14.
 
-This folder holds only the converter so far. Its results, a RESULTS.md and a results.json, are not committed yet.
+The routing results on this matrix are in [RESULTS.md](RESULTS.md), with the file behind them, [results.json](results.json) (DESIGN 12.15).
 
 ## Source and licence
 
