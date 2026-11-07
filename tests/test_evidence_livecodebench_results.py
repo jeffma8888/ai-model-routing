@@ -330,7 +330,11 @@ def test_readme_livecodebench_links_source_licence_limits_and_commands(cv):
                    f"[`{revision[:7]}`](https://github.com/LiveCodeBench/submissions/tree/"
                    f"{revision})", "MIT", '"Copyright (c) 2025 LiveCodeBench"',
                    "(evidence/livecodebench/RESULTS.md)", "(evidence/livecodebench/results.json)",
-                   "(evidence/livecodebench/README.md)", "`graded_list[0]`", NOT_RUN):
+                   "(evidence/livecodebench/README.md)", "`graded_list[0]`", NOT_RUN,
+                   f"the {len(cv.FILES)} files the converter reads",
+                   f"the {len(cv.FILES)} pinned files, the {len(cv.DROPPED)} dropped ones",
+                   f"downloads the {len(cv.FILES)} pinned files, about "
+                   f"{sum(size for size, _ in cv.FILES.values()) / 1e9:.2f} GB,"):
         assert needle in section, needle
     for phrase in LIMITS:
         assert phrase in section and phrase in md, phrase

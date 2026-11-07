@@ -646,7 +646,7 @@ Limits:
 - A label is the test cases passing for the first sample at the run's own sampling settings, and the runs do not share them: they drew 1, 4 or 10 samples per problem
 - The problems come from LeetCode, AtCoder and Codeforces, so nothing of them is kept but the question id and the contest date
 - With no cost, this matrix says which model clears a bar, never what it costs
-- Routing here is one task, so the router picks one model for all 713 problems, and those are the problems every one of the 67 kept files holds; a later date window would keep fewer models (`DESIGN.md` 12.16)
+- Routing here is one task, so the router picks one model for all 713 problems, and those are the problems every one of the 67 kept files holds (`DESIGN.md` 12.16)
 
 Regenerate (the converter downloads the 67 pinned files, about 1.23 GB, into a cache folder outside the repo; the evaluate step took about 5.5 seconds on one laptop):
 
