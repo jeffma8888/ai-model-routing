@@ -172,7 +172,7 @@ def test_a_point_with_work_calls_1_is_the_point_without_it_on_per_call_rows():
     assert with_one["summary"] == without["summary"]
 
 
-# ---- v1.74 behaviour, red until v1.75 ----
+# ---- v1.74 behaviour, passing since v1.75 ----
 
 @pytest.mark.parametrize("k", [2, 3])
 def test_k_equal_calls_price_as_the_plain_row_at_a_point_with_work_calls_k(k):
