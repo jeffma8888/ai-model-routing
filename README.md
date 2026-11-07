@@ -147,7 +147,7 @@ true           1      1         0       0        0               0.000          
 
 ### Check the choice on items the router never saw
 
-`model-routing evaluate` takes an outcome matrix (one JSON object per task, item and model, with `correct` and either `cost_usd` or token counts; `DESIGN.md` 12.1), splits each task's items in half by a seeded hash of the item ID, calibrates on one half, routes both flavors through the same `Router.select`, and scores the routed model on the other half next to simple baselines. It repeats this over 10 seeds by default. The demo's `outcomes.jsonl` is a ready input:
+`model-routing evaluate` takes an outcome matrix (one JSON object per task, item and model, with `correct` and either `cost_usd` or token counts; `DESIGN.md` 12.1), splits each task's items in half by a seeded hash of the item ID, calibrates on one half, routes both flavors through the same `Router.select`, and scores the routed model on the other half next to simple baselines. It repeats this over 10 seeds by default. `--flavor` runs only the flavors given, so `--flavor cost_blind` serves a matrix that records no cost (DESIGN 12.4). The demo's `outcomes.jsonl` is a ready input:
 
 ```text
 $ model-routing evaluate --outcomes demo-run/outcomes.jsonl --bar 0.85

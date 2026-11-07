@@ -2,7 +2,7 @@
 
 The LiveCodeBench submissions record, for dozens of models, the program each wrote for dated contest problems and whether it passed the problem's test cases. That is enough to test routing offline with no API key, on a coding task whose label comes from test cases rather than a judge: `convert.py` turns the files into the outcome matrix that `model-routing evaluate` reads (DESIGN 12.1), one routing task, `code_generation`. The files record no cost, so the matrix is evidence for the `cost_blind` flavor only. The converter's full contract is DESIGN 12.16.
 
-The routing results on this matrix are not committed yet: a later version adds them, with their RESULTS.md, as the other evidence folders have.
+The routing results on this matrix, `cost_blind` only, are in [RESULTS.md](RESULTS.md), with the committed numbers in [results.json](results.json) (DESIGN 12.17).
 
 ## Source and licence
 
@@ -109,7 +109,7 @@ python -m pip install -e .
 python evidence/livecodebench/convert.py --out livecodebench-matrix.jsonl
 ```
 
-`--cache DIR` downloads somewhere other than the default folder. No extra is needed: the converter is standard library only. It prints a JSON report of what it kept. `model-routing evaluate` runs both flavors, so it is not the command for this matrix until the results add a flavor choice; in Python, `evaluate(load_outcomes("livecodebench-matrix.jsonl"), bars=[0.6], flavors=("cost_blind",))` from `model_routing` runs `cost_blind` alone.
+`--cache DIR` downloads somewhere other than the default folder. No extra is needed: the converter is standard library only. It prints a JSON report of what it kept. `model-routing evaluate` with `--flavor cost_blind` runs `cost_blind` alone on it (DESIGN 12.4); [RESULTS.md](RESULTS.md) gives the bars, seeds and commands of the committed results.
 
 With the default options on the pinned files the converter reports 67 models, keeps the 713 problems every kept file has, with contest dates 2023-05-07 to 2024-10-05, and writes 47,771 rows. The number of a model's own problems that are not kept is 0 for 12 models, 163 for 1, 167 for 22 and 342 for 32. The number of samples per problem is 1 for 34 models, 10 for 32 and 4 for 1. On the 713 problems the models' first-sample success rates run from 0.093 (`deepseek/dscoder-1.3b-ins`) to 0.913 (`openai/o4-mini-high`). Reading and converting the 67 cached files takes about 3 seconds.
 

@@ -1,0 +1,6676 @@
+{
+  "config": {
+    "bars": [
+      0.1,
+      0.2,
+      0.3,
+      0.4,
+      0.5,
+      0.6,
+      0.7,
+      0.8,
+      0.9
+    ],
+    "seeds": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39,
+      40,
+      41,
+      42,
+      43,
+      44,
+      45,
+      46,
+      47,
+      48,
+      49
+    ],
+    "flavors": [
+      "cost_blind"
+    ],
+    "calibration_fraction": 0.5,
+    "min_samples": 30,
+    "confidence": 0.95
+  },
+  "tasks": {
+    "code_generation": {
+      "items": 713,
+      "models": [
+        "agentica/deepcoder-14b-preview",
+        "anthropic/claude-3-haiku",
+        "anthropic/claude-3.5-sonnet-20240620",
+        "anthropic/claude-3.5-sonnet-20241022",
+        "anthropic/claude-3.7-sonnet",
+        "anthropic/claude-opus-4",
+        "anthropic/claude-opus-4-thinking",
+        "anthropic/claude-sonnet-4",
+        "anthropic/claude-sonnet-4-thinking",
+        "deepseek/deepseek-r1-0528",
+        "deepseek/deepseek-r1-lite-preview",
+        "deepseek/deepseek-r1-preview",
+        "deepseek/deepseek-v3",
+        "deepseek/dscoder-1.3b-ins",
+        "deepseek/dscoder-33b-ins",
+        "deepseek/dscoder-6.7b-ins",
+        "google/gemini-2.5-flash-04-17",
+        "google/gemini-2.5-flash-05-20",
+        "google/gemini-2.5-pro-03-25",
+        "google/gemini-2.5-pro-05-06",
+        "google/gemini-2.5-pro-06-05",
+        "google/gemini-exp-1206",
+        "google/gemini-flash-1.5-002",
+        "google/gemini-flash-2.0-exp",
+        "google/gemini-flash-2.0-thinking",
+        "google/gemini-flash-2.0-thinking-01-21",
+        "google/gemini-flash-2.0-thinking-12-19",
+        "google/gemini-pro-1.5-002",
+        "lgai/exaone-4.0-32b",
+        "meta-llama/llama3.3-70b-ins",
+        "metastone/metastone-l1-7b",
+        "mistralai/codestral-latest",
+        "mistralai/mistral-large",
+        "moonshotai/kimi-k1.6-ioi",
+        "moonshotai/kimi-k1.6-ioi-high",
+        "nvidia/llama-3_1-nemotron-nano-8b-v1",
+        "nvidia/llama-3_1-nemotron-ultra-253b-v1",
+        "nvidia/openreasoning-nemotron-32b",
+        "openai/gpt-4-0613",
+        "openai/gpt-4-turbo-1106",
+        "openai/gpt-4-turbo-2024-04-09",
+        "openai/gpt-4o-2024-05-13",
+        "openai/gpt-4o-2024-08-06",
+        "openai/gpt-4o-mini-2024-07-18",
+        "openai/o1-2024-12-17-high",
+        "openai/o1-2024-12-17-low",
+        "openai/o1-2024-12-17-med",
+        "openai/o1-mini-2024-09-12",
+        "openai/o1-preview-2024-09-12",
+        "openai/o3-high",
+        "openai/o3-mini-2025-01-31-high",
+        "openai/o3-mini-2025-01-31-low",
+        "openai/o3-mini-2025-01-31-med",
+        "openai/o4-mini-high",
+        "openai/o4-mini-low",
+        "openai/o4-mini-medium",
+        "qwen/qwen2-ins-72b",
+        "qwen/qwen2.5-coder-ins-32b",
+        "qwen/qwen2.5-coder-ins-7b",
+        "qwen/qwen2.5-ins-32b",
+        "qwen/qwen2.5-ins-72b",
+        "qwen/qwen2.5-ins-7b",
+        "qwen/qwen3-235b-a22b",
+        "qwen/qwq-32b-preview",
+        "qwen/qwq-32b_temp",
+        "qwen/qwq-max-preview",
+        "xai/grok-3-mini-high"
+      ]
+    }
+  },
+  "summary": [
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "routed",
+      "success": 0.9023361747849691,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": 1.0,
+      "bar_violation_rate": 0.0
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "oracle",
+      "success": 0.9724126385418767,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "best_on_calibration",
+      "success": 0.9023361747849691,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "cheapest",
+      "success": 0.7657780927184767,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:agentica/deepcoder-14b-preview",
+      "success": 0.7657780927184767,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-3-haiku",
+      "success": 0.22273889487912268,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-3.5-sonnet-20240620",
+      "success": 0.5176654987176329,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-3.5-sonnet-20241022",
+      "success": 0.5434840802369606,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-3.7-sonnet",
+      "success": 0.6907998030532404,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-opus-4",
+      "success": 0.7012971944458198,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-opus-4-thinking",
+      "success": 0.7648785459405104,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-sonnet-4",
+      "success": 0.6544048711626829,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-sonnet-4-thinking",
+      "success": 0.7423996702500105,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/deepseek-r1-0528",
+      "success": 0.9038367702379797,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/deepseek-r1-lite-preview",
+      "success": 0.668912746171012,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/deepseek-r1-preview",
+      "success": 0.8201092534668762,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/deepseek-v3",
+      "success": 0.6156513322113252,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/dscoder-1.3b-ins",
+      "success": 0.09045645154463416,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.84,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/dscoder-33b-ins",
+      "success": 0.2733772146836384,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/dscoder-6.7b-ins",
+      "success": 0.19371371098228032,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-2.5-flash-04-17",
+      "success": 0.8192427323067182,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-2.5-flash-05-20",
+      "success": 0.8315842720376138,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-2.5-pro-03-25",
+      "success": 0.8804190046485251,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-2.5-pro-05-06",
+      "success": 0.8741697144004632,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-2.5-pro-06-05",
+      "success": 0.8905818531450107,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-exp-1206",
+      "success": 0.5339658137686566,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-flash-1.5-002",
+      "success": 0.3698690400077236,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-flash-2.0-exp",
+      "success": 0.4615734932653622,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-flash-2.0-thinking",
+      "success": 0.5243595173020698,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-flash-2.0-thinking-01-21",
+      "success": 0.5722522567558737,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-flash-2.0-thinking-12-19",
+      "success": 0.5880037640141953,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-pro-1.5-002",
+      "success": 0.43134392210006056,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:lgai/exaone-4.0-32b",
+      "success": 0.8586862078037281,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:meta-llama/llama3.3-70b-ins",
+      "success": 0.35795775531871704,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:metastone/metastone-l1-7b",
+      "success": 0.5903059534927586,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:mistralai/codestral-latest",
+      "success": 0.3908827435232746,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:mistralai/mistral-large",
+      "success": 0.3949848870536093,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:moonshotai/kimi-k1.6-ioi",
+      "success": 0.8504819249277997,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:moonshotai/kimi-k1.6-ioi-high",
+      "success": 0.8818898584473165,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:nvidia/llama-3_1-nemotron-nano-8b-v1",
+      "success": 0.6727597003824021,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:nvidia/llama-3_1-nemotron-ultra-253b-v1",
+      "success": 0.8055541954542497,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:nvidia/openreasoning-nemotron-32b",
+      "success": 0.8550062334113597,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-4-0613",
+      "success": 0.3360860995182617,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-4-turbo-1106",
+      "success": 0.371948550925386,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-4-turbo-2024-04-09",
+      "success": 0.42337789566857287,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-4o-2024-05-13",
+      "success": 0.4612210092487883,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-4o-2024-08-06",
+      "success": 0.41893938888787163,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-4o-mini-2024-07-18",
+      "success": 0.3785695080874678,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o1-2024-12-17-high",
+      "success": 0.8569116206172452,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o1-2024-12-17-low",
+      "success": 0.7983465552953303,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o1-2024-12-17-med",
+      "success": 0.8193568035187865,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o1-mini-2024-09-12",
+      "success": 0.7304314340734109,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o1-preview-2024-09-12",
+      "success": 0.5855371697099104,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o3-high",
+      "success": 0.8911965791628937,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o3-mini-2025-01-31-high",
+      "success": 0.8188571946196491,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o3-mini-2025-01-31-low",
+      "success": 0.7760800977758748,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o3-mini-2025-01-31-med",
+      "success": 0.8218092025084797,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o4-mini-high",
+      "success": 0.9089267540533861,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o4-mini-low",
+      "success": 0.8330758511778654,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o4-mini-medium",
+      "success": 0.8927346300271563,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen2-ins-72b",
+      "success": 0.29810930580829975,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen2.5-coder-ins-32b",
+      "success": 0.47064361043946046,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen2.5-coder-ins-7b",
+      "success": 0.3320342033393851,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen2.5-ins-32b",
+      "success": 0.47049596864896515,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen2.5-ins-72b",
+      "success": 0.4902734595528954,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen2.5-ins-7b",
+      "success": 0.2945856352824917,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen3-235b-a22b",
+      "success": 0.8788134362580905,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwq-32b-preview",
+      "success": 0.6407453950905057,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwq-32b_temp",
+      "success": 0.8238063762735837,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwq-max-preview",
+      "success": 0.8362153378196809,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "strategy": "model:xai/grok-3-mini-high",
+      "success": 0.8328106006446682,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "routed",
+      "success": 0.9023361747849691,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": 1.0,
+      "bar_violation_rate": 0.0
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "oracle",
+      "success": 0.9724126385418767,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "best_on_calibration",
+      "success": 0.9023361747849691,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "cheapest",
+      "success": 0.7657780927184767,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:agentica/deepcoder-14b-preview",
+      "success": 0.7657780927184767,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-3-haiku",
+      "success": 0.22273889487912268,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.06,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-3.5-sonnet-20240620",
+      "success": 0.5176654987176329,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-3.5-sonnet-20241022",
+      "success": 0.5434840802369606,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-3.7-sonnet",
+      "success": 0.6907998030532404,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-opus-4",
+      "success": 0.7012971944458198,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-opus-4-thinking",
+      "success": 0.7648785459405104,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-sonnet-4",
+      "success": 0.6544048711626829,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-sonnet-4-thinking",
+      "success": 0.7423996702500105,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/deepseek-r1-0528",
+      "success": 0.9038367702379797,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/deepseek-r1-lite-preview",
+      "success": 0.668912746171012,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/deepseek-r1-preview",
+      "success": 0.8201092534668762,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/deepseek-v3",
+      "success": 0.6156513322113252,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/dscoder-1.3b-ins",
+      "success": 0.09045645154463416,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/dscoder-33b-ins",
+      "success": 0.2733772146836384,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/dscoder-6.7b-ins",
+      "success": 0.19371371098228032,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.64,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-2.5-flash-04-17",
+      "success": 0.8192427323067182,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-2.5-flash-05-20",
+      "success": 0.8315842720376138,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-2.5-pro-03-25",
+      "success": 0.8804190046485251,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-2.5-pro-05-06",
+      "success": 0.8741697144004632,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-2.5-pro-06-05",
+      "success": 0.8905818531450107,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-exp-1206",
+      "success": 0.5339658137686566,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-flash-1.5-002",
+      "success": 0.3698690400077236,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-flash-2.0-exp",
+      "success": 0.4615734932653622,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-flash-2.0-thinking",
+      "success": 0.5243595173020698,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-flash-2.0-thinking-01-21",
+      "success": 0.5722522567558737,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-flash-2.0-thinking-12-19",
+      "success": 0.5880037640141953,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-pro-1.5-002",
+      "success": 0.43134392210006056,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:lgai/exaone-4.0-32b",
+      "success": 0.8586862078037281,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:meta-llama/llama3.3-70b-ins",
+      "success": 0.35795775531871704,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:metastone/metastone-l1-7b",
+      "success": 0.5903059534927586,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:mistralai/codestral-latest",
+      "success": 0.3908827435232746,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:mistralai/mistral-large",
+      "success": 0.3949848870536093,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:moonshotai/kimi-k1.6-ioi",
+      "success": 0.8504819249277997,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:moonshotai/kimi-k1.6-ioi-high",
+      "success": 0.8818898584473165,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:nvidia/llama-3_1-nemotron-nano-8b-v1",
+      "success": 0.6727597003824021,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:nvidia/llama-3_1-nemotron-ultra-253b-v1",
+      "success": 0.8055541954542497,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:nvidia/openreasoning-nemotron-32b",
+      "success": 0.8550062334113597,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-4-0613",
+      "success": 0.3360860995182617,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-4-turbo-1106",
+      "success": 0.371948550925386,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-4-turbo-2024-04-09",
+      "success": 0.42337789566857287,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-4o-2024-05-13",
+      "success": 0.4612210092487883,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-4o-2024-08-06",
+      "success": 0.41893938888787163,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-4o-mini-2024-07-18",
+      "success": 0.3785695080874678,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o1-2024-12-17-high",
+      "success": 0.8569116206172452,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o1-2024-12-17-low",
+      "success": 0.7983465552953303,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o1-2024-12-17-med",
+      "success": 0.8193568035187865,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o1-mini-2024-09-12",
+      "success": 0.7304314340734109,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o1-preview-2024-09-12",
+      "success": 0.5855371697099104,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o3-high",
+      "success": 0.8911965791628937,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o3-mini-2025-01-31-high",
+      "success": 0.8188571946196491,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o3-mini-2025-01-31-low",
+      "success": 0.7760800977758748,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o3-mini-2025-01-31-med",
+      "success": 0.8218092025084797,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o4-mini-high",
+      "success": 0.9089267540533861,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o4-mini-low",
+      "success": 0.8330758511778654,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o4-mini-medium",
+      "success": 0.8927346300271563,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen2-ins-72b",
+      "success": 0.29810930580829975,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen2.5-coder-ins-32b",
+      "success": 0.47064361043946046,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen2.5-coder-ins-7b",
+      "success": 0.3320342033393851,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen2.5-ins-32b",
+      "success": 0.47049596864896515,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen2.5-ins-72b",
+      "success": 0.4902734595528954,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen2.5-ins-7b",
+      "success": 0.2945856352824917,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen3-235b-a22b",
+      "success": 0.8788134362580905,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwq-32b-preview",
+      "success": 0.6407453950905057,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwq-32b_temp",
+      "success": 0.8238063762735837,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwq-max-preview",
+      "success": 0.8362153378196809,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "strategy": "model:xai/grok-3-mini-high",
+      "success": 0.8328106006446682,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "routed",
+      "success": 0.9023361747849691,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": 1.0,
+      "bar_violation_rate": 0.0
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "oracle",
+      "success": 0.9724126385418767,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "best_on_calibration",
+      "success": 0.9023361747849691,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "cheapest",
+      "success": 0.7657780927184767,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:agentica/deepcoder-14b-preview",
+      "success": 0.7657780927184767,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-3-haiku",
+      "success": 0.22273889487912268,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-3.5-sonnet-20240620",
+      "success": 0.5176654987176329,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-3.5-sonnet-20241022",
+      "success": 0.5434840802369606,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-3.7-sonnet",
+      "success": 0.6907998030532404,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-opus-4",
+      "success": 0.7012971944458198,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-opus-4-thinking",
+      "success": 0.7648785459405104,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-sonnet-4",
+      "success": 0.6544048711626829,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-sonnet-4-thinking",
+      "success": 0.7423996702500105,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/deepseek-r1-0528",
+      "success": 0.9038367702379797,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/deepseek-r1-lite-preview",
+      "success": 0.668912746171012,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/deepseek-r1-preview",
+      "success": 0.8201092534668762,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/deepseek-v3",
+      "success": 0.6156513322113252,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/dscoder-1.3b-ins",
+      "success": 0.09045645154463416,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/dscoder-33b-ins",
+      "success": 0.2733772146836384,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.96,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/dscoder-6.7b-ins",
+      "success": 0.19371371098228032,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-2.5-flash-04-17",
+      "success": 0.8192427323067182,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-2.5-flash-05-20",
+      "success": 0.8315842720376138,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-2.5-pro-03-25",
+      "success": 0.8804190046485251,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-2.5-pro-05-06",
+      "success": 0.8741697144004632,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-2.5-pro-06-05",
+      "success": 0.8905818531450107,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-exp-1206",
+      "success": 0.5339658137686566,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-flash-1.5-002",
+      "success": 0.3698690400077236,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-flash-2.0-exp",
+      "success": 0.4615734932653622,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-flash-2.0-thinking",
+      "success": 0.5243595173020698,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-flash-2.0-thinking-01-21",
+      "success": 0.5722522567558737,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-flash-2.0-thinking-12-19",
+      "success": 0.5880037640141953,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-pro-1.5-002",
+      "success": 0.43134392210006056,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:lgai/exaone-4.0-32b",
+      "success": 0.8586862078037281,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:meta-llama/llama3.3-70b-ins",
+      "success": 0.35795775531871704,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:metastone/metastone-l1-7b",
+      "success": 0.5903059534927586,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:mistralai/codestral-latest",
+      "success": 0.3908827435232746,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:mistralai/mistral-large",
+      "success": 0.3949848870536093,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:moonshotai/kimi-k1.6-ioi",
+      "success": 0.8504819249277997,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:moonshotai/kimi-k1.6-ioi-high",
+      "success": 0.8818898584473165,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:nvidia/llama-3_1-nemotron-nano-8b-v1",
+      "success": 0.6727597003824021,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:nvidia/llama-3_1-nemotron-ultra-253b-v1",
+      "success": 0.8055541954542497,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:nvidia/openreasoning-nemotron-32b",
+      "success": 0.8550062334113597,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-4-0613",
+      "success": 0.3360860995182617,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-4-turbo-1106",
+      "success": 0.371948550925386,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-4-turbo-2024-04-09",
+      "success": 0.42337789566857287,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-4o-2024-05-13",
+      "success": 0.4612210092487883,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-4o-2024-08-06",
+      "success": 0.41893938888787163,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-4o-mini-2024-07-18",
+      "success": 0.3785695080874678,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o1-2024-12-17-high",
+      "success": 0.8569116206172452,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o1-2024-12-17-low",
+      "success": 0.7983465552953303,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o1-2024-12-17-med",
+      "success": 0.8193568035187865,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o1-mini-2024-09-12",
+      "success": 0.7304314340734109,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o1-preview-2024-09-12",
+      "success": 0.5855371697099104,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o3-high",
+      "success": 0.8911965791628937,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o3-mini-2025-01-31-high",
+      "success": 0.8188571946196491,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o3-mini-2025-01-31-low",
+      "success": 0.7760800977758748,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o3-mini-2025-01-31-med",
+      "success": 0.8218092025084797,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o4-mini-high",
+      "success": 0.9089267540533861,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o4-mini-low",
+      "success": 0.8330758511778654,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o4-mini-medium",
+      "success": 0.8927346300271563,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen2-ins-72b",
+      "success": 0.29810930580829975,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.58,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen2.5-coder-ins-32b",
+      "success": 0.47064361043946046,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen2.5-coder-ins-7b",
+      "success": 0.3320342033393851,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.06,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen2.5-ins-32b",
+      "success": 0.47049596864896515,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen2.5-ins-72b",
+      "success": 0.4902734595528954,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen2.5-ins-7b",
+      "success": 0.2945856352824917,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.6,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen3-235b-a22b",
+      "success": 0.8788134362580905,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwq-32b-preview",
+      "success": 0.6407453950905057,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwq-32b_temp",
+      "success": 0.8238063762735837,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwq-max-preview",
+      "success": 0.8362153378196809,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "strategy": "model:xai/grok-3-mini-high",
+      "success": 0.8328106006446682,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "routed",
+      "success": 0.9023361747849691,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": 1.0,
+      "bar_violation_rate": 0.0
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "oracle",
+      "success": 0.9724126385418767,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "best_on_calibration",
+      "success": 0.9023361747849691,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "cheapest",
+      "success": 0.7657780927184767,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:agentica/deepcoder-14b-preview",
+      "success": 0.7657780927184767,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-3-haiku",
+      "success": 0.22273889487912268,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-3.5-sonnet-20240620",
+      "success": 0.5176654987176329,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-3.5-sonnet-20241022",
+      "success": 0.5434840802369606,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-3.7-sonnet",
+      "success": 0.6907998030532404,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-opus-4",
+      "success": 0.7012971944458198,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-opus-4-thinking",
+      "success": 0.7648785459405104,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-sonnet-4",
+      "success": 0.6544048711626829,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-sonnet-4-thinking",
+      "success": 0.7423996702500105,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/deepseek-r1-0528",
+      "success": 0.9038367702379797,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/deepseek-r1-lite-preview",
+      "success": 0.668912746171012,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/deepseek-r1-preview",
+      "success": 0.8201092534668762,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/deepseek-v3",
+      "success": 0.6156513322113252,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/dscoder-1.3b-ins",
+      "success": 0.09045645154463416,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/dscoder-33b-ins",
+      "success": 0.2733772146836384,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/dscoder-6.7b-ins",
+      "success": 0.19371371098228032,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-2.5-flash-04-17",
+      "success": 0.8192427323067182,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-2.5-flash-05-20",
+      "success": 0.8315842720376138,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-2.5-pro-03-25",
+      "success": 0.8804190046485251,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-2.5-pro-05-06",
+      "success": 0.8741697144004632,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-2.5-pro-06-05",
+      "success": 0.8905818531450107,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-exp-1206",
+      "success": 0.5339658137686566,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-flash-1.5-002",
+      "success": 0.3698690400077236,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.9,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-flash-2.0-exp",
+      "success": 0.4615734932653622,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-flash-2.0-thinking",
+      "success": 0.5243595173020698,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-flash-2.0-thinking-01-21",
+      "success": 0.5722522567558737,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-flash-2.0-thinking-12-19",
+      "success": 0.5880037640141953,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-pro-1.5-002",
+      "success": 0.43134392210006056,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.04,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:lgai/exaone-4.0-32b",
+      "success": 0.8586862078037281,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:meta-llama/llama3.3-70b-ins",
+      "success": 0.35795775531871704,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.98,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:metastone/metastone-l1-7b",
+      "success": 0.5903059534927586,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:mistralai/codestral-latest",
+      "success": 0.3908827435232746,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.68,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:mistralai/mistral-large",
+      "success": 0.3949848870536093,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.54,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:moonshotai/kimi-k1.6-ioi",
+      "success": 0.8504819249277997,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:moonshotai/kimi-k1.6-ioi-high",
+      "success": 0.8818898584473165,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:nvidia/llama-3_1-nemotron-nano-8b-v1",
+      "success": 0.6727597003824021,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:nvidia/llama-3_1-nemotron-ultra-253b-v1",
+      "success": 0.8055541954542497,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:nvidia/openreasoning-nemotron-32b",
+      "success": 0.8550062334113597,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-4-0613",
+      "success": 0.3360860995182617,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-4-turbo-1106",
+      "success": 0.371948550925386,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.94,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-4-turbo-2024-04-09",
+      "success": 0.42337789566857287,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.16,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-4o-2024-05-13",
+      "success": 0.4612210092487883,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-4o-2024-08-06",
+      "success": 0.41893938888787163,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.16,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-4o-mini-2024-07-18",
+      "success": 0.3785695080874678,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.84,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o1-2024-12-17-high",
+      "success": 0.8569116206172452,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o1-2024-12-17-low",
+      "success": 0.7983465552953303,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o1-2024-12-17-med",
+      "success": 0.8193568035187865,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o1-mini-2024-09-12",
+      "success": 0.7304314340734109,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o1-preview-2024-09-12",
+      "success": 0.5855371697099104,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o3-high",
+      "success": 0.8911965791628937,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o3-mini-2025-01-31-high",
+      "success": 0.8188571946196491,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o3-mini-2025-01-31-low",
+      "success": 0.7760800977758748,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o3-mini-2025-01-31-med",
+      "success": 0.8218092025084797,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o4-mini-high",
+      "success": 0.9089267540533861,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o4-mini-low",
+      "success": 0.8330758511778654,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o4-mini-medium",
+      "success": 0.8927346300271563,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen2-ins-72b",
+      "success": 0.29810930580829975,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen2.5-coder-ins-32b",
+      "success": 0.47064361043946046,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen2.5-coder-ins-7b",
+      "success": 0.3320342033393851,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen2.5-ins-32b",
+      "success": 0.47049596864896515,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen2.5-ins-72b",
+      "success": 0.4902734595528954,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen2.5-ins-7b",
+      "success": 0.2945856352824917,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen3-235b-a22b",
+      "success": 0.8788134362580905,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwq-32b-preview",
+      "success": 0.6407453950905057,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwq-32b_temp",
+      "success": 0.8238063762735837,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwq-max-preview",
+      "success": 0.8362153378196809,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "strategy": "model:xai/grok-3-mini-high",
+      "success": 0.8328106006446682,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "routed",
+      "success": 0.9023361747849691,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": 1.0,
+      "bar_violation_rate": 0.0
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "oracle",
+      "success": 0.9724126385418767,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "best_on_calibration",
+      "success": 0.9023361747849691,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "cheapest",
+      "success": 0.7657780927184767,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:agentica/deepcoder-14b-preview",
+      "success": 0.7657780927184767,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-3-haiku",
+      "success": 0.22273889487912268,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-3.5-sonnet-20240620",
+      "success": 0.5176654987176329,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.18,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-3.5-sonnet-20241022",
+      "success": 0.5434840802369606,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-3.7-sonnet",
+      "success": 0.6907998030532404,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-opus-4",
+      "success": 0.7012971944458198,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-opus-4-thinking",
+      "success": 0.7648785459405104,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-sonnet-4",
+      "success": 0.6544048711626829,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-sonnet-4-thinking",
+      "success": 0.7423996702500105,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/deepseek-r1-0528",
+      "success": 0.9038367702379797,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/deepseek-r1-lite-preview",
+      "success": 0.668912746171012,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/deepseek-r1-preview",
+      "success": 0.8201092534668762,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/deepseek-v3",
+      "success": 0.6156513322113252,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/dscoder-1.3b-ins",
+      "success": 0.09045645154463416,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/dscoder-33b-ins",
+      "success": 0.2733772146836384,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/dscoder-6.7b-ins",
+      "success": 0.19371371098228032,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-2.5-flash-04-17",
+      "success": 0.8192427323067182,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-2.5-flash-05-20",
+      "success": 0.8315842720376138,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-2.5-pro-03-25",
+      "success": 0.8804190046485251,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-2.5-pro-05-06",
+      "success": 0.8741697144004632,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-2.5-pro-06-05",
+      "success": 0.8905818531450107,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-exp-1206",
+      "success": 0.5339658137686566,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-flash-1.5-002",
+      "success": 0.3698690400077236,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-flash-2.0-exp",
+      "success": 0.4615734932653622,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.96,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-flash-2.0-thinking",
+      "success": 0.5243595173020698,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.1,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-flash-2.0-thinking-01-21",
+      "success": 0.5722522567558737,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-flash-2.0-thinking-12-19",
+      "success": 0.5880037640141953,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-pro-1.5-002",
+      "success": 0.43134392210006056,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:lgai/exaone-4.0-32b",
+      "success": 0.8586862078037281,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:meta-llama/llama3.3-70b-ins",
+      "success": 0.35795775531871704,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:metastone/metastone-l1-7b",
+      "success": 0.5903059534927586,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:mistralai/codestral-latest",
+      "success": 0.3908827435232746,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:mistralai/mistral-large",
+      "success": 0.3949848870536093,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:moonshotai/kimi-k1.6-ioi",
+      "success": 0.8504819249277997,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:moonshotai/kimi-k1.6-ioi-high",
+      "success": 0.8818898584473165,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:nvidia/llama-3_1-nemotron-nano-8b-v1",
+      "success": 0.6727597003824021,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:nvidia/llama-3_1-nemotron-ultra-253b-v1",
+      "success": 0.8055541954542497,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:nvidia/openreasoning-nemotron-32b",
+      "success": 0.8550062334113597,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-4-0613",
+      "success": 0.3360860995182617,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-4-turbo-1106",
+      "success": 0.371948550925386,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-4-turbo-2024-04-09",
+      "success": 0.42337789566857287,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-4o-2024-05-13",
+      "success": 0.4612210092487883,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.96,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-4o-2024-08-06",
+      "success": 0.41893938888787163,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-4o-mini-2024-07-18",
+      "success": 0.3785695080874678,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o1-2024-12-17-high",
+      "success": 0.8569116206172452,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o1-2024-12-17-low",
+      "success": 0.7983465552953303,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o1-2024-12-17-med",
+      "success": 0.8193568035187865,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o1-mini-2024-09-12",
+      "success": 0.7304314340734109,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o1-preview-2024-09-12",
+      "success": 0.5855371697099104,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o3-high",
+      "success": 0.8911965791628937,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o3-mini-2025-01-31-high",
+      "success": 0.8188571946196491,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o3-mini-2025-01-31-low",
+      "success": 0.7760800977758748,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o3-mini-2025-01-31-med",
+      "success": 0.8218092025084797,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o4-mini-high",
+      "success": 0.9089267540533861,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o4-mini-low",
+      "success": 0.8330758511778654,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o4-mini-medium",
+      "success": 0.8927346300271563,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen2-ins-72b",
+      "success": 0.29810930580829975,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen2.5-coder-ins-32b",
+      "success": 0.47064361043946046,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.94,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen2.5-coder-ins-7b",
+      "success": 0.3320342033393851,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen2.5-ins-32b",
+      "success": 0.47049596864896515,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.94,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen2.5-ins-72b",
+      "success": 0.4902734595528954,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.72,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen2.5-ins-7b",
+      "success": 0.2945856352824917,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen3-235b-a22b",
+      "success": 0.8788134362580905,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwq-32b-preview",
+      "success": 0.6407453950905057,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwq-32b_temp",
+      "success": 0.8238063762735837,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwq-max-preview",
+      "success": 0.8362153378196809,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "strategy": "model:xai/grok-3-mini-high",
+      "success": 0.8328106006446682,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "routed",
+      "success": 0.9023361747849691,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": 1.0,
+      "bar_violation_rate": 0.0
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "oracle",
+      "success": 0.9724126385418767,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "best_on_calibration",
+      "success": 0.9023361747849691,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "cheapest",
+      "success": 0.7657780927184767,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:agentica/deepcoder-14b-preview",
+      "success": 0.7657780927184767,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-3-haiku",
+      "success": 0.22273889487912268,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-3.5-sonnet-20240620",
+      "success": 0.5176654987176329,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-3.5-sonnet-20241022",
+      "success": 0.5434840802369606,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-3.7-sonnet",
+      "success": 0.6907998030532404,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-opus-4",
+      "success": 0.7012971944458198,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-opus-4-thinking",
+      "success": 0.7648785459405104,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-sonnet-4",
+      "success": 0.6544048711626829,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-sonnet-4-thinking",
+      "success": 0.7423996702500105,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/deepseek-r1-0528",
+      "success": 0.9038367702379797,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/deepseek-r1-lite-preview",
+      "success": 0.668912746171012,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/deepseek-r1-preview",
+      "success": 0.8201092534668762,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/deepseek-v3",
+      "success": 0.6156513322113252,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.2,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/dscoder-1.3b-ins",
+      "success": 0.09045645154463416,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/dscoder-33b-ins",
+      "success": 0.2733772146836384,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/dscoder-6.7b-ins",
+      "success": 0.19371371098228032,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-2.5-flash-04-17",
+      "success": 0.8192427323067182,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-2.5-flash-05-20",
+      "success": 0.8315842720376138,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-2.5-pro-03-25",
+      "success": 0.8804190046485251,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-2.5-pro-05-06",
+      "success": 0.8741697144004632,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-2.5-pro-06-05",
+      "success": 0.8905818531450107,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-exp-1206",
+      "success": 0.5339658137686566,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-flash-1.5-002",
+      "success": 0.3698690400077236,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-flash-2.0-exp",
+      "success": 0.4615734932653622,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-flash-2.0-thinking",
+      "success": 0.5243595173020698,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-flash-2.0-thinking-01-21",
+      "success": 0.5722522567558737,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.92,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-flash-2.0-thinking-12-19",
+      "success": 0.5880037640141953,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.72,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-pro-1.5-002",
+      "success": 0.43134392210006056,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:lgai/exaone-4.0-32b",
+      "success": 0.8586862078037281,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:meta-llama/llama3.3-70b-ins",
+      "success": 0.35795775531871704,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:metastone/metastone-l1-7b",
+      "success": 0.5903059534927586,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.68,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:mistralai/codestral-latest",
+      "success": 0.3908827435232746,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:mistralai/mistral-large",
+      "success": 0.3949848870536093,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:moonshotai/kimi-k1.6-ioi",
+      "success": 0.8504819249277997,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:moonshotai/kimi-k1.6-ioi-high",
+      "success": 0.8818898584473165,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:nvidia/llama-3_1-nemotron-nano-8b-v1",
+      "success": 0.6727597003824021,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:nvidia/llama-3_1-nemotron-ultra-253b-v1",
+      "success": 0.8055541954542497,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:nvidia/openreasoning-nemotron-32b",
+      "success": 0.8550062334113597,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-4-0613",
+      "success": 0.3360860995182617,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-4-turbo-1106",
+      "success": 0.371948550925386,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-4-turbo-2024-04-09",
+      "success": 0.42337789566857287,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-4o-2024-05-13",
+      "success": 0.4612210092487883,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-4o-2024-08-06",
+      "success": 0.41893938888787163,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-4o-mini-2024-07-18",
+      "success": 0.3785695080874678,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o1-2024-12-17-high",
+      "success": 0.8569116206172452,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o1-2024-12-17-low",
+      "success": 0.7983465552953303,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o1-2024-12-17-med",
+      "success": 0.8193568035187865,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o1-mini-2024-09-12",
+      "success": 0.7304314340734109,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o1-preview-2024-09-12",
+      "success": 0.5855371697099104,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.78,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o3-high",
+      "success": 0.8911965791628937,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o3-mini-2025-01-31-high",
+      "success": 0.8188571946196491,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o3-mini-2025-01-31-low",
+      "success": 0.7760800977758748,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o3-mini-2025-01-31-med",
+      "success": 0.8218092025084797,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o4-mini-high",
+      "success": 0.9089267540533861,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o4-mini-low",
+      "success": 0.8330758511778654,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o4-mini-medium",
+      "success": 0.8927346300271563,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen2-ins-72b",
+      "success": 0.29810930580829975,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen2.5-coder-ins-32b",
+      "success": 0.47064361043946046,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen2.5-coder-ins-7b",
+      "success": 0.3320342033393851,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen2.5-ins-32b",
+      "success": 0.47049596864896515,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen2.5-ins-72b",
+      "success": 0.4902734595528954,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen2.5-ins-7b",
+      "success": 0.2945856352824917,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen3-235b-a22b",
+      "success": 0.8788134362580905,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwq-32b-preview",
+      "success": 0.6407453950905057,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwq-32b_temp",
+      "success": 0.8238063762735837,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwq-max-preview",
+      "success": 0.8362153378196809,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "strategy": "model:xai/grok-3-mini-high",
+      "success": 0.8328106006446682,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "routed",
+      "success": 0.9023361747849691,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": 1.0,
+      "bar_violation_rate": 0.0
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "oracle",
+      "success": 0.9724126385418767,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "best_on_calibration",
+      "success": 0.9023361747849691,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "cheapest",
+      "success": 0.7657780927184767,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:agentica/deepcoder-14b-preview",
+      "success": 0.7657780927184767,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-3-haiku",
+      "success": 0.22273889487912268,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-3.5-sonnet-20240620",
+      "success": 0.5176654987176329,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-3.5-sonnet-20241022",
+      "success": 0.5434840802369606,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-3.7-sonnet",
+      "success": 0.6907998030532404,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.66,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-opus-4",
+      "success": 0.7012971944458198,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.54,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-opus-4-thinking",
+      "success": 0.7648785459405104,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-sonnet-4",
+      "success": 0.6544048711626829,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-sonnet-4-thinking",
+      "success": 0.7423996702500105,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/deepseek-r1-0528",
+      "success": 0.9038367702379797,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/deepseek-r1-lite-preview",
+      "success": 0.668912746171012,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.9,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/deepseek-r1-preview",
+      "success": 0.8201092534668762,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/deepseek-v3",
+      "success": 0.6156513322113252,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/dscoder-1.3b-ins",
+      "success": 0.09045645154463416,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/dscoder-33b-ins",
+      "success": 0.2733772146836384,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/dscoder-6.7b-ins",
+      "success": 0.19371371098228032,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-2.5-flash-04-17",
+      "success": 0.8192427323067182,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-2.5-flash-05-20",
+      "success": 0.8315842720376138,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-2.5-pro-03-25",
+      "success": 0.8804190046485251,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-2.5-pro-05-06",
+      "success": 0.8741697144004632,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-2.5-pro-06-05",
+      "success": 0.8905818531450107,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-exp-1206",
+      "success": 0.5339658137686566,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-flash-1.5-002",
+      "success": 0.3698690400077236,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-flash-2.0-exp",
+      "success": 0.4615734932653622,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-flash-2.0-thinking",
+      "success": 0.5243595173020698,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-flash-2.0-thinking-01-21",
+      "success": 0.5722522567558737,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-flash-2.0-thinking-12-19",
+      "success": 0.5880037640141953,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-pro-1.5-002",
+      "success": 0.43134392210006056,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:lgai/exaone-4.0-32b",
+      "success": 0.8586862078037281,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:meta-llama/llama3.3-70b-ins",
+      "success": 0.35795775531871704,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:metastone/metastone-l1-7b",
+      "success": 0.5903059534927586,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:mistralai/codestral-latest",
+      "success": 0.3908827435232746,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:mistralai/mistral-large",
+      "success": 0.3949848870536093,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:moonshotai/kimi-k1.6-ioi",
+      "success": 0.8504819249277997,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:moonshotai/kimi-k1.6-ioi-high",
+      "success": 0.8818898584473165,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:nvidia/llama-3_1-nemotron-nano-8b-v1",
+      "success": 0.6727597003824021,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.9,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:nvidia/llama-3_1-nemotron-ultra-253b-v1",
+      "success": 0.8055541954542497,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:nvidia/openreasoning-nemotron-32b",
+      "success": 0.8550062334113597,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-4-0613",
+      "success": 0.3360860995182617,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-4-turbo-1106",
+      "success": 0.371948550925386,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-4-turbo-2024-04-09",
+      "success": 0.42337789566857287,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-4o-2024-05-13",
+      "success": 0.4612210092487883,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-4o-2024-08-06",
+      "success": 0.41893938888787163,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-4o-mini-2024-07-18",
+      "success": 0.3785695080874678,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o1-2024-12-17-high",
+      "success": 0.8569116206172452,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o1-2024-12-17-low",
+      "success": 0.7983465552953303,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o1-2024-12-17-med",
+      "success": 0.8193568035187865,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o1-mini-2024-09-12",
+      "success": 0.7304314340734109,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.1,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o1-preview-2024-09-12",
+      "success": 0.5855371697099104,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o3-high",
+      "success": 0.8911965791628937,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o3-mini-2025-01-31-high",
+      "success": 0.8188571946196491,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o3-mini-2025-01-31-low",
+      "success": 0.7760800977758748,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o3-mini-2025-01-31-med",
+      "success": 0.8218092025084797,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o4-mini-high",
+      "success": 0.9089267540533861,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o4-mini-low",
+      "success": 0.8330758511778654,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o4-mini-medium",
+      "success": 0.8927346300271563,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen2-ins-72b",
+      "success": 0.29810930580829975,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen2.5-coder-ins-32b",
+      "success": 0.47064361043946046,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen2.5-coder-ins-7b",
+      "success": 0.3320342033393851,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen2.5-ins-32b",
+      "success": 0.47049596864896515,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen2.5-ins-72b",
+      "success": 0.4902734595528954,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen2.5-ins-7b",
+      "success": 0.2945856352824917,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen3-235b-a22b",
+      "success": 0.8788134362580905,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwq-32b-preview",
+      "success": 0.6407453950905057,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwq-32b_temp",
+      "success": 0.8238063762735837,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwq-max-preview",
+      "success": 0.8362153378196809,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "strategy": "model:xai/grok-3-mini-high",
+      "success": 0.8328106006446682,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "routed",
+      "success": 0.9023361747849691,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": 1.0,
+      "bar_violation_rate": 0.0
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "oracle",
+      "success": 0.9724126385418767,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "best_on_calibration",
+      "success": 0.9023361747849691,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "cheapest",
+      "success": 0.7657780927184767,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.98,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:agentica/deepcoder-14b-preview",
+      "success": 0.7657780927184767,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.98,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-3-haiku",
+      "success": 0.22273889487912268,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-3.5-sonnet-20240620",
+      "success": 0.5176654987176329,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-3.5-sonnet-20241022",
+      "success": 0.5434840802369606,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-3.7-sonnet",
+      "success": 0.6907998030532404,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-opus-4",
+      "success": 0.7012971944458198,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-opus-4-thinking",
+      "success": 0.7648785459405104,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-sonnet-4",
+      "success": 0.6544048711626829,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-sonnet-4-thinking",
+      "success": 0.7423996702500105,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/deepseek-r1-0528",
+      "success": 0.9038367702379797,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/deepseek-r1-lite-preview",
+      "success": 0.668912746171012,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/deepseek-r1-preview",
+      "success": 0.8201092534668762,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.12,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/deepseek-v3",
+      "success": 0.6156513322113252,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/dscoder-1.3b-ins",
+      "success": 0.09045645154463416,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/dscoder-33b-ins",
+      "success": 0.2733772146836384,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/dscoder-6.7b-ins",
+      "success": 0.19371371098228032,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-2.5-flash-04-17",
+      "success": 0.8192427323067182,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.1,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-2.5-flash-05-20",
+      "success": 0.8315842720376138,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.02,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-2.5-pro-03-25",
+      "success": 0.8804190046485251,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-2.5-pro-05-06",
+      "success": 0.8741697144004632,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-2.5-pro-06-05",
+      "success": 0.8905818531450107,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-exp-1206",
+      "success": 0.5339658137686566,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-flash-1.5-002",
+      "success": 0.3698690400077236,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-flash-2.0-exp",
+      "success": 0.4615734932653622,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-flash-2.0-thinking",
+      "success": 0.5243595173020698,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-flash-2.0-thinking-01-21",
+      "success": 0.5722522567558737,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-flash-2.0-thinking-12-19",
+      "success": 0.5880037640141953,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-pro-1.5-002",
+      "success": 0.43134392210006056,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:lgai/exaone-4.0-32b",
+      "success": 0.8586862078037281,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:meta-llama/llama3.3-70b-ins",
+      "success": 0.35795775531871704,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:metastone/metastone-l1-7b",
+      "success": 0.5903059534927586,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:mistralai/codestral-latest",
+      "success": 0.3908827435232746,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:mistralai/mistral-large",
+      "success": 0.3949848870536093,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:moonshotai/kimi-k1.6-ioi",
+      "success": 0.8504819249277997,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:moonshotai/kimi-k1.6-ioi-high",
+      "success": 0.8818898584473165,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:nvidia/llama-3_1-nemotron-nano-8b-v1",
+      "success": 0.6727597003824021,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:nvidia/llama-3_1-nemotron-ultra-253b-v1",
+      "success": 0.8055541954542497,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.36,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:nvidia/openreasoning-nemotron-32b",
+      "success": 0.8550062334113597,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-4-0613",
+      "success": 0.3360860995182617,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-4-turbo-1106",
+      "success": 0.371948550925386,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-4-turbo-2024-04-09",
+      "success": 0.42337789566857287,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-4o-2024-05-13",
+      "success": 0.4612210092487883,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-4o-2024-08-06",
+      "success": 0.41893938888787163,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-4o-mini-2024-07-18",
+      "success": 0.3785695080874678,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o1-2024-12-17-high",
+      "success": 0.8569116206172452,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o1-2024-12-17-low",
+      "success": 0.7983465552953303,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.56,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o1-2024-12-17-med",
+      "success": 0.8193568035187865,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.08,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o1-mini-2024-09-12",
+      "success": 0.7304314340734109,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o1-preview-2024-09-12",
+      "success": 0.5855371697099104,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o3-high",
+      "success": 0.8911965791628937,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o3-mini-2025-01-31-high",
+      "success": 0.8188571946196491,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.12,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o3-mini-2025-01-31-low",
+      "success": 0.7760800977758748,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.94,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o3-mini-2025-01-31-med",
+      "success": 0.8218092025084797,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.08,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o4-mini-high",
+      "success": 0.9089267540533861,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o4-mini-low",
+      "success": 0.8330758511778654,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o4-mini-medium",
+      "success": 0.8927346300271563,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen2-ins-72b",
+      "success": 0.29810930580829975,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen2.5-coder-ins-32b",
+      "success": 0.47064361043946046,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen2.5-coder-ins-7b",
+      "success": 0.3320342033393851,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen2.5-ins-32b",
+      "success": 0.47049596864896515,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen2.5-ins-72b",
+      "success": 0.4902734595528954,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen2.5-ins-7b",
+      "success": 0.2945856352824917,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen3-235b-a22b",
+      "success": 0.8788134362580905,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwq-32b-preview",
+      "success": 0.6407453950905057,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwq-32b_temp",
+      "success": 0.8238063762735837,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.1,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwq-max-preview",
+      "success": 0.8362153378196809,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.02,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "strategy": "model:xai/grok-3-mini-high",
+      "success": 0.8328106006446682,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.04,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "routed",
+      "success": 0.9023361747849691,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.44,
+      "cleared_rate": 0.18,
+      "bar_violation_rate": 1.0
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "oracle",
+      "success": 0.9724126385418767,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "best_on_calibration",
+      "success": 0.9023361747849691,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.44,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "cheapest",
+      "success": 0.7657780927184767,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:agentica/deepcoder-14b-preview",
+      "success": 0.7657780927184767,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-3-haiku",
+      "success": 0.22273889487912268,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-3.5-sonnet-20240620",
+      "success": 0.5176654987176329,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-3.5-sonnet-20241022",
+      "success": 0.5434840802369606,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-3.7-sonnet",
+      "success": 0.6907998030532404,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-opus-4",
+      "success": 0.7012971944458198,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-opus-4-thinking",
+      "success": 0.7648785459405104,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-sonnet-4",
+      "success": 0.6544048711626829,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:anthropic/claude-sonnet-4-thinking",
+      "success": 0.7423996702500105,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/deepseek-r1-0528",
+      "success": 0.9038367702379797,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.34,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/deepseek-r1-lite-preview",
+      "success": 0.668912746171012,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/deepseek-r1-preview",
+      "success": 0.8201092534668762,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/deepseek-v3",
+      "success": 0.6156513322113252,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/dscoder-1.3b-ins",
+      "success": 0.09045645154463416,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/dscoder-33b-ins",
+      "success": 0.2733772146836384,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:deepseek/dscoder-6.7b-ins",
+      "success": 0.19371371098228032,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-2.5-flash-04-17",
+      "success": 0.8192427323067182,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-2.5-flash-05-20",
+      "success": 0.8315842720376138,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-2.5-pro-03-25",
+      "success": 0.8804190046485251,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.94,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-2.5-pro-05-06",
+      "success": 0.8741697144004632,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.98,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-2.5-pro-06-05",
+      "success": 0.8905818531450107,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.78,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-exp-1206",
+      "success": 0.5339658137686566,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-flash-1.5-002",
+      "success": 0.3698690400077236,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-flash-2.0-exp",
+      "success": 0.4615734932653622,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-flash-2.0-thinking",
+      "success": 0.5243595173020698,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-flash-2.0-thinking-01-21",
+      "success": 0.5722522567558737,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-flash-2.0-thinking-12-19",
+      "success": 0.5880037640141953,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:google/gemini-pro-1.5-002",
+      "success": 0.43134392210006056,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:lgai/exaone-4.0-32b",
+      "success": 0.8586862078037281,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:meta-llama/llama3.3-70b-ins",
+      "success": 0.35795775531871704,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:metastone/metastone-l1-7b",
+      "success": 0.5903059534927586,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:mistralai/codestral-latest",
+      "success": 0.3908827435232746,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:mistralai/mistral-large",
+      "success": 0.3949848870536093,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:moonshotai/kimi-k1.6-ioi",
+      "success": 0.8504819249277997,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:moonshotai/kimi-k1.6-ioi-high",
+      "success": 0.8818898584473165,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.94,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:nvidia/llama-3_1-nemotron-nano-8b-v1",
+      "success": 0.6727597003824021,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:nvidia/llama-3_1-nemotron-ultra-253b-v1",
+      "success": 0.8055541954542497,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:nvidia/openreasoning-nemotron-32b",
+      "success": 0.8550062334113597,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-4-0613",
+      "success": 0.3360860995182617,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-4-turbo-1106",
+      "success": 0.371948550925386,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-4-turbo-2024-04-09",
+      "success": 0.42337789566857287,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-4o-2024-05-13",
+      "success": 0.4612210092487883,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-4o-2024-08-06",
+      "success": 0.41893938888787163,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/gpt-4o-mini-2024-07-18",
+      "success": 0.3785695080874678,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o1-2024-12-17-high",
+      "success": 0.8569116206172452,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o1-2024-12-17-low",
+      "success": 0.7983465552953303,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o1-2024-12-17-med",
+      "success": 0.8193568035187865,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o1-mini-2024-09-12",
+      "success": 0.7304314340734109,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o1-preview-2024-09-12",
+      "success": 0.5855371697099104,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o3-high",
+      "success": 0.8911965791628937,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.72,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o3-mini-2025-01-31-high",
+      "success": 0.8188571946196491,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o3-mini-2025-01-31-low",
+      "success": 0.7760800977758748,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o3-mini-2025-01-31-med",
+      "success": 0.8218092025084797,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o4-mini-high",
+      "success": 0.9089267540533861,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.3,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o4-mini-low",
+      "success": 0.8330758511778654,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:openai/o4-mini-medium",
+      "success": 0.8927346300271563,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.76,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen2-ins-72b",
+      "success": 0.29810930580829975,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen2.5-coder-ins-32b",
+      "success": 0.47064361043946046,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen2.5-coder-ins-7b",
+      "success": 0.3320342033393851,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen2.5-ins-32b",
+      "success": 0.47049596864896515,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen2.5-ins-72b",
+      "success": 0.4902734595528954,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen2.5-ins-7b",
+      "success": 0.2945856352824917,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwen3-235b-a22b",
+      "success": 0.8788134362580905,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.92,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwq-32b-preview",
+      "success": 0.6407453950905057,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwq-32b_temp",
+      "success": 0.8238063762735837,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:qwen/qwq-max-preview",
+      "success": 0.8362153378196809,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "strategy": "model:xai/grok-3-mini-high",
+      "success": 0.8328106006446682,
+      "cost_usd": 0.0,
+      "below_bar_rate": 1.0,
+      "cleared_rate": null,
+      "bar_violation_rate": null
+    }
+  ],
+  "per_task": [
+    {
+      "bar": 0.1,
+      "flavor": "cost_blind",
+      "task": "code_generation",
+      "strategy": "routed",
+      "success": 0.9023361747849691,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": 1.0,
+      "bar_violation_rate": 0.0,
+      "routed_models": {
+        "deepseek/deepseek-r1-0528": 21,
+        "openai/o4-mini-high": 29
+      }
+    },
+    {
+      "bar": 0.2,
+      "flavor": "cost_blind",
+      "task": "code_generation",
+      "strategy": "routed",
+      "success": 0.9023361747849691,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": 1.0,
+      "bar_violation_rate": 0.0,
+      "routed_models": {
+        "deepseek/deepseek-r1-0528": 21,
+        "openai/o4-mini-high": 29
+      }
+    },
+    {
+      "bar": 0.3,
+      "flavor": "cost_blind",
+      "task": "code_generation",
+      "strategy": "routed",
+      "success": 0.9023361747849691,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": 1.0,
+      "bar_violation_rate": 0.0,
+      "routed_models": {
+        "deepseek/deepseek-r1-0528": 21,
+        "openai/o4-mini-high": 29
+      }
+    },
+    {
+      "bar": 0.4,
+      "flavor": "cost_blind",
+      "task": "code_generation",
+      "strategy": "routed",
+      "success": 0.9023361747849691,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": 1.0,
+      "bar_violation_rate": 0.0,
+      "routed_models": {
+        "deepseek/deepseek-r1-0528": 21,
+        "openai/o4-mini-high": 29
+      }
+    },
+    {
+      "bar": 0.5,
+      "flavor": "cost_blind",
+      "task": "code_generation",
+      "strategy": "routed",
+      "success": 0.9023361747849691,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": 1.0,
+      "bar_violation_rate": 0.0,
+      "routed_models": {
+        "deepseek/deepseek-r1-0528": 21,
+        "openai/o4-mini-high": 29
+      }
+    },
+    {
+      "bar": 0.6,
+      "flavor": "cost_blind",
+      "task": "code_generation",
+      "strategy": "routed",
+      "success": 0.9023361747849691,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": 1.0,
+      "bar_violation_rate": 0.0,
+      "routed_models": {
+        "deepseek/deepseek-r1-0528": 21,
+        "openai/o4-mini-high": 29
+      }
+    },
+    {
+      "bar": 0.7,
+      "flavor": "cost_blind",
+      "task": "code_generation",
+      "strategy": "routed",
+      "success": 0.9023361747849691,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": 1.0,
+      "bar_violation_rate": 0.0,
+      "routed_models": {
+        "deepseek/deepseek-r1-0528": 21,
+        "openai/o4-mini-high": 29
+      }
+    },
+    {
+      "bar": 0.8,
+      "flavor": "cost_blind",
+      "task": "code_generation",
+      "strategy": "routed",
+      "success": 0.9023361747849691,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.0,
+      "cleared_rate": 1.0,
+      "bar_violation_rate": 0.0,
+      "routed_models": {
+        "deepseek/deepseek-r1-0528": 21,
+        "openai/o4-mini-high": 29
+      }
+    },
+    {
+      "bar": 0.9,
+      "flavor": "cost_blind",
+      "task": "code_generation",
+      "strategy": "routed",
+      "success": 0.9023361747849691,
+      "cost_usd": 0.0,
+      "below_bar_rate": 0.44,
+      "cleared_rate": 0.18,
+      "bar_violation_rate": 1.0,
+      "routed_models": {
+        "deepseek/deepseek-r1-0528": 21,
+        "openai/o4-mini-high": 29
+      }
+    }
+  ]
+}

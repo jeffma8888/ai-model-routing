@@ -14,7 +14,7 @@ from .demo import run_demo
 from .monitor import load_records, report
 from .priors import Priors
 from .registry import Registry
-from .router import NoModelClearsBar, Router
+from .router import FLAVORS, NoModelClearsBar, Router
 from .stats import Stats, calibrate_from_results, wilson_lower_bound
 from .tasks import load_tasks
 
@@ -70,6 +70,8 @@ def _build_parser() -> argparse.ArgumentParser:
     # default None, not [0.8]: "extend" would append the given bars to a list default
     ev.add_argument("--bar", type=float, nargs="+", action="extend", default=None)
     ev.add_argument("--seeds", type=int, default=10)
+    ev.add_argument("--flavor", nargs="+", action="extend", default=None,
+                    help="flavors to run, in order (default cost_effective cost_blind)")
     ev.add_argument("--calibration-fraction", type=float, default=0.5)
     ev.add_argument("--min-samples", type=int, default=30)
     ev.add_argument("--confidence", type=float, default=0.95)
@@ -235,7 +237,8 @@ def _cmd_evaluate(args) -> int:
         raise ValueError("--seeds must be >= 1")
     registry = Registry.load(args.registry)
     result = evaluate(load_outcomes(args.outcomes, registry), bars=args.bar or [0.8],
-                      seeds=range(args.seeds), calibration_fraction=args.calibration_fraction,
+                      seeds=range(args.seeds), flavors=args.flavor or FLAVORS,
+                      calibration_fraction=args.calibration_fraction,
                       min_samples=args.min_samples, confidence=args.confidence)
     result.pop("cells")
     if args.json:
