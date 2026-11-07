@@ -685,6 +685,27 @@ def test_main_missing_out_folder_is_one_error_line(tr, monkeypatch, tmp_path, ca
     assert not out.parent.exists()
 
 
+class BrokenStdout:
+    def write(self, text):
+        raise BrokenPipeError(32, "Broken pipe")
+
+    def flush(self):
+        raise BrokenPipeError(32, "Broken pipe")
+
+
+@pytest.mark.xfail(strict=True, raises=BrokenPipeError, reason="main prints after the rename (review iter-079 must-fix 1)")
+def test_main_failed_stdout_is_one_error_line_and_leaves_out(tr, monkeypatch, tmp_path, capsys):
+    cache = cli_files(monkeypatch, tr, tmp_path)
+    out = tmp_path / "summary.json"
+    out.write_text("old\n")
+    monkeypatch.setattr(sys, "stdout", BrokenStdout())
+    assert tr.main(["--out", str(out), "--cache", str(cache)]) == 2
+    err = capsys.readouterr().err
+    assert len(err.splitlines()) == 1 and err.startswith("error: ")
+    assert out.read_text() == "old\n"
+    assert not out.with_name("summary.json.part").exists()
+
+
 def test_main_hash_mismatch_is_one_error_line(tr, monkeypatch, tmp_path, capsys):
     cache = cli_files(monkeypatch, tr, tmp_path)
     (cache / ("a" * 32 + ".json")).write_bytes(b"{}")
