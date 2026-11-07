@@ -685,6 +685,9 @@ def test_main_options(cv, monkeypatch, tmp_path, capsys):
     ["--out", "OUT", "--trial", ""],
     ["--out", "OUT", "--task-by", "domains"],
     ["--out", "OUT", "--bogus"],
+    ["--out", ""],
+    ["--out", "."],
+    ["--out", "/"],
 ])
 def test_main_refuses_bad_options_before_any_download(cv, monkeypatch, tmp_path, capsys, argv):
     monkeypatch.setattr(cv, "fetch", lambda *a, **k: pytest.fail("fetch called for a bad option"))

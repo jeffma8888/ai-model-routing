@@ -287,7 +287,7 @@ def read_run(path):
         with path.open(encoding="utf-8") as f:
             return json.load(f)
     except (ValueError, RecursionError) as exc:  # JSONDecodeError and UnicodeDecodeError are ValueErrors
-        raise ValueError(f"{path.name}: not a valid UTF-8 JSON file ({type(exc).__name__}: {exc})") from None
+        raise ValueError(f"{path.name}: not a valid UTF-8 JSON file ({type(exc).__name__}: {exc})") from exc
 
 
 def write_jsonl(rows, path) -> None:
@@ -323,10 +323,12 @@ def main(argv=None) -> int:
         trial = int(args.trial)
         if args.task_by not in TASK_BY:
             raise _UsageError(f"--task-by {args.task_by!r} is not one of {', '.join(TASK_BY)}")
+        out = Path(args.out)
+        if not out.name:
+            raise _UsageError(f"--out {args.out!r} does not end in a file name")
     except (_UsageError, ValueError) as exc:  # int() refuses a digit string past the interpreter's limit
         print(f"error: {_one_line(exc)}", file=sys.stderr)
         return 2
-    out = Path(args.out)
     part = out.with_name(out.name + ".part")
     try:
         folder = fetch(args.cache)
