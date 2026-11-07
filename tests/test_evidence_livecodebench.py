@@ -1,10 +1,10 @@
-"""v1.60 LiveCodeBench converter contract (DESIGN 12.16), written before the converter exists.
+"""LiveCodeBench converter contract (DESIGN 12.16, v1.60 and v1.61), written before the converter and kept as its tests.
 
 The converter is a standard-library script outside the package (``evidence/livecodebench/convert.py``),
 so it is loaded from its path by an autouse fixture. Every test uses small synthetic problem lists
-shaped like a submission file (a JSON list of problem objects), except the last, which reads the
-pinned files only when all 67 are already in the default cache and skips otherwise (CI never
-downloads them).
+shaped like a submission file (a JSON list of problem objects), except the evidence README tests,
+which read the committed README, and the last, which reads the pinned files only when all 67 are
+already in the default cache and skips otherwise (CI never downloads them).
 """
 
 import ast
@@ -21,9 +21,6 @@ from pathlib import Path
 import pytest
 
 from model_routing import evaluate, outcomes_from_rows
-
-pytestmark = pytest.mark.xfail(strict=True, raises=ModuleNotFoundError,
-                               reason="evidence/livecodebench/convert.py lands after its contract (DESIGN 12.16)")
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "evidence" / "livecodebench" / "convert.py"
