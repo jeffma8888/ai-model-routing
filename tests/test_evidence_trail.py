@@ -246,7 +246,7 @@ def test_standard_library_only(tr):
         elif isinstance(node, ast.ImportFrom):
             assert node.level == 0
             names.add(node.module.split(".")[0])
-    assert names <= STDLIB | {"__future__"}
+    assert names <= STDLIB
     assert "model_routing" not in names
 
 
@@ -628,6 +628,34 @@ def test_main_bad_data_leaves_out_untouched(tr, monkeypatch, tmp_path, capsys):
     assert "e\\nline" in captured.err
     assert out.read_text() == "old\n"
     assert not out.with_name("summary.json.part").exists()
+
+
+def test_main_bad_first_file_leaves_out_untouched(tr, monkeypatch, tmp_path, capsys):
+    cache = cli_files(monkeypatch, tr, tmp_path)
+    name = "a" * 32 + ".json"
+    trace = sample_trace("a" * 32)
+    find(trace, "c")["span_attributes"]["llm.token_count.completion"] = "1.5"
+    bad = json.dumps(trace).encode()
+    (cache / name).write_bytes(bad)
+    monkeypatch.setattr(tr, "FILES", dict(tr.FILES, **{name: (len(bad), hashlib.sha256(bad).hexdigest())}))
+    out = tmp_path / "summary.json"
+    out.write_text("old\n")
+    assert tr.main(["--out", str(out), "--cache", str(cache)]) == 2
+    captured = capsys.readouterr()
+    assert captured.out == "" and len(captured.err.splitlines()) == 1
+    assert name in captured.err
+    assert out.read_text() == "old\n"
+    assert not out.with_name("summary.json.part").exists()
+
+
+def test_main_missing_out_folder_is_one_error_line(tr, monkeypatch, tmp_path, capsys):
+    cache = cli_files(monkeypatch, tr, tmp_path)
+    out = tmp_path / "no-such-folder" / "summary.json"
+    assert tr.main(["--out", str(out), "--cache", str(cache)]) == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert len(captured.err.splitlines()) == 1 and captured.err.startswith("error: ")
+    assert not out.parent.exists()
 
 
 def test_main_hash_mismatch_is_one_error_line(tr, monkeypatch, tmp_path, capsys):
