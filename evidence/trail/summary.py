@@ -334,6 +334,8 @@ def main(argv=None) -> int:
             summary = summarize([runs(read_trace(root / name), name) for name in FILES])
             with open(part, "w", encoding="utf-8") as f:
                 f.write(json.dumps(summary, indent=2) + "\n")
+            # print before the rename, so a write to stdout that fails leaves --out as it was
+            print(json.dumps({key: value for key, value in summary.items() if key != "runs"}, indent=2), flush=True)
             part.replace(out)
         finally:
             part.unlink(missing_ok=True)
@@ -341,7 +343,6 @@ def main(argv=None) -> int:
         msg = str(exc).replace("\r", "\\r").replace("\n", "\\n")
         print(f"error: {msg}", file=sys.stderr)
         return 2
-    print(json.dumps({key: value for key, value in summary.items() if key != "runs"}, indent=2))
     return 0
 
 

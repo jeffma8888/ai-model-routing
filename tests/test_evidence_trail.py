@@ -693,7 +693,6 @@ class BrokenStdout:
         raise BrokenPipeError(32, "Broken pipe")
 
 
-@pytest.mark.xfail(strict=True, raises=BrokenPipeError, reason="main prints after the rename (review iter-079 must-fix 1)")
 def test_main_failed_stdout_is_one_error_line_and_leaves_out(tr, monkeypatch, tmp_path, capsys):
     cache = cli_files(monkeypatch, tr, tmp_path)
     out = tmp_path / "summary.json"
