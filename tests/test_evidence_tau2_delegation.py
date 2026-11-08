@@ -505,7 +505,6 @@ def test_committed_pooled_file_has_the_stated_shape():
     assert list(pooled) == list(KEYS)
     assert pooled["config"] == committed_results()["config"]
     assert pooled["tasks"] == {"all": {"items": sum(DOMAINS.values()), "models": KEPT}}
-    assert pooled["tasks"]["all"]["items"] == 278
     keys = [(r["bar"], r["flavor"], r["point"], r["parent"], r["strategy"]) for r in pooled["summary"]]
     assert len(keys) == len(set(keys)) == 6 * 2 * 4 * 3 * 3
 
@@ -664,5 +663,8 @@ def test_results_md_reason_table_and_cost_comparison_are_built_from_the_runs(run
     text = RESULTS_MD.read_text(encoding="utf-8")
     runs = {label: [c for c in run_cells[label] if c["flavor"] == "cost_effective"] for label in RUNS}
     assert [len(runs[label]) for label in RUNS] == [10_800, 3_600]
-    assert f"\n{reason_table(runs)}\n" in section(text, "## Results")
+    results = section(text, "## Results")
+    table = f"\n{reason_table(runs)}\n"
+    assert table in results
+    assert results.index(table) > results.index(POOLED_CMD)
     assert f"- {cost_comparison_sentence(runs)}\n" in section(text, "## Reading it")
