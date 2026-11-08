@@ -11,6 +11,7 @@ What the inline-or-sub-agent decision (`Router.decide_delegation`, `DESIGN.md` 1
 - Airline has 50 conversations, so at the default `min_samples` of 30 its calibration half is under 30 on 40 of the 50 seeds: no agent clears a bar there on those seeds, and every airline cell of them is 13.5 row 7 (`none_clear`) unless 13.4 blocks inline
 - At point 2, C = 200,000 alone fills the assumed 200,000-token window of `anthropic/claude-3-7-sonnet-20250219`, so inline is blocked (`parent_context_full`) on all 1,800 of that parent's point 2 cells and on no other cell. The block follows from the assumed window
 - Of the 10,800 `cost_effective` cells, 6,941 `none_clear`, 2,301 `delegate_cheaper`, 900 `parent_context_full` and 658 `parent_below_bar`. `none_clear` is 13.5 row 7: no agent clears the bar, so the calibration bounds decide, not cost. No cell is `inline_cheaper`
+- A second run pools the three domains into one task (the converter's `--task-by all`: the same 834 rows as one task of 278 conversations) and writes [pooled.json](pooled.json) with the same script, registry, bars, points and seeds. Its calibration half holds 114 to 158 conversations over the 50 seeds, over `min_samples` on every seed, but a pooled bound mixes three kinds of job that the per-domain tasks keep apart, so the pooled run is a sensitivity of this reading, not its main result
 
 ## Assumed
 
@@ -96,12 +97,90 @@ cost_blind      openai/gpt-4.1-2025-04-14             0.673      0.588        51
 cost_blind      openai/gpt-4.1-mini-2025-04-14        0.793      0.590        49.1346   0.548        17.5937   0.591        48.1281
 ```
 
+The pooled run, means over the 3 parents:
+
+```text
+$ python evidence/delegation/results.py --table evidence/tau2-bench-delegation/pooled.json
+bar  flavor          context  separate  dec_success  dec_cost  inl_success  inl_cost  del_success  del_cost  delegated
+---  --------------  -------  --------  -----------  --------  -----------  --------  -----------  --------  ---------
+0.3  cost_effective  8000     True      0.548        10.0668   0.574        67.1856   0.548        10.0668   1.000
+0.3  cost_effective  64000    True      0.548        10.0668   0.574        276.8994  0.548        10.0668   1.000
+0.3  cost_effective  200000   True      0.548        10.0668   0.574        786.2041  0.548        10.0668   1.000
+0.3  cost_effective  8000     False     0.548        10.0668   0.574        62.8021   0.548        10.0668   1.000
+0.3  cost_blind      8000     True      0.597        78.3064   0.574        67.1856   0.599        61.6818   0.647
+0.3  cost_blind      64000    True      0.597        192.8724  0.574        276.8994  0.599        61.6818   0.647
+0.3  cost_blind      200000   True      0.597        91.0208   0.574        786.2041  0.599        61.6818   0.940
+0.3  cost_blind      8000     False     0.597        75.8335   0.574        62.8021   0.599        61.6818   0.647
+0.4  cost_effective  8000     True      0.548        10.0668   0.574        67.1856   0.548        10.0668   1.000
+0.4  cost_effective  64000    True      0.548        10.0668   0.574        276.8994  0.548        10.0668   1.000
+0.4  cost_effective  200000   True      0.548        10.0668   0.574        786.2041  0.548        10.0668   1.000
+0.4  cost_effective  8000     False     0.548        10.0668   0.574        62.8021   0.548        10.0668   1.000
+0.4  cost_blind      8000     True      0.597        78.3064   0.574        67.1856   0.599        61.6818   0.647
+0.4  cost_blind      64000    True      0.597        192.8724  0.574        276.8994  0.599        61.6818   0.647
+0.4  cost_blind      200000   True      0.597        91.0208   0.574        786.2041  0.599        61.6818   0.940
+0.4  cost_blind      8000     False     0.597        75.8335   0.574        62.8021   0.599        61.6818   0.647
+0.5  cost_effective  8000     True      0.586        55.3235   0.574        67.1856   0.586        55.3235   1.000
+0.5  cost_effective  64000    True      0.586        55.3235   0.574        276.8994  0.586        55.3235   1.000
+0.5  cost_effective  200000   True      0.586        55.3235   0.574        786.2041  0.586        55.3235   1.000
+0.5  cost_effective  8000     False     0.586        55.3235   0.574        62.8021   0.586        55.3235   1.000
+0.5  cost_blind      8000     True      0.597        78.3064   0.574        67.1856   0.599        61.6818   0.647
+0.5  cost_blind      64000    True      0.597        192.8724  0.574        276.8994  0.599        61.6818   0.647
+0.5  cost_blind      200000   True      0.597        91.0208   0.574        786.2041  0.599        61.6818   0.940
+0.5  cost_blind      8000     False     0.597        75.8335   0.574        62.8021   0.599        61.6818   0.647
+0.6  cost_effective  8000     True      0.592        58.7867   0.574        67.1856   0.592        58.7867   1.000
+0.6  cost_effective  64000    True      0.592        58.7867   0.574        276.8994  0.592        58.7867   1.000
+0.6  cost_effective  200000   True      0.592        58.7867   0.574        786.2041  0.592        58.7867   1.000
+0.6  cost_effective  8000     False     0.592        58.7867   0.574        62.8021   0.592        58.7867   1.000
+0.6  cost_blind      8000     True      0.597        78.3064   0.574        67.1856   0.599        61.6818   0.647
+0.6  cost_blind      64000    True      0.597        192.8724  0.574        276.8994  0.599        61.6818   0.647
+0.6  cost_blind      200000   True      0.597        91.0208   0.574        786.2041  0.599        61.6818   0.940
+0.6  cost_blind      8000     False     0.597        75.8335   0.574        62.8021   0.599        61.6818   0.647
+0.7  cost_effective  8000     True      0.592        58.7867   0.574        67.1856   0.592        58.7867   1.000
+0.7  cost_effective  64000    True      0.592        58.7867   0.574        276.8994  0.592        58.7867   1.000
+0.7  cost_effective  200000   True      0.592        58.7867   0.574        786.2041  0.592        58.7867   1.000
+0.7  cost_effective  8000     False     0.592        58.7867   0.574        62.8021   0.592        58.7867   1.000
+0.7  cost_blind      8000     True      0.597        78.3064   0.574        67.1856   0.599        61.6818   0.647
+0.7  cost_blind      64000    True      0.597        192.8724  0.574        276.8994  0.599        61.6818   0.647
+0.7  cost_blind      200000   True      0.597        91.0208   0.574        786.2041  0.599        61.6818   0.940
+0.7  cost_blind      8000     False     0.597        75.8335   0.574        62.8021   0.599        61.6818   0.647
+0.8  cost_effective  8000     True      0.592        58.7867   0.574        67.1856   0.592        58.7867   1.000
+0.8  cost_effective  64000    True      0.592        58.7867   0.574        276.8994  0.592        58.7867   1.000
+0.8  cost_effective  200000   True      0.592        58.7867   0.574        786.2041  0.592        58.7867   1.000
+0.8  cost_effective  8000     False     0.592        58.7867   0.574        62.8021   0.592        58.7867   1.000
+0.8  cost_blind      8000     True      0.597        78.3064   0.574        67.1856   0.599        61.6818   0.647
+0.8  cost_blind      64000    True      0.597        192.8724  0.574        276.8994  0.599        61.6818   0.647
+0.8  cost_blind      200000   True      0.597        91.0208   0.574        786.2041  0.599        61.6818   0.940
+0.8  cost_blind      8000     False     0.597        75.8335   0.574        62.8021   0.599        61.6818   0.647
+```
+
+`cost_effective` reasons per bar in each run, counted from in-process runs that keep the cells (neither results file keeps them; a test rebuilds this table when the pinned files are cached):
+
+| bar | run | cells | `none_clear` | `delegate_cheaper` | `parent_context_full` | `parent_below_bar` |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| 0.3 | per domain | 1,800 | 561 | 892 | 150 | 197 |
+| 0.3 | pooled | 600 | 0 | 550 | 50 | 0 |
+| 0.4 | per domain | 1,800 | 1,001 | 584 | 150 | 65 |
+| 0.4 | pooled | 600 | 0 | 550 | 50 | 0 |
+| 0.5 | per domain | 1,800 | 1,100 | 514 | 150 | 36 |
+| 0.5 | pooled | 600 | 176 | 132 | 50 | 242 |
+| 0.6 | per domain | 1,800 | 1,111 | 271 | 150 | 268 |
+| 0.6 | pooled | 600 | 550 | 0 | 50 | 0 |
+| 0.7 | per domain | 1,800 | 1,518 | 40 | 150 | 92 |
+| 0.7 | pooled | 600 | 550 | 0 | 50 | 0 |
+| 0.8 | per domain | 1,800 | 1,650 | 0 | 150 | 0 |
+| 0.8 | pooled | 600 | 550 | 0 | 50 | 0 |
+| all | per domain | 10,800 | 6,941 | 2,301 | 900 | 658 |
+| all | pooled | 3,600 | 1,826 | 1,232 | 300 | 242 |
+
 ## Reading it
 
 - In `cost_effective` the decision delegates on every seed for every parent at every bar and point (`delegate_rate` 1.0 on all 72 decision rows).
 - At bar 0.3 and point 0 (8,000 context tokens), averaged over the 3 parents, the `cost_effective` decision costs 19.8422 USD on a held-out half against 67.1856 for always inline (3.39 times as much), with held-out success 0.550 against 0.574.
 - At that bar and point the `cost_effective` decision costs more than always inline for `openai/gpt-4.1-mini-2025-04-14` (18.9993 against 17.5937).
 - `results.json` is 132,475 bytes.
+- Pooled, the `cost_effective` decision again delegates on every seed for every parent at every bar and point; at bar 0.3 and point 0, averaged over the 3 parents, it costs 10.0668 USD on a held-out half against 19.8422 per domain, with held-out success 0.548 against 0.550. Always inline has the same held-out success and cost in both runs, since the split reads only the seed and the item ID (`DESIGN.md` 12.2).
+- The cost comparison (`DESIGN.md` 13.5 row 3: both paths clear the bar, so their costs are compared) is reached on 2,301 of the 10,800 `cost_effective` cells per domain (21.3%) and on 1,232 of the 3,600 pooled (34.2%); no cell of either run is `inline_cheaper`.
+- `pooled.json` is 126,695 bytes.
 
 ## Regenerate
 
@@ -113,4 +192,12 @@ python evidence/tau2-bench/convert.py --out tau2-calls.jsonl --calls
 python evidence/tau2-bench-delegation/results.py --matrix tau2-calls.jsonl --registry evidence/tau2-bench-delegation/registry.json --out evidence/tau2-bench-delegation/results.json
 python evidence/delegation/results.py --table evidence/tau2-bench-delegation/results.json
 python evidence/delegation/results.py --table evidence/tau2-bench-delegation/results.json --bar 0.3 --point 0
+```
+
+The pooled run:
+
+```bash
+python evidence/tau2-bench/convert.py --out tau2-calls-all.jsonl --calls --task-by all
+python evidence/tau2-bench-delegation/results.py --matrix tau2-calls-all.jsonl --registry evidence/tau2-bench-delegation/registry.json --out evidence/tau2-bench-delegation/pooled.json
+python evidence/delegation/results.py --table evidence/tau2-bench-delegation/pooled.json
 ```
