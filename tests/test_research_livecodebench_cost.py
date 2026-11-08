@@ -34,7 +34,15 @@ PRICES_HEADER = "| model | pricing page, read | listed as | input | output |"
 PRICE = re.compile(r"\$\d+\.\d{2}")
 # DESIGN 12.17 v1.102: three more families' pricing pages, each on its maker's domain, and the runs
 # named by an alias, which count as not listed
-PRICE_FAMILIES = [("mistralai", "mistral.ai"), ("moonshotai", "moonshot.ai"), ("qwen", "alibabacloud.com")]
+PRICE_FAMILIES = [("mistralai", "mistral.ai"), ("moonshotai", "moonshot.ai"), ("qwen", "alibabacloud.com"),
+                  ("meta-llama", "meta.ai")]
+# DESIGN 12.17 v1.105: the families whose own domain gives no per-token price, each read on its runs'
+# model cards under its own account on huggingface.co, and the own sites their bullets cite
+CARD_FAMILIES = [("agentica", "agentica-org"), ("lgai", "LGAI-EXAONE"), ("metastone", "MetaStoneTec"),
+                 ("nvidia", "nvidia")]
+OWN_SITES = {"agentica": "agentica-project.com", "lgai": "lgresearch.ai", "nvidia": "nvidia.com"}
+NO_SITE = "the card links no site of the family's own"
+NO_PRICE = "no first-party price"
 ALIASES = ["mistralai/codestral-latest", "mistralai/mistral-large"]
 # DESIGN section numbers: the only numbers of the note's prose that are not in the script's output
 ALLOWED = {"12.16", "12.17"}
@@ -278,46 +286,51 @@ def test_prices_one_row_per_model_in_the_results_block_order():
     assert [row[0] for row in _price_rows()] == ["`" + m + "`" for m in models]
 
 
-def _unpriced_families():
-    """The backticked prefixes in the parenthesis after `the other five families` of `## Prices`."""
-    found = re.search(r"the other five families \(([^)]*)\)", _section("## Prices"))
+def _card_families():
+    """The backticked prefixes in the parenthesis after the four card families' phrase of `## Prices`."""
+    found = re.search(r"the four families whose own domain gives no per-token price \(([^)]*)\)", _section("## Prices"))
     assert found
     return re.findall(r"`([^`]+)`", found.group(1))
 
 
-def test_prices_families_read_and_unread_are_the_13_prefixes():
+def test_prices_families_read_are_the_13_prefixes():
+    # DESIGN 12.17 v1.105: every family is read, the four card families named in the intro in order
     models = _block_models(_results_block(_note()))
     prefixes = sorted({m.split("/", 1)[0] for m in models})
-    unread = _unpriced_families()
-    assert len(unread) == 5
-    assert sorted(unread + [family for family, _ in VENDORS + PRICE_FAMILIES]) == prefixes
-    not_read = {row[0].strip("`").split("/", 1)[0] for row in _price_rows() if row[1] == "not read yet"}
-    assert not_read == set(unread)
+    cards = _card_families()
+    assert cards == [family for family, _ in CARD_FAMILIES]
+    assert sorted(cards + [family for family, _ in VENDORS + PRICE_FAMILIES]) == prefixes
+    assert not [row for row in _price_rows() if "not read" in row[1] or row[2] == "not read"]
 
 
 def test_prices_page_cells_cite_the_vendor_page_and_a_date_read():
     domains = dict(VENDORS + PRICE_FAMILIES)
-    unread = set(_unpriced_families())
+    accounts = dict(CARD_FAMILIES)
     pages = {}
+    cards = []
     for model, page, listed, price_in, price_out in _price_rows():
         vendor = model.strip("`").split("/", 1)[0]
-        if vendor in unread:
-            assert (page, listed, price_in, price_out) == ("not read yet", "not read", "-", "-"), model
-            continue
         found = re.fullmatch(r"(https://\S+), read (\d{4}-\d{2}-\d{2})", page)
         assert found, model
+        datetime.date.fromisoformat(found.group(2))
+        if vendor in accounts:
+            # DESIGN 12.17 v1.105: the run's own model card under the family's account
+            assert re.fullmatch(r"https://huggingface\.co/" + re.escape(accounts[vendor]) + r"/[^/\s]+",
+                                found.group(1)), model
+            assert (listed, price_in, price_out) == (NO_PRICE, "-", "-"), model
+            cards.append(found.group(1))
+            continue
         host = found.group(1).split("://", 1)[1].split("/", 1)[0]
         assert host == domains[vendor] or host.endswith("." + domains[vendor]), model
-        datetime.date.fromisoformat(found.group(2))
         assert pages.setdefault(vendor, page) == page, model
     assert sorted(pages) == sorted(domains)
+    assert len(cards) == len(set(cards)) == sum(m.split("/", 1)[0] in accounts
+                                                for m in _block_models(_results_block(_note())))
 
 
 def test_prices_listed_cells_carry_a_quoted_name_and_two_prices():
     for model, page, listed, price_in, price_out in _price_rows():
-        if listed == "not read":
-            continue
-        if listed == "not listed":
+        if listed in ("not listed", NO_PRICE):
             assert (price_in, price_out) == ("-", "-"), model
         else:
             assert re.fullmatch(r'"[^"]+"', listed), model
@@ -336,10 +349,37 @@ def test_prices_intro_compares_word_order_as_written():
     assert "Word order is compared as written" in _section("## Prices").split("\n|", 1)[0]
 
 
+def _price_bullets():
+    return [line for line in _section("## Prices").splitlines() if line.startswith("- ")]
+
+
 def test_prices_one_bullet_per_family_read():
-    bullets = [line for line in _section("## Prices").splitlines() if line.startswith("- ")]
-    for family, _ in VENDORS + PRICE_FAMILIES:
+    bullets = _price_bullets()
+    for family, _ in VENDORS + PRICE_FAMILIES + CARD_FAMILIES:
         assert sum(b.startswith("- " + family + ": ") for b in bullets) == 1, family
+
+
+def test_prices_card_family_bullets_cite_their_own_site_and_no_price():
+    # DESIGN 12.17 v1.105
+    for family, _ in CARD_FAMILIES:
+        bullet = next(b for b in _price_bullets() if b.startswith("- " + family + ": "))
+        assert not PRICE.search(bullet), family
+        if family not in OWN_SITES:
+            assert NO_SITE in bullet, family
+            continue
+        site = OWN_SITES[family]
+        hosts = [u.split("://", 1)[1].split("/", 1)[0] for u in URL.findall(bullet)]
+        assert any(h == site or h.endswith("." + site) for h in hosts), family
+        assert re.search(r"read \d{4}-\d{2}-\d{2}", bullet), family
+
+
+def test_prices_urls_are_on_the_families_domains_only():
+    # DESIGN 12.17 v1.105: no host's price, so no URL off the families' own domains and huggingface.co
+    allowed = [domain for _, domain in VENDORS + PRICE_FAMILIES] + list(OWN_SITES.values())
+    allowed += ["llama.com", "huggingface.co"]
+    for url in URL.findall(_section("## Prices")):
+        host = url.split("://", 1)[1].split("/", 1)[0]
+        assert url.startswith("https://") and any(host == d or host.endswith("." + d) for d in allowed), url
 
 
 def test_note_regenerate_block():
