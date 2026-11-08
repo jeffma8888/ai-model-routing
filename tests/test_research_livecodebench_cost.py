@@ -23,11 +23,15 @@ NOTE = ROOT / "research" / "livecodebench-cost.md"
 INDEX = ROOT / "research" / "README.md"
 CONVERT = ROOT / "evidence" / "livecodebench" / "convert.py"
 COMMAND = "$ python research/livecodebench_cost.py"
-SECTIONS = ["## Facts", "## Method", "## Results", "## Reading it", "## Vendor pages", "## Limits", "## Regenerate"]
+SECTIONS = ["## Facts", "## Method", "## Results", "## Reading it", "## Vendor pages", "## Prices", "## Limits",
+            "## Regenerate"]
 # DESIGN 12.17 v1.98: the vendors read, in order, each with its own domain
 VENDORS = [("openai", "openai.com"), ("anthropic", "anthropic.com"), ("google", "google.dev"),
            ("xai", "x.ai"), ("deepseek", "deepseek.com")]
 TABLE_HEADER = "| vendor | page, read | what it says of reasoning and its billing | models among the 67 it names |"
+# DESIGN 12.17 v1.100: one row per model of the Results block, in its order
+PRICES_HEADER = "| model | pricing page, read | listed as | input | output |"
+PRICE = re.compile(r"\$\d+\.\d{2}")
 # DESIGN section numbers: the only numbers of the note's prose that are not in the script's output
 ALLOWED = {"12.16", "12.17"}
 NUMBER = re.compile(r"(?<![\w.])\d+(?:,\d{3})*(?:\.\d+)?%?")
@@ -172,6 +176,10 @@ def test_note_prose_numbers_are_in_the_results_block():
     text = _note()
     block = _results_block(text)
     prose = text.replace(block, "").split("\n## Regenerate\n", 1)[0]
+    # DESIGN 12.17 v1.100: in `## Prices` a number written $N.NN is a price from the page it cites
+    head, prices = prose.split("\n## Prices\n", 1)
+    prices, tail = prices.split("\n## ", 1)
+    prose = head + "\n" + PRICE.sub(" ", prices) + "\n## " + tail
     prose = DATE.sub(" ", URL.sub(" ", prose))
     known = set(NUMBER.findall(block)) | ALLOWED
     missing = sorted({n for n in NUMBER.findall(prose)} - known)
@@ -231,6 +239,68 @@ def test_vendor_pages_name_only_models_in_the_results_block():
         assert all(m in models and m.startswith(vendor + "/") for m in found), found
         named += found
     assert len(named) == len(set(named))
+
+
+def _section(name):
+    return _note().split("\n" + name + "\n", 1)[1].split("\n## ", 1)[0]
+
+
+def _unread_families():
+    """The backticked prefixes in the parenthesis after `The other eight families` of `## Vendor pages`."""
+    found = re.search(r"The other eight families \(([^)]*)\)", _section("## Vendor pages"))
+    assert found
+    return re.findall(r"`([^`]+)`", found.group(1))
+
+
+def test_vendor_pages_and_the_unread_families_are_the_13_prefixes():
+    models = _block_models(_results_block(_note()))
+    prefixes = sorted({m.split("/", 1)[0] for m in models})
+    named = [row[0] for row in _vendor_rows()] + _unread_families()
+    assert len(prefixes) == 13 and len(_unread_families()) == 8
+    assert sorted(named) == prefixes
+
+
+def _price_rows():
+    rows = [line for line in _section("## Prices").splitlines() if line.startswith("|")]
+    assert rows[0] == PRICES_HEADER
+    assert set(rows[1]) <= {"|", "-", " "}
+    cells = [[cell.strip() for cell in row.strip().strip("|").split("|")] for row in rows[2:]]
+    assert all(len(row) == 5 for row in cells)
+    return cells
+
+
+def test_prices_one_row_per_model_in_the_results_block_order():
+    models = _block_models(_results_block(_note()))
+    assert [row[0] for row in _price_rows()] == ["`" + m + "`" for m in models]
+
+
+def test_prices_page_cells_cite_the_vendor_page_and_a_date_read():
+    domains = dict(VENDORS)
+    unread = set(_unread_families())
+    pages = {}
+    for model, page, listed, price_in, price_out in _price_rows():
+        vendor = model.strip("`").split("/", 1)[0]
+        if vendor in unread:
+            assert (page, listed, price_in, price_out) == ("not read yet", "not read", "-", "-"), model
+            continue
+        found = re.fullmatch(r"(https://\S+), read (\d{4}-\d{2}-\d{2})", page)
+        assert found, model
+        host = found.group(1).split("://", 1)[1].split("/", 1)[0]
+        assert host == domains[vendor] or host.endswith("." + domains[vendor]), model
+        datetime.date.fromisoformat(found.group(2))
+        assert pages.setdefault(vendor, page) == page, model
+    assert sorted(pages) == sorted(domains)
+
+
+def test_prices_listed_cells_carry_a_quoted_name_and_two_prices():
+    for model, page, listed, price_in, price_out in _price_rows():
+        if listed == "not read":
+            continue
+        if listed == "not listed":
+            assert (price_in, price_out) == ("-", "-"), model
+        else:
+            assert re.fullmatch(r'"[^"]+"', listed), model
+            assert PRICE.fullmatch(price_in) and PRICE.fullmatch(price_out), model
 
 
 def test_note_regenerate_block():
