@@ -8,6 +8,7 @@ Public evidence gathered on 2026-10-27 to 2026-10-29, and for datasets.md, hand-
 | [datasets.md](datasets.md) | Which public dataset could be the third source of committed evidence, with every model's per-item outcome on a coding or agentic task checked by a program? (Short answer: the tau2-bench paper results, MIT, with a per-item cost, but only four 2025 agent models) |
 | [hand-off-data.md](hand-off-data.md) | Is there public data that records a parent agent handing work to a sub-agent, with per-call token counts and a success label, to measure what the delegation evidence assumes? (Short answer: no; TRAIL records real hand-offs with per-call token counts, but no success label and no run of the same work inline) |
 | [delegation-datasets.md](delegation-datasets.md) | Can the delegation evidence run on a second dataset, tau2-bench, or on a dataset with no cost? (Short answer: not without a harness change: each tau2-bench item is a conversation of 2 to 100 model calls, which the harness prices as one call or with one call count per grid point, and the OpenAI agents' recorded costs fit a prompt-cache discount, inferred from the costs; a `cost_blind`-only run would repeat the routing choice) |
+| [no-path-clears.md](no-path-clears.md) | When no path clears the task's bar, should the delegation decision choose by calibration bound (`DESIGN.md` 13.5 row 7), by cost, or refuse? (Short answer: keep row 7, whose choice scores highest on the held-out halves of the committed delegation runs, and keep `refuse` as the default; on tau2-bench row 7 decides most `cost_effective` cells and mostly takes a path below the bar, which README Limitations says. Its numbers are the output of [no_path_clears.py](no_path_clears.py)) |
 | [prior-art.md](prior-art.md) | What do existing routers, gateways and papers already do, and what is left for a per-task calibrated judge router? |
 
 How the files feed the library:
@@ -18,6 +19,7 @@ How the files feed the library:
 - `research/datasets.md` picked the third evidence dataset, the tau2-bench paper results, now committed under `evidence/tau2-bench/`
 - `research/hand-off-data.md` is why the delegation evidence states its context and hand-off sizes as a grid and assumes a lossless brief
 - `research/delegation-datasets.md` is why the delegation evidence read one dataset, the AutoBench matrix, until the tau2-bench conversations were priced on their own calls (`DESIGN.md` 13.12)
+- `research/no-path-clears.md` is why `DESIGN.md` 13.5 row 7 stays as it is and `refuse` stays the default of `on_no_model`
 
 Caveats that apply to everything here:
 
