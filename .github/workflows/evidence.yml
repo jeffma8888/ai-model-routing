@@ -68,5 +68,8 @@ jobs:
           python evidence/tau2-bench-delegation/results.py --matrix tau2-calls.jsonl --registry evidence/tau2-bench-delegation/registry.json --out evidence/tau2-bench-delegation/results.json
           python evidence/delegation/results.py --table evidence/tau2-bench-delegation/results.json
           python evidence/delegation/results.py --table evidence/tau2-bench-delegation/results.json --bar 0.3 --point 0
+          python evidence/tau2-bench/convert.py --out tau2-calls-all.jsonl --calls --task-by all
+          python evidence/tau2-bench-delegation/results.py --matrix tau2-calls-all.jsonl --registry evidence/tau2-bench-delegation/registry.json --out evidence/tau2-bench-delegation/pooled.json
+          python evidence/delegation/results.py --table evidence/tau2-bench-delegation/pooled.json
       - name: Compare
-        run: git diff --exit-code -- evidence/autobench-2026/results.json evidence/autobench-judges/results.json evidence/tau2-bench/results.json evidence/livecodebench/results.json evidence/delegation/results.json evidence/delegation/variants.json evidence/tau2-bench-delegation/results.json
+        run: git diff --exit-code -- evidence/autobench-2026/results.json evidence/autobench-judges/results.json evidence/tau2-bench/results.json evidence/livecodebench/results.json evidence/delegation/results.json evidence/delegation/variants.json evidence/tau2-bench-delegation/results.json evidence/tau2-bench-delegation/pooled.json

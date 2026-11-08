@@ -376,7 +376,7 @@ for row in report(monitor.records, by="tag:team"):
 
 ## Evidence: held-out results on public data
 
-Each dataset here already holds every model's answer to every item, a label for whether that answer was good enough (right or wrong on RouterBench, a Delta-Hit from a judge committee's scores on AutoBench, agreement with the other judges' grades for a judge model's grade in AutoBench judges, whether an agent's conversation passed the run's program checks on tau2-bench, and whether a model's first sample passed the problem's test cases on LiveCodeBench) and the cost of each call (of each whole conversation on tau2-bench) or the token counts to estimate it at list prices (LiveCodeBench records neither, so it is `cost_blind` evidence only), so the router is tested offline with no API key: for each task and seed, calibrate on one half of the items, route at a bar, and score the routed model on the other half, next to fixed baselines (`model-routing evaluate`, `DESIGN.md` 12). The test suite rebuilds every number in these tables from that dataset's committed results file, so they cannot drift from it. On GitHub, the `evidence` workflow ([.github/workflows/evidence.yml](.github/workflows/evidence.yml)) reruns the regenerate commands of the AutoBench, AutoBench judges, tau2-bench, LiveCodeBench and delegation subsections, downloading the pinned files, and fails if `evidence/autobench-2026/results.json`, `evidence/autobench-judges/results.json`, `evidence/tau2-bench/results.json`, `evidence/livecodebench/results.json`, `evidence/delegation/results.json`, `evidence/delegation/variants.json` or `evidence/tau2-bench-delegation/results.json` changes by a byte; RouterBench is left out of it, since its source is a 99,567,659-byte pickle that needs pandas and its evaluate step takes about 70 seconds.
+Each dataset here already holds every model's answer to every item, a label for whether that answer was good enough (right or wrong on RouterBench, a Delta-Hit from a judge committee's scores on AutoBench, agreement with the other judges' grades for a judge model's grade in AutoBench judges, whether an agent's conversation passed the run's program checks on tau2-bench, and whether a model's first sample passed the problem's test cases on LiveCodeBench) and the cost of each call (of each whole conversation on tau2-bench) or the token counts to estimate it at list prices (LiveCodeBench records neither, so it is `cost_blind` evidence only), so the router is tested offline with no API key: for each task and seed, calibrate on one half of the items, route at a bar, and score the routed model on the other half, next to fixed baselines (`model-routing evaluate`, `DESIGN.md` 12). The test suite rebuilds every number in these tables from that dataset's committed results file, so they cannot drift from it. On GitHub, the `evidence` workflow ([.github/workflows/evidence.yml](.github/workflows/evidence.yml)) reruns the regenerate commands of the AutoBench, AutoBench judges, tau2-bench, LiveCodeBench and delegation subsections, downloading the pinned files, and fails if `evidence/autobench-2026/results.json`, `evidence/autobench-judges/results.json`, `evidence/tau2-bench/results.json`, `evidence/livecodebench/results.json`, `evidence/delegation/results.json`, `evidence/delegation/variants.json`, `evidence/tau2-bench-delegation/results.json` or `evidence/tau2-bench-delegation/pooled.json` changes by a byte; RouterBench is left out of it, since its source is a 99,567,659-byte pickle that needs pandas and its evaluate step takes about 70 seconds.
 
 Results at a glance, each number from the committed results of the subsection it links:
 
@@ -804,6 +804,9 @@ cost_blind      openai/gpt-4.1-mini-2025-04-14        0.793      0.590        49
 - Of the 10,800 `cost_effective` cells, 6,941 `none_clear`, 2,301 `delegate_cheaper`, 900 `parent_context_full` and 658 `parent_below_bar`. `none_clear` is 13.5 row 7: no agent clears the bar, so the calibration bounds decide, not cost. No cell is `inline_cheaper`
 - Airline has 50 conversations, so at the default `min_samples` of 30 its calibration half is under 30 on 40 of the 50 seeds: no agent clears a bar there on those seeds, and every airline cell of them is 13.5 row 7 (`none_clear`) unless 13.4 blocks inline
 - At point 2, C = 200,000 alone fills the assumed 200,000-token window of `anthropic/claude-3-7-sonnet-20250219`, so inline is blocked (`parent_context_full`) on all 1,800 of that parent's point 2 cells and on no other cell. The block follows from the assumed window
+- A second run pools the three domains into one task (the converter's `--task-by all`: the same 834 rows as one task of 278 conversations) and writes [pooled.json](evidence/tau2-bench-delegation/pooled.json) with the same script, registry, bars, points and seeds. Its calibration half holds 114 to 158 conversations over the 50 seeds, over `min_samples` on every seed, but a pooled bound mixes three kinds of job that the per-domain tasks keep apart, so the pooled run is a sensitivity of this reading, not its main result
+- Pooled, the `cost_effective` decision again delegates on every seed for every parent at every bar and point; at bar 0.3 and point 0, averaged over the 3 parents, it costs 10.0668 USD on a held-out half against 19.8422 per domain, with held-out success 0.548 against 0.550. Always inline has the same held-out success and cost in both runs, since the split reads only the seed and the item ID (`DESIGN.md` 12.2).
+- The cost comparison (`DESIGN.md` 13.5 row 3: both paths clear the bar, so their costs are compared) is reached on 2,301 of the 10,800 `cost_effective` cells per domain (21.3%) and on 1,232 of the 3,600 pooled (34.2%); no cell of either run is `inline_cheaper`.
 
 Limits, as RESULTS.md states them:
 
@@ -821,6 +824,14 @@ python evidence/tau2-bench/convert.py --out tau2-calls.jsonl --calls
 python evidence/tau2-bench-delegation/results.py --matrix tau2-calls.jsonl --registry evidence/tau2-bench-delegation/registry.json --out evidence/tau2-bench-delegation/results.json
 python evidence/delegation/results.py --table evidence/tau2-bench-delegation/results.json
 python evidence/delegation/results.py --table evidence/tau2-bench-delegation/results.json --bar 0.3 --point 0
+```
+
+The pooled run:
+
+```bash
+python evidence/tau2-bench/convert.py --out tau2-calls-all.jsonl --calls --task-by all
+python evidence/tau2-bench-delegation/results.py --matrix tau2-calls-all.jsonl --registry evidence/tau2-bench-delegation/registry.json --out evidence/tau2-bench-delegation/pooled.json
+python evidence/delegation/results.py --table evidence/tau2-bench-delegation/pooled.json
 ```
 
 ## What the public evidence says (October 2026)
