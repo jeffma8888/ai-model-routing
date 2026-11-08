@@ -279,7 +279,8 @@ MUTANTS = {
         "evidence/delegation/variants.json evidence/tau2-bench-delegation/results.json",
         "evidence/tau2-bench-delegation/results.json", 1),
     "the compare step without pooled.json": lambda t: t.replace(
-        " evidence/tau2-bench-delegation/pooled.json\n", "\n", 1),
+        "evidence/tau2-bench-delegation/results.json evidence/tau2-bench-delegation/pooled.json\n",
+        "evidence/tau2-bench-delegation/results.json\n", 1),
     "checkout with credentials": lambda t: t.replace("persist-credentials: false",
                                                      "persist-credentials: true", 1),
     "a job shell without pipefail": lambda t: t.replace(
@@ -302,6 +303,15 @@ MUTANTS = {
 
 def test_the_mutant_count_is_the_one_design_states():
     assert len(MUTANTS) == 17
+
+
+@pytest.mark.parametrize("name", ["the compare step without pooled.json",
+                                  "the compare step without variants.json"])
+def test_a_compare_mutant_fails_on_the_compare_line_alone(name):
+    # v1.85 review: a mutant that broke a Regenerate line instead would pass the test below.
+    mutant = MUTANTS[name](workflow_text())
+    assert problems(mutant, readme(), CI.read_text(encoding="utf-8")) == [
+        "Compare is not the diff of the committed results"], name
 
 
 @pytest.mark.parametrize("name", sorted(MUTANTS))

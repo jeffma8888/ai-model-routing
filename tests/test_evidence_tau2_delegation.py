@@ -595,6 +595,7 @@ def test_readme_subsection_states_the_pooled_run():
     assert lines[1] == f"- {pooled_reading(committed_results(), committed_pooled())[0]}"
     for line in lines:
         assert sub.count(f"\n{line}\n") == 1, line
+    assert "\n" + "\n".join(lines) + "\n" in sub
     at = [sub.index(f"\n{line}\n") for line in lines]
     assert sub.index("\n- At point 2, C = 200,000") < at[0] < at[1] < at[2]
     assert at[2] < sub.index("\nLimits, as RESULTS.md states them:\n")
