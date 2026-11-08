@@ -16,6 +16,8 @@ block (12.8); its tests came before the README lines.
 v1.88 runs the 13.10 cached point (variant point 1) in process on both matrices, at its 0.1 and at
 0.25 and 0, and states in RESULTS.md that no decision moves and which ratio the recorded costs
 imply; its tests came before the RESULTS.md bullets and two of them failed until v1.89.
+v1.92 puts the first cached-point bullet in the README subsection and one sentence on the point
+in README Limitations (12.8); its tests came before the README lines.
 """
 
 import importlib.util
@@ -883,3 +885,60 @@ def test_results_md_states_the_cached_point(cached_runs):
     block = "\n".join(f"- {sentence}" for sentence in cached_reading(cached_runs))
     assert f"\n{block}\n" in f"\n{reading}"
     assert reading.index(block) > reading.index("- `pooled.json` is ")
+    # v1.92: the README repeats the first bullet, its AutoBench link from the repo root (12.8).
+    first = cached_reading(cached_runs)[0].replace(AUTOBENCH_LINK, AUTOBENCH_LINK_FROM_ROOT)
+    assert f"\n- {first}\n" in readme_subsection()
+
+
+# --- the cached point in the README (DESIGN 12.8 v1.92) ----------------------------------------
+
+AUTOBENCH_LINK = "[the AutoBench delegation results](../delegation/RESULTS.md)"
+AUTOBENCH_LINK_FROM_ROOT = "[the AutoBench delegation results](evidence/delegation/RESULTS.md)"
+
+
+def cached_readme_line():
+    """The first v1.88 cached-point Reading it bullet of RESULTS.md, its AutoBench link from the
+    repo root, as the README repeats it."""
+    reading = section(RESULTS_MD.read_text(encoding="utf-8"), "## Reading it")
+    found = [line for line in reading.splitlines() if line.startswith("- At the cached point of ")]
+    assert len(found) == 1
+    assert found[0].count(AUTOBENCH_LINK) == 1
+    return found[0].replace(AUTOBENCH_LINK, AUTOBENCH_LINK_FROM_ROOT)
+
+
+def test_readme_subsection_states_the_cached_point():
+    sub = readme_subsection()
+    line = cached_readme_line()
+    assert sub.count(f"\n{line}\n") == 1
+    # After the last pooled-run bullet, before the limits.
+    assert f"\n{pooled_readme_lines()[-1]}\n{line}\n\nLimits, as RESULTS.md states them:\n" in sub
+    assert "../" not in sub
+    for start in ("- There, of the ", "- At bar 0.3 the ratio of ", "- The cached point's ratio of "):
+        assert f"\n{start}" not in sub, start
+
+
+def limitations_cached_sentence(dr):
+    cached = dr.variant_points()[1]
+    assert cached["cached_read_ratio"] == STATED_RATIO
+    return (f"The cached point of the bullet above, applied to these rows with the ratio at {STATED_RATIO:g}, "
+            f"{PAGE_RATIO:g} or {FLOOR_RATIO:g}, moves no decision: each keeps the mode, model and reason it has "
+            f"at list price ([RESULTS.md](evidence/tau2-bench-delegation/RESULTS.md#reading-it), `DESIGN.md` 13.12)")
+
+
+def test_readme_limitations_say_the_cached_point_moves_no_decision(dr):
+    text = README.read_text(encoding="utf-8")
+    limits = text.split("\n## Limitations and non-goals (v1)\n", 1)[1].split("\n## ", 1)[0]
+    bullets = [line for line in limits.splitlines() if line.startswith("- ")]
+    two = [i for i, b in enumerate(bullets) if b.startswith("- The delegation evidence reads two datasets")]
+    assert len(two) == 1
+    assert bullets[two[0]].endswith(f"(research/delegation-datasets.md)). {limitations_cached_sentence(dr)}")
+    above = bullets[two[0] - 1]
+    assert above.startswith("- The inline-or-delegate cost ") and "one cached point, variant point 1" in above
+    # The sentence summarises the RESULTS.md bullet that the cached-file test builds from the runs.
+    line = cached_readme_line()
+    for phrase in (f"`cached_read_ratio` {STATED_RATIO:g} of its list input price",
+                   f"and so it has with the ratio at {PAGE_RATIO:g} or {FLOOR_RATIO:g}: ",
+                   "the decision has the mode, model and reason it has at point 2 on all ",
+                   " in both flavors, "):
+        assert phrase in line, phrase
+    assert RESULTS_MD.read_text(encoding="utf-8").splitlines().count("## Reading it") == 1

@@ -664,7 +664,11 @@ def test_readme_and_design_say_the_delegation_evidence_reads_one_dataset():
         "summed counts instead, it would mis-price both "
         "paths, by amounts that grow with the number of calls. Its list prices also leave out the "
         "prompt-cache discount that the recorded costs of the three OpenAI agents imply on about "
-        f"three quarters of their prompt tokens ({DATASETS_LINK})"]
+        f"three quarters of their prompt tokens ({DATASETS_LINK}). "
+        # v1.92: the 13.12 cached point on these rows (12.8)
+        "The cached point of the bullet above, applied to these rows with the ratio at 0.1, 0.25 "
+        "or 0, moves no decision: each keeps the mode, model and reason it has at list price "
+        "([RESULTS.md](evidence/tau2-bench-delegation/RESULTS.md#reading-it), `DESIGN.md` 13.12)"]
     design = (ROOT / "DESIGN.md").read_text(encoding="utf-8")
     section = design.split("\n### 13.9 ", 1)[1].split("\n### ", 1)[0]
     measured = section.split("\n- What is measured and what is assumed:\n", 1)[1].split("\n- ", 1)[0]
