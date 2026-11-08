@@ -331,6 +331,11 @@ def test_prices_alias_runs_are_not_listed():
     assert all(rows[m][2] == "not listed" for m in rows if m.endswith("latest"))
 
 
+def test_prices_intro_compares_word_order_as_written():
+    # DESIGN 12.17 v1.102 (review iter-104 nit 1)
+    assert "Word order is compared as written" in _section("## Prices").split("\n|", 1)[0]
+
+
 def test_prices_one_bullet_per_family_read():
     bullets = [line for line in _section("## Prices").splitlines() if line.startswith("- ")]
     for family, _ in VENDORS + PRICE_FAMILIES:
