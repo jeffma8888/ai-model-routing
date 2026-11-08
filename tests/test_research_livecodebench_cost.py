@@ -22,7 +22,11 @@ NOTE = ROOT / "research" / "livecodebench-cost.md"
 INDEX = ROOT / "research" / "README.md"
 CONVERT = ROOT / "evidence" / "livecodebench" / "convert.py"
 COMMAND = "$ python research/livecodebench_cost.py"
-SECTIONS = ["## Facts", "## Method", "## Results", "## Reading it", "## Limits", "## Regenerate"]
+SECTIONS = ["## Facts", "## Method", "## Results", "## Reading it", "## Vendor pages", "## Limits", "## Regenerate"]
+# DESIGN 12.17 v1.98: the vendors read, in order, each with its own domain
+VENDORS = [("openai", "openai.com"), ("anthropic", "anthropic.com"), ("google", "google.dev"),
+           ("xai", "x.ai"), ("deepseek", "deepseek.com")]
+TABLE_HEADER = "| vendor | page, read | what it says of reasoning and its billing | models among the 67 it names |"
 # DESIGN section numbers: the only numbers of the note's prose that are not in the script's output
 ALLOWED = {"12.16", "12.17"}
 NUMBER = re.compile(r"(?<![\w.])\d+(?:,\d{3})*(?:\.\d+)?%?")
@@ -88,7 +92,7 @@ def test_report_on_a_stub(lcc):
     assert lines[:5] == [
         "4 files, 3 question ids in every file",
         "problem text: median 20 characters, from 10 to 30; files whose text differs from M (High)'s on some id: 0",
-        "first samples recorded as an empty string, counted as 0 characters: 1 (in 1 files)",
+        "first samples recorded as an empty string, counted as 0 characters: 1 (in 1 file)",
         "output tokens estimated at 4 characters per token",
         "",
     ]
@@ -109,6 +113,13 @@ def test_report_on_a_stub(lcc):
         "  M: High 95  Low 200 (longest over shortest 2.11)",
         "  N: none 41  Thinking 4,000 (longest over shortest 97.56)",
     ]
+
+
+def test_report_says_files_for_more_than_one(lcc):
+    reduced = stub()
+    reduced["N"]["q2"] = (30, 0, False, True)
+    assert lcc.report(reduced, model_of)[2] == (
+        "first samples recorded as an empty string, counted as 0 characters: 2 (in 2 files)")
 
 
 def test_report_counts_a_file_whose_problem_text_differs(lcc):
@@ -164,6 +175,59 @@ def test_note_prose_numbers_are_in_the_results_block():
     known = set(NUMBER.findall(block)) | ALLOWED
     missing = sorted({n for n in NUMBER.findall(prose)} - known)
     assert not missing
+
+
+def _block_models(block):
+    """The model column of the Results block's table: the first word of each row under its header."""
+    lines = block.splitlines()
+    start = next(i for i, line in enumerate(lines) if line.split()[:1] == ["model"]) + 2
+    end = next(i for i in range(start, len(lines)) if not lines[i].strip())
+    return [lines[i].split()[0] for i in range(start, end)]
+
+
+def _vendor_rows():
+    section = _note().split("\n## Vendor pages\n", 1)[1].split("\n## ", 1)[0]
+    rows = [line for line in section.splitlines() if line.startswith("|")]
+    assert rows[0] == TABLE_HEADER
+    assert set(rows[1]) <= {"|", "-", " "}
+    cells = [[cell.strip() for cell in row.strip().strip("|").split("|")] for row in rows[2:]]
+    assert all(len(row) == 4 for row in cells)
+    return cells
+
+
+def test_vendor_pages_rows_in_order():
+    assert [row[0] for row in _vendor_rows()] == [vendor for vendor, _ in VENDORS]
+
+
+def test_vendor_pages_each_cites_its_own_domain_and_a_date_read():
+    domains = dict(VENDORS)
+    for vendor, page, _, _ in _vendor_rows():
+        urls = URL.findall(page)
+        assert urls, vendor
+        for url in urls:
+            host = url.split("://", 1)[1].split("/", 1)[0]
+            assert url.startswith("https://") and (host == domains[vendor] or host.endswith("." + domains[vendor])), url
+        assert re.search(r"\bread \d{4}-\d{2}-\d{2}\b", page), vendor
+
+
+def test_vendor_pages_quote_each_page():
+    for vendor, _, said, _ in _vendor_rows():
+        assert re.search(r'"[^"]{12,}"', said), vendor
+
+
+def test_vendor_pages_name_only_models_in_the_results_block():
+    models = _block_models(_results_block(_note()))
+    assert len(models) == 67
+    named = []
+    for vendor, _, _, cell in _vendor_rows():
+        if cell == "none" or cell.startswith("none;"):
+            continue
+        ids = re.match(r"^((?:`[^`]+`(?:, )?)+)", cell)
+        assert ids, vendor
+        found = re.findall(r"`([^`]+)`", ids.group(1))
+        assert all(m in models and m.startswith(vendor + "/") for m in found), found
+        named += found
+    assert len(named) == len(set(named))
 
 
 def test_note_regenerate_block():
