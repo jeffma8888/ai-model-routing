@@ -954,7 +954,7 @@ DESIGN.md       the spec the tests were written from
 ## Development
 
 - Tests come first. The suite was written from `DESIGN.md` by a separate model before any implementation existed (in `git log`, the test commit comes before the implementation commit), and each review-driven change since then landed as a spec clause plus failing tests before the fix (see `DESIGN.md` section 15)
-- Run `pytest -q`. CI runs the suite and the demo on Python 3.10 to 3.13
+- Run `pytest -q`. CI runs the suite and the demo on Python 3.10 to 3.14
 
 ## License
 
