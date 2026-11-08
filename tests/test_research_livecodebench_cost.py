@@ -303,7 +303,8 @@ def test_vendor_pages_card_families_cite_the_cards_of_their_price_rows():
 
 
 def test_vendor_pages_set_each_card_run_beside_its_marker_share():
-    # DESIGN 12.17 v1.107: one bullet names every run of the card families with its think_marker share
+    # DESIGN 12.17 v1.107: one bullet names every run of the card families with its think_marker share;
+    # v1.109 (review iter-106 should-fix 2): each ID followed by its own share in brackets
     block = _results_block(_note())
     share = {line.split()[0]: line.split()[2] for line in block.splitlines()
              if line.split()[:1] and "/" in line.split()[0] and len(line.split()) == 4}
@@ -311,7 +312,7 @@ def test_vendor_pages_set_each_card_run_beside_its_marker_share():
     bullets = [line for line in _section("## Vendor pages").splitlines() if line.startswith("- ")]
     found = [b for b in bullets if all("`" + run + "`" in b for run in runs)]
     assert len(found) == 1
-    assert all(share[run] in found[0] for run in runs)
+    assert all("`" + run + "` (" + share[run] + ")" in found[0] for run in runs)
 
 
 def _price_rows():
