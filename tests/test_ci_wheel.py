@@ -134,7 +134,7 @@ MUTANTS = {
     "an if naming a Python outside the matrix": lambda t: t.replace(
         STEP_HEAD, f"      - name: {NAME}\n        if: matrix.python-version == '3.9'\n", 1),
     "3.12 dropped from the matrix": lambda t: t.replace(
-        '["3.10", "3.11", "3.12", "3.13"]', '["3.10", "3.11", "3.13"]', 1),
+        '"3.11", "3.12", ', '"3.11", ', 1),
     "a continue-on-error": lambda t: t.replace(
         STEP_HEAD, STEP_HEAD + "        continue-on-error: true\n", 1),
     "a working-directory": lambda t: t.replace(
