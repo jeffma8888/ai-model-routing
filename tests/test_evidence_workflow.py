@@ -269,8 +269,8 @@ MUTANTS = {
                                     "run: python -m pip install -e .\n"
                                     "        env:\n          TOKEN: ${{ secrets.TOKEN }}\n", 1),
     "the compare step without variants.json": lambda t: t.replace(
-        "evidence/delegation/results.json evidence/delegation/variants.json\n",
-        "evidence/delegation/results.json\n", 1),
+        "evidence/delegation/variants.json evidence/tau2-bench-delegation/results.json\n",
+        "evidence/tau2-bench-delegation/results.json\n", 1),
     "checkout with credentials": lambda t: t.replace("persist-credentials: false",
                                                      "persist-credentials: true", 1),
     "a job shell without pipefail": lambda t: t.replace(

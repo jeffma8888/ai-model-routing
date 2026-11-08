@@ -1,10 +1,10 @@
 name: evidence
 
 # Reruns the regenerate commands of the README subsections AutoBench, AutoBench judges,
-# tau2-bench, LiveCodeBench and Delegation on AutoBench, which download the pinned dataset
-# files and check their sha256, then fails if a committed results file changed (DESIGN.md
-# 12.13). RouterBench is left out of it, since its source is a 99,567,659-byte pickle that
-# needs pandas and its evaluate step takes about 70 seconds.
+# tau2-bench, LiveCodeBench, Delegation on AutoBench and Delegation on tau2-bench, which
+# download the pinned dataset files and check their sha256, then fails if a committed results
+# file changed (DESIGN.md 12.13). RouterBench is left out of it, since its source is a
+# 99,567,659-byte pickle that needs pandas and its evaluate step takes about 70 seconds.
 
 on:
   workflow_dispatch:
@@ -64,5 +64,9 @@ jobs:
           python evidence/delegation/results.py --table evidence/delegation/results.json --bar 0.8 --point 1
           python evidence/delegation/results.py --matrix autobench-tokens.jsonl --registry autobench-pool.json --grid variants --out evidence/delegation/variants.json
           python evidence/delegation/results.py --table evidence/delegation/variants.json
+          python evidence/tau2-bench/convert.py --out tau2-calls.jsonl --calls
+          python evidence/tau2-bench-delegation/results.py --matrix tau2-calls.jsonl --registry evidence/tau2-bench-delegation/registry.json --out evidence/tau2-bench-delegation/results.json
+          python evidence/delegation/results.py --table evidence/tau2-bench-delegation/results.json
+          python evidence/delegation/results.py --table evidence/tau2-bench-delegation/results.json --bar 0.3 --point 0
       - name: Compare
-        run: git diff --exit-code -- evidence/autobench-2026/results.json evidence/autobench-judges/results.json evidence/tau2-bench/results.json evidence/livecodebench/results.json evidence/delegation/results.json evidence/delegation/variants.json
+        run: git diff --exit-code -- evidence/autobench-2026/results.json evidence/autobench-judges/results.json evidence/tau2-bench/results.json evidence/livecodebench/results.json evidence/delegation/results.json evidence/delegation/variants.json evidence/tau2-bench-delegation/results.json
