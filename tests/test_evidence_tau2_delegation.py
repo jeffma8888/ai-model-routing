@@ -939,6 +939,7 @@ def test_readme_limitations_say_the_cached_point_moves_no_decision(dr):
     for phrase in (f"`cached_read_ratio` {STATED_RATIO:g} of its list input price",
                    f"and so it has with the ratio at {PAGE_RATIO:g} or {FLOOR_RATIO:g}: ",
                    "the decision has the mode, model and reason it has at point 2 on all ",
-                   " in both flavors, "):
+                   " in both flavors, ",
+                   ": no cell moves from `delegate_cheaper` to `inline_cheaper`."):
         assert phrase in line, phrase
     assert RESULTS_MD.read_text(encoding="utf-8").splitlines().count("## Reading it") == 1
