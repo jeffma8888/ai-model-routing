@@ -13,10 +13,14 @@ v1.82 adds the pooled run, the same script on the three domains as one task, wri
 ``pooled.json``; its tests came before the file and the RESULTS.md parts and failed until v1.83.
 v1.84 puts the pooled run in the README subsection, three RESULTS.md bullets and its regenerate
 block (12.8); its tests came before the README lines.
+v1.88 runs the 13.10 cached point (variant point 1) in process on both matrices, at its 0.1 and at
+0.25 and 0, and states in RESULTS.md that no decision moves and which ratio the recorded costs
+imply; its tests came before the RESULTS.md bullets and two of them failed until v1.89.
 """
 
 import importlib.util
 import json
+from fractions import Fraction
 import re
 import math
 import random
@@ -25,7 +29,7 @@ from pathlib import Path
 
 import pytest
 
-from model_routing import Model, Registry, evaluate_delegation
+from model_routing import Model, Registry, evaluate_delegation, split_items
 
 ROOT = Path(__file__).resolve().parents[1]
 FOLDER = ROOT / "evidence" / "tau2-bench-delegation"
@@ -705,3 +709,177 @@ def test_results_md_reason_table_and_cost_comparison_are_built_from_the_runs(run
     assert results.index(table) > results.index(POOLED_CMD)
     assert f"- {cost_comparison_sentence(runs)}\n" in section(text, "## Reading it")
     assert f"\n- {cost_comparison_sentence(runs)}\n" in readme_subsection()
+
+
+# --- the cached point on per-call rows (DESIGN 13.12 v1.88) ------------------------------------
+
+STATED_RATIO = 0.1
+# Two sensitivities beside it: the OpenAI model pages' cached-input over input price (the research
+# note's table, checked below), and 0, where no read of C is charged.
+PAGE_RATIO = 0.25
+FLOOR_RATIO = 0.0
+RATIOS = (STATED_RATIO, PAGE_RATIO, FLOOR_RATIO)
+
+
+def cached_points(dr):
+    """Base point 2, then the 13.10 variant point 1 and that point at the two other ratios."""
+    base, cached = dr.points()[2], dr.variant_points()[1]
+    assert cached == dict(base, cached_read_ratio=STATED_RATIO) and "work_calls" not in cached
+    return [base] + [dict(base, cached_read_ratio=ratio) for ratio in RATIOS]
+
+
+def test_cached_point_moves_only_the_inline_cost_on_per_call_rows(dr):
+    rows, registry = synthetic()
+    points = cached_points(dr)
+    result = evaluate_delegation(rows, registry, bars=[0.5], points=points, seeds=range(3))
+    assert result["config"]["points"] == points
+    cells = {(c["flavor"], c["point"], c["parent"], c["seed"]): c for c in result["cells"]}
+    by_row = {(r["item"], r["model"]): r for r in rows}
+    items = sorted({r["item"] for r in rows})
+    c_tokens = points[0]["context_tokens"]
+    for (flavor, point, parent, seed), cell in cells.items():
+        base = cells[(flavor, 0, parent, seed)]
+        assert cell["delegate"] == base["delegate"] and cell["inline_allowed"] == base["inline_allowed"]
+        for strategy in ("inline", "delegate"):
+            assert cell["correct"][strategy] == base["correct"][strategy], strategy
+        assert cell["cost_usd"]["delegate"] == base["cost_usd"]["delegate"]
+        if point == 0:
+            continue
+        rho = points[point]["cached_read_ratio"]
+        model = registry.get(parent)
+        _, held = split_items(items, seed)
+        saved = math.fsum(model.cost(len(by_row[(item, parent)]["call_input_tokens"]) * c_tokens * (1 - rho), 0)
+                          for item in held)
+        assert saved > 0
+        assert math.isclose(base["cost_usd"]["inline"] - cell["cost_usd"]["inline"], saved, rel_tol=1e-9)
+
+
+def ratio_bullet():
+    """The v1.88 Assumed bullet, its prices, ratio and shares read from the research note."""
+    text = RESEARCH.read_text(encoding="utf-8")
+    registry = {m["id"]: m for m in json.loads(REGISTRY.read_text(encoding="utf-8"))["models"]}
+    prices = []
+    for agent in (GPT41, MINI):
+        found = re.findall(rf"^\| `{re.escape(agent)}` \| [^|]+ \| [^|]+ \| ([0-9.]+), ([0-9.]+), [0-9.]+ \|", text, re.M)
+        assert len(found) == 1, agent
+        price_in, cached_in = found[0]
+        assert float(price_in) == registry[agent]["price_in"]
+        prices.append((price_in, cached_in, Fraction(cached_in) / Fraction(price_in)))
+    assert {ratio for _, _, ratio in prices} == {Fraction(PAGE_RATIO)}
+    shares = re.findall(rf"The inferred cached tokens are ([0-9.]+%) of `{re.escape(GPT41)}`'s prompt tokens, "
+                        rf"([0-9.]+%) of `{re.escape(MINI)}`'s", text)
+    assert len(shares) == 1
+    assert "The one Anthropic agent's costs are exactly list price" in text
+    (a_in, a_cached, _), (b_in, b_cached, _) = prices
+    return (f"The cached point's ratio of {STATED_RATIO:g} is an assumption, as on AutoBench, not read from these "
+            f"runs. Of the recorded costs, only those of the two OpenAI agents imply a cached price: their model "
+            f"pages price cached input at {PAGE_RATIO:g} of input ({a_cached} against {a_in} and {b_cached} against "
+            f"{b_in} USD per 1M tokens), which the research note infers on {shares[0][0]} and {shares[0][1]} of "
+            f"their prompt tokens. Those are the agents' re-reads of their own conversations, which these rows "
+            f"price at list price on both paths, not a parent's reads of C; the Anthropic agent's recorded costs "
+            f"are list price, a ratio of 1.0. The {PAGE_RATIO:g} is a page price, not a parameter fitted to the runs.")
+
+
+def test_results_md_states_the_ratio_the_recorded_costs_imply():
+    assumed = section(RESULTS_MD.read_text(encoding="utf-8"), "## Assumed")
+    bullets = [line for line in assumed.splitlines() if line.startswith("- ")]
+    assert f"- {ratio_bullet()}" in bullets
+    at = bullets.index(f"- {ratio_bullet()}")
+    assert bullets[at + 1].startswith("- The limits of `DESIGN.md` 13.8")
+
+
+@pytest.fixture(scope="module")
+def cached_runs(dr, calls_matrix, pooled_matrix):
+    """Both runs at base point 2 and the cached point's three ratios, cells kept."""
+    registry = Registry.load(REGISTRY)
+    return {label: evaluate_delegation(matrix[0], registry, bars=list(BARS), points=cached_points(dr),
+                                       seeds=range(50))
+            for label, matrix in zip(RUNS, (calls_matrix, pooled_matrix))}
+
+
+def cell_key(cell):
+    return (cell["bar"], cell["flavor"], cell["parent"], cell["seed"], cell["task"])
+
+
+def test_pinned_files_cached_point_keeps_every_decision(cached_runs):
+    kept = ("mode", "model", "reason", "below_bar", "delegate", "inline_allowed", "correct")
+    for label in RUNS:
+        cells = cached_runs[label]["cells"]
+        base = {cell_key(c): c for c in cells if c["point"] == 0}
+        for point in (1, 2, 3):
+            at = [c for c in cells if c["point"] == point]
+            assert len(at) == len(base) == {"per domain": 5_400, "pooled": 1_800}[label]
+            for cell in at:
+                b = base[cell_key(cell)]
+                assert [cell[k] for k in kept] == [b[k] for k in kept]
+                path = "delegate" if cell["mode"] == "delegate" else "inline"
+                assert cell["cost_usd"]["decision"] == cell["cost_usd"][path]
+                assert cell["cost_usd"]["delegate"] == b["cost_usd"]["delegate"]
+                assert cell["cost_usd"]["inline"] < b["cost_usd"]["inline"]
+        assert all(c["mode"] == "delegate" for c in cells if c["flavor"] == "cost_effective")
+    want = {"per domain": {"cost_effective": {"none_clear": 1262, "parent_context_full": 900,
+                                              "delegate_cheaper": 387, "parent_below_bar": 151},
+                           "cost_blind": {"none_clear": 1262, "parent_context_full": 900, "delegate_better": 325,
+                                          "parent_below_bar": 151, "inline_as_good": 62}},
+            "pooled": {"cost_effective": {"none_clear": 332, "parent_context_full": 300,
+                                          "delegate_cheaper": 209, "parent_below_bar": 59},
+                       "cost_blind": {"none_clear": 332, "parent_context_full": 300, "delegate_better": 187,
+                                      "parent_below_bar": 59, "inline_as_good": 22}}}
+    for label in RUNS:
+        for flavor in FLAVORS:
+            got = Counter(c["reason"] for c in cached_runs[label]["cells"] if c["flavor"] == flavor and c["point"] == 1)
+            assert got == want[label][flavor], (label, flavor)
+    index = summary_index(cached_runs["per domain"])
+    inline = {p: [round(index[(0.3, "cost_effective", point, p, "inline")]["cost_usd"], 4) for point in range(4)]
+              for p in (GPT41, MINI)}
+    assert inline == {GPT41: [774.2023, 104.3215, 215.9683, 29.8903], MINI: [213.0697, 29.8110, 60.3541, 9.4489]}
+    decision = {p: {round(index[(0.3, "cost_effective", point, p, "decision")]["cost_usd"], 4) for point in range(4)}
+                for p in (GPT41, MINI)}
+    assert decision == {GPT41: {19.8837}, MINI: {18.9993}}
+    blocked = [c for c in cached_runs["per domain"]["cells"] if c["point"] == 1 and not c["inline_allowed"]]
+    assert {c["parent"] for c in blocked} == {CLAUDE} and len(blocked) == 1_800
+    assert {c["reason"] for c in blocked} == {"parent_context_full"}
+
+
+def reason_words(cells):
+    counts = Counter(c["reason"] for c in cells)
+    return words([f"{counts[r]:,} `{r}`" for r in sorted(counts, key=lambda r: (-counts[r], r))])
+
+
+def cached_reading(runs):
+    """The three v1.88 Reading it bullets, from the in-process runs."""
+    per, pooled = (runs[label] for label in RUNS)
+    at = {label: [c for c in runs[label]["cells"] if c["point"] == 1] for label in RUNS}
+    ce = {label: [c for c in at[label] if c["flavor"] == "cost_effective"] for label in RUNS}
+    cheaper = [sum(c["reason"] == "delegate_cheaper" for c in ce[label]) for label in RUNS]
+    first = (f"At the cached point of [the AutoBench delegation results](../delegation/RESULTS.md) (variant point 1: "
+             f"point 2 with the parent's reads of C at `cached_read_ratio` {STATED_RATIO:g} of its list input price, "
+             f"an assumed ratio), the decision has the mode, model and reason it has at point 2 on all "
+             f"{len(at['per domain']):,} cells per domain and all {len(at['pooled']):,} pooled, in both flavors, "
+             f"and so it has with the ratio at {PAGE_RATIO:g} or {FLOOR_RATIO:g}: no cell moves from "
+             f"`delegate_cheaper` to `inline_cheaper`.")
+    second = (f"There, of the {len(ce['per domain']):,} `cost_effective` cells per domain, "
+              f"{reason_words(ce['per domain'])}; of the {len(ce['pooled']):,} pooled, {reason_words(ce['pooled'])}; "
+              f"the {cheaper[0]:,} and {cheaper[1]:,} `delegate_cheaper` cells (`DESIGN.md` 13.5 row 3) stay "
+              f"`delegate_cheaper` with the ratio at {FLOOR_RATIO:g}, where no read of C is charged.")
+    parents = per["config"]["parents"]
+    allowed = [p for p in parents if all(c["inline_allowed"] for c in at["per domain"] if c["parent"] == p)]
+    assert not [c for c in at["per domain"] if c["parent"] not in allowed and c["inline_allowed"]]
+    index, bar = summary_index(per), per["config"]["bars"][0]
+    costs = [(p, index[(bar, "cost_effective", 0, p, "inline")]["cost_usd"],
+              index[(bar, "cost_effective", 1, p, "inline")]["cost_usd"],
+              index[(bar, "cost_effective", 1, p, "decision")]["cost_usd"]) for p in allowed]
+    assert len(costs) == 2
+    (p1, l1, c1, d1), (p2, l2, c2, d2) = costs
+    third = (f"At bar {bar} the ratio of {STATED_RATIO:g} cuts always inline's cost on a held-out half at "
+             f"C = {per['config']['points'][1]['context_tokens']:,} from {l1:.4f} to {c1:.4f} USD for `{p1}` and "
+             f"from {l2:.4f} to {c2:.4f} for `{p2}`, the parents inline is allowed for there; the decision costs "
+             f"{d1:.4f} and {d2:.4f} per domain.")
+    return [first, second, third]
+
+
+def test_results_md_states_the_cached_point(cached_runs):
+    reading = section(RESULTS_MD.read_text(encoding="utf-8"), "## Reading it")
+    block = "\n".join(f"- {sentence}" for sentence in cached_reading(cached_runs))
+    assert f"\n{block}\n" in f"\n{reading}"
+    assert reading.index(block) > reading.index("- `pooled.json` is ")
