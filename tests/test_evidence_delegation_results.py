@@ -623,6 +623,148 @@ def test_readme_subsection_states_the_breakeven_numbers(dr):
     assert f"- {breakeven_reading(committed())[1]}\n" in readme_subsection()
 
 
+# --- v1.112: where a fixed policy beats the decision on both counts ---------------------------
+
+def dominated(results):
+    """v1.112 (DESIGN 13.10): the (bar, flavor, point, parent, strategy) keys, in config order,
+    whose `inline` or `delegate` row has success at least the decision's and cost at most its,
+    at least one of the two strictly, on the stored floats with no tolerance."""
+    rows = {(r["bar"], r["flavor"], r["point"], r["parent"], r["strategy"]): r
+            for r in results["summary"]}
+    config = results["config"]
+    out = []
+    for bar in config["bars"]:
+        for flavor in config["flavors"]:
+            for point in range(len(config["points"])):
+                for parent in config["parents"]:
+                    dec = rows[(bar, flavor, point, parent, "decision")]
+                    for strategy in ("inline", "delegate"):
+                        row = rows[(bar, flavor, point, parent, strategy)]
+                        if (row["success"] >= dec["success"] and row["cost_usd"] <= dec["cost_usd"]
+                                and (row["success"] > dec["success"]
+                                     or row["cost_usd"] < dec["cost_usd"])):
+                            out.append((bar, flavor, point, parent, strategy))
+    return out
+
+
+def test_dominated_needs_both_counts_and_one_strictly():
+    results = handmade()
+    # a/x: inline scores lower, delegate ties on both counts; b/y: both fixed policies dominate
+    assert dominated(results) == [(0.5, "cost_effective", 0, "b/y", "inline"),
+                                  (0.5, "cost_effective", 0, "b/y", "delegate")]
+    for row in results["summary"]:
+        if (row["parent"], row["strategy"]) == ("a/x", "delegate"):
+            row["cost_usd"] = 0.999          # same success, strictly cheaper
+        if (row["parent"], row["strategy"]) == ("b/y", "inline"):
+            row["success"] = 0.7             # same success, strictly cheaper
+        if (row["parent"], row["strategy"]) == ("b/y", "delegate"):
+            row["cost_usd"] = 3.0            # strictly better success, same cost
+    assert dominated(results) == [(0.5, "cost_effective", 0, "a/x", "delegate"),
+                                  (0.5, "cost_effective", 0, "b/y", "inline"),
+                                  (0.5, "cost_effective", 0, "b/y", "delegate")]
+    for row in results["summary"]:
+        if (row["parent"], row["strategy"]) == ("b/y", "delegate"):
+            row["cost_usd"] = 3.0000001      # better success, but dearer
+    assert (0.5, "cost_effective", 0, "b/y", "delegate") not in dominated(results)
+
+
+def words(items):
+    return items[0] if len(items) == 1 else ", ".join(items[:-1]) + " and " + items[-1]
+
+
+def dominated_reading(results):
+    """v1.112: the last RESULTS.md "Reading it" bullet, built from a results file
+    (DESIGN 13.10)."""
+    rows = {(r["bar"], r["flavor"], r["point"], r["parent"], r["strategy"]): r
+            for r in results["summary"]}
+    config = results["config"]
+    points = config["points"]
+    found = dominated(results)
+    groups = [key[:4] for key in found]
+    assert len(set(groups)) == len(groups), "a group dominated by both strategies"
+    total = (len(config["bars"]) * len(config["flavors"]) * len(points)
+             * len(config["parents"]))
+    blind = [key for key in found if key[1] == "cost_blind"]
+    effective = [key for key in found if key[1] == "cost_effective"]
+    by_delegate = [key for key in blind if key[4] == "delegate"]
+    by_inline = [key for key in blind if key[4] == "inline"]
+    for key in by_delegate:
+        assert rows[key]["success"] == rows[key[:4] + ("decision",)]["success"], key
+    inline_parents = {key[3] for key in by_inline}
+    assert len(inline_parents) == 1, inline_parents
+    assert by_delegate and effective
+
+    def where(idx):
+        separate = [f"{points[i]['context_tokens']:,}" for i in idx
+                    if points[i]["inline_separate_call"]]
+        folded = [f"{points[i]['context_tokens']:,}" for i in idx
+                  if not points[i]["inline_separate_call"]]
+        parts = []
+        if separate:
+            parts.append(f"{words(separate)} context tokens with inline work in a call of its own")
+        if folded:
+            unit = "" if separate else " context tokens"
+            parts.append(f"{words(folded)}{unit} with the work folded")
+        return " and at ".join(parts)
+
+    def values(keys, strategy, key, fmt):
+        texts = [format(rows[k[:4] + (strategy,)][key], fmt) for k in keys]
+        if key == "success" and len(set(texts)) == 1:
+            return texts[0]
+        return words(texts)
+
+    order = []
+    for key in effective:
+        if (key[4], key[3], key[0]) not in order:
+            order.append((key[4], key[3], key[0]))
+    clauses = []
+    for strategy, parent, bar in order:
+        keys = [k for k in effective if (k[4], k[3], k[0]) == (strategy, parent, bar)]
+        keys.sort(key=lambda k: (not points[k[2]]["inline_separate_call"], k[2]))
+        policy = "inline" if strategy == "inline" else "delegating"
+        clauses.append(
+            f"always {policy} with `{parent}` as the parent at bar {bar}, at "
+            f"{where([k[2] for k in keys])} ({values(keys, strategy, 'success', '.3f')} at "
+            f"{values(keys, strategy, 'cost_usd', '.4f')} USD against the decision's "
+            f"{values(keys, 'decision', 'success', '.3f')} at "
+            f"{values(keys, 'decision', 'cost_usd', '.4f')})")
+    listed = clauses[0] if len(clauses) == 1 else ", ".join(clauses[:-1]) + ", and " + clauses[-1]
+    return (f"In {len(found)} of the {total} (bar, flavor, point, parent) groups a fixed policy "
+            f"does at least as well as the decision on both counts, a held-out success at least "
+            f"the decision's at a cost at most its and one of the two strictly: {len(blind)} in "
+            f"`cost_blind` and {len(effective)} in `cost_effective`. In `cost_blind` always "
+            f"delegating does so in {len(by_delegate)} of them, each at exactly the decision's "
+            f"held-out success, and always inline in {len(by_inline)}, all with "
+            f"`{inline_parents.pop()}` as the parent. In `cost_effective` they are {listed}. The "
+            f"decision reads only the calibration half, where the bar is held on lower bounds and "
+            f"each path is priced at that half's mean sizes, so a path chosen there can score "
+            f"lower or cost more on the held-out half; a delegate that clears is taken whatever "
+            f"its cost when the parent does not clear, the paths are ordered by bound before cost "
+            f"when neither clears, and `cost_blind` keeps a tie of equal bounds inline whatever "
+            f"delegating would save, as when the delegate is the parent's own model "
+            f"(`DESIGN.md` 13.5 rows 2, 4 and 7)")
+
+
+def test_results_md_names_where_a_fixed_policy_beats_the_decision(dr):
+    results = committed()
+    found = dominated(results)
+    assert len(found) == 30
+    assert [k for k in found if k[1] == "cost_effective"] == [
+        (0.7, "cost_effective", 3, "google/gemini-3.7-flash", "delegate"),
+        (0.8, "cost_effective", 0, "openai/gpt-5.6-luna", "inline"),
+        (0.8, "cost_effective", 1, "openai/gpt-5.6-luna", "inline"),
+        (0.8, "cost_effective", 3, "openai/gpt-5.6-luna", "inline")]
+    reading = RESULTS_MD.read_text(encoding="utf-8").split("\n## Reading it\n", 1)[1]
+    reading = reading.split("\n## ", 1)[0]
+    bullet = f"- {dominated_reading(results)}"
+    assert reading.count(bullet + "\n") == 1
+    assert reading.rstrip("\n").endswith(bullet)
+
+
+def test_readme_subsection_leaves_the_dominated_groups_to_results_md():
+    assert "a fixed policy does at least as well" not in readme_subsection()
+
+
 # --- v1.59: the delegation evidence reads one dataset (research/delegation-datasets.md) --------
 
 DATASETS_NOTE = ROOT / "research" / "delegation-datasets.md"
