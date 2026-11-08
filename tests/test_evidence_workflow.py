@@ -1,6 +1,6 @@
 """The `evidence` workflow reruns the README regenerate commands of the AutoBench-based
-subsections, from v1.55 the tau2-bench one, from v1.65 the LiveCodeBench one and from v1.80 the tau2-bench
-delegation one on GitHub and
+subsections, from v1.55 the tau2-bench one, from v1.65 the LiveCodeBench one, from v1.80 the tau2-bench
+delegation one and from v1.84 its pooled run on GitHub and
 fails when a committed results file changes (DESIGN 12.13, v1.30),
 and both workflows run on one pinned runner image with a dated comment (v1.49).
 
@@ -46,13 +46,19 @@ def subsection(text, heading):
     return section.split(marker, 1)[1].split("\n### ", 1)[0]
 
 
+# v1.84: the tau2-bench delegation subsection holds two regenerate blocks, the per-domain one and
+# the pooled one; every other rerun subsection holds one.
+BLOCKS = {"Delegation on tau2-bench": 2}
+
+
 def readme_blocks(text):
-    """Each rerun subsection's one regenerate block, in README heading order, as lines."""
+    """Each rerun subsection's regenerate blocks, in README heading order, joined in order into
+    one list of lines per subsection."""
     blocks = []
     for heading in SUBSECTIONS:
         found = re.findall(r"```bash\n(.*?)```", subsection(text, heading), re.S)
-        assert len(found) == 1, heading
-        blocks.append(found[0].rstrip("\n").split("\n"))
+        assert len(found) == BLOCKS.get(heading, 1), heading
+        blocks.append([line for block in found for line in block.rstrip("\n").split("\n")])
     return blocks
 
 
@@ -222,14 +228,15 @@ def test_workflow_reruns_the_readme_commands_and_compares_the_results():
 
 def test_readme_commands_are_the_six_rerun_blocks():
     commands = expected_commands(readme())
-    assert len(commands) == 4 + 4 + 4 + 4 + 6 + 4
+    assert len(commands) == 4 + 4 + 4 + 4 + 6 + 4 + 3
     assert out_paths(commands) == ["evidence/autobench-2026/results.json",
                                    "evidence/autobench-judges/results.json",
                                    "evidence/tau2-bench/results.json",
                                    "evidence/livecodebench/results.json",
                                    "evidence/delegation/results.json",
                                    "evidence/delegation/variants.json",
-                                   "evidence/tau2-bench-delegation/results.json"]
+                                   "evidence/tau2-bench-delegation/results.json",
+                                   "evidence/tau2-bench-delegation/pooled.json"]
     assert all((ROOT / p).is_file() for p in out_paths(commands))
     assert not any("routerbench-matrix" in c for c in commands)
 
@@ -269,8 +276,10 @@ MUTANTS = {
                                     "run: python -m pip install -e .\n"
                                     "        env:\n          TOKEN: ${{ secrets.TOKEN }}\n", 1),
     "the compare step without variants.json": lambda t: t.replace(
-        "evidence/delegation/variants.json evidence/tau2-bench-delegation/results.json\n",
-        "evidence/tau2-bench-delegation/results.json\n", 1),
+        "evidence/delegation/variants.json evidence/tau2-bench-delegation/results.json",
+        "evidence/tau2-bench-delegation/results.json", 1),
+    "the compare step without pooled.json": lambda t: t.replace(
+        " evidence/tau2-bench-delegation/pooled.json\n", "\n", 1),
     "checkout with credentials": lambda t: t.replace("persist-credentials: false",
                                                      "persist-credentials: true", 1),
     "a job shell without pipefail": lambda t: t.replace(
@@ -292,7 +301,7 @@ MUTANTS = {
 
 
 def test_the_mutant_count_is_the_one_design_states():
-    assert len(MUTANTS) == 16
+    assert len(MUTANTS) == 17
 
 
 @pytest.mark.parametrize("name", sorted(MUTANTS))

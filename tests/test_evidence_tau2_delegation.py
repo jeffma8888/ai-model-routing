@@ -11,6 +11,8 @@ rows, the research note states each price, window and status the registry takes 
 when the 12 pinned files are cached, the ``--calls`` matrix keeps exactly the registry's agents.
 v1.82 adds the pooled run, the same script on the three domains as one task, written to
 ``pooled.json``; its tests came before the file and the RESULTS.md parts and failed until v1.83.
+v1.84 puts the pooled run in the README subsection, three RESULTS.md bullets and its regenerate
+block (12.8); its tests came before the README lines.
 """
 
 import importlib.util
@@ -398,6 +400,7 @@ README_LINKS = (
     "[RESULTS.md](evidence/tau2-bench-delegation/RESULTS.md)",
     "[results.json](evidence/tau2-bench-delegation/results.json)",
     "[registry.json](evidence/tau2-bench-delegation/registry.json)",
+    "[pooled.json](evidence/tau2-bench-delegation/pooled.json)",
     "](evidence/tau2-bench/README.md)",
     "](research/delegation-datasets.md)",
     "[inline or sub-agent](#inline-or-sub-agent)",
@@ -467,9 +470,12 @@ def test_readme_subsection_repeats_the_results_md_lines():
         assert f"\n{found[0]}\n" in sub, start
 
 
-def test_readme_subsection_regenerate_block_is_the_results_md_one():
+def test_readme_subsection_regenerate_blocks_are_the_results_md_ones():
+    # v1.84: both RESULTS.md blocks, the pooled one after the line that names it.
     sub = readme_subsection()
-    assert re.findall(r"```bash\n.*?```\n", sub, re.S) == ["```bash\n" + "\n".join(REGENERATE) + "\n```\n"]
+    assert re.findall(r"```bash\n.*?```\n", sub, re.S) == [
+        "```bash\n" + "\n".join(lines) + "\n```\n" for lines in (REGENERATE, REGENERATE_POOLED)]
+    assert "```\n\nThe pooled run:\n\n```bash\n" in sub
 
 
 def test_readme_layout_names_the_results_md():
@@ -565,6 +571,35 @@ def test_results_md_reading_it_states_the_pooled_run():
     text = section(RESULTS_MD.read_text(encoding="utf-8"), "## Reading it")
     for sentence in pooled_reading(committed_results(), committed_pooled()):
         assert f"- {sentence}\n" in text, sentence
+
+
+# --- the pooled run in the README subsection (DESIGN 12.8 v1.84) -------------------------------
+
+def pooled_readme_lines():
+    """The three RESULTS.md bullets the README repeats, the Method one with its pooled.json link
+    from the repo root."""
+    text = RESULTS_MD.read_text(encoding="utf-8")
+    method = [line for line in section(text, "## Method").splitlines()
+              if line.startswith("- A second run pools the three domains")]
+    reading = [line for line in section(text, "## Reading it").splitlines()
+               if line.startswith(("- Pooled, the ", "- The cost comparison ("))]
+    assert len(method) == 1 and len(reading) == 2
+    link = "[pooled.json](pooled.json)"
+    assert method[0].count(link) == 1
+    return [method[0].replace(link, "[pooled.json](evidence/tau2-bench-delegation/pooled.json)"), *reading]
+
+
+def test_readme_subsection_states_the_pooled_run():
+    sub = readme_subsection()
+    lines = pooled_readme_lines()
+    assert lines[1] == f"- {pooled_reading(committed_results(), committed_pooled())[0]}"
+    for line in lines:
+        assert sub.count(f"\n{line}\n") == 1, line
+    at = [sub.index(f"\n{line}\n") for line in lines]
+    assert sub.index("\n- At point 2, C = 200,000") < at[0] < at[1] < at[2]
+    assert at[2] < sub.index("\nLimits, as RESULTS.md states them:\n")
+    assert "`pooled.json` is " not in sub
+    assert POOLED_CMD not in sub
 
 
 def reason_table(runs):
@@ -668,3 +703,4 @@ def test_results_md_reason_table_and_cost_comparison_are_built_from_the_runs(run
     assert table in results
     assert results.index(table) > results.index(POOLED_CMD)
     assert f"- {cost_comparison_sentence(runs)}\n" in section(text, "## Reading it")
+    assert f"\n- {cost_comparison_sentence(runs)}\n" in readme_subsection()
