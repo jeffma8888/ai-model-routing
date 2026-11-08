@@ -40,9 +40,10 @@ def _load(path: Path, name: str):
 def reduce_file(records, folder: str) -> dict:
     """Per question id: the problem text's length, the first sample's output length and whether it holds MARKER.
 
-    An output_list that is the empty string "" (47 ids in three files hold one) is an empty output: 0
-    characters, flagged so that report() can count them. Any other output_list that is not a list
-    starting with a string is a ValueError."""
+    An output_list that is the empty string "" is a record with no output text, whatever its label: 47
+    records over all ids hold one, in three files, and 3 of them are on the ids every file has, all in
+    one file. It counts as 0 characters, flagged so that report() can count them. Any other output_list
+    that is not a list starting with a string is a ValueError."""
     if not isinstance(records, list) or not records:
         raise ValueError(f"{folder}: the file must hold a non-empty list of problems")
     cells = {}
