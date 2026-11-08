@@ -1,6 +1,6 @@
 # What a cost read from LiveCodeBench output length would see
 
-Question: the LiveCodeBench evidence is `cost_blind` only, because the submissions record no cost, no token counts and no list price (`DESIGN.md` 12.16). Yet each pinned file holds every problem's text and every sample's output text, so a cost could be estimated from text length at list price. What would that estimate see, and what would it miss? Short answer: it sees the visible output only, and on the OpenAI reasoning runs the visible length stays the same at every reasoning setting while their reasoning tokens are billed and not shown, so the estimate would price those settings alike. Which of the 67 models publish their reasoning, beyond what the one OpenAI page quoted says of its reasoning models, and each vendor's list price, are not read here, so this note makes no recommendation yet and the evidence stays `cost_blind`.
+Question: the LiveCodeBench evidence is `cost_blind` only, because the submissions record no cost, no token counts and no list price (`DESIGN.md` 12.16). Yet each pinned file holds every problem's text and every sample's output text, so a cost could be estimated from text length at list price. What would that estimate see, and what would it miss? Short answer: it sees the visible output only, and on the OpenAI reasoning runs the visible length stays the same at every reasoning setting while their reasoning tokens are billed and not shown, so the estimate would price those settings alike. Of five vendors' current pages on reasoning (`## Vendor pages`), the four that speak of billing say reasoning is billed as output and none of them describes returning the raw reasoning by default, but of the 67 models the five pages name only `o4-mini`, so they cannot say which of the older runs hid their reasoning; no vendor's list price is read here, so this note makes no recommendation yet and the evidence stays `cost_blind`.
 
 ## Facts
 
@@ -9,7 +9,8 @@ Question: the LiveCodeBench evidence is `cost_blind` only, because the submissio
 - The OpenAI runs at three reasoning settings have about the same visible length at each: `openai/o1-2024-12-17` from 1,091 characters (high) to 1,130 (low), 1.04 times; `openai/o3-mini-2025-01-31` 1.05 times; `openai/o4-mini` 1.18 times, with high the shortest, 955 against 1,127 at low
 - The OpenAI help page on tokens says reasoning tokens "are not visible as answer text, but they count toward output usage and are billed as output tokens" (read 2026-11-08), so on those runs the visible length cannot show what each setting was billed for
 - The two Anthropic models run with and without thinking go the other way: `anthropic/claude-opus-4-thinking` 8,635 characters against 1,598 (5.40 times) and `anthropic/claude-sonnet-4-thinking` 13,393 against 1,960 (6.83 times), so some of what thinking adds reaches the published output; whether it is the reasoning, a summary of it or a longer answer, length alone does not show
-- Recommendation: none yet. A text-length cost under-counts the runs whose reasoning is billed and unseen; which of the 67 those are, and each vendor's list price on a date read, need the vendors' own pages, which this note does not read yet beyond the one OpenAI page quoted
+- The current pages on reasoning of openai, anthropic, google, xai and deepseek (read 2026-11-08, `## Vendor pages`) name only `o4-mini` of the 67; the four that speak of billing say reasoning is billed as output, and none of those four describes returning the raw reasoning by default
+- Recommendation: none yet. A text-length cost under-counts the runs whose reasoning is billed and unseen; which of the 67 those were, the vendors' current pages do not say, and no vendor's list price on a date read is in this note
 
 ## Method
 
@@ -26,7 +27,7 @@ Question: the LiveCodeBench evidence is `cost_blind` only, because the submissio
 $ python research/livecodebench_cost.py
 67 files, 713 question ids in every file
 problem text: median 1,283 characters, from 449 to 3,950; files whose text differs from Claude-3-Haiku's on some id: 0
-first samples recorded as an empty string, counted as 0 characters: 3 (in 1 files)
+first samples recorded as an empty string, counted as 0 characters: 3 (in 1 file)
 output tokens estimated at 4 characters per token
 
 model                                          median_output_chars  think_marker  est_output_tokens
@@ -117,9 +118,24 @@ runs of one model at more than one reasoning setting (median output characters):
 - Thinking shows on the Claude 4 runs, 5.40 and 6.83 times the run without it, so for those a text-length cost would rise with thinking; how much of the billed thinking it misses, length cannot tell
 - On input the estimate separates no model: the problem text is the same in all 67 files (0 differ, median 1,283 characters, 449 to 3,950), so every model gets the same input token count and only the list price differs
 
+## Vendor pages
+
+Each vendor's current page on how its models return and bill reasoning, for five of the thirteen vendor families among the 67. A page describes the vendor's models on the date read, not the runs in the files, so the table draws no conclusion on a model the page does not name. Quotes are verbatim but for straight apostrophes. The other eight families (`agentica`, `lgai`, `meta-llama`, `metastone`, `mistralai`, `moonshotai`, `nvidia`, `qwen`) are not read here.
+
+| vendor | page, read | what it says of reasoning and its billing | models among the 67 it names |
+|---|---|---|---|
+| openai | https://platform.openai.com/docs/guides/reasoning, read 2026-11-08 | "reasoning tokens are not visible via the API" and "are billed as output tokens"; "we don't expose the raw reasoning tokens emitted by the model", and a summary of the reasoning "will not be included unless you explicitly opt in" | `openai/o4-mini-high`, `openai/o4-mini-low`, `openai/o4-mini-medium`: the page names `o4-mini` once, as a model that "supports detailed" reasoning summaries; the other OpenAI models it names are later ones |
+| anthropic | https://docs.anthropic.com/en/docs/build-with-claude/thinking and https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking, both read 2026-11-08 | "the tokens Claude spends reasoning are billed as output tokens, even when the thinking text isn't returned to you"; what a thinking block shows "is never the raw chain of thought", but a summary, or an empty field when `display` is `"omitted"`, of which it says "Omitting reduces latency, not cost"; the second page's `thinking_tokens` usage field "reports how many of the billed output tokens were internal reasoning" | none; the first page says the summary is the default display on two later models it names "and earlier models", a group it does not list |
+| google | https://ai.google.dev/gemini-api/docs/thinking and https://ai.google.dev/gemini-api/docs/pricing, both read 2026-11-08 | "By default, only the final output is returned", with thought summaries an opt-in; the pricing page heads each output price "Output price (including thinking tokens)" | none; the thinking page names a later Gemini model only, and the pricing page is read here only for that heading |
+| xai | https://docs.x.ai/docs/guides/reasoning, read 2026-11-08 | "the reasoning tokens are billed as part of your total consumption"; "Usage metrics expose reasoning_tokens", and the reasoning content "is encrypted by us and can be returned" when the request asks for it | none; the models it names are later Grok models |
+| deepseek | https://api-docs.deepseek.com/guides/reasoning_model, read 2026-11-08 | the address now serves the page titled "Your First API Call", which names `deepseek-flash` and `deepseek-v4-pro` and says nothing of how reasoning is returned or billed | none |
+
+- Every page above that speaks of billing says reasoning is billed as output, and none of them describes returning the raw reasoning by default: openai and xai describe it as encrypted or not returned, with a summary on request for some models, google returns only the final output unless summaries are asked for, and anthropic a summary or an empty block. A cost read from the visible text would under-count any run billed that way
+- The pages describe today's models: of the 67 they name only `o4-mini`. Whether each older run returned its reasoning, a summary of it or nothing, today's pages do not say, and the files cannot settle it, since the marker and the lengths are data, not documentation
+
 ## Limits
 
-- Lengths only: the note reads no price and does not say which models publish their reasoning; both need each vendor's own pages, dated
+- No price: the note reads no list price. The vendor pages read are those of the date read and name only `o4-mini` of the 67, and the pages of the other eight vendor families are not read
 - One sample per problem, the first, as the evidence labels it; the later samples are not read
 - The input is under-counted for every model alike: the harness's instructions are not in the files
 - The marker finds only reasoning that keeps its tag; reasoning written without it is counted as answer

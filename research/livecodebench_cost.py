@@ -75,12 +75,13 @@ def report(reduced: dict, model_of) -> list:
     first = reduced[folders[0]]
     prompt = [first[q][0] for q in common]
     differ = sum(any(reduced[f][q][0] != first[q][0] for q in common) for f in folders)
+    holding = sum(n > 0 for n in empty.values())
     lines = [
         f"{len(folders)} files, {len(common):,} question ids in every file",
         f"problem text: median {_median(prompt):,} characters, from {min(prompt):,} to {max(prompt):,}; "
         f"files whose text differs from {folders[0]}'s on some id: {differ}",
         f"first samples recorded as an empty string, counted as 0 characters: {sum(empty.values())} "
-        f"(in {sum(n > 0 for n in empty.values())} files)",
+        f"(in {holding} {'file' if holding == 1 else 'files'})",
         f"output tokens estimated at {CHARS_PER_TOKEN} characters per token",
         "",
         f"{'model':<45}  {'median_output_chars':>19}  {'think_marker':>12}  {'est_output_tokens':>17}",
