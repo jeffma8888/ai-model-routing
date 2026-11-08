@@ -586,6 +586,37 @@ def test_main_registry_write_failure_writes_nothing(jm, tmp_path, folder, capsys
     assert sorted(p.name for p in tmp_path.iterdir()) == ["data"]
 
 
+class BrokenStdout:
+    """A closed pipe: every write and flush raises."""
+
+    def write(self, text):
+        raise BrokenPipeError(32, "Broken pipe")
+
+    def flush(self):
+        raise BrokenPipeError(32, "Broken pipe")
+
+
+class BufferedBrokenStdout(BrokenStdout):
+    """A buffered closed pipe: the write is kept, so only the flush raises."""
+
+    def write(self, text):
+        return len(text)
+
+
+@pytest.mark.parametrize("stdout", [BrokenStdout, BufferedBrokenStdout])
+def test_main_failed_stdout_is_one_error_line_and_leaves_both_files(jm, tmp_path, folder, capsys, monkeypatch,
+                                                                     stdout):
+    out, reg = tmp_path / "out.jsonl", tmp_path / "reg.json"
+    out.write_text("old\n")
+    reg.write_text("old registry\n")
+    monkeypatch.setattr("sys.stdout", stdout())
+    assert jm.main(["--out", str(out), "--registry", str(reg), "--size", "2"]) == 2
+    err = capsys.readouterr().err
+    assert len(err.splitlines()) == 1 and err.startswith("error: ")
+    assert out.read_text() == "old\n" and reg.read_text() == "old registry\n"
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["data", "out.jsonl", "reg.json"]
+
+
 def test_main_second_rename_failure_leaves_out_renamed(jm, tmp_path, folder, capsys, monkeypatch):
     out, reg = tmp_path / "out.jsonl", tmp_path / "reg.json"
     real = Path.replace
@@ -596,8 +627,11 @@ def test_main_second_rename_failure_leaves_out_renamed(jm, tmp_path, folder, cap
         return real(self, target)
     monkeypatch.setattr(Path, "replace", replace)
     assert jm.main(["--out", str(out), "--registry", str(reg), "--size", "2"]) == 2
-    assert capsys.readouterr().err == "error: rename failed\n"
-    rows, _ = jm.judge_matrix(default_matrix(), POOL, size=2)
+    captured = capsys.readouterr()
+    assert captured.err == "error: rename failed\n"
+    rows, report = jm.judge_matrix(default_matrix(), POOL, size=2)
+    # the report is printed before the renames (v1.94), so a failed rename is the one failure with it on stdout
+    assert captured.out == json.dumps(report, indent=2) + "\n"
     assert out.read_text(encoding="utf-8") == "".join(json.dumps(r) + "\n" for r in rows)
     assert sorted(p.name for p in tmp_path.iterdir()) == ["data", "out.jsonl"]
 

@@ -899,6 +899,39 @@ def test_main_registry_write_error_writes_nothing(cv, tmp_path, monkeypatch, cap
     assert sorted(p.name for p in tmp_path.iterdir()) == ["data"]
 
 
+class BrokenStdout:
+    """A closed pipe: every write and flush raises."""
+
+    def write(self, text):
+        raise BrokenPipeError(32, "Broken pipe")
+
+    def flush(self):
+        raise BrokenPipeError(32, "Broken pipe")
+
+
+class BufferedBrokenStdout(BrokenStdout):
+    """A buffered closed pipe: the write is kept, so only the flush raises."""
+
+    def write(self, text):
+        return len(text)
+
+
+@pytest.mark.parametrize("stdout", [BrokenStdout, BufferedBrokenStdout])
+def test_main_failed_stdout_is_one_error_line_and_leaves_both_files(cv, tmp_path, monkeypatch, capsys, stdout):
+    matrix, questions = small()
+    data = write_folder(tmp_path / "data", matrix, questions, pool=PRICED_POOL)
+    monkeypatch.setattr(cv, "fetch", lambda cache_dir=None: data)
+    out, reg = tmp_path / "out.jsonl", tmp_path / "models.json"
+    out.write_text("old\n")
+    reg.write_text("old registry\n")
+    monkeypatch.setattr("sys.stdout", stdout())
+    assert cv.main(["--out", str(out), "--registry", str(reg)]) == 2
+    err = capsys.readouterr().err
+    assert len(err.splitlines()) == 1 and err.startswith("error: ")
+    assert out.read_text() == "old\n" and reg.read_text() == "old registry\n"
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["data", "models.json", "out.jsonl"]
+
+
 def test_main_rename_error_removes_both_parts(cv, tmp_path, monkeypatch, capsys):
     matrix, questions = small()
     data = write_folder(tmp_path / "data", matrix, questions, pool=PRICED_POOL)
@@ -907,7 +940,12 @@ def test_main_rename_error_removes_both_parts(cv, tmp_path, monkeypatch, capsys)
     out.mkdir()
     (out / "keep").write_text("x", encoding="utf-8")   # a non-empty folder: renaming onto it fails
     assert cv.main(["--out", str(out), "--registry", str(reg)]) == 2
-    one_error_line(capsys)
+    captured = capsys.readouterr()
+    _, report = cv.convert(cv.read_csv(data / "matrix.csv"), cv.read_csv(data / "questions.csv"), PRICED_POOL,
+                           0.25, 3)
+    # the report is printed before the renames (v1.94), so this is the one failure with it on stdout
+    assert captured.out == json.dumps(report, indent=2) + "\n"
+    assert len(captured.err.splitlines()) == 1 and captured.err.startswith("error: ")
     assert sorted(p.name for p in tmp_path.iterdir()) == ["data", "taken"]
     assert [p.name for p in out.iterdir()] == ["keep"]
 

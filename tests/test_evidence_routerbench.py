@@ -440,7 +440,10 @@ def test_cli_a_failed_rename_leaves_no_part_file(cv, tmp_path, capsys, monkeypat
     out.mkdir()
     assert cv.main(["--out", str(out), "--min-items", "1"]) == 2
     captured = capsys.readouterr()
-    assert captured.out == "" and len(captured.err.strip().splitlines()) == 1
+    _, report = cv.convert(columns(binary_task("alpha", 3)), min_items=1)
+    # the report is printed before the rename (v1.94), so this is the one failure with it on stdout
+    assert captured.out == json.dumps(report, indent=2) + "\n"
+    assert len(captured.err.strip().splitlines()) == 1 and captured.err.startswith("error: ")
     assert out.is_dir() and not (tmp_path / "out-is-a-folder.part").exists()
 
 
@@ -453,6 +456,38 @@ def test_cli_success_writes_the_matrix_and_prints_the_report(cv, tmp_path, capsy
     rows, report = cv.convert(columns(binary_task("alpha", 3)), min_items=1)
     assert capsys.readouterr().out == json.dumps(report, indent=2) + "\n"
     assert [json.loads(line) for line in out.read_text(encoding="utf-8").splitlines()] == rows
+    assert not (tmp_path / "m.jsonl.part").exists()
+
+
+class BrokenStdout:
+    """A closed pipe: every write and flush raises."""
+
+    def write(self, text):
+        raise BrokenPipeError(32, "Broken pipe")
+
+    def flush(self):
+        raise BrokenPipeError(32, "Broken pipe")
+
+
+class BufferedBrokenStdout(BrokenStdout):
+    """A buffered closed pipe: the write is kept, so only the flush raises."""
+
+    def write(self, text):
+        return len(text)
+
+
+@pytest.mark.parametrize("stdout", [BrokenStdout, BufferedBrokenStdout])
+def test_cli_a_failed_stdout_is_one_error_line_and_leaves_out(cv, tmp_path, capsys, monkeypatch, stdout):
+    monkeypatch.setattr(cv, "fetch", lambda cache=None: tmp_path / "unused")
+    monkeypatch.setattr(cv, "load_frame", lambda path: "frame")
+    monkeypatch.setattr(cv, "frame_columns", lambda frame: columns(binary_task("alpha", 3)))
+    out = tmp_path / "m.jsonl"
+    out.write_text("old\n")
+    monkeypatch.setattr("sys.stdout", stdout())
+    assert cv.main(["--out", str(out), "--min-items", "1"]) == 2
+    err = capsys.readouterr().err
+    assert len(err.splitlines()) == 1 and err.startswith("error: ")
+    assert out.read_text() == "old\n"
     assert not (tmp_path / "m.jsonl.part").exists()
 
 

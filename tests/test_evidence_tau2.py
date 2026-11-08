@@ -667,6 +667,37 @@ def test_main_writes_the_matrix_and_prints_the_report(cv, monkeypatch, tmp_path,
     assert not (tmp_path / "m.jsonl.part").exists()
 
 
+class BrokenStdout:
+    """A closed pipe: every write and flush raises."""
+
+    def write(self, text):
+        raise BrokenPipeError(32, "Broken pipe")
+
+    def flush(self):
+        raise BrokenPipeError(32, "Broken pipe")
+
+
+class BufferedBrokenStdout(BrokenStdout):
+    """A buffered closed pipe: the write is kept, so only the flush raises."""
+
+    def write(self, text):
+        return len(text)
+
+
+@pytest.mark.parametrize("stdout", [BrokenStdout, BufferedBrokenStdout])
+def test_main_failed_stdout_is_one_error_line_and_leaves_out(cv, monkeypatch, tmp_path, capsys, stdout):
+    cache = tmp_path / "cache"
+    install(cv, monkeypatch, cache, runs())
+    out = tmp_path / "m.jsonl"
+    out.write_text("old\n")
+    monkeypatch.setattr("sys.stdout", stdout())
+    assert cv.main(["--out", str(out), "--cache", str(cache)]) == 2
+    err = capsys.readouterr().err
+    assert len(err.splitlines()) == 1 and err.startswith("error: ")
+    assert out.read_text() == "old\n"
+    assert not (tmp_path / "m.jsonl.part").exists()
+
+
 def test_main_options(cv, monkeypatch, tmp_path, capsys):
     cache = tmp_path / "cache"
     install(cv, monkeypatch, cache, runs())
@@ -772,7 +803,10 @@ def test_main_output_that_is_a_folder_is_left_as_it_was(cv, monkeypatch, tmp_pat
     (out / "keep.txt").write_text("keep\n", encoding="utf-8")
     assert cv.main(["--out", str(out), "--cache", str(cache)]) == 2
     captured = capsys.readouterr()
-    assert captured.out == "" and captured.err.count("\n") == 1 and captured.err.startswith("error: ")
+    _, report = cv.convert(extracts(cv))
+    # the report is printed before the rename (v1.94), so this is the one failure with it on stdout
+    assert captured.out == json.dumps(report, indent=2) + "\n"
+    assert captured.err.count("\n") == 1 and captured.err.startswith("error: ")
     assert sorted(p.name for p in out.iterdir()) == ["keep.txt"]
     assert not (tmp_path / "out.part").exists()
 

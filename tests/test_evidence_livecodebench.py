@@ -15,6 +15,7 @@ import importlib.util
 import io
 import json
 import random
+import sys
 import urllib.request
 from pathlib import Path
 
@@ -485,6 +486,16 @@ def test_read_file_refuses(cv, tmp_path, data):
         cv.read_file(f)
 
 
+def test_read_file_names_the_file_for_a_number_past_the_int_limit(cv, tmp_path):
+    limit = sys.get_int_max_str_digits() if hasattr(sys, "get_int_max_str_digits") else 0
+    if not limit:
+        pytest.skip("this interpreter converts digit strings of any length")
+    f = tmp_path / "bad.json"
+    f.write_bytes(b"[" + b"1" * (limit + 1) + b"]")
+    with pytest.raises(ValueError, match="bad.json"):
+        cv.read_file(f)
+
+
 # --- CLI ---------------------------------------------------------------------------------
 
 def cli_files(monkeypatch, cv, tmp_path):
@@ -509,6 +520,36 @@ def test_main_writes_matrix_and_prints_report(cv, monkeypatch, tmp_path, capsys)
     report = json.loads(capsys.readouterr().out)
     assert list(report) == REPORT_KEYS and report["rows"] == 4
     assert out.read_text(encoding="utf-8") == "".join(json.dumps(r) + "\n" for r in rows)
+    assert not out.with_name("m.jsonl.part").exists()
+
+
+class BrokenStdout:
+    """A closed pipe: every write and flush raises."""
+
+    def write(self, text):
+        raise BrokenPipeError(32, "Broken pipe")
+
+    def flush(self):
+        raise BrokenPipeError(32, "Broken pipe")
+
+
+class BufferedBrokenStdout(BrokenStdout):
+    """A buffered closed pipe: the write is kept, so only the flush raises."""
+
+    def write(self, text):
+        return len(text)
+
+
+@pytest.mark.parametrize("stdout", [BrokenStdout, BufferedBrokenStdout])
+def test_main_failed_stdout_is_one_error_line_and_leaves_out(cv, monkeypatch, tmp_path, capsys, stdout):
+    cache = cli_files(monkeypatch, cv, tmp_path)
+    out = tmp_path / "m.jsonl"
+    out.write_text("old\n")
+    monkeypatch.setattr("sys.stdout", stdout())
+    assert cv.main(["--out", str(out), "--cache", str(cache)]) == 2
+    err = capsys.readouterr().err
+    assert len(err.splitlines()) == 1 and err.startswith("error: ")
+    assert out.read_text() == "old\n"
     assert not out.with_name("m.jsonl.part").exists()
 
 
