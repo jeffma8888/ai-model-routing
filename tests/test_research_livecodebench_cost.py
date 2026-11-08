@@ -32,6 +32,10 @@ TABLE_HEADER = "| vendor | page, read | what it says of reasoning and its billin
 # DESIGN 12.17 v1.100: one row per model of the Results block, in its order
 PRICES_HEADER = "| model | pricing page, read | listed as | input | output |"
 PRICE = re.compile(r"\$\d+\.\d{2}")
+# DESIGN 12.17 v1.102: three more families' pricing pages, each on its maker's domain, and the runs
+# named by an alias, which count as not listed
+PRICE_FAMILIES = [("mistralai", "mistral.ai"), ("moonshotai", "moonshot.ai"), ("qwen", "alibabacloud.com")]
+ALIASES = ["mistralai/codestral-latest", "mistralai/mistral-large"]
 # DESIGN section numbers: the only numbers of the note's prose that are not in the script's output
 ALLOWED = {"12.16", "12.17"}
 NUMBER = re.compile(r"(?<![\w.])\d+(?:,\d{3})*(?:\.\d+)?%?")
@@ -274,9 +278,26 @@ def test_prices_one_row_per_model_in_the_results_block_order():
     assert [row[0] for row in _price_rows()] == ["`" + m + "`" for m in models]
 
 
+def _unpriced_families():
+    """The backticked prefixes in the parenthesis after `the other five families` of `## Prices`."""
+    found = re.search(r"the other five families \(([^)]*)\)", _section("## Prices"))
+    assert found
+    return re.findall(r"`([^`]+)`", found.group(1))
+
+
+def test_prices_families_read_and_unread_are_the_13_prefixes():
+    models = _block_models(_results_block(_note()))
+    prefixes = sorted({m.split("/", 1)[0] for m in models})
+    unread = _unpriced_families()
+    assert len(unread) == 5
+    assert sorted(unread + [family for family, _ in VENDORS + PRICE_FAMILIES]) == prefixes
+    not_read = {row[0].strip("`").split("/", 1)[0] for row in _price_rows() if row[1] == "not read yet"}
+    assert not_read == set(unread)
+
+
 def test_prices_page_cells_cite_the_vendor_page_and_a_date_read():
-    domains = dict(VENDORS)
-    unread = set(_unread_families())
+    domains = dict(VENDORS + PRICE_FAMILIES)
+    unread = set(_unpriced_families())
     pages = {}
     for model, page, listed, price_in, price_out in _price_rows():
         vendor = model.strip("`").split("/", 1)[0]
@@ -301,6 +322,19 @@ def test_prices_listed_cells_carry_a_quoted_name_and_two_prices():
         else:
             assert re.fullmatch(r'"[^"]+"', listed), model
             assert PRICE.fullmatch(price_in) and PRICE.fullmatch(price_out), model
+
+
+def test_prices_alias_runs_are_not_listed():
+    rows = {row[0].strip("`"): row for row in _price_rows()}
+    for model in ALIASES:
+        assert rows[model][2:] == ["not listed", "-", "-"], model
+    assert all(rows[m][2] == "not listed" for m in rows if m.endswith("latest"))
+
+
+def test_prices_one_bullet_per_family_read():
+    bullets = [line for line in _section("## Prices").splitlines() if line.startswith("- ")]
+    for family, _ in VENDORS + PRICE_FAMILIES:
+        assert sum(b.startswith("- " + family + ": ") for b in bullets) == 1, family
 
 
 def test_note_regenerate_block():
