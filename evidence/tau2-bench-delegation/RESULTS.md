@@ -23,6 +23,7 @@ What the inline-or-sub-agent decision (`Router.decide_delegation`, `DESIGN.md` 1
 - Each conversation is read at trial 0 only. At trials 1 and 2 the converter also leaves out `openai/gpt-4.1-mini-2025-04-14`, so a trial sensitivity would compare 2 agents there; it is not run
 - The agents are 2025 snapshots: the model pages list the two GPT-4.1 snapshots as Deprecated and o4-mini as Shut down, and Claude 3.7 Sonnet was retired on the Claude API on February 19, 2026. These prices only reprice their recorded runs
 - Airline's calibration half is under `min_samples` on 40 of the 50 seeds (Method)
+- The cached point's ratio of 0.1 is an assumption, as on AutoBench, not read from these runs. Of the recorded costs, only those of the two OpenAI agents imply a cached price: their model pages price cached input at 0.25 of input (0.50 against 2.00 and 0.10 against 0.40 USD per 1M tokens), which the research note infers on 77.42% and 78.94% of their prompt tokens. Those are the agents' re-reads of their own conversations, which these rows price at list price on both paths, not a parent's reads of C; the Anthropic agent's recorded costs are list price, a ratio of 1.0. The 0.25 is a page price, not a parameter fitted to the runs.
 - The limits of `DESIGN.md` 13.8: each conversation's success is its one recorded reward, and the bar is held per call, not for a conversation's calls together
 
 ## Results
@@ -181,6 +182,9 @@ bar  flavor          context  separate  dec_success  dec_cost  inl_success  inl_
 - Pooled, the `cost_effective` decision again delegates on every seed for every parent at every bar and point; at bar 0.3 and point 0, averaged over the 3 parents, it costs 10.0668 USD on a held-out half against 19.8422 per domain, with held-out success 0.548 against 0.550. Always inline has the same held-out success and cost in both runs, since the split reads only the seed and the item ID (`DESIGN.md` 12.2).
 - The cost comparison (`DESIGN.md` 13.5 row 3: both paths clear the bar, so their costs are compared) is reached on 2,301 of the 10,800 `cost_effective` cells per domain (21.3%) and on 1,232 of the 3,600 pooled (34.2%); no cell of either run is `inline_cheaper`.
 - `pooled.json` is 126,695 bytes.
+- At the cached point of [the AutoBench delegation results](../delegation/RESULTS.md) (variant point 1: point 2 with the parent's reads of C at `cached_read_ratio` 0.1 of its list input price, an assumed ratio), the decision has the mode, model and reason it has at point 2 on all 5,400 cells per domain and all 1,800 pooled, in both flavors, and so it has with the ratio at 0.25 or 0: no cell moves from `delegate_cheaper` to `inline_cheaper`.
+- There, of the 2,700 `cost_effective` cells per domain, 1,262 `none_clear`, 900 `parent_context_full`, 387 `delegate_cheaper` and 151 `parent_below_bar`; of the 900 pooled, 332 `none_clear`, 300 `parent_context_full`, 209 `delegate_cheaper` and 59 `parent_below_bar`; the 387 and 209 `delegate_cheaper` cells (`DESIGN.md` 13.5 row 3) stay `delegate_cheaper` with the ratio at 0, where no read of C is charged.
+- At bar 0.3 the ratio of 0.1 cuts always inline's cost on a held-out half at C = 200,000 from 774.2023 to 104.3215 USD for `openai/gpt-4.1-2025-04-14` and from 213.0697 to 29.8110 for `openai/gpt-4.1-mini-2025-04-14`, the parents inline is allowed for there; the decision costs 19.8837 and 18.9993 per domain.
 
 ## Regenerate
 
