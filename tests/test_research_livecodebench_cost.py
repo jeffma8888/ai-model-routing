@@ -8,6 +8,7 @@ report and error exit are checked on small stubs.
 
 import ast
 import contextlib
+import datetime
 import importlib.util
 import io
 import re
@@ -202,12 +203,14 @@ def test_vendor_pages_rows_in_order():
 def test_vendor_pages_each_cites_its_own_domain_and_a_date_read():
     domains = dict(VENDORS)
     for vendor, page, _, _ in _vendor_rows():
-        urls = URL.findall(page)
+        urls = [url.rstrip(",;.") for url in URL.findall(page)]
         assert urls, vendor
         for url in urls:
             host = url.split("://", 1)[1].split("/", 1)[0]
             assert url.startswith("https://") and (host == domains[vendor] or host.endswith("." + domains[vendor])), url
-        assert re.search(r"\bread \d{4}-\d{2}-\d{2}\b", page), vendor
+        read = re.search(r"\bread (\d{4}-\d{2}-\d{2})\b", page)
+        assert read, vendor
+        datetime.date.fromisoformat(read.group(1))
 
 
 def test_vendor_pages_quote_each_page():
