@@ -154,7 +154,8 @@ def test_packaged_data_dir_and_models_load_with_positive_prices_and_source_urls(
 
 
 JUDGE_TASKS = {"faithfulness_judge", "code_correctness_judge", "pairwise_preference_judge"}
-NON_JUDGE_TASKS = {"support_ticket_triage", "invoice_field_extraction", "unit_test_codegen"}
+NON_JUDGE_TASKS = {"support_ticket_triage", "invoice_field_extraction", "unit_test_codegen",
+                   "tool_calling_support_agent"}  # the agent task from v1.90
 
 
 def test_packaged_example_tasks_cover_judge_and_non_judge_domains():
@@ -251,3 +252,141 @@ def test_packaged_priors_load_with_public_source_date_and_metric():
         assert data["scores"]
         for model, score in data["scores"].items():
             assert priors.score(category, model) == score
+
+
+# v1.90: the tool-calling agent task (DESIGN 9)
+
+ROOT = Path(__file__).resolve().parents[1]
+AGENT_TASK = "tool_calling_support_agent"
+TAU2_CONVERTER = ROOT / "evidence" / "tau2-bench" / "convert.py"
+
+
+def _design_section_9():
+    text = (ROOT / "DESIGN.md").read_text(encoding="utf-8")
+    start = text.index("\n## 9. Data files\n")
+    return text[start:text.index("\n## 10. ", start)]
+
+
+def _agent_bullet():
+    section = _design_section_9()
+    start = section.index("\n- v1.90 `tool_calling_support_agent`")
+    end = section.index("\n- ", start + 1) if "\n- " in section[start + 1:] else len(section)
+    return section[start:end]
+
+
+def test_agent_task_values_are_the_design_9_ones():
+    task = load_tasks(DATA_DIR / "example_tasks.json")[AGENT_TASK]
+    assert task == Task(AGENT_TASK, 0.7, min_samples=50, independent_of_generator=False,
+                        expected_input_tokens=89000, expected_output_tokens=1500,
+                        on_no_model="refuse", max_fallbacks=2, prior_category=None,
+                        timeout_s=120.0)
+    assert task.confidence == 0.95 and task.exclude_families == ()
+    codegen = load_tasks(DATA_DIR / "example_tasks.json")["unit_test_codegen"]
+    assert task.bar == codegen.bar and task.timeout_s == codegen.timeout_s
+    assert task.timeout_s == max(t.timeout_s for t in load_tasks(DATA_DIR / "example_tasks.json").values())
+    raw = json.loads((DATA_DIR / "example_tasks.json").read_text(encoding="utf-8"))["tasks"]
+    assert [row["name"] for row in raw][-1] == AGENT_TASK
+    assert "prior_category" not in raw[-1]
+
+
+def test_agent_task_min_samples_clause_is_the_wilson_threshold():
+    from model_routing import wilson_lower_bound
+    task = load_tasks(DATA_DIR / "example_tasks.json")[AGENT_TASK]
+    n = task.min_samples
+    k = min(s for s in range(n + 1) if wilson_lower_bound(s, n, task.confidence) >= task.bar)
+    built = (f"At {n} a model clears {task.bar:g} only with {k} or more successes (Wilson lower bound "
+             f"{wilson_lower_bound(k, n, task.confidence):.4f} at {k} and "
+             f"{wilson_lower_bound(k - 1, n, task.confidence):.4f} at {k - 1}, 4.3)")
+    assert built in _agent_bullet()
+    assert f"`min_samples` {n}:" in _agent_bullet() and f"`bar` {task.bar:g}," in _agent_bullet()
+
+
+def test_agent_task_fits_every_packaged_window_and_passes_in_both_flavors():
+    from model_routing import Router
+    registry = Registry.load(DATA_DIR / "models.json")
+    tasks = load_tasks(DATA_DIR / "example_tasks.json")
+    task = tasks[AGENT_TASK]
+    smallest = min(m.context_window for m in registry.models)
+    assert task.expected_input_tokens + task.expected_output_tokens <= smallest
+    assert f"Every packaged window is at least {smallest:,} tokens, so no packaged model fails it" in _agent_bullet()
+    router = Router(registry, tasks, _all_passing_stats(tasks, registry),
+                    Priors.load(DATA_DIR / "priors.json"))
+    for flavor in ("cost_effective", "cost_blind"):
+        decision = router.select(AGENT_TASK, flavor=flavor)
+        assert [c.reason for c in decision.candidates] == ["passes"] * len(registry.models)
+        assert decision.basis == "measured" and decision.below_bar is False
+
+
+def test_agent_task_refuses_without_passing_stats():
+    from model_routing import NoModelClearsBar, Router, Stats
+    registry = Registry.load(DATA_DIR / "models.json")
+    tasks = load_tasks(DATA_DIR / "example_tasks.json")
+    router = Router(registry, tasks, Stats(), Priors.load(DATA_DIR / "priors.json"))
+    with pytest.raises(NoModelClearsBar) as caught:
+        router.select(AGENT_TASK)
+    assert {c.reason for c in caught.value.candidates} == {"insufficient_samples"}
+
+
+README_STEP_1 = ("1. **Define the task** in a tasks file. `model_routing/data/example_tasks.json` ships three judge "
+                 "tasks and four from other domains (`support_ticket_triage`, `invoice_field_extraction`, "
+                 "`unit_test_codegen`, `tool_calling_support_agent`):")
+README_STEP_2 = ("For `tool_calling_support_agent` a line is one whole conversation: `correct` means the checks on "
+                 "its end state passed, and its token counts are the sums over the conversation's model calls.")
+
+
+def test_readme_calibrate_steps_name_the_agent_task():
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    assert ("\n" + README_STEP_1 + "\n") in readme
+    step_2 = ("   For `unit_test_codegen`, `correct` means the generated tests ran and passed; for an extraction "
+              "task it might mean every field matched exactly. " + README_STEP_2 + " The library only counts.")
+    assert step_2 in readme
+    assert '"' + README_STEP_2 + '"' in _agent_bullet()
+    names = ["support_ticket_triage", "invoice_field_extraction", "unit_test_codegen", AGENT_TASK]
+    assert all(f"`{n}`" in README_STEP_1 for n in names) and set(names) == NON_JUDGE_TASKS
+
+
+def _load_tau2_converter():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("tau2_convert_for_tasks", TAU2_CONVERTER)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _whole(x):
+    return f"{int(x):,}" if x == int(x) else f"{x:,}"
+
+
+def test_agent_task_sizes_and_bar_from_tau2_bench_when_cached():
+    """v1.90: the DESIGN 9 token medians and retail rates, rebuilt from the pinned files at trial 0."""
+    import statistics
+    cv = _load_tau2_converter()
+    folder = cv.default_cache_dir()
+    if not all((folder / name).is_file() for name in cv.FILES):
+        pytest.skip("the 12 pinned tau2-bench run files are not in the default cache")
+    cv.fetch(folder)
+    inputs, outputs, retail = [], [], []
+    for name in cv.FILES:
+        extract = cv.extract(cv.read_run(folder / name), trial=0, tokens=True)
+        cells = extract["cells"].values()
+        inputs += [cell["input_tokens"] for cell in cells]
+        outputs += [cell["output_tokens"] for cell in cells]
+        if extract["domain"] == "retail":
+            retail.append(round(sum(cell["correct"] for cell in cells) / len(cells), 3))
+    task = load_tasks(DATA_DIR / "example_tasks.json")[AGENT_TASK]
+    med_in, med_out = statistics.median(inputs), statistics.median(outputs)
+    assert task.expected_input_tokens == int(float(f"{med_in:.2g}"))
+    assert task.expected_output_tokens == int(float(f"{med_out:.2g}"))
+    built = (f"`expected_input_tokens` {task.expected_input_tokens:,} and `expected_output_tokens` "
+             f"{task.expected_output_tokens:,}, to two significant figures the medians of the {len(inputs):,} "
+             f"trial-0 conversations of the four tau2-bench agents read with `--tokens` (12.14), each the sum over "
+             f"the conversation's agent calls: {_whole(med_in)} input and {_whole(med_out)} output tokens, against "
+             f"means of {statistics.fmean(inputs):,.1f} and {statistics.fmean(outputs):,.1f}, which conversations "
+             f"of up to {max(inputs):,} input tokens pull up.")
+    assert built in _agent_bullet()
+    above = sorted(rate for rate in retail if rate >= task.bar)
+    words = {1: "one", 2: "two", 3: "three", 4: "four"}
+    assert len(retail) == 4 and 0 < len(above) < 4
+    clause = (f"below {words[len(above)]} of the four retail ones ("
+              + " and ".join(f"{rate:g}" for rate in above) + ")")
+    assert clause in _agent_bullet()
