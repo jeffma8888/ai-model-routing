@@ -15,6 +15,7 @@ import importlib.util
 import json
 import math
 import random
+from collections import Counter
 from pathlib import Path
 
 import pytest
@@ -215,7 +216,7 @@ def test_run_is_evaluate_delegation_on_the_stated_config(td, dr):
 
 
 @NEEDS_FILES
-def test_main_writes_the_run_and_returns_0(td, tmp_path, capsys):
+def test_main_writes_the_run_and_returns_0(td, tmp_path):
     rows, registry = synthetic()
     matrix, reg, out = tmp_path / "m.jsonl", tmp_path / "r.json", tmp_path / "out.json"
     matrix.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
@@ -359,10 +360,28 @@ def test_pinned_files_give_the_stated_work_calls_and_window_checks(dr, calls_mat
         assert (min(ks), max(ks)) == k_span and (min(ss), max(ss)) == s_span, task
     work = max(c["expected_work_calls"] * (c["expected_input_tokens"] + c["expected_output_tokens"]) for c in cells)
     assert work == 10_242
-    assert 500 + work == 10_742 and 64_000 + work == 74_242
+    points = dr.points()
+    rule5 = max(points[c["point"]]["brief_tokens"] + c["expected_work_calls"]
+                * (c["expected_input_tokens"] + c["expected_output_tokens"]) for c in cells)
+    rule3 = max(points[c["point"]]["context_tokens"] + c["expected_work_calls"]
+                * (c["expected_input_tokens"] + c["expected_output_tokens"])
+                for c in cells if points[c["point"]]["context_tokens"] == 64_000)
+    assert rule5 == 10_742 and rule3 == 74_242
     blocked = [c for c in cells if not c["inline_allowed"]]
     assert all(c["point"] == 2 and c["parent"] == CLAUDE for c in blocked) and len(blocked) == 1_800
     assert all(c["reason"] == "parent_context_full" for c in blocked)
     assert not [c for c in cells if c["reason"] == "parent_context_full" and c["inline_allowed"]]
     rates = {r["delegate_rate"] for r in full["summary"] if r["flavor"] == "cost_effective" and r["strategy"] == "decision"}
     assert rates == {1.0}
+    reasons = {f: Counter(c["reason"] for c in cells if c["flavor"] == f) for f in FLAVORS}
+    assert reasons["cost_effective"] == {"none_clear": 6941, "delegate_cheaper": 2301,
+                                        "parent_context_full": 900, "parent_below_bar": 658}
+    assert reasons["cost_blind"] == {"none_clear": 6941, "delegate_better": 1375, "inline_as_good": 926,
+                                    "parent_context_full": 900, "parent_below_bar": 658}
+    ranked = sorted(reasons["cost_effective"].items(), key=lambda kv: (-kv[1], kv[0]))
+    parts = [f"{n:,} `{reason}`" for reason, n in ranked]
+    listed = ", ".join(parts[:-1]) + " and " + parts[-1]
+    method = section(RESULTS_MD.read_text(encoding="utf-8"), "## Method")
+    total = sum(reasons["cost_effective"].values())
+    assert f"Of the {total:,} `cost_effective` cells, {listed}." in method
+    assert "`none_clear` is 13.5 row 7: no agent clears the bar, so the calibration bounds decide, not cost." in method
