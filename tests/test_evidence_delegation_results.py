@@ -536,8 +536,8 @@ def readme_subsection():
     assert re.findall(r"^### (.*)$", section, re.M) == ["RouterBench", "AutoBench",
                                                         "AutoBench judges", "tau2-bench",
                                                         "LiveCodeBench",
-                                                        "Delegation on AutoBench"]
-    return section.split("\n### Delegation on AutoBench\n", 1)[1]
+                                                        "Delegation on AutoBench", "Delegation on tau2-bench"]
+    return section.split("\n### Delegation on AutoBench\n", 1)[1].split("\n### ", 1)[0]
 
 
 def test_readme_subsection_shows_the_table_and_links(dr):

@@ -245,7 +245,7 @@ def autobench_subsection():
     assert re.findall(r"^### (.*)$", section, re.M) == ["RouterBench", "AutoBench",
                                                         "AutoBench judges", "tau2-bench",
                                                         "LiveCodeBench",
-                                                        "Delegation on AutoBench"]
+                                                        "Delegation on AutoBench", "Delegation on tau2-bench"]
     return section.split("\n### AutoBench\n", 1)[1].split("\n### ", 1)[0]
 
 

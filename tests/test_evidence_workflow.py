@@ -1,5 +1,6 @@
 """The `evidence` workflow reruns the README regenerate commands of the AutoBench-based
-subsections, from v1.55 the tau2-bench one and from v1.65 the LiveCodeBench one on GitHub and
+subsections, from v1.55 the tau2-bench one, from v1.65 the LiveCodeBench one and from v1.80 the tau2-bench
+delegation one on GitHub and
 fails when a committed results file changes (DESIGN 12.13, v1.30),
 and both workflows run on one pinned runner image with a dated comment (v1.49).
 
@@ -19,7 +20,7 @@ README = ROOT / "README.md"
 ROUTERBENCH_CONVERT = ROOT / "evidence" / "routerbench" / "convert.py"
 EVIDENCE = "## Evidence: held-out results on public data\n"
 SUBSECTIONS = ("AutoBench", "AutoBench judges", "tau2-bench", "LiveCodeBench",
-               "Delegation on AutoBench")
+               "Delegation on AutoBench", "Delegation on tau2-bench")
 INSTALL = "python -m pip install -e ."
 ON = (
     "on:\n"
@@ -219,15 +220,16 @@ def test_workflow_reruns_the_readme_commands_and_compares_the_results():
     assert problems(workflow_text(), readme(), CI.read_text(encoding="utf-8")) == []
 
 
-def test_readme_commands_are_the_five_rerun_blocks():
+def test_readme_commands_are_the_six_rerun_blocks():
     commands = expected_commands(readme())
-    assert len(commands) == 4 + 4 + 4 + 4 + 6
+    assert len(commands) == 4 + 4 + 4 + 4 + 6 + 4
     assert out_paths(commands) == ["evidence/autobench-2026/results.json",
                                    "evidence/autobench-judges/results.json",
                                    "evidence/tau2-bench/results.json",
                                    "evidence/livecodebench/results.json",
                                    "evidence/delegation/results.json",
-                                   "evidence/delegation/variants.json"]
+                                   "evidence/delegation/variants.json",
+                                   "evidence/tau2-bench-delegation/results.json"]
     assert all((ROOT / p).is_file() for p in out_paths(commands))
     assert not any("routerbench-matrix" in c for c in commands)
 

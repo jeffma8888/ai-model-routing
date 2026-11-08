@@ -3,7 +3,7 @@
 The README evidence section opens with a short list, one bullet per subsection. Every
 number and model ID in it is built here from the committed results files (four since v1.28,
 which adds the AutoBench judges bullet, five since v1.55, which adds tau2-bench, six since
-v1.65, which adds LiveCodeBench), at the rounding of the subsection tables, and every word that depends on the data (no routed row
+v1.65, which adds LiveCodeBench, seven since v1.80, which adds delegation on tau2-bench), at the rounding of the subsection tables, and every word that depends on the data (no routed row
 reaches or beats, every seed, more, less) is asserted against those files, so the list cannot
 drift from them or keep a claim a regenerated file no longer supports.
 """
@@ -24,7 +24,8 @@ FILES = {"RouterBench": ROOT / "evidence" / "routerbench" / "results.json",
          "AutoBench judges": ROOT / "evidence" / "autobench-judges" / "results.json",
          "tau2-bench": ROOT / "evidence" / "tau2-bench" / "results.json",
          "LiveCodeBench": ROOT / "evidence" / "livecodebench" / "results.json",
-         "Delegation on AutoBench": ROOT / "evidence" / "delegation" / "results.json"}
+         "Delegation on AutoBench": ROOT / "evidence" / "delegation" / "results.json",
+         "Delegation on tau2-bench": ROOT / "evidence" / "tau2-bench-delegation" / "results.json"}
 LEAD = ("Results at a glance, each number from the committed results of the subsection it "
         "links:")
 LUNA = "model:openai/gpt-5.6-luna"
@@ -178,10 +179,38 @@ def delegation_bullet(results):
             f"{words(more)} context tokens but less at {words(less)}")
 
 
+def tau2_delegation_bullet(results):
+    """Delegation on tau2-bench (v1.80): in `cost_effective` every decision row delegates on
+    every seed, and at the lowest bar and point 0 the decision's mean cost over the parents is
+    below always inline's, for less held-out success at 3 decimals."""
+    config = results["config"]
+    bar, parents, flavor = config["bars"][0], config["parents"], "cost_effective"
+    point = config["points"][0]
+    assert point["inline_separate_call"] is True, "point 0 folds inline work"
+    decision = [r for r in results["summary"] if (r["flavor"], r["strategy"]) == (flavor, "decision")]
+    assert decision and all(r["delegate_rate"] == 1.0 for r in decision), "not every seed delegates"
+    rows = {(r["bar"], r["flavor"], r["point"], r["parent"], r["strategy"]): r
+            for r in results["summary"]}
+
+    def mean(strategy, key):
+        return math.fsum(rows[(bar, flavor, 0, p, strategy)][key] for p in parents) / len(parents)
+
+    dec_cost, inl_cost = mean("decision", "cost_usd"), mean("inline", "cost_usd")
+    assert dec_cost < inl_cost, "the decision costs no less than always inline"
+    assert float(f"{mean('decision', 'success'):.3f}") < float(f"{mean('inline', 'success'):.3f}"), \
+        "the decision has no less held-out success"
+    return (link("Delegation on tau2-bench") + f"on trial 0, the `{flavor}` decision delegates on "
+            f"every seed for each of the {len(parents)} parents at every bar and point; at bar {bar} "
+            f"and {point['context_tokens']:,} context tokens, with inline work in a parent call of "
+            f"its own, its mean cost over the parents is {dec_cost:.4f} USD against {inl_cost:.4f} "
+            f"for always inline, for less held-out success")
+
+
 BULLETS = {"RouterBench": routerbench_bullet, "AutoBench": autobench_bullet,
            "AutoBench judges": judges_bullet, "tau2-bench": tau2_bullet,
            "LiveCodeBench": livecodebench_bullet,
-           "Delegation on AutoBench": delegation_bullet}
+           "Delegation on AutoBench": delegation_bullet,
+           "Delegation on tau2-bench": tau2_delegation_bullet}
 
 
 def glance(files):
@@ -227,6 +256,7 @@ def test_anchor_rule_gives_the_anchors_the_readme_already_links():
     assert anchor("AutoBench judges") == "#autobench-judges"
     assert anchor("tau2-bench") == "#tau2-bench"
     assert anchor("LiveCodeBench") == "#livecodebench"
+    assert anchor("Delegation on tau2-bench") == "#delegation-on-tau2-bench"
 
 
 def test_each_bullet_holds_at_most_two_result_values():
@@ -341,6 +371,27 @@ def worse_paths(files):
             r["success"] -= 0.02
 
 
+def tau2_delegation_rows(files, strategy):
+    return [r for r in files["Delegation on tau2-bench"]["summary"]
+            if (r["bar"], r["flavor"], r["point"], r["strategy"])
+            == (0.3, "cost_effective", 0, strategy)]
+
+
+def tau2_delegation_one_seed_inline(files):
+    [r for r in files["Delegation on tau2-bench"]["summary"]
+     if (r["flavor"], r["strategy"]) == ("cost_effective", "decision")][-1]["delegate_rate"] = 0.98
+
+
+def tau2_delegation_dearer(files):
+    for r in tau2_delegation_rows(files, "decision"):
+        r["cost_usd"] = 1000.0
+
+
+def tau2_delegation_better(files):
+    for r in tau2_delegation_rows(files, "decision"):
+        r["success"] = 0.9
+
+
 @pytest.mark.parametrize("change, match", [
     (raise_routerbench, "a routed row reaches it"),
     (raise_judges, "a routed row reaches it"),
@@ -356,6 +407,9 @@ def worse_paths(files):
     (worse_decision, "not always delegating at point 1"),
     (one_seed_inline, "not every seed delegates at point 1"),
     (worse_paths, r"\('decision', \{"),
+    (tau2_delegation_one_seed_inline, "not every seed delegates"),
+    (tau2_delegation_dearer, "the decision costs no less than always inline"),
+    (tau2_delegation_better, "the decision has no less held-out success"),
 ])
 def test_a_file_that_breaks_a_claim_fails_the_builder(change, match):
     files = committed()

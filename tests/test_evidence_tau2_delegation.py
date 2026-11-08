@@ -13,6 +13,7 @@ when the 12 pinned files are cached, the ``--calls`` matrix keeps exactly the re
 
 import importlib.util
 import json
+import re
 import math
 import random
 from collections import Counter
@@ -288,28 +289,35 @@ def test_results_md_holds_the_sources_sections_tables_and_regenerate_block(dr):
     assert text.isascii() and "\u2013" not in text and "\u2014" not in text
 
 
-def test_results_md_reading_it_is_built_from_the_file(dr):
-    text = section(RESULTS_MD.read_text(encoding="utf-8"), "## Reading it")
-    results = committed_results()
+def reading_it(results):
+    """The 13.12 Reading it bullets, built from the committed file, the file size last."""
     index = summary_index(results)
     config = results["config"]
     decision = [r for r in results["summary"] if r["flavor"] == "cost_effective" and r["strategy"] == "decision"]
     assert decision and all(r["delegate_rate"] == 1.0 for r in decision)
-    assert (f"In `cost_effective` the decision delegates on every seed for every parent at every bar and point "
-            f"(`delegate_rate` 1.0 on all {len(decision)} decision rows).") in text
     bar, parents = config["bars"][0], config["parents"]
     row = {s: [index[(bar, "cost_effective", 0, p, s)] for p in parents] for s in STRATEGIES}
     dec_cost, inl_cost = mean(r["cost_usd"] for r in row["decision"]), mean(r["cost_usd"] for r in row["inline"])
     dec_s, inl_s = mean(r["success"] for r in row["decision"]), mean(r["success"] for r in row["inline"])
-    assert (f"At bar {bar} and point 0 ({config['points'][0]['context_tokens']:,} context tokens), averaged over the "
-            f"{len(parents)} parents, the `cost_effective` decision costs {dec_cost:.4f} USD on a held-out half "
-            f"against {inl_cost:.4f} for always inline ({inl_cost / dec_cost:.2f} times as much), with held-out "
-            f"success {dec_s:.3f} against {inl_s:.3f}.") in text
     dearer = [f"`{p}` ({d['cost_usd']:.4f} against {i['cost_usd']:.4f})"
               for p, d, i in zip(parents, row["decision"], row["inline"]) if d["cost_usd"] > i["cost_usd"]]
     tail = ", ".join(dearer) if dearer else "no parent"
-    assert f"At that bar and point the `cost_effective` decision costs more than always inline for {tail}." in text
-    assert f"`results.json` is {len(RESULTS.read_bytes()):,} bytes." in text
+    return [
+        f"In `cost_effective` the decision delegates on every seed for every parent at every bar and point "
+        f"(`delegate_rate` 1.0 on all {len(decision)} decision rows).",
+        f"At bar {bar} and point 0 ({config['points'][0]['context_tokens']:,} context tokens), averaged over the "
+        f"{len(parents)} parents, the `cost_effective` decision costs {dec_cost:.4f} USD on a held-out half "
+        f"against {inl_cost:.4f} for always inline ({inl_cost / dec_cost:.2f} times as much), with held-out "
+        f"success {dec_s:.3f} against {inl_s:.3f}.",
+        f"At that bar and point the `cost_effective` decision costs more than always inline for {tail}.",
+        f"`results.json` is {len(RESULTS.read_bytes()):,} bytes.",
+    ]
+
+
+def test_results_md_reading_it_is_built_from_the_file(dr):
+    text = section(RESULTS_MD.read_text(encoding="utf-8"), "## Reading it")
+    for sentence in reading_it(committed_results()):
+        assert sentence in text, sentence
 
 
 def test_results_md_states_the_assumptions():
@@ -368,3 +376,95 @@ def test_pinned_files_give_the_stated_work_calls_and_window_checks(dr, calls_mat
     total = sum(reasons["cost_effective"].values())
     assert f"Of the {total:,} `cost_effective` cells, {listed}." in method
     assert "`none_clear` is 13.5 row 7: no agent clears the bar, so the calibration bounds decide, not cost." in method
+
+
+# --- the README subsection (DESIGN 12.8 v1.80) -------------------------------------------------
+
+README = ROOT / "README.md"
+EVIDENCE_HEADINGS = ["RouterBench", "AutoBench", "AutoBench judges", "tau2-bench", "LiveCodeBench",
+                     "Delegation on AutoBench", "Delegation on tau2-bench"]
+README_LINKS = (
+    "[tau2-bench](https://github.com/sierra-research/tau2-bench)",
+    f"[{REVISION[:7]}](https://github.com/sierra-research/tau2-bench/tree/{REVISION})",
+    '(licence MIT, "Copyright (c) 2025 Sierra Research")',
+    "[RESULTS.md](evidence/tau2-bench-delegation/RESULTS.md)",
+    "[results.json](evidence/tau2-bench-delegation/results.json)",
+    "[registry.json](evidence/tau2-bench-delegation/registry.json)",
+    "](evidence/tau2-bench/README.md)",
+    "](research/delegation-datasets.md)",
+    "[inline or sub-agent](#inline-or-sub-agent)",
+    "8,000, 64,000 and 200,000",
+    "list-price estimate",
+)
+# Each is the start of one RESULTS.md bullet that the README repeats verbatim (12.8 v1.80):
+# three from Method, the rest from Assumed.
+RESULTS_MD_LINES = (
+    "Of the ",
+    "Airline has 50 conversations",
+    "At point 2, C = 200,000",
+    "The lossless brief",
+    "List price over-states",
+    "Each conversation is read at trial 0 only",
+    "The agents are 2025 snapshots",
+    "The limits of `DESIGN.md` 13.8",
+)
+
+
+def words(items):
+    return items[0] if len(items) == 1 else ", ".join(items[:-1]) + " and " + items[-1]
+
+
+def counts_sentence(results):
+    config, tasks = results["config"], results["tasks"]
+    domains = words([f"{name} {task['items']}" for name, task in tasks.items()])
+    agents = words([f"`{p}`" for p in config["parents"]])
+    return (f"Each item is one agent conversation at trial 0, one task per domain ({domains} "
+            f"conversations), with each of the {len(config['parents'])} agents ({agents}) as the "
+            f"parent, over {len(config['seeds'])} seeds.")
+
+
+def readme_subsection():
+    text = README.read_text(encoding="utf-8")
+    heading = "\n## Evidence: held-out results on public data\n"
+    assert text.count(heading) == 1
+    evidence = text.split(heading, 1)[1].split("\n## ", 1)[0]
+    assert re.findall(r"^### (.*)$", evidence, re.M) == EVIDENCE_HEADINGS
+    return evidence.split("\n### Delegation on tau2-bench\n", 1)[1].split("\n### ", 1)[0]
+
+
+def test_readme_subsection_links_the_sources_and_licence():
+    sub = readme_subsection()
+    for needle in README_LINKS:
+        assert needle in sub, needle
+    assert sub.isascii() and "\u2013" not in sub and "\u2014" not in sub
+
+
+def test_readme_subsection_shows_the_counts_tables_and_reading_it(dr):
+    sub = readme_subsection()
+    results = committed_results()
+    assert counts_sentence(results) in sub
+    assert f"```text\n{TABLE_CMD}\n{dr.table(results)}\n```" in sub
+    assert f"```text\n{PARENT_CMD}\n{dr.parent_table(results, results['config']['bars'][0], 0)}\n```" in sub
+    for sentence in reading_it(results)[:3]:
+        assert f"- {sentence}\n" in sub, sentence
+    assert "`results.json` is " not in sub
+
+
+def test_readme_subsection_repeats_the_results_md_lines():
+    sub = readme_subsection()
+    lines = RESULTS_MD.read_text(encoding="utf-8").splitlines()
+    for start in RESULTS_MD_LINES:
+        found = [line for line in lines if line.startswith(f"- {start}")]
+        assert len(found) == 1, start
+        assert f"\n{found[0]}\n" in sub, start
+
+
+def test_readme_subsection_regenerate_block_is_the_results_md_one():
+    sub = readme_subsection()
+    assert re.findall(r"```bash\n.*?```\n", sub, re.S) == ["```bash\n" + "\n".join(REGENERATE) + "\n```\n"]
+
+
+def test_readme_layout_names_the_results_md():
+    text = README.read_text(encoding="utf-8")
+    layout = text.split("\n## Layout\n", 1)[1].split("\n## ", 1)[0]
+    assert "(delegation on tau2-bench: evidence/tau2-bench-delegation/RESULTS.md)" in layout
