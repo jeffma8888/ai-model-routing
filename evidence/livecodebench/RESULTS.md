@@ -4,6 +4,8 @@ What `model-routing evaluate` measures on the public LiveCodeBench submissions: 
 
 This is `cost_blind` evidence only. The submissions record no cost, no token counts and no list price, so every row of the matrix has `cost_usd` 0.0, which is what `cost_blind` assumes of every model's token cost (DESIGN 12.16). `cost_effective` is not run: with every cost 0 its routing sorts reduce to `cost_blind`'s (DESIGN 5.3), so its rows would only repeat the `cost_blind` rows.
 
+A cost read from the length of the output text was weighed and is not used: [research/livecodebench-cost.md](../../research/livecodebench-cost.md) finds that the vendors' pricing pages list by their own name only five of the 67 runs, and that three of those five, the two Claude 4 thinking runs and `openai/o3-high`, were run with reasoning that their vendors' pages say is billed as output, while the files do not show how much of it each run's output holds, so it recommends keeping this evidence `cost_blind`.
+
 The bars run from 0.1 to 0.9, every tenth strictly inside the per-model first-sample success span on the 713 problems: the models' rates run from 0.093 to 0.913. At bar 0 every model with enough calibration problems clears and at bar 1 none can, so neither is run.
 
 ## Source and licence
