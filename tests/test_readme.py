@@ -251,3 +251,42 @@ def test_claim_problems_catches_missing_stale_and_repeated_subcommands():
 def test_claim_problems_needs_one_layout_block():
     assert claim_problems(SAMPLE.replace("## Layout", "## Files"), *SAMPLE_ARGS) == [
         "expected one Layout block, found 0"]
+
+
+# DESIGN 3, v1.116: the Layout block names the package's other files, today py.typed.
+
+def other_file_problems(text, files):
+    """Every way the Layout block's entries that are neither a .py file nor data/ differ from
+    the other files at the top of model_routing/."""
+    blocks = LAYOUT.findall(text)
+    if len(blocks) != 1:
+        return [f"expected one Layout block, found {len(blocks)}"]
+    named = [name for name, _ in package_entries(blocks[0])
+             if not name.endswith(".py") and name != "data/"]
+    problems = [f"file {n} missing from the Layout block" for n in sorted(set(files) - set(named))]
+    problems += [f"Layout block names {n}, not a file in model_routing/"
+                 for n in sorted(set(named) - set(files))]
+    problems += [f"Layout block names {n} more than once"
+                 for n in sorted({n for n in named if named.count(n) > 1})]
+    return problems
+
+
+def test_readme_layout_names_the_other_package_files():
+    if not README.exists() or not PACKAGE.is_dir():
+        pytest.skip("README.md and model_routing/ are not next to the tests")
+    files = sorted(p.name for p in PACKAGE.iterdir()
+                   if p.is_file() and p.suffix != ".py" and not p.name.startswith("."))
+    assert files == ["py.typed"]
+    assert other_file_problems(README.read_text(encoding="utf-8"), files) == []
+
+
+def test_other_file_problems_catches_a_missing_stale_or_repeated_file():
+    marker = SAMPLE.replace("  data/ ", "  py.typed      marker\n  data/ ")
+    assert other_file_problems(marker, ["py.typed"]) == []
+    assert other_file_problems(SAMPLE, ["py.typed"]) == ["file py.typed missing from the Layout block"]
+    assert other_file_problems(marker, []) == [
+        "Layout block names py.typed, not a file in model_routing/"]
+    twice = marker.replace("  data/ ", "  py.typed      again\n  data/ ")
+    assert other_file_problems(twice, ["py.typed"]) == ["Layout block names py.typed more than once"]
+    assert other_file_problems(SAMPLE.replace("## Layout", "## Files"), []) == [
+        "expected one Layout block, found 0"]
