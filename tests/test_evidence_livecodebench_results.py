@@ -57,6 +57,14 @@ SAME_PICK = ("with no cost the router takes the model with the highest Wilson lo
 COMPLEMENT = ("The split cuts one pool of 713 problems in two, so a model's rate on all of them is "
               "the mean of its two halves weighted by size, and a calibration half that comes out "
               "above it leaves the held-out half below it")
+# DESIGN 12.17 v1.110: the paragraph after NOT_RUN that gives the research note's recommendation
+NOTE_LINK = "../../research/livecodebench-cost.md"
+WEIGHED = ("A cost read from the length of the output text was weighed and is not used: "
+           "[research/livecodebench-cost.md](" + NOTE_LINK + ") finds that the vendors' pricing pages "
+           "list by their own name only five of the 67 runs, and that three of those five, the two "
+           "Claude 4 thinking runs and `openai/o3-high`, were run with reasoning that their vendors' "
+           "pages say is billed as output, while the files do not show how much of it each run's "
+           "output holds, so it recommends keeping this evidence `cost_blind`.")
 CAVEATS = ["the contamination LiveCodeBench dates its problems to expose",
            "they drew 1, 4 or 10 samples per problem",
            "The problems come from LeetCode, AtCoder and Codeforces",
@@ -215,6 +223,14 @@ def test_results_md_regenerate_block_sources_and_zero_cost_sentences(cv):
                    SAME_PICK, COMPLEMENT, *CAVEATS]:
         assert needle in text, needle
     assert text.isascii() and "\u2013" not in text and "\u2014" not in text
+
+
+def test_results_md_gives_the_research_note_recommendation_after_not_run():
+    paragraphs = results_md().split("\n\n")
+    at = [i for i, p in enumerate(paragraphs) if NOT_RUN in p]
+    assert len(at) == 1 and paragraphs[at[0] + 1] == WEIGHED
+    note = (FOLDER / NOTE_LINK).resolve()
+    assert note == ROOT / "research" / "livecodebench-cost.md" and note.is_file()
 
 
 def test_results_md_reading_numbers_are_the_committed_results():

@@ -23,8 +23,8 @@ NOTE = ROOT / "research" / "livecodebench-cost.md"
 INDEX = ROOT / "research" / "README.md"
 CONVERT = ROOT / "evidence" / "livecodebench" / "convert.py"
 COMMAND = "$ python research/livecodebench_cost.py"
-SECTIONS = ["## Facts", "## Method", "## Results", "## Reading it", "## Vendor pages", "## Prices", "## Limits",
-            "## Regenerate"]
+SECTIONS = ["## Facts", "## Method", "## Results", "## Reading it", "## Vendor pages", "## Prices",
+            "## Recommendation", "## Limits", "## Regenerate"]
 # DESIGN 12.17 v1.98: the vendors read, in order, each with its own domain
 VENDORS = [("openai", "openai.com"), ("anthropic", "anthropic.com"), ("google", "google.dev"),
            ("xai", "x.ai"), ("deepseek", "deepseek.com")]
@@ -51,7 +51,7 @@ EIGHT = [("agentica", ("agentica-project.com",), "agentica-org"), ("lgai", ("lgr
          ("mistralai", ("mistral.ai",), None), ("moonshotai", ("moonshot.ai", "kimi.ai"), None),
          ("nvidia", ("nvidia.com",), "nvidia"), ("qwen", ("alibabacloud.com",), "Qwen")]
 # DESIGN section numbers: the only numbers of the note's prose that are not in the script's output
-ALLOWED = {"12.16", "12.17"}
+ALLOWED = {"12.16", "12.17", "5.3"}
 NUMBER = re.compile(r"(?<![\w.])\d+(?:,\d{3})*(?:\.\d+)?%?")
 URL = re.compile(r"https?://\S+")
 DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
@@ -434,6 +434,51 @@ def test_note_regenerate_block():
 def test_research_index_links_the_note():
     index = INDEX.read_text(encoding="utf-8")
     assert "| [livecodebench-cost.md](livecodebench-cost.md) |" in index
+
+
+# DESIGN 12.17 v1.110: the recommendation, keep the evidence cost_blind
+KEEP = "Keep the evidence `cost_blind`"
+RUN_ID = re.compile(r"`([a-z0-9.-]+/[a-z0-9._-]+)`")
+
+
+def _bullets(name):
+    return [line for line in _section(name).splitlines() if line.startswith("- ")]
+
+
+def test_note_recommends_keeping_cost_blind():
+    text = _note()
+    facts = [b for b in _bullets("## Facts") if b.startswith("- Recommendation: ")]
+    assert len(facts) == 1 and facts[0].startswith("- Recommendation: keep the evidence `cost_blind`")
+    opening = next(line for line in text.splitlines() if line.startswith("Question: "))
+    assert "This note recommends keeping the evidence `cost_blind`" in opening
+    assert "none yet" not in text and "no recommendation yet" not in text
+
+
+def test_recommendation_names_the_priced_runs_and_those_billed_for_reasoning():
+    bullets = _bullets("## Recommendation")
+    assert len(bullets) >= 3 and bullets[0].startswith("- " + KEEP)
+    priced = [row[0].strip("`") for row in _price_rows() if PRICE.fullmatch(row[3])]
+    reasoning = [m for m in priced if m.endswith(("-thinking", "-high"))]
+    assert priced and reasoning and len(reasoning) < len(priced)
+    assert RUN_ID.findall(bullets[1]) == priced
+    assert "`cost_effective`" in bullets[1]
+    assert RUN_ID.findall(bullets[2]) == reasoning
+    for needle in ("`## Vendor pages`", "`## Reading it`", "5.3"):
+        assert needle in bullets[2], needle
+
+
+def test_limits_says_what_would_change_the_recommendation():
+    found = [b for b in _bullets("## Limits") if b.startswith("- The recommendation holds for these files")]
+    assert len(found) == 1 and "billed tokens" in found[0]
+
+
+def test_research_index_row_gives_the_recommendation():
+    index = INDEX.read_text(encoding="utf-8")
+    row = next(line for line in index.splitlines() if line.startswith("| [livecodebench-cost.md]"))
+    assert "(Short answer: no." in row and "recommends keeping the evidence `cost_blind`" in row
+    assert "not yet" not in row
+    bullet = next(line for line in index.splitlines() if line.startswith("- `research/livecodebench-cost.md`"))
+    assert "for now" not in bullet and "`cost_blind`" in bullet
 
 
 def _cached():
