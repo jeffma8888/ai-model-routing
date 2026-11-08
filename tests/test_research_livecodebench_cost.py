@@ -44,6 +44,12 @@ OWN_SITES = {"agentica": "agentica-project.com", "lgai": "lgresearch.ai", "nvidi
 NO_SITE = "the card links no site of the family's own"
 NO_PRICE = "no first-party price"
 ALIASES = ["mistralai/codestral-latest", "mistralai/mistral-large"]
+# DESIGN 12.17 v1.107: the eight families `## Vendor pages` reads after the five vendors, in order, each
+# with the domains of its own pages and its own account on huggingface.co
+EIGHT = [("agentica", ("agentica-project.com",), "agentica-org"), ("lgai", ("lgresearch.ai",), "LGAI-EXAONE"),
+         ("meta-llama", ("meta.ai", "llama.com"), "meta-llama"), ("metastone", (), "MetaStoneTec"),
+         ("mistralai", ("mistral.ai",), None), ("moonshotai", ("moonshot.ai", "kimi.ai"), None),
+         ("nvidia", ("nvidia.com",), "nvidia"), ("qwen", ("alibabacloud.com",), "Qwen")]
 # DESIGN section numbers: the only numbers of the note's prose that are not in the script's output
 ALLOWED = {"12.16", "12.17"}
 NUMBER = re.compile(r"(?<![\w.])\d+(?:,\d{3})*(?:\.\d+)?%?")
@@ -217,12 +223,15 @@ def _vendor_rows():
 
 
 def test_vendor_pages_rows_in_order():
-    assert [row[0] for row in _vendor_rows()] == [vendor for vendor, _ in VENDORS]
+    # DESIGN 12.17 v1.107: the five vendors, then the eight families
+    assert [row[0] for row in _vendor_rows()] == [vendor for vendor, _ in VENDORS] + [f for f, _, _ in EIGHT]
 
 
 def test_vendor_pages_each_cites_its_own_domain_and_a_date_read():
     domains = dict(VENDORS)
     for vendor, page, _, _ in _vendor_rows():
+        if vendor not in domains:
+            continue
         urls = [url.rstrip(",;.") for url in URL.findall(page)]
         assert urls, vendor
         for url in urls:
@@ -257,19 +266,52 @@ def _section(name):
     return _note().split("\n" + name + "\n", 1)[1].split("\n## ", 1)[0]
 
 
-def _unread_families():
-    """The backticked prefixes in the parenthesis after `The other eight families` of `## Vendor pages`."""
-    found = re.search(r"The other eight families \(([^)]*)\)", _section("## Vendor pages"))
-    assert found
-    return re.findall(r"`([^`]+)`", found.group(1))
-
-
-def test_vendor_pages_and_the_unread_families_are_the_13_prefixes():
+def test_vendor_pages_rows_are_the_13_prefixes():
+    # DESIGN 12.17 v1.107: every family has a row, and none is left unread
     models = _block_models(_results_block(_note()))
     prefixes = sorted({m.split("/", 1)[0] for m in models})
-    named = [row[0] for row in _vendor_rows()] + _unread_families()
-    assert len(prefixes) == 13 and len(_unread_families()) == 8
+    named = [row[0] for row in _vendor_rows()]
+    assert len(prefixes) == 13 and len(named) == 13
     assert sorted(named) == prefixes
+    assert "The other eight families" not in _section("## Vendor pages")
+
+
+def test_vendor_pages_eight_families_cite_their_own_pages_and_a_date_read():
+    # DESIGN 12.17 v1.107: the family's own domains, or a model card under its own account
+    rows = {row[0]: row for row in _vendor_rows()}
+    for family, domains, account in EIGHT:
+        page = rows[family][1]
+        urls = [url.rstrip(",;.") for url in URL.findall(page)]
+        assert urls, family
+        for url in urls:
+            host = url.split("://", 1)[1].split("/", 1)[0]
+            card = account and re.fullmatch(r"https://huggingface\.co/" + re.escape(account) + r"/[^/\s]+", url)
+            own = url.startswith("https://") and any(host == d or host.endswith("." + d) for d in domains)
+            assert card or own, url
+        read = re.search(r"\bread (\d{4}-\d{2}-\d{2})\b", page)
+        assert read, family
+        datetime.date.fromisoformat(read.group(1))
+
+
+def test_vendor_pages_card_families_cite_the_cards_of_their_price_rows():
+    # DESIGN 12.17 v1.107: the four card families of `## Prices` cite exactly those cards
+    rows = {row[0]: row for row in _vendor_rows()}
+    for family, _ in CARD_FAMILIES:
+        cards = {url.rstrip(",;.") for url in URL.findall(rows[family][1]) if "huggingface.co/" in url}
+        priced = {row[1].split(", read ", 1)[0] for row in _price_rows() if row[0].strip("`").startswith(family + "/")}
+        assert cards == priced, family
+
+
+def test_vendor_pages_set_each_card_run_beside_its_marker_share():
+    # DESIGN 12.17 v1.107: one bullet names every run of the card families with its think_marker share
+    block = _results_block(_note())
+    share = {line.split()[0]: line.split()[2] for line in block.splitlines()
+             if line.split()[:1] and "/" in line.split()[0] and len(line.split()) == 4}
+    runs = [m for m in _block_models(block) if m.split("/", 1)[0] in dict(CARD_FAMILIES)]
+    bullets = [line for line in _section("## Vendor pages").splitlines() if line.startswith("- ")]
+    found = [b for b in bullets if all("`" + run + "`" in b for run in runs)]
+    assert len(found) == 1
+    assert all(share[run] in found[0] for run in runs)
 
 
 def _price_rows():
