@@ -88,6 +88,8 @@ pytest -q
 model-routing demo --out ./demo-run
 ```
 
+To use the library from another project instead of a clone, install it from this repository pinned to a commit, with the full SHA of a commit you have checked in place of `<commit>`: `pip install "ai-model-routing @ git+https://github.com/jeffma8888/ai-model-routing.git@<commit>"`. On each push, CI builds a wheel, installs it into a fresh virtual environment and, from outside the checkout, runs the demo and checks that the data files and the `py.typed` marker came with it.
+
 The demo routes one judge task with fictional `demo/` models and a synthetic 300-item labeled set (seeded, deterministic). It calibrates four judges, selects in both flavors, runs 200 judge calls per flavor with a simulated outage on the primary, then asks in each flavor whether an `atlas-max` parent 60,000 tokens into a session should do one more check itself or hand it to a sub-agent, and runs the hand-off it chose. It writes `calls.jsonl`, `stats.json`, `outcomes.jsonl` (the calibration set as an outcome matrix, used below), and its registry and task as `models.json` and `tasks.json`.
 
 ```text
@@ -935,6 +937,7 @@ model_routing/
   delegation.py inline or sub-agent for one piece of work, in both flavors
   delegation_eval.py  offline evidence for that choice on an outcome matrix with token counts
   cli.py        model-routing select | calibrate | report | demo | evaluate | delegate
+  py.typed      empty PEP 561 marker: type checkers read the package's annotations
   data/         models.json, priors.json, example_tasks.json
 research/       public evidence behind the defaults
 evidence/       public datasets turned into outcome matrices, with committed results

@@ -33,3 +33,30 @@ jobs:
         run: |
           python -m pip install -e ".[dev,evidence]"
           python -m pytest -q tests/test_evidence_routerbench.py
+      - name: Built wheel runs outside the checkout (one Python version)
+        if: matrix.python-version == '3.12'
+        run: |
+          python -m pip wheel . --no-deps -w "$RUNNER_TEMP/dist"
+          python -m venv "$RUNNER_TEMP/wheel-venv"
+          "$RUNNER_TEMP/wheel-venv/bin/python" -m pip install "$RUNNER_TEMP"/dist/*.whl
+          cd "$RUNNER_TEMP"
+          "$RUNNER_TEMP/wheel-venv/bin/model-routing" demo --out "$RUNNER_TEMP/wheel-demo"
+          "$RUNNER_TEMP/wheel-venv/bin/python" - <<'EOF'
+          import importlib.metadata, importlib.resources, os, pathlib, sys
+          import model_routing
+          here = pathlib.Path(model_routing.__file__).resolve().parent
+          checkout = pathlib.Path(os.environ["GITHUB_WORKSPACE"]).resolve()
+          if not here.is_relative_to(pathlib.Path(sys.prefix).resolve()) or here.is_relative_to(checkout):
+              sys.exit(f"model_routing imports from {here}, not from the wheel venv")
+          if importlib.metadata.version("ai-model-routing") != model_routing.__version__:
+              sys.exit("the wheel metadata version differs from model_routing.__version__")
+          names = sorted("data/" + p.name for p in (checkout / "model_routing" / "data").glob("*.json"))
+          if not names:
+              sys.exit("the checkout has no model_routing/data/*.json")
+          packaged = importlib.resources.files("model_routing")
+          for name in names + ["py.typed"]:
+              found = packaged.joinpath(name)
+              if not found.is_file() or found.read_bytes() != (checkout / "model_routing" / name).read_bytes():
+                  sys.exit(f"the wheel does not carry model_routing/{name} as the checkout has it")
+          print(f"wheel ok: model_routing {model_routing.__version__} from {here}, {len(names)} data files and py.typed")
+          EOF
