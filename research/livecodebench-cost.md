@@ -1,6 +1,6 @@
 # What a cost read from LiveCodeBench output length would see
 
-Question: the LiveCodeBench evidence is `cost_blind` only, because the submissions record no cost, no token counts and no list price (`DESIGN.md` 12.16). Yet each pinned file holds every problem's text and every sample's output text, so a cost could be estimated from text length at list price. What would that estimate see, and what would it miss? Short answer: it sees the visible output only, and on the OpenAI reasoning runs the visible length stays the same at every reasoning setting while their reasoning tokens are billed and not shown, so the estimate would price those settings alike. Five vendors' current pages on reasoning are read in `## Vendor pages`. The four that speak of billing say reasoning is billed as output, and none of them describes returning the raw reasoning by default. But of the 67 models the five pages name only `o4-mini`, so they cannot say which of the older runs hid their reasoning; no vendor's list price is read here, so this note makes no recommendation yet and the evidence stays `cost_blind`.
+Question: the LiveCodeBench evidence is `cost_blind` only, because the submissions record no cost, no token counts and no list price (`DESIGN.md` 12.16). Yet each pinned file holds every problem's text and every sample's output text, so a cost could be estimated from text length at list price. What would that estimate see, and what would it miss? Short answer: it sees the visible output only, and on the OpenAI reasoning runs the visible length stays the same at every reasoning setting while their reasoning tokens are billed and not shown, so the estimate would price those settings alike. Five vendors' current pages on reasoning are read in `## Vendor pages`. The four that speak of billing say reasoning is billed as output, and none of them describes returning the raw reasoning by default. But of the 67 models the five pages name only `o4-mini`, so they cannot say which of the older runs hid their reasoning. The five vendors' pricing pages, read in `## Prices`, list by their own name only the two Claude 4 models, each with and without thinking, and `o3`; the pages of the other eight vendor families are not read yet, so this note makes no recommendation yet and the evidence stays `cost_blind`.
 
 ## Facts
 
@@ -10,7 +10,8 @@ Question: the LiveCodeBench evidence is `cost_blind` only, because the submissio
 - The OpenAI help page on tokens says reasoning tokens "are not visible as answer text, but they count toward output usage and are billed as output tokens" (read 2026-11-08), so on those runs the visible length cannot show what each setting was billed for
 - The two Anthropic models run with and without thinking go the other way: `anthropic/claude-opus-4-thinking` 8,635 characters against 1,598 (5.40 times) and `anthropic/claude-sonnet-4-thinking` 13,393 against 1,960 (6.83 times), so some of what thinking adds reaches the published output; whether it is the reasoning, a summary of it or a longer answer, length alone does not show
 - The current pages on reasoning of openai, anthropic, google, xai and deepseek (read 2026-11-08, `## Vendor pages`) name only `o4-mini` of the 67; the four that speak of billing (openai, anthropic, google on its pricing page, xai) say reasoning is billed as output, and none of those four describes returning the raw reasoning by default
-- Recommendation: none yet. A text-length cost under-counts the runs whose reasoning is billed and unseen; which of the 67 those were, the vendors' current pages do not say, and no vendor's list price on a date read is in this note
+- The pricing pages of the same five vendors (read 2026-11-08, `## Prices`) list by their own name only `anthropic/claude-opus-4` and `anthropic/claude-sonnet-4`, each also run with thinking, and `openai/o3-high`; every other run of the five vendors is not listed, the dated OpenAI and Gemini runs because the page lists their names undated or as a later stable model
+- Recommendation: none yet. A text-length cost under-counts the runs whose reasoning is billed and unseen; which of the 67 those were, the vendors' current pages do not say, and the pricing and reasoning pages of the other eight vendor families are not read yet
 
 ## Method
 
@@ -133,9 +134,90 @@ Each vendor's current page on how its models return and bill reasoning, for five
 - Every page above that speaks of billing says reasoning is billed as output, and none of them describes returning the raw reasoning by default: openai and xai describe it as encrypted or not returned, with a summary on request for some models, google returns only the final output unless summaries are asked for, and anthropic a summary or an empty block. A cost read from the visible text would under-count any run billed that way
 - The pages describe today's models: of the 67 they name only `o4-mini`. Whether each older run returned its reasoning, a summary of it or nothing, today's pages do not say, and the files cannot settle it, since the marker and the lengths are data, not documentation
 
+## Prices
+
+Each model's row says whether its vendor's pricing page lists it on the date read, under which name, and at what standard price per million input and output tokens, in USD, for the shortest prompts where the page tiers by prompt length. A run counts as listed when the page lists a model of the run's name, the folder name less any reasoning setting, up to case, spaces and hyphens, and a dated run only when the page lists that date. A price is the page's on the date read, not the price when the run was made. The pricing pages of the other eight families are not read yet.
+
+| model | pricing page, read | listed as | input | output |
+|---|---|---|---|---|
+| `agentica/deepcoder-14b-preview` | not read yet | not read | - | - |
+| `anthropic/claude-3-haiku` | https://docs.anthropic.com/en/docs/about-claude/pricing, read 2026-11-08 | not listed | - | - |
+| `anthropic/claude-3.5-sonnet-20240620` | https://docs.anthropic.com/en/docs/about-claude/pricing, read 2026-11-08 | not listed | - | - |
+| `anthropic/claude-3.5-sonnet-20241022` | https://docs.anthropic.com/en/docs/about-claude/pricing, read 2026-11-08 | not listed | - | - |
+| `anthropic/claude-3.7-sonnet` | https://docs.anthropic.com/en/docs/about-claude/pricing, read 2026-11-08 | not listed | - | - |
+| `anthropic/claude-opus-4` | https://docs.anthropic.com/en/docs/about-claude/pricing, read 2026-11-08 | "Claude Opus 4" | $15.00 | $75.00 |
+| `anthropic/claude-opus-4-thinking` | https://docs.anthropic.com/en/docs/about-claude/pricing, read 2026-11-08 | "Claude Opus 4" | $15.00 | $75.00 |
+| `anthropic/claude-sonnet-4` | https://docs.anthropic.com/en/docs/about-claude/pricing, read 2026-11-08 | "Claude Sonnet 4" | $3.00 | $15.00 |
+| `anthropic/claude-sonnet-4-thinking` | https://docs.anthropic.com/en/docs/about-claude/pricing, read 2026-11-08 | "Claude Sonnet 4" | $3.00 | $15.00 |
+| `deepseek/deepseek-r1-0528` | https://api-docs.deepseek.com/quick_start/pricing, read 2026-11-08 | not listed | - | - |
+| `deepseek/deepseek-r1-lite-preview` | https://api-docs.deepseek.com/quick_start/pricing, read 2026-11-08 | not listed | - | - |
+| `deepseek/deepseek-r1-preview` | https://api-docs.deepseek.com/quick_start/pricing, read 2026-11-08 | not listed | - | - |
+| `deepseek/deepseek-v3` | https://api-docs.deepseek.com/quick_start/pricing, read 2026-11-08 | not listed | - | - |
+| `deepseek/dscoder-1.3b-ins` | https://api-docs.deepseek.com/quick_start/pricing, read 2026-11-08 | not listed | - | - |
+| `deepseek/dscoder-33b-ins` | https://api-docs.deepseek.com/quick_start/pricing, read 2026-11-08 | not listed | - | - |
+| `deepseek/dscoder-6.7b-ins` | https://api-docs.deepseek.com/quick_start/pricing, read 2026-11-08 | not listed | - | - |
+| `google/gemini-2.5-flash-04-17` | https://ai.google.dev/gemini-api/docs/pricing, read 2026-11-08 | not listed | - | - |
+| `google/gemini-2.5-flash-05-20` | https://ai.google.dev/gemini-api/docs/pricing, read 2026-11-08 | not listed | - | - |
+| `google/gemini-2.5-pro-03-25` | https://ai.google.dev/gemini-api/docs/pricing, read 2026-11-08 | not listed | - | - |
+| `google/gemini-2.5-pro-05-06` | https://ai.google.dev/gemini-api/docs/pricing, read 2026-11-08 | not listed | - | - |
+| `google/gemini-2.5-pro-06-05` | https://ai.google.dev/gemini-api/docs/pricing, read 2026-11-08 | not listed | - | - |
+| `google/gemini-exp-1206` | https://ai.google.dev/gemini-api/docs/pricing, read 2026-11-08 | not listed | - | - |
+| `google/gemini-flash-1.5-002` | https://ai.google.dev/gemini-api/docs/pricing, read 2026-11-08 | not listed | - | - |
+| `google/gemini-flash-2.0-exp` | https://ai.google.dev/gemini-api/docs/pricing, read 2026-11-08 | not listed | - | - |
+| `google/gemini-flash-2.0-thinking` | https://ai.google.dev/gemini-api/docs/pricing, read 2026-11-08 | not listed | - | - |
+| `google/gemini-flash-2.0-thinking-01-21` | https://ai.google.dev/gemini-api/docs/pricing, read 2026-11-08 | not listed | - | - |
+| `google/gemini-flash-2.0-thinking-12-19` | https://ai.google.dev/gemini-api/docs/pricing, read 2026-11-08 | not listed | - | - |
+| `google/gemini-pro-1.5-002` | https://ai.google.dev/gemini-api/docs/pricing, read 2026-11-08 | not listed | - | - |
+| `lgai/exaone-4.0-32b` | not read yet | not read | - | - |
+| `meta-llama/llama3.3-70b-ins` | not read yet | not read | - | - |
+| `metastone/metastone-l1-7b` | not read yet | not read | - | - |
+| `mistralai/codestral-latest` | not read yet | not read | - | - |
+| `mistralai/mistral-large` | not read yet | not read | - | - |
+| `moonshotai/kimi-k1.6-ioi` | not read yet | not read | - | - |
+| `moonshotai/kimi-k1.6-ioi-high` | not read yet | not read | - | - |
+| `nvidia/llama-3_1-nemotron-nano-8b-v1` | not read yet | not read | - | - |
+| `nvidia/llama-3_1-nemotron-ultra-253b-v1` | not read yet | not read | - | - |
+| `nvidia/openreasoning-nemotron-32b` | not read yet | not read | - | - |
+| `openai/gpt-4-0613` | https://platform.openai.com/docs/pricing, read 2026-11-08 | not listed | - | - |
+| `openai/gpt-4-turbo-1106` | https://platform.openai.com/docs/pricing, read 2026-11-08 | not listed | - | - |
+| `openai/gpt-4-turbo-2024-04-09` | https://platform.openai.com/docs/pricing, read 2026-11-08 | not listed | - | - |
+| `openai/gpt-4o-2024-05-13` | https://platform.openai.com/docs/pricing, read 2026-11-08 | not listed | - | - |
+| `openai/gpt-4o-2024-08-06` | https://platform.openai.com/docs/pricing, read 2026-11-08 | not listed | - | - |
+| `openai/gpt-4o-mini-2024-07-18` | https://platform.openai.com/docs/pricing, read 2026-11-08 | not listed | - | - |
+| `openai/o1-2024-12-17-high` | https://platform.openai.com/docs/pricing, read 2026-11-08 | not listed | - | - |
+| `openai/o1-2024-12-17-low` | https://platform.openai.com/docs/pricing, read 2026-11-08 | not listed | - | - |
+| `openai/o1-2024-12-17-med` | https://platform.openai.com/docs/pricing, read 2026-11-08 | not listed | - | - |
+| `openai/o1-mini-2024-09-12` | https://platform.openai.com/docs/pricing, read 2026-11-08 | not listed | - | - |
+| `openai/o1-preview-2024-09-12` | https://platform.openai.com/docs/pricing, read 2026-11-08 | not listed | - | - |
+| `openai/o3-high` | https://platform.openai.com/docs/pricing, read 2026-11-08 | "o3" | $2.00 | $8.00 |
+| `openai/o3-mini-2025-01-31-high` | https://platform.openai.com/docs/pricing, read 2026-11-08 | not listed | - | - |
+| `openai/o3-mini-2025-01-31-low` | https://platform.openai.com/docs/pricing, read 2026-11-08 | not listed | - | - |
+| `openai/o3-mini-2025-01-31-med` | https://platform.openai.com/docs/pricing, read 2026-11-08 | not listed | - | - |
+| `openai/o4-mini-high` | https://platform.openai.com/docs/pricing, read 2026-11-08 | not listed | - | - |
+| `openai/o4-mini-low` | https://platform.openai.com/docs/pricing, read 2026-11-08 | not listed | - | - |
+| `openai/o4-mini-medium` | https://platform.openai.com/docs/pricing, read 2026-11-08 | not listed | - | - |
+| `qwen/qwen2-ins-72b` | not read yet | not read | - | - |
+| `qwen/qwen2.5-coder-ins-32b` | not read yet | not read | - | - |
+| `qwen/qwen2.5-coder-ins-7b` | not read yet | not read | - | - |
+| `qwen/qwen2.5-ins-32b` | not read yet | not read | - | - |
+| `qwen/qwen2.5-ins-72b` | not read yet | not read | - | - |
+| `qwen/qwen2.5-ins-7b` | not read yet | not read | - | - |
+| `qwen/qwen3-235b-a22b` | not read yet | not read | - | - |
+| `qwen/qwq-32b-preview` | not read yet | not read | - | - |
+| `qwen/qwq-32b_temp` | not read yet | not read | - | - |
+| `qwen/qwq-max-preview` | not read yet | not read | - | - |
+| `xai/grok-3-mini-high` | https://docs.x.ai/docs/models, read 2026-11-08 | not listed | - | - |
+
+- The five pricing pages list, by their own name, only the two Claude 4 models, each run with and without thinking at one price per model, and `o3`, the model of `openai/o3-high`. Thinking is billed as output on the anthropic page of `## Vendor pages`, so a text-length cost of the two thinking runs would price only the part of their thinking that reaches the published output
+- openai: in the page's source, its standard table of text-token prices lists `gpt-4o` at $2.50 input and $10.00 output and `gpt-4o-mini` at $0.15 and $0.60, by undated names it does not tie to a date, so the dated runs `openai/gpt-4o-2024-05-13`, `openai/gpt-4o-2024-08-06` and `openai/gpt-4o-mini-2024-07-18` are not listed; its fine-tuning table there names `gpt-4o-2024-08-06` and `gpt-4o-mini-2024-07-18` as models to fine-tune, at the price of a model fine-tuned from them, which is not the base model's price. It lists none of the other OpenAI runs: no `gpt-4`, `gpt-4-turbo`, `o1` or `o3-mini` model and no `o4-mini`
+- anthropic: no Claude 3 model is on the page, so `anthropic/claude-3-haiku`, the two `anthropic/claude-3.5-sonnet` runs and `anthropic/claude-3.7-sonnet` are not listed
+- google: the page lists `gemini-2.5-pro` at $1.25 input and $10.00 output for the shortest prompts and `gemini-2.5-flash` at $0.30 and $2.50, both marked deprecated, with requests to them routed to later models and billed at those models' rates from 2026-12-01. The five `google/gemini-2.5` runs are dated versions of those two models and the page lists none of their dates, so they are not listed; no Gemini 1.5 or 2.0 model and no `gemini-exp-1206` is on the page
+- xai: the page lists one later Grok model only, so `xai/grok-3-mini-high` is not listed
+- deepseek: the pricing address, like the reasoning-guide address of `## Vendor pages`, now serves the page titled "Your First API Call", which names `deepseek-flash` and `deepseek-v4-pro` and gives no price figure, so none of the deepseek runs is listed
+
 ## Limits
 
-- No price: the note reads no list price. The vendor pages read are those of the date read and name only `o4-mini` of the 67, and the pages of the other eight vendor families are not read
+- Prices of the date read: the pricing pages give today's names and prices, not those of the day each run was made, and the pages of the other eight vendor families are not read yet. The reasoning pages read name only `o4-mini` of the 67
 - One sample per problem, the first, as the evidence labels it; the later samples are not read
 - The input is under-counted for every model alike: the harness's instructions are not in the files
 - The marker finds only reasoning that keeps its tag; reasoning written without it is counted as answer
