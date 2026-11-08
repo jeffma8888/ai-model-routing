@@ -1,14 +1,14 @@
-"""Delegation results on tau2-bench (DESIGN 13.12 v1.78), written before the script and files.
+"""Delegation results on tau2-bench (DESIGN 13.12; specified in v1.78, committed in v1.79).
 
 The 13.9 harness on the tau2-bench converter's ``--calls`` rows (12.14), one task per domain,
 with a committed registry of the three agents the converter keeps, the 13.10 base points and the
-12.15 bars. Every test that loads ``evidence/tau2-bench-delegation/results.py`` or reads one of its
-three committed files (``registry.json``, ``results.json``, ``RESULTS.md``) is held under a strict
-xfail marker that names ``FileNotFoundError``, which their absence raises, until v1.79 commits
-them. The plain tests pass before and after: the 13.10 base points carry no ``work_calls``, the
-harness refuses the variant points with ``work_calls`` above 1 on per-call rows, the research
-note states each price, window and status the registry takes from it, and, when the 12 pinned
-files are cached, the ``--calls`` matrix keeps exactly the registry's agents.
+12.15 bars. v1.78 held every test that loads ``evidence/tau2-bench-delegation/results.py`` or
+reads one of its three committed files (``registry.json``, ``results.json``, ``RESULTS.md``)
+under a strict xfail marker naming ``FileNotFoundError``; v1.79 commits them and removes the
+markers. The other tests passed before and after: the 13.10 base points carry no
+``work_calls``, the harness refuses the variant points with ``work_calls`` above 1 on per-call
+rows, the research note states each price, window and status the registry takes from it, and,
+when the 12 pinned files are cached, the ``--calls`` matrix keeps exactly the registry's agents.
 """
 
 import importlib.util
@@ -62,11 +62,6 @@ REGENERATE = [
     TABLE_CMD[2:],
     PARENT_CMD[2:],
 ]
-
-NEEDS_FILES = pytest.mark.xfail(
-    strict=True, raises=FileNotFoundError,
-    reason="DESIGN 13.12 v1.78: the script and its committed files land in v1.79")
-
 
 def _load(name, path):
     spec = importlib.util.spec_from_file_location(name, path)
@@ -198,7 +193,6 @@ def test_pinned_calls_matrix_keeps_the_registry_agents(calls_matrix):
 
 # --- the script (v1.79) ------------------------------------------------------------------------
 
-@NEEDS_FILES
 def test_constants_and_points_are_the_stated_ones(td, dr):
     assert td.BARS == BARS
     assert td.SEEDS == 50
@@ -206,7 +200,6 @@ def test_constants_and_points_are_the_stated_ones(td, dr):
     assert td.points() == dr.points()
 
 
-@NEEDS_FILES
 def test_run_is_evaluate_delegation_on_the_stated_config(td, dr):
     rows, registry = synthetic()
     got = td.run(rows, registry)
@@ -215,7 +208,6 @@ def test_run_is_evaluate_delegation_on_the_stated_config(td, dr):
     assert got == {key: want[key] for key in KEYS}
 
 
-@NEEDS_FILES
 def test_main_writes_the_run_and_returns_0(td, tmp_path):
     rows, registry = synthetic()
     matrix, reg, out = tmp_path / "m.jsonl", tmp_path / "r.json", tmp_path / "out.json"
@@ -226,7 +218,6 @@ def test_main_writes_the_run_and_returns_0(td, tmp_path):
     assert not (tmp_path / "out.json.part").exists()
 
 
-@NEEDS_FILES
 def test_main_reports_a_harness_error_and_leaves_out_untouched(td, tmp_path, capsys):
     rows, registry = synthetic()
     rows[3] = dict(rows[3], input_tokens=rows[3]["input_tokens"] + 1)
@@ -241,7 +232,6 @@ def test_main_reports_a_harness_error_and_leaves_out_untouched(td, tmp_path, cap
     assert not (tmp_path / "out.json.part").exists()
 
 
-@NEEDS_FILES
 def test_main_requires_every_option(td, tmp_path):
     with pytest.raises(SystemExit) as exc:
         td.main(["--matrix", str(tmp_path / "m.jsonl"), "--out", str(tmp_path / "o.json")])
@@ -250,7 +240,6 @@ def test_main_requires_every_option(td, tmp_path):
 
 # --- the committed files (v1.79) ---------------------------------------------------------------
 
-@NEEDS_FILES
 def test_committed_registry_is_the_stated_one():
     text = REGISTRY.read_text(encoding="utf-8")
     data = json.loads(text)
@@ -269,7 +258,6 @@ def test_committed_registry_is_the_stated_one():
     assert all(m.price_valid_until is None for m in loaded.models)
 
 
-@NEEDS_FILES
 def test_committed_results_file_has_the_stated_shape(dr):
     text = RESULTS.read_text(encoding="utf-8")
     results = json.loads(text)
@@ -285,7 +273,6 @@ def test_committed_results_file_has_the_stated_shape(dr):
     assert len(keys) == len(set(keys)) == 6 * 2 * 4 * 3 * 3
 
 
-@NEEDS_FILES
 def test_results_md_holds_the_sources_sections_tables_and_regenerate_block(dr):
     text = RESULTS_MD.read_text(encoding="utf-8")
     results = committed_results()
@@ -301,7 +288,6 @@ def test_results_md_holds_the_sources_sections_tables_and_regenerate_block(dr):
     assert text.isascii() and "\u2013" not in text and "\u2014" not in text
 
 
-@NEEDS_FILES
 def test_results_md_reading_it_is_built_from_the_file(dr):
     text = section(RESULTS_MD.read_text(encoding="utf-8"), "## Reading it")
     results = committed_results()
@@ -326,7 +312,6 @@ def test_results_md_reading_it_is_built_from_the_file(dr):
     assert f"`results.json` is {len(RESULTS.read_bytes()):,} bytes." in text
 
 
-@NEEDS_FILES
 def test_results_md_states_the_assumptions():
     text = section(RESULTS_MD.read_text(encoding="utf-8"), "## Assumed")
     for needle in ("lossless", "whole conversation", "tool schemas", "2.25 times", "2.35 times", "1.0 times",
@@ -337,7 +322,6 @@ def test_results_md_states_the_assumptions():
 
 # --- the pinned files with the committed registry (v1.79), only when cached --------------------
 
-@NEEDS_FILES
 def test_pinned_files_regenerate_results_byte_identical(td, calls_matrix):
     rows, _ = calls_matrix
     text = json.dumps(td.run(rows, Registry.load(REGISTRY)), indent=2) + "\n"
@@ -345,7 +329,6 @@ def test_pinned_files_regenerate_results_byte_identical(td, calls_matrix):
     assert len(text.encode("utf-8")) == 132_475
 
 
-@NEEDS_FILES
 def test_pinned_files_give_the_stated_work_calls_and_window_checks(dr, calls_matrix):
     rows, _ = calls_matrix
     registry = Registry.load(REGISTRY)

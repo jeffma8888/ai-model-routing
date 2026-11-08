@@ -627,6 +627,7 @@ def test_readme_subsection_states_the_breakeven_numbers(dr):
 
 DATASETS_NOTE = ROOT / "research" / "delegation-datasets.md"
 DATASETS_LINK = "[research/delegation-datasets.md](research/delegation-datasets.md)"
+TAU2_RESULTS_LINK = "[evidence/tau2-bench-delegation/RESULTS.md](evidence/tau2-bench-delegation/RESULTS.md)"
 
 
 def test_readme_and_design_say_the_delegation_evidence_reads_one_dataset():
@@ -641,24 +642,25 @@ def test_readme_and_design_say_the_delegation_evidence_reads_one_dataset():
         assert figure in note, figure
     sub = readme_subsection()
     # v1.75: the harness prices a conversation on its own calls from per-call rows (13.9);
-    # v1.77: the tau2-bench converter writes them with --calls (12.14)
-    sentence = ("It is the only dataset the delegation evidence reads: tau2-bench, which the "
+    # v1.77: the tau2-bench converter writes them with --calls (12.14);
+    # v1.79: the delegation results on them are committed (13.12)
+    sentence = ("tau2-bench, which the "
                 "routing evidence above also reads, records each item as a conversation of 2 to "
                 "100 model calls, which the harness prices on the item's own calls only from "
                 "rows that list each call's tokens; its converter's `--calls` writes such rows, "
-                f"and no delegation results on them are committed yet ({DATASETS_LINK}).")
+                f"and the delegation results on them are in {TAU2_RESULTS_LINK} ({DATASETS_LINK}).")
     assert sub.count(sentence) == 1
     assert sub.index(sentence) < sub.index("[research/hand-off-data.md]") < sub.index("```text\n")
     readme = README.read_text(encoding="utf-8")
     limits = readme.split("\n## Limitations and non-goals (v1)\n", 1)[1].split("\n## ", 1)[0]
     bullets = [b for b in limits.split("\n") if b.startswith("- The delegation evidence reads")]
     assert bullets == [
-        "- The delegation evidence reads one dataset, the AutoBench 2026 matrix. tau2-bench has a "
-        "success label and per-call token counts for each agent on each item, but each item is a "
-        "conversation of 2 to 100 model calls. The `DESIGN.md` 13.9 harness prices such an item "
+        "- The delegation evidence reads two datasets: the AutoBench 2026 matrix, and tau2-bench "
+        f"({TAU2_RESULTS_LINK}), whose items are conversations of 2 to 100 model calls. The "
+        "`DESIGN.md` 13.9 harness prices such an item "
         "on its own calls only from rows that list each call's input and output tokens "
         "(`call_input_tokens`, `call_output_tokens`), which the tau2-bench converter writes with "
-        "`--calls`, but no delegation results on them are committed yet; fed a conversation's "
+        "`--calls`; fed a conversation's "
         "summed counts instead, it would mis-price both "
         "paths, by amounts that grow with the number of calls. Its list prices also leave out the "
         "prompt-cache discount that the recorded costs of the three OpenAI agents imply on about "

@@ -17,7 +17,7 @@ How the files feed the library:
 - The default rules (generator isolation on, priors never admit, a conservative lower bound with a minimum sample count) follow from the findings in judge-benchmarks.md and prior-art.md
 - `research/datasets.md` picked the third evidence dataset, the tau2-bench paper results, now committed under `evidence/tau2-bench/`
 - `research/hand-off-data.md` is why the delegation evidence states its context and hand-off sizes as a grid and assumes a lossless brief
-- `research/delegation-datasets.md` is why the delegation evidence reads one dataset, the AutoBench matrix
+- `research/delegation-datasets.md` is why the delegation evidence read one dataset, the AutoBench matrix, until the tau2-bench conversations were priced on their own calls (`DESIGN.md` 13.12)
 
 Caveats that apply to everything here:
 

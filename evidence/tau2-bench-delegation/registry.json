@@ -1,0 +1,33 @@
+{
+  "as_of": "2026-11-06",
+  "note": "List prices and context windows of the three tau2-bench agents that the converter's --calls mode keeps at trial 0, used only to reprice their recorded 2025 conversations; research/delegation-datasets.md records each value and the vendor page it comes from, opened on 2026-11-06 (DESIGN 13.12).",
+  "models": [
+    {
+      "id": "anthropic/claude-3-7-sonnet-20250219",
+      "family": "anthropic",
+      "price_in": 3,
+      "price_out": 15,
+      "context_window": 200000,
+      "source": "https://github.com/sierra-research/tau2-bench/tree/033bf082f48e4a3c6a1256208e93cf2ce9c3bb6f/data/tau2/results/final",
+      "notes": "No current vendor page states its price or its context window. The prices are the ones its recorded costs give exactly on all 4,371 trial-0 calls; the 200,000-token window is assumed, so the window checks read an assumed value. Retired on the Claude API on February 19, 2026."
+    },
+    {
+      "id": "openai/gpt-4.1-2025-04-14",
+      "family": "openai",
+      "price_in": 2.0,
+      "price_out": 8.0,
+      "context_window": 1047576,
+      "source": "https://platform.openai.com/docs/models/gpt-4.1",
+      "notes": "The model page lists this snapshot as Deprecated; price and window as that page states them on 2026-11-06."
+    },
+    {
+      "id": "openai/gpt-4.1-mini-2025-04-14",
+      "family": "openai",
+      "price_in": 0.4,
+      "price_out": 1.6,
+      "context_window": 1047576,
+      "source": "https://platform.openai.com/docs/models/gpt-4.1-mini",
+      "notes": "The model page lists this snapshot as Deprecated; price and window as that page states them on 2026-11-06."
+    }
+  ]
+}
