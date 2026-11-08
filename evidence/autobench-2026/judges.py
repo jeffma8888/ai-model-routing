@@ -268,6 +268,8 @@ def main(argv=None) -> int:
             convert.write_jsonl(rows, parts[0])
             if registry is not None:
                 parts[1].write_text(json.dumps(registry, indent=2) + "\n", encoding="utf-8")
+            # print before the renames, so a write to stdout that fails leaves --out and --registry as they were (v1.94)
+            print(json.dumps(report, indent=2), flush=True)
             for part, target in zip(parts, targets):
                 part.replace(target)
         finally:
@@ -277,7 +279,6 @@ def main(argv=None) -> int:
         message = str(exc).replace("\r", "\\r").replace("\n", "\\n")
         print(f"error: {message}", file=sys.stderr)
         return 2
-    print(json.dumps(report, indent=2))
     return 0
 
 

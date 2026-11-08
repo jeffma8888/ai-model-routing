@@ -376,13 +376,14 @@ def main(argv=None) -> int:
         rows, report = convert(extracts, args.task_by)
         try:
             write_jsonl(rows, part)
+            # print before the rename, so a write to stdout that fails leaves --out as it was (v1.94)
+            print(json.dumps(report, indent=2), flush=True)
             part.replace(out)
         finally:
             part.unlink(missing_ok=True)
     except (ValueError, OSError) as exc:
         print(f"error: {_one_line(exc)}", file=sys.stderr)
         return 2
-    print(json.dumps(report, indent=2))
     return 0
 
 

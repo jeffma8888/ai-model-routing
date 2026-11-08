@@ -267,13 +267,14 @@ def main(argv=None) -> int:
         part = out.with_name(out.name + ".part")
         try:
             write_jsonl(rows, part)
+            # print before the rename, so a write to stdout that fails leaves --out as it was (v1.94)
+            print(json.dumps(report, indent=2), flush=True)
             part.replace(out)
         finally:
             part.unlink(missing_ok=True)
     except (_UsageError, ValueError, OSError, pickle.UnpicklingError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
-    print(json.dumps(report, indent=2))
     return 0
 
 

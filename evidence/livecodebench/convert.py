@@ -262,11 +262,12 @@ def fetch(cache_dir=None) -> Path:
 
 
 def read_file(path):
-    """One UTF-8 JSON file; invalid UTF-8, invalid JSON or nesting too deep is a ValueError naming it."""
+    """One UTF-8 JSON file; invalid UTF-8, invalid JSON, nesting too deep or a number past the int-string
+    digit limit is a ValueError naming it."""
     try:
         with open(path, "rb") as f:
             return json.loads(f.read().decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError, RecursionError) as exc:
+    except (ValueError, RecursionError) as exc:  # JSONDecodeError, UnicodeDecodeError and the digit limit's error
         raise ValueError(f"{Path(path).name}: not valid UTF-8 JSON ({type(exc).__name__}: {exc})") from exc
 
 
@@ -296,6 +297,8 @@ def main(argv=None) -> int:
             extracts = [extract(read_file(root / name), name.split("/")[0]) for name in FILES]
             rows, report = convert(extracts)
             write_jsonl(rows, part)
+            # print before the rename, so a write to stdout that fails leaves --out as it was (v1.94)
+            print(json.dumps(report, indent=2), flush=True)
             part.replace(out)
         finally:
             part.unlink(missing_ok=True)
@@ -303,7 +306,6 @@ def main(argv=None) -> int:
         msg = str(exc).replace("\r", "\\r").replace("\n", "\\n")
         print(f"error: {msg}", file=sys.stderr)
         return 2
-    print(json.dumps(report, indent=2))
     return 0
 
 
