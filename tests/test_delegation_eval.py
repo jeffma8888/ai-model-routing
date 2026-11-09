@@ -807,8 +807,15 @@ def test_v1132_each_held_out_sum_is_computed_once_per_path_key(monkeypatch):
     monkeypatch.setattr(module, "_summary", lambda cells, seeds: [])
     result = run_once_bars()
     keys = path_keys(result["cells"])
-    # 3 bars x 2 flavors = 6 cells per (task, seed, point, parent), against at most 4 keys
-    assert len(keys) < len(result["cells"]) < 3 * len(result["cells"])
+    # 3 bars x 2 flavors = 6 cells per (task, seed, point, parent), against at most 4 keys:
+    # the inline one and a delegated one per delegate, of which there are at most 3
+    groups = {(c["task"], c["seed"], c["point"], c["parent"]) for c in result["cells"]}
+    assert len(result["cells"]) == 6 * len(groups) and len(keys) <= 4 * len(groups)
+    # the module's every fsum call, the summary's stubbed out: one per distinct key
+    assert len(calls) == len(keys)
+    # and again on a second run, so the pairs are never kept from one call to the next
+    calls.clear()
+    assert run_once_bars()["cells"] == result["cells"]
     assert len(calls) == len(keys)
 
 

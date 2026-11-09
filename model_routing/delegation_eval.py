@@ -305,6 +305,9 @@ def _cell(table, registry, router, calibration, task, bar, flavor, index, point,
     correct, success, cost = {}, {}, {}
     for s in STRATEGIES:
         path, model, item_cost = plans[s]
+        # p.id is `parent` and `index` names one point of the run's checked list, so the key
+        # fixes every input of the pair: held from (task, seed), P, D = model on a delegated
+        # path, the point's sizes and, on a per-call task, k_dec from (task, seed)
         key = (task, seed, index, parent, path, model)
         if key not in paths:
             paths[key] = (sum(table[task, i][model][0] for i in held),
