@@ -4,7 +4,10 @@ opens with a clause on that same version.
 
 The changelog is the `- vX.Y (YYYY-MM-DD` lines after the `## 15. Changelog` heading; earlier
 sections hold `- v1.N` sub-bullets (for example `- v1.114, packaging: ...`) that are not
-changelog entries, so only the lines after the heading count."""
+changelog entries, so only the lines after the heading count. After the heading, a bullet that
+looks like an entry in another form (`* v1.2 (...`, `-  v1.2 (...`, `- v1.x`) is a problem, not
+skipped, so a new entry in another bullet form cannot leave a stale Status line green (v1.160,
+review iter-132 nit 1)."""
 
 import re
 from pathlib import Path
@@ -16,6 +19,7 @@ DESIGN = ROOT / "DESIGN.md"
 HEADING = "## 15. Changelog"
 ENTRY = re.compile(r"^- v(\d+)\.(\d+) \((\d{4}-\d{2}-\d{2})[,)]")
 STATUS = re.compile(r"^Status: v(\d+)\.(\d+), (\d{4}-\d{2}-\d{2}) \(v(\d+)\.(\d+)[ ,]")
+LOOKALIKE = re.compile(r"^\s*[-*+]\s+v\d")
 
 
 def status_problems(text):
@@ -27,7 +31,7 @@ def status_problems(text):
     problems = []
     latest = {}
     for line in lines[start + 1:]:
-        if not line.startswith("- v"):
+        if not LOOKALIKE.match(line):
             continue
         found = ENTRY.match(line)
         if found is None:
@@ -126,6 +130,16 @@ def _broken_entry(text):
     return text.rstrip("\n") + "\n- v1.x (soon): not a version\n"
 
 
+def _star_entry(text):
+    top = _top(text)
+    return text.rstrip("\n") + f"\n* v{top[0]}.{top[1] + 1} (2026-11-09): a later entry as a star bullet\n"
+
+
+def _wide_entry(text):
+    top = _top(text)
+    return text.rstrip("\n") + f"\n-  v{top[0]}.{top[1] + 1} (2026-11-09): a later entry after two spaces\n"
+
+
 BROKEN = {
     "the Status version one lower": _older_status,
     "another Status date": _other_date,
@@ -135,6 +149,8 @@ BROKEN = {
     "no Status line": _no_status,
     "two Status lines": _two_status,
     "a changelog line in another form": _broken_entry,
+    "a higher version as a star bullet": _star_entry,
+    "a higher version after two spaces": _wide_entry,
 }
 
 
