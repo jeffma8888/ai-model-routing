@@ -21,20 +21,22 @@ WORD = re.compile(r"permission", re.I)
 NOT_ONE_BLOCK = "not one top-level permissions block of contents: read"
 OUTSIDE = "names permissions outside its top-level block"
 
+
 def texts():
     return {name: path.read_text(encoding="utf-8") for name, path in WORKFLOWS.items()}
 
 
 def permission_problems(by_name):
     """Every way the workflow texts break the v1.137 permissions clause (an empty list when it
-    holds). A column-0 `permissions` line is read by the block check alone."""
+    holds). A line that starts with `permissions:` at column 0 is read by the block check
+    alone; any other line naming permissions, `permissions : ...` included, is reported."""
     found = []
     for name, text in by_name.items():
         blocks = [body for key, body in top_blocks(text) if key == "permissions"]
         if blocks != [BLOCK]:
             found.append(f"{name}: {NOT_ONE_BLOCK}")
         others = [line for line in text.split("\n")
-                  if WORD.search(line) and not line.startswith("permissions")]
+                  if WORD.search(line) and not line.startswith("permissions:")]
         if others:
             found.append(f"{name}: {OUTSIDE} {others!r}")
     return found
@@ -74,11 +76,15 @@ MUTANTS = {
     "an evidence.yml job with its own permissions": ("evidence.yml", job_block, OUTSIDE),
     "a second top-level block at the end of ci.yml": (
         "ci.yml", lambda text: text + "permissions:\n  contents: write\n", NOT_ONE_BLOCK),
+    # v1.139 (review): YAML reads `permissions :` as the key `permissions`, the block reader as
+    # another key, so only the line scan catches it.
+    "ci.yml with a spaced second key": (
+        "ci.yml", block_as(BLOCK + "permissions : write-all\n"), OUTSIDE),
 }
 
 
 def test_the_permission_mutant_count_is_the_one_design_states():
-    assert len(MUTANTS) == 10
+    assert len(MUTANTS) == 11
 
 
 @pytest.mark.parametrize("name", sorted(MUTANTS))
