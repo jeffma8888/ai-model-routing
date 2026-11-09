@@ -242,7 +242,7 @@ def test_workflow_reruns_the_readme_commands_and_compares_the_results():
     assert problems(workflow_text(), readme(), CI.read_text(encoding="utf-8")) == []
 
 
-def test_readme_commands_are_the_seven_rerun_blocks():
+def test_readme_commands_are_the_seven_rerun_subsections():
     commands = expected_commands(readme())
     assert len(commands) == 4 + 4 + 4 + 4 + 4 + 6 + 4 + 3
     assert out_paths(commands) == ["evidence/autobench-2026/results.json",
