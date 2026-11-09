@@ -168,13 +168,18 @@ def evaluate(outcomes, bars, seeds=range(10), flavors=("cost_effective", "cost_b
             splits[task, seed] = (cal, held)
 
     strategies = _strategies(models)
+    # v1.135: a (task, seed)'s sums, filled by the first cell that needs them and read by every
+    # cell of that (task, seed) at any bar or flavor; local to this call
+    sums: Dict[Tuple[str, int], dict] = {}
     cells = []
     for bar in bars:
         for flavor in flavors:
             for seed in seeds:
                 for task in tasks:
-                    cal, held = splits[task, seed]
-                    cells.append(_cell(table, models, strategies, task, cal, held, bar, flavor,
+                    if (task, seed) not in sums:
+                        cal, held = splits[task, seed]
+                        sums[task, seed] = _split_sums(table, models, task, cal, held)
+                    cells.append(_cell(sums[task, seed], models, strategies, task, bar, flavor,
                                        seed, min_samples, confidence))
     return {
         "config": {"bars": bars, "seeds": seeds, "flavors": flavors,
@@ -187,11 +192,30 @@ def evaluate(outcomes, bars, seeds=range(10), flavors=("cost_effective", "cost_b
     }
 
 
-def _cell(table, models, strategies, task, cal, held, bar, flavor, seed, min_samples,
-          confidence) -> dict:
-    n_cal = len(cal)
+def _split_sums(table, models, task, cal, held) -> dict:
+    """The sums of one (task, seed) that neither the bar nor the flavor enters (12.3, v1.135):
+    calibration counts and mean costs, each model's held-out success and cost, the oracle's
+    held-out pair, and the two baselines' picks."""
+    n_cal, n = len(cal), len(held)
     succ = {m: sum(table[task, i][m].correct for i in cal) for m in models}
     mean_cost = {m: fsum(table[task, i][m].cost_usd for i in cal) / n_cal for m in models}
+    held_success = {m: sum(table[task, i][m].correct for i in held) / n for m in models}
+    held_cost = {m: fsum(table[task, i][m].cost_usd for i in held) for m in models}
+    ok, spend = 0, []
+    for i in held:
+        row = table[task, i]
+        right = [row[m].cost_usd for m in models if row[m].correct]
+        ok += bool(right)
+        spend.append(min(right) if right else min(row[m].cost_usd for m in models))
+    return {"n_cal": n_cal, "n_held": n, "succ": succ, "mean_cost": mean_cost,
+            "held_success": held_success, "held_cost": held_cost,
+            "oracle": (ok / n, fsum(spend)),
+            "cheapest": min(models, key=lambda m: (mean_cost[m], m)),
+            "best": min(models, key=lambda m: (-succ[m] / n_cal, mean_cost[m], m))}
+
+
+def _cell(split, models, strategies, task, bar, flavor, seed, min_samples, confidence) -> dict:
+    n_cal, succ, mean_cost = split["n_cal"], split["succ"], split["mean_cost"]
     stats = Stats()
     for m in models:
         stats.add(task, m, succ[m], n_cal)
@@ -200,26 +224,17 @@ def _cell(table, models, strategies, task, cal, held, bar, flavor, seed, min_sam
              independent_of_generator=False, expected_input_tokens=1, expected_output_tokens=0,
              on_no_model="best_available", max_fallbacks=0)
     decision = Router(registry, {task: t}, stats).select(task, flavor)
-    cheapest = min(models, key=lambda m: (mean_cost[m], m))
-    best = min(models, key=lambda m: (-succ[m] / n_cal, mean_cost[m], m))
-    chosen = {"routed": decision.primary, "best_on_calibration": best, "cheapest": cheapest}
+    chosen = {"routed": decision.primary, "best_on_calibration": split["best"],
+              "cheapest": split["cheapest"]}
     success, cost = {}, {}
-    n = len(held)
     for s in strategies:
         if s == "oracle":
-            ok, spend = 0, []
-            for i in held:
-                row = table[task, i]
-                right = [row[m].cost_usd for m in models if row[m].correct]
-                ok += bool(right)
-                spend.append(min(right) if right else min(row[m].cost_usd for m in models))
-            success[s], cost[s] = ok / n, fsum(spend)
+            success[s], cost[s] = split["oracle"]
             continue
         m = chosen[s] if s in chosen else s[len("model:"):]
-        success[s] = sum(table[task, i][m].correct for i in held) / n
-        cost[s] = fsum(table[task, i][m].cost_usd for i in held)
+        success[s], cost[s] = split["held_success"][m], split["held_cost"][m]
     return {"bar": bar, "flavor": flavor, "seed": seed, "task": task,
-            "calibration_items": n_cal, "held_out_items": n,
+            "calibration_items": n_cal, "held_out_items": split["n_held"],
             "cleared": not decision.below_bar, "models": chosen,
             "success": success, "cost_usd": cost}
 

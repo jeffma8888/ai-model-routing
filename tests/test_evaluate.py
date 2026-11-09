@@ -763,8 +763,6 @@ def run_once(outcomes, bars=ONCE_BARS, flavors=("cost_effective", "cost_blind"))
     return load_ev().evaluate(outcomes, bars=bars, seeds=ONCE_SEEDS, flavors=flavors)
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError,
-                   reason="v1.135: the v1.134 code sums the split once per cell")
 def test_v1135_each_split_is_summed_once_per_task_and_seed(monkeypatch):
     ev, outcomes = load_ev(), once_outcomes()
     calls = {"sum": 0, "fsum": 0}
