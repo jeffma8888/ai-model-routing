@@ -31,11 +31,11 @@ REGENERATE = ['python -m pip install -e ".[evidence]"',
               "python evidence/routerbench/convert.py --out routerbench-matrix.jsonl",
               COMMAND[2:]]
 # DESIGN section numbers: the only numbers of the note's prose not in the script's lines
-ALLOWED = {"4.3", "5.3", "12.2", "12.3", "12.6", "12.7", "12.8"}
+ALLOWED = {"4.3", "12.2", "12.3", "12.6", "12.7", "12.8"}
 NUMBER = re.compile(r"(?<![\w.])\d+(?:,\d{3})*(?:\.\d+)?%?")
 CONFIG = {"bars": [0.5, 0.75], "seeds": [0, 1, 2, 3]}
 TASKS = ("mmlu-a", "mmlu-b", "other")
-MODELS = ("v/alt", "v/cheap", "v/top")
+MODELS = ("v/alt", "v/top", "v/value")
 WIDTHS = ((40, "<"), (5, ">"), (4, ">"), (33, "<"), (4, ">"), (7, "<"), (6, "<"), (6, "<"), (9, "<"),
           (5, ">"), (6, ">"))
 GROUP_WIDTHS = ((6, "<"), (5, ">"), (35, "<"), (7, "<"), (10, "<"), (9, ">"))
@@ -54,14 +54,17 @@ def rpt():
 
 
 def tiny_rows():
-    """`v/top` is the best single model; `v/alt` beats it by 0.15 on `mmlu-b`; `v/cheap` ties it on `other`."""
+    """`v/top` is the best single model; `v/alt` beats it by 0.15 on `mmlu-b` and trails it by one item on
+    `mmlu-a`, on other items, so the held-out winner there varies by seed; `v/value` ties it on `other` at a
+    lower cost and sorts after it by ID, so a tie broken by ID first picks the wrong model."""
     rows = []
     for task in TASKS:
         for i in range(120):
             for model, ok, cost in (
                     ("v/top", i % 10 < 8, 0.02),
-                    ("v/alt", (i % 20 < 19) if task == "mmlu-b" else (i % 10 < 5), 0.01),
-                    ("v/cheap", (i % 10 < 8) if task == "other" else (i % 10 < 3), 0.001)):
+                    ("v/alt", {"mmlu-a": (i * 7) % 10 < 8 and i != 3, "mmlu-b": i % 20 < 19}.get(task, i % 10 < 5),
+                     0.01),
+                    ("v/value", (i % 10 < 8) if task == "other" else (i % 10 < 3), 0.001)):
                 rows.append({"task": task, "item": f"{task}-{i}", "model": model, "correct": ok,
                              "cost_usd": cost * (1 + i % 3)})
     return rows
@@ -146,8 +149,13 @@ def expected_lines(rows):
     top_t = max(higher, key=lambda t: (info[t][0], t))
     out.append(f"largest margin: {info[top_t][0]:+.3f} on {top_t} ({best[top_t]}), shortfall {info[top_t][1]:.3f}")
     moved = {k: [key for key, p in picks.items() if p[k] != single] for k in ("routed", "best_on_calibration")}
+    moved_evals = sorted({t for t, _ in moved["routed"]})
+    varied = [t for t in moved_evals if len({picks[t, s]["routed"] for s in seeds}) > 1]
+    halves = [median_low([view[t, s]["cal"] for s in seeds]) for t in moved_evals]
+    span = f"calibration halves {min(halves)} to {max(halves)}" if halves else "no calibration half"
     out.append(f"routed (cost_blind, bar 0.5) takes another model on {len(moved['routed']):,} of 12 eval and "
-               f"seed cells, on {len({t for t, _ in moved['routed']})} evals; best_on_calibration on "
+               f"seed cells, on {len(moved_evals)} evals ({len(varied)} of them with two or more picks across "
+               f"seeds, {span}); best_on_calibration on "
                f"{len(moved['best_on_calibration']):,}, on {len({t for t, _ in moved['best_on_calibration']})} evals")
     out.append("held-out success and cost over 4 seeds, as 12.3's summary computes them; vs single: the mean "
                "correct held-out items per seed minus the best single model's")
@@ -196,7 +204,8 @@ def test_small_matrix_names_the_two_evals_another_model_leads(rpt):
     rows = {x.split()[0]: x.split() for x in lines[4:7]}
     assert sorted(rows) == list(TASKS)
     assert rows["mmlu-a"][3:5] == ["v/top", "1"] and rows["mmlu-b"][3:5] == ["v/alt", "1"]
-    assert rows["other"][3:5] == ["v/cheap", "2"] and rows["other"][7] == "+0.000"
+    assert rows["other"][3:5] == ["v/value", "2"] and rows["other"][7] == "+0.000"
+    assert rows["mmlu-a"][3] == "v/top" and int(rows["mmlu-a"][9]) < 4 and int(rows["mmlu-a"][10]) >= 2
 
 
 @pytest.mark.parametrize("strategy", ["routed", "oracle", "best_on_calibration", "model:v/alt"])
@@ -341,7 +350,8 @@ def test_note_results_block_is_the_script_output(output):
 def test_no_eval_has_another_model_ahead_by_more_than_its_shortfall(output):
     [line] = [x for x in output.split("\n") if x.startswith("evals whose best model on all items is not ")]
     assert line.endswith("; higher by more than the shortfall: 0")
-    rows = {x[17:52].strip(): float(x[54:61]) for x in output.split("\n") if x.startswith("  all   ")}
+    rows = {f[2]: float(f[3]) for f in (re.split(r" {2,}", x.strip()) for x in output.split("\n")
+                                         if x.startswith("  all   "))}
     assert len(rows) == 6
     single = rows["best single model"]
     assert 0 <= rows["per-eval best on all items"] - single < 0.001
