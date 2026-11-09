@@ -800,8 +800,6 @@ def path_keys(cells):
     return keys
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError,
-                   reason="v1.132: until each path's held-out pair is computed once per key")
 def test_v1132_each_held_out_sum_is_computed_once_per_path_key(monkeypatch):
     module = load()
     real, calls = module.fsum, []

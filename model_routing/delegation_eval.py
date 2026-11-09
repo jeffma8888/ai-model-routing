@@ -180,6 +180,9 @@ def evaluate_delegation(rows, registry: Registry, bars, points, seeds=range(10),
                                                 task in per_call)
 
     cells = []
+    # (task, seed, point, parent, path, model) -> (correct, cost_usd) on the held-out half:
+    # neither the bar nor the flavor enters a held-out sum (DESIGN 13.9 v1.132)
+    paths: Dict[tuple, Tuple[int, float]] = {}
     for bar in bars:
         routers = {(task, seed): _router(registry, task, calibrated[task, seed], bar,
                                          min_samples, confidence)
@@ -191,7 +194,7 @@ def evaluate_delegation(rows, registry: Registry, bars, points, seeds=range(10),
                         for task in tasks:
                             cells.append(_cell(table, registry, routers[task, seed],
                                                calibrated[task, seed], task, bar, flavor,
-                                               index, point, parent, seed))
+                                               index, point, parent, seed, paths))
     return {
         "config": {"bars": bars, "seeds": seeds, "flavors": flavors, "points": points,
                    "parents": parents, "calibration_fraction": calibration_fraction,
@@ -246,7 +249,7 @@ def _router(registry, task, calibration, bar, min_samples, confidence) -> Router
 
 
 def _cell(table, registry, router, calibration, task, bar, flavor, index, point, parent,
-          seed) -> dict:
+          seed, paths) -> dict:
     where = f"task {task!r}, parent {parent!r}, point {index}"
     k_dec = calibration.get("k")
     try:
@@ -296,15 +299,18 @@ def _cell(table, registry, router, calibration, task, bar, flavor, index, point,
         return (p.cost(0, b) + d.cost(k * b + w_in * tin + w_out * tout, k * tout)
                 + (1 + t) * p.cost(b + r, 0))
 
-    inline, delegate = (p.id, inline_cost), (d.id, delegate_cost)
+    inline, delegate = ("inline", p.id, inline_cost), ("delegate", d.id, delegate_cost)
     plans = {"decision": inline if decision.mode == "inline" else delegate,
              "inline": inline, "delegate": delegate}
     correct, success, cost = {}, {}, {}
     for s in STRATEGIES:
-        model, item_cost = plans[s]
-        correct[s] = sum(table[task, i][model][0] for i in held)
+        path, model, item_cost = plans[s]
+        key = (task, seed, index, parent, path, model)
+        if key not in paths:
+            paths[key] = (sum(table[task, i][model][0] for i in held),
+                          fsum(item_cost(i) for i in held))
+        correct[s], cost[s] = paths[key]
         success[s] = correct[s] / len(held)
-        cost[s] = fsum(item_cost(i) for i in held)
     out = {"bar": bar, "flavor": flavor, "point": index, "parent": parent, "seed": seed,
            "task": task, "calibration_items": len(calibration["cal"]),
            "held_out_items": len(held), "expected_input_tokens": calibration["s_in"],
