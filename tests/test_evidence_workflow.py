@@ -3,7 +3,8 @@ subsections, from v1.55 the tau2-bench one, from v1.65 the LiveCodeBench one, fr
 delegation one, from v1.84 its pooled run and from v1.168 the LLMRouterBench one on GitHub and
 fails when a committed results file changes (DESIGN 12.13, v1.30),
 and both workflows run on one pinned runner image with a dated comment (v1.49), and the job
-has a time limit of 25 minutes, ten times its slowest run, with no download retry (v1.152).
+has a time limit of ten times its slowest run, rounded up to whole five minutes, with no download
+retry (v1.152; 25 minutes, restated as 30 at v1.170).
 
 The workflow is read with a line parser for its own shape (no YAML library, so this runs in
 CI); the run itself is checked on GitHub, not here."""
@@ -35,10 +36,11 @@ ON = (
     "      - \"pyproject.toml\"\n"
     "      - \".github/workflows/evidence.yml\"\n")
 STEP_NAMES = [None, None, "Install", "Regenerate", "Compare"]
-# v1.152: the job's time limit, ten times the slowest of the workflow's 40 runs to 2026-11-09
-# (140 s from start to last update, run 42445989566), rounded up to a whole five minutes.
-SLOWEST_RUN_SECONDS = 140
-TIMEOUT_MINUTES = 25
+# v1.170: the job's time limit, ten times the slowest of the workflow's 45 runs to 2026-11-09
+# (158 s from start to last update, run 42717985363), rounded up to a whole five minutes; at
+# v1.152 it was 140 s over 40 runs (run 42445989566), so 25.
+SLOWEST_RUN_SECONDS = 158
+TIMEOUT_MINUTES = 30
 LIMIT_LINE = f"    timeout-minutes: {TIMEOUT_MINUTES}"
 LIMIT_SENTENCE = (f"The job's time limit of {TIMEOUT_MINUTES} minutes is about ten times its slowest run, "
                   "and a failed download is retried by rerunning the job (DESIGN.md 12.13).")
@@ -323,13 +325,13 @@ MUTANTS = {
     "the RouterBench reason dropped": lambda t: t.replace(" about 70 seconds.\n", "\n", 1),
     "the time limit dropped": lambda t: t.replace(LIMIT_LINE + "\n", "", 1),
     "the time limit raised by a minute": lambda t: t.replace(
-        LIMIT_LINE + "\n", "    timeout-minutes: 26\n", 1),
+        LIMIT_LINE + "\n", f"    timeout-minutes: {TIMEOUT_MINUTES + 1}\n", 1),
     "the time limit at GitHub's default": lambda t: t.replace(
         LIMIT_LINE + "\n", "    timeout-minutes: 360\n", 1),
     "the time limit on Regenerate instead": lambda t: t.replace(LIMIT_LINE + "\n", "", 1).replace(
-        "      - name: Regenerate\n", "      - name: Regenerate\n        timeout-minutes: 25\n", 1),
+        "      - name: Regenerate\n", f"      - name: Regenerate\n        timeout-minutes: {TIMEOUT_MINUTES}\n", 1),
     "the time-limit sentence dropped": lambda t: t.replace(
-        "# The job's time limit of 25 minutes", "# The job's limit", 1),
+        f"# The job's time limit of {TIMEOUT_MINUTES} minutes", "# The job's limit", 1),
 }
 TIME_LIMIT_MUTANTS = {
     "the time limit dropped": LIMIT_PROBLEM,
