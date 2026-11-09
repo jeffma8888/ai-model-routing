@@ -405,7 +405,7 @@ Results at a glance, each number from the committed results of the subsection it
 - [Delegation on AutoBench](#delegation-on-autobench): at bar 0.8, with the brief assumed to carry the whole question and inline work in a parent call of its own, the `cost_effective` decision delegates on every seed for each of the 20 parents, so it scores and costs the same as always delegating; its mean held-out success over the parents is 0.855 against 0.670 for always inline, and it costs more than always inline at 8,000 context tokens but less at 64,000 and 200,000
 - [Delegation on tau2-bench](#delegation-on-tau2-bench): on trial 0, the `cost_effective` decision delegates on every seed for each of the 3 parents at every bar and point; at bar 0.3 and 8,000 context tokens, with inline work in a parent call of its own, its mean cost over the parents is 19.8422 USD against 67.1856 for always inline, for less held-out success
 
-Why routing costs less than the best single model on some of the first five datasets in the list above and never reaches its held-out success on them: [research/where-routing-pays.md](research/where-routing-pays.md) sets each dataset's tasks, calibration halves and picks beside the best single model, read from the same files. The note does not read LLMRouterBench, where `cost_blind` routing passes that model's held-out success
+Why routing costs less than the best single model on some of the first six datasets in the list above, never reaches its held-out success on the first five and passes it on LLMRouterBench: [research/where-routing-pays.md](research/where-routing-pays.md) sets each dataset's tasks, calibration halves and picks beside the best single model, read from the same files
 
 ### RouterBench
 
@@ -987,6 +987,7 @@ Full survey with sources and dates: [research/prior-art.md](research/prior-art.m
 ## Limitations and non-goals (v1)
 
 - Routes per task, not per prompt. No difficulty prediction or confidence-based cascade
+- Routing per task pays in held-out success only where tasks differ in their best model and each task's calibration half can tell the models apart. Of the six routing datasets above, LLMRouterBench alone has a routed row above the best single model's held-out success; on the other five, routing pays at most in cost, at a bar below that success ([research/where-routing-pays.md](research/where-routing-pays.md))
 - The success rate is measured as is. Position and verbosity bias in a judge's calibration set flow into the measured rate; the library does not debias the judge
 - No online drift detection. Re-calibrate from audited samples on a schedule, and when a provider ships a new model version
 - No budgets, alerts, async execution or streaming. The OpenAI-compatible adapter covers gateways; there are no native vendor SDK adapters

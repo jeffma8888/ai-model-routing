@@ -34,7 +34,6 @@ README = ROOT / "README.md"
 # v1.166: the opening of the dated section, before any number
 FINDING = ("The finding of the first five files does not hold on LLMRouterBench: routing passes the best "
            "single model's held-out success there")
-RED = pytest.mark.xfail(strict=True, reason="v1.166 spec ahead of the script and the note (row R12)")
 NUMBER = re.compile(r"(?<![\w.])\d+(?:,\d{3})*(?:\.\d+)?%?")
 
 
@@ -79,7 +78,6 @@ def test_note_results_block_is_the_script_output(output):
     assert results_block(note()) == COMMAND + "\n" + output
 
 
-@RED
 def test_note_sections_in_order():
     headings = re.findall(r"^## .*$", note(), re.M)
     assert headings == SECTIONS
@@ -90,6 +88,8 @@ def test_prose_numbers_are_in_the_output(output):
     text = note()
     prose = re.sub(r"^```text\n.*?^```$", "", text, flags=re.M | re.S)
     prose = re.sub(r"https?://\S+", "", prose)
+    # v1.167: an ISO date, such as the dated section's, is no claim
+    prose = re.sub(r"\b\d{4}-\d{2}-\d{2}\b", "", prose)
     # a code span holds a model ID, a path or a name, whose digits are not a claim (review iter-115)
     prose = re.sub(r"`[^`\n]*`", "", prose)
     known = set(NUMBER.findall(output)) | ALLOWED
@@ -103,7 +103,6 @@ def test_regenerate_section_states_the_command():
     assert COMMAND[2:] in section
 
 
-@RED
 def test_note_names_each_results_file_it_reads():
     for rel in FILES:
         assert f"`{rel}`" in note(), rel
@@ -184,7 +183,6 @@ def small(best_cost=2.0):
             "summary": summary, "per_task": per_task}
 
 
-@RED
 def test_report_on_a_small_file(wrp):
     lines = wrp.report("Small", "x/results.json", small())
     assert lines[0] == ("Small (x/results.json): 2 tasks, 2 models, 3 seeds, calibration_fraction 0.5, "
@@ -238,13 +236,11 @@ def section(text, heading):
     return text.split("\n" + heading + "\n", 1)[1].split("\n## ", 1)[0]
 
 
-@RED
 def test_the_script_reads_the_six_files_in_order(wrp):
     assert [rel for _, rel in wrp.DATASETS] == FILES
     assert [name for name, _ in wrp.DATASETS][5] == "LLMRouterBench"
 
 
-@RED
 def test_llmrouterbench_routing_passes_the_best_single_model(wrp):
     """The dated section's finding, checked on the file: best_on_calibration and every cost_blind
     routed row pass the best single model, the cost_effective rows that pass are the highest bars,
@@ -271,7 +267,6 @@ def test_llmrouterbench_routing_passes_the_best_single_model(wrp):
     assert not re.search(r"\d", opening), opening
 
 
-@RED
 def test_report_counts_the_tasks_off_the_best_model(wrp):
     data = small()
     data["per_task"][0]["routed_models"] = {"b/two": 3}
@@ -281,7 +276,6 @@ def test_report_counts_the_tasks_off_the_best_model(wrp):
         "0.5", "cost_effective", "0.700", "1.0000", "0.500", "0.500", "2", "1", "0.833", "2", "1", "-0.1000"]
 
 
-@RED
 def test_in_sample_line_on_a_small_file(wrp, monkeypatch):
     monkeypatch.setitem(wrp.IN_SAMPLE, "Small", ("x.md", "a/one", 0.2))
     lines = wrp.report("Small", "x", small())
@@ -292,7 +286,6 @@ def test_in_sample_line_on_a_small_file(wrp, monkeypatch):
     assert not any(line.startswith("  in-sample") for line in wrp.report("Other", "x", small()))
 
 
-@RED
 def test_in_sample_range_over_the_bars(wrp, monkeypatch):
     data = small()
     data["config"]["bars"] = [0.5, 0.6]
@@ -307,14 +300,12 @@ def test_in_sample_range_over_the_bars(wrp, monkeypatch):
     assert wrp.report("Small", "x", data)[4].endswith("routed cost_effective -0.50 to 0.50")
 
 
-@RED
 def test_in_sample_model_must_be_the_best_single_model(wrp, monkeypatch):
     monkeypatch.setitem(wrp.IN_SAMPLE, "Small", ("x.md", "b/two", 0.2))
     with pytest.raises(ValueError, match="best single model is a/one"):
         wrp.report("Small", "x", small())
 
 
-@RED
 def test_in_sample_gain_is_the_datasets_note(wrp):
     source, model, gain = wrp.IN_SAMPLE["LLMRouterBench"]
     assert list(wrp.IN_SAMPLE) == ["LLMRouterBench"]
@@ -347,7 +338,6 @@ def limitations_bullet(wrp):
             "below that success ([research/where-routing-pays.md](research/where-routing-pays.md))")
 
 
-@RED
 def test_readme_limitations_and_the_index_say_where_routing_passes(wrp):
     readme = README.read_text(encoding="utf-8")
     limits = readme.split("\n## Limitations and non-goals (v1)\n", 1)[1].split("\n## ", 1)[0]

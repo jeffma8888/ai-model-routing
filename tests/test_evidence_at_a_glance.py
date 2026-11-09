@@ -59,7 +59,6 @@ POINTER = ("Why routing costs less than the best single model on some of the fir
            "above, never reaches its held-out success on the first five and passes it on LLMRouterBench: "
            "[research/where-routing-pays.md](research/where-routing-pays.md) sets each dataset's tasks, "
            "calibration halves and picks beside the best single model, read from the same files")
-RED = pytest.mark.xfail(strict=True, reason="v1.166 spec ahead of the README paragraph and the script (row R12)")
 WHERE_SCRIPT = ROOT / "research" / "where_routing_pays.py"
 
 
@@ -262,7 +261,6 @@ def evidence_section():
 
 # --- the README ------------------------------------------------------------------------------
 
-@RED
 def test_readme_opens_the_evidence_section_with_the_glance_list():
     intro = evidence_section().split("\n### ", 1)[0]
     paragraphs = intro.strip("\n").split("\n\n")
@@ -279,7 +277,6 @@ def test_the_pointer_link_resolves_to_the_note():
     assert (README.parent / target[0]).is_file()
 
 
-@RED
 def test_the_pointer_names_the_files_the_note_reads():
     """v1.166: the first six bullets are the note's six datasets, in its order, and the
     LLMRouterBench claim of the pointer is the one its bullet asserts; the note's tests check
