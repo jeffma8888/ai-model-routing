@@ -20,6 +20,13 @@ in RESULTS.md, check the evidence README against the converter's constants and t
 counts, and, when the pinned file is cached, against the converter's report. The tests that
 read the two files were committed before them under strict xfail (``FileNotFoundError``),
 removed by the commit that adds them (v1.162).
+
+
+v1.164 (DESIGN 12.8, row E16e): the README ``### LLMRouterBench`` subsection. The tests build
+its counts sentence and two tables from the committed file, require its Reading it and Limits
+lines to be RESULTS.md's under two stated rewrites, and check its links, licence, regenerate
+line and block and the Layout line. They were committed before the subsection under strict
+xfail (``AssertionError``), removed by the commit that adds it.
 """
 
 import importlib.util
@@ -452,3 +459,197 @@ def test_real_report_matches_the_evidence_readme_and_results_md(llmrouterbench_p
     assert (f"holds {min(halves)} to {max(halves)} of its {len(items['aime'])} items over the 50 "
             f"seeds and is under `min_samples` {CONFIG['min_samples']} on "
             f"{sum(n < CONFIG['min_samples'] for n in halves)} of them") in results_md()
+
+
+# --- the README subsection (DESIGN 12.8, v1.164) --------------------------------------------
+
+README = ROOT / "README.md"
+EVIDENCE_HEADING = "\n## Evidence: held-out results on public data\n"
+HEADINGS = ["RouterBench", "AutoBench", "AutoBench judges", "tau2-bench", "LiveCodeBench",
+            "LLMRouterBench", "Delegation on AutoBench", "Delegation on tau2-bench"]
+INDENT = " " * 16
+LCB_LAYOUT = INDENT + "(LiveCodeBench: evidence/livecodebench/RESULTS.md)\n"
+LAYOUT = INDENT + "(LLMRouterBench: evidence/llmrouterbench/RESULTS.md)\n"
+REGENERATE_LINE = (
+    "Regenerate (the converter downloads the pinned file, about 1.28 GB, into a cache folder outside "
+    "the repo, and verifying, reading and converting it takes about 13 seconds once it is cached; the "
+    "`evidence` workflow does not rerun these commands, so the test suite rebuilds `results.json` from "
+    "them only where the pinned file is cached):")
+EVIDENCE_LINK = "[evidence/llmrouterbench/README.md](evidence/llmrouterbench/README.md)"
+pending_readme = pytest.mark.xfail(strict=True, raises=AssertionError,
+                                   reason="v1.164: the README subsection is not written yet")
+
+
+def readme_text():
+    return README.read_text(encoding="utf-8")
+
+
+def readme_subsection():
+    text = readme_text()
+    assert text.count(EVIDENCE_HEADING) == 1
+    section = text.split(EVIDENCE_HEADING, 1)[1].split("\n## ", 1)[0]
+    assert re.findall(r"^### (.*)$", section, re.M) == HEADINGS
+    return section.split("\n### LLMRouterBench\n", 1)[1].split("\n### ", 1)[0]
+
+
+def to_readme(line):
+    """The two v1.164 rewrites of a RESULTS.md line for the top-level README (DESIGN 12.8)."""
+    return line.replace("DESIGN 12.", "`DESIGN.md` 12.").replace("[README.md](README.md)", EVIDENCE_LINK)
+
+
+def results_md_bullets():
+    """The five Reading it bullets and the three limits of RESULTS.md, before the size bullet."""
+    body = results_md().split("\n## Reading it\n", 1)[1].split("\n## ", 1)[0]
+    bullets = [line for line in body.splitlines() if line.startswith("- ")]
+    assert len(bullets) == 9 and bullets[-1].startswith("- Size: "), bullets
+    assert bullets[0].startswith("- `cost_effective`: ") and bullets[4].startswith("- The per-item oracle")
+    assert bullets[5].startswith("- Half scores: ") and bullets[7].startswith("- Dropped by the converter")
+    return bullets[:5], bullets[5:8]
+
+
+def whole_task_model(results):
+    """The one model other than the best single one that `cost_blind` takes on every seed of whole
+    tasks at the lowest bar, and how many tasks (as the RESULTS.md Reading it test finds it)."""
+    b0, seeds = results["config"]["bars"][0], len(results["config"]["seeds"])
+    _, best, _ = single_models(results)
+    others = {}
+    for t in results["tasks"]:
+        picks = task_row(results, b0, "cost_blind", t)["routed_models"]
+        if len(picks) == 1 and next(iter(picks)) != name(best):
+            assert next(iter(picks.values())) == seeds
+            others.setdefault(next(iter(picks)), []).append(t)
+    assert len(others) == 1, others
+    (other, tasks), = others.items()
+    return other, len(tasks)
+
+
+def readme_counts(results):
+    config, tasks = results["config"], results["tasks"]
+    models = {tuple(v["models"]) for v in tasks.values()}
+    assert len(models) == 1 and config["flavors"] == ["cost_effective", "cost_blind"]
+    parts = [f"`{t}` {v['items']:,}" + (" items" if i == 0 else "")
+             for i, (t, v) in enumerate(tasks.items())]
+    bars = config["bars"]
+    return (f"- What was run: {len(models.pop())} API models from 2025, {len(tasks)} benchmarks, each one "
+            f"routing task ({join(parts)}, {sum(v['items'] for v in tasks.values()):,} in all), "
+            f"{len(config['seeds'])} seeds; each task is split in half per seed and routed at bars "
+            f"{bars[0]} to {bars[-1]} in both flavors. A success is a record's score of 1, so a 0.5 from "
+            f"the `arenahard` judge is a miss, and the cost is the record's own `cost`")
+
+
+def readme_columns(results):
+    cells = len(results["config"]["seeds"]) * len(results["tasks"])
+    return ("Held-out success is the share of held-out items whose record scored 1, pooled over the "
+            f"{len(results['tasks'])} tasks, and cost is the recorded cost of answering them, both averaged "
+            "over the seeds; the ratio divides that cost by the cost of the best single model. The cleared "
+            f"rate is the share of the {cells} (task, seed) cells where some model cleared the bar on the "
+            "calibration half, and the bar-violation rate is the share of cleared cells whose held-out "
+            "success fell below the bar.")
+
+
+def readme_tables(results):
+    """The two tables of the README `### LLMRouterBench` subsection (DESIGN 12.8, v1.164)."""
+    config = results["config"]
+    first = (config["bars"][0], config["flavors"][0])
+    _, best, cheapest = single_models(results)
+    lines = ["| Bar | Flavor | Held-out success | Cost (USD) | Cost / best single model | Cleared rate "
+             "| Bar-violation rate |", "|---|---|---|---|---|---|---|"]
+    for bar in config["bars"]:
+        for flavor in config["flavors"]:
+            r = summary_row(results, bar, flavor, "routed")
+            v = r["bar_violation_rate"]
+            lines.append(f"| {bar} | `{flavor}` | {r['success']:.3f} | {r['cost_usd']:.4f} | "
+                         f"{r['cost_usd'] / best['cost_usd']:.3f} | {r['cleared_rate']:.3f} | "
+                         f"{'-' if v is None else format(v, '.3f')} |")
+    other, n = whole_task_model(results)
+    rows = [("Per-item oracle: on each item, the cheapest model that scored 1, or the cheapest model, "
+             "counted wrong, when none did", summary_row(results, *first, "oracle")),
+            (f"Best single model (`{name(best)}`)", best),
+            (f"Always `{other}`, which `cost_blind` takes on every seed of {n} tasks at bar {first[0]}",
+             summary_row(results, *first, f"model:{other}")),
+            (f"Cheapest single model (`{name(cheapest)}`)", cheapest),
+            ("Best model on the calibration half, per task",
+             summary_row(results, *first, "best_on_calibration")),
+            ("Cheapest model on the calibration half, per task", summary_row(results, *first, "cheapest"))]
+    lines += ["", "| Baseline | Held-out success | Cost (USD) |", "|---|---|---|"]
+    lines += [f"| {label} | {r['success']:.3f} | {r['cost_usd']:.4f} |" for label, r in rows]
+    return "\n".join(lines) + "\n"
+
+
+def readme_source_lines(cv, results):
+    models = len({tuple(v["models"]) for v in results["tasks"].values()}.pop())
+    return [
+        f"- Dataset: [NPULH/LLMRouterBench](https://huggingface.co/datasets/NPULH/LLMRouterBench) on "
+        f"Hugging Face, pinned at revision [`{cv.REVISION[:7]}`](https://huggingface.co/datasets/"
+        f"NPULH/LLMRouterBench/tree/{cv.REVISION}), one file `{cv.FILE}` of {cv.SIZE:,} bytes, checked "
+        "by size and sha256 before it is read as a stream, with nothing extracted to disk",
+        f"- Licence: MIT, as the dataset's LICENSE file states, with the line \"{COPYRIGHT}\"; its scope "
+        "paragraph keeps third-party material, such as the benchmarks' own questions, under its own "
+        "licence. This repo commits no part of the dataset, only numbers derived from it",
+        f"- Full results, with every one of the {models} single models and the routed rows that beat each "
+        "on both counts: [RESULTS.md](evidence/llmrouterbench/RESULTS.md) and "
+        "[results.json](evidence/llmrouterbench/results.json); source, the pool, the kept and dropped "
+        f"benchmarks and what a row keeps: {EVIDENCE_LINK}"]
+
+
+@pending_readme
+def test_readme_llmrouterbench_counts_and_tables_are_the_committed_results(cv):
+    results, section = committed(), readme_subsection()
+    lines = readme_source_lines(cv, results)
+    assert "\n".join(lines[:2] + [readme_counts(results), lines[2]]) + "\n" in section
+    assert readme_columns(results) + "\n\n" + readme_tables(results) in section
+
+
+@pending_readme
+def test_readme_llmrouterbench_reading_and_limits_are_results_md_lines():
+    section = readme_subsection()
+    reading, limits = results_md_bullets()
+    block = ("Reading it:\n\n" + "\n".join(to_readme(b) for b in reading) + "\n\nLimits:\n\n"
+             + "\n".join(to_readme(b) for b in limits) + "\n")
+    assert block in section
+    phrases = [p for p in reading_phrases(committed()) if not p.startswith("the committed file,")]
+    assert len(phrases) == len(reading_phrases(committed())) - 1
+    for phrase in phrases:
+        assert to_readme(phrase) in section, phrase
+    assert HALF_SCORES in section and "per benchmark, not per prompt" in section
+    assert "](README.md)" not in section and "](results.json)" not in section and "../" not in section
+
+
+@pending_readme
+def test_readme_llmrouterbench_regenerate_and_layout():
+    section, text = readme_subsection(), readme_text()
+    assert section.rstrip("\n").endswith(REGENERATE_LINE + "\n\n" + REGENERATE.rstrip("\n"))
+    assert section.count("```bash\n") == 1 and "\n$ " not in section
+    layout = text.split("\n## Layout\n", 1)[1].split("\n## ", 1)[0]
+    assert layout.count(LAYOUT) == 1
+    assert layout.index(LCB_LAYOUT) + len(LCB_LAYOUT) == layout.index(LAYOUT)
+    assert section.isascii() and "\u2013" not in section and "\u2014" not in section
+    assert not re.search(r"(?m)(^|[\s(])/(Users|home)/", section)
+
+
+def test_readme_llmrouterbench_tables_follow_the_file(cv):
+    results = committed()
+    before = readme_tables(results), readme_counts(results), readme_source_lines(cv, results)
+    fake = json.loads(json.dumps(results))
+    summary_row(fake, 0.8, "cost_blind", "routed")["success"] = 0.6
+    _, best, _ = single_models(fake)
+    best["cost_usd"] = 400.0
+    summary_row(fake, 0.1, "cost_effective", "oracle")["success"] = 0.9
+    after = readme_tables(fake)
+    assert after != before[0]
+    assert "| 0.8 | `cost_blind` | 0.600 | 173.4190 | 0.434 |" in after
+    assert "| Per-item oracle: on each item, the cheapest model that scored 1, or the cheapest model, " \
+           "counted wrong, when none did | 0.900 | 33.6900 |" in after
+    assert "| Always `openai/gpt-5`, which `cost_blind` takes on every seed of 4 tasks at bar 0.1 " \
+           "| 0.591 | 191.4699 |" in before[0]
+    assert "`aime` 60 items, `arc-agi` 400," in before[1] and "12,066 in all), 50 seeds;" in before[1]
+    assert "every one of the 13 single models" in before[2][2]
+    task_row(fake, 0.1, "cost_blind", "hle")["routed_models"] = {"google/gemini-2.5-flash": 50}
+    with pytest.raises(AssertionError):
+        readme_tables(fake)
+
+
+def test_to_readme_rewrites_only_the_design_and_readme_links():
+    line = "- a (DESIGN 12.3), b (see [README.md](README.md)), [results.json](results.json)"
+    assert to_readme(line) == ("- a (`DESIGN.md` 12.3), b (see [evidence/llmrouterbench/README.md]"
+                               "(evidence/llmrouterbench/README.md)), [results.json](results.json)")

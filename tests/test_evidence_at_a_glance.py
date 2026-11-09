@@ -3,7 +3,8 @@
 The README evidence section opens with a short list, one bullet per subsection. Every
 number and model ID in it is built here from the committed results files (four since v1.28,
 which adds the AutoBench judges bullet, five since v1.55, which adds tau2-bench, six since
-v1.65, which adds LiveCodeBench, seven since v1.80, which adds delegation on tau2-bench), at the rounding of the subsection tables, and every word that depends on the data (no routed row
+v1.65, which adds LiveCodeBench, seven since v1.80, which adds delegation on tau2-bench, eight
+since v1.164, which adds LLMRouterBench), at the rounding of the subsection tables, and every word that depends on the data (no routed row
 reaches or beats, every seed, more, less) is asserted against those files, so the list cannot
 drift from them or keep a claim a regenerated file no longer supports.
 """
@@ -24,6 +25,7 @@ FILES = {"RouterBench": ROOT / "evidence" / "routerbench" / "results.json",
          "AutoBench judges": ROOT / "evidence" / "autobench-judges" / "results.json",
          "tau2-bench": ROOT / "evidence" / "tau2-bench" / "results.json",
          "LiveCodeBench": ROOT / "evidence" / "livecodebench" / "results.json",
+         "LLMRouterBench": ROOT / "evidence" / "llmrouterbench" / "results.json",
          "Delegation on AutoBench": ROOT / "evidence" / "delegation" / "results.json",
          "Delegation on tau2-bench": ROOT / "evidence" / "tau2-bench-delegation" / "results.json"}
 LEAD = ("Results at a glance, each number from the committed results of the subsection it "
@@ -52,9 +54,13 @@ def words(items):
     return items[0] if len(items) == 1 else ", ".join(items[:-1]) + " and " + items[-1]
 
 
-POINTER = ("Why routing costs less than the best single model on some of these datasets and never reaches "
-           "its held-out success: [research/where-routing-pays.md](research/where-routing-pays.md) sets each "
-           "dataset's tasks, calibration halves and picks beside the best single model, read from the same files")
+# v1.164: the first five bullets are the five files the note reads; LLMRouterBench is not one
+POINTER = ("Why routing costs less than the best single model on some of the first five datasets in the list "
+           "above and never reaches its held-out success on them: "
+           "[research/where-routing-pays.md](research/where-routing-pays.md) sets each dataset's tasks, "
+           "calibration halves and picks beside the best single model, read from the same files. The note "
+           "does not read LLMRouterBench, where `cost_blind` routing passes that model's held-out success")
+WHERE_SCRIPT = ROOT / "research" / "where_routing_pays.py"
 
 
 def link(name):
@@ -144,6 +150,31 @@ def livecodebench_bullet(results):
             f"`{best['strategy'][len('model:'):]}`")
 
 
+def llmrouterbench_bullet(results):
+    """v1.164 (DESIGN 12.8): cost_blind has one held-out success at every bar, above the best single
+    model's of 12.7 at 3 decimals, at under half its cost at every bar; at the lowest bar
+    cost_effective costs less than cost_blind and falls below that model's success."""
+    config = results["config"]
+    first = (config["bars"][0], config["flavors"][0])
+    models = [r for r in results["summary"]
+              if (r["bar"], r["flavor"]) == first and r["strategy"].startswith("model:")]
+    best = min(models, key=lambda r: (-r["success"], r["cost_usd"], r["strategy"]))
+    blind = [summary_row(results, bar, "cost_blind", "routed") for bar in config["bars"]]
+    assert len({f"{r['success']:.3f}" for r in blind}) == 1, "the cost_blind success differs between bars"
+    assert float(f"{blind[0]['success']:.3f}") > float(f"{best['success']:.3f}"), \
+        "cost_blind is not above the best model"
+    assert all(r["cost_usd"] / best["cost_usd"] < 0.5 for r in blind), "cost_blind costs half or more"
+    low = summary_row(results, config["bars"][0], "cost_effective", "routed")
+    assert low["cost_usd"] < blind[0]["cost_usd"], "the lowest bar costs no less than cost_blind"
+    assert float(f"{low['success']:.3f}") < float(f"{best['success']:.3f}"), \
+        "the lowest bar reaches the best model"
+    return (link("LLMRouterBench") + f"`cost_blind` routing reaches held-out success "
+            f"{blind[0]['success']:.3f} at every bar, above the {best['success']:.3f} of always calling "
+            f"the best single model, `{best['strategy'][len('model:'):]}`, at less than half its cost; at "
+            f"bar {config['bars'][0]} `cost_effective` routing costs less still and falls below that "
+            "model's held-out success")
+
+
 def delegation_bullet(results):
     config = results["config"]
     rows = {(r["bar"], r["flavor"], r["point"], r["parent"], r["strategy"]): r
@@ -213,7 +244,7 @@ def tau2_delegation_bullet(results):
 
 BULLETS = {"RouterBench": routerbench_bullet, "AutoBench": autobench_bullet,
            "AutoBench judges": judges_bullet, "tau2-bench": tau2_bullet,
-           "LiveCodeBench": livecodebench_bullet,
+           "LiveCodeBench": livecodebench_bullet, "LLMRouterBench": llmrouterbench_bullet,
            "Delegation on AutoBench": delegation_bullet,
            "Delegation on tau2-bench": tau2_delegation_bullet}
 
@@ -231,6 +262,11 @@ def evidence_section():
 
 # --- the README ------------------------------------------------------------------------------
 
+pending_readme = pytest.mark.xfail(strict=True, raises=AssertionError,
+                                   reason="v1.164: the README LLMRouterBench bullet is not written yet")
+
+
+@pending_readme
 def test_readme_opens_the_evidence_section_with_the_glance_list():
     intro = evidence_section().split("\n### ", 1)[0]
     paragraphs = intro.strip("\n").split("\n\n")
@@ -247,6 +283,19 @@ def test_the_pointer_link_resolves_to_the_note():
     assert (README.parent / target[0]).is_file()
 
 
+def test_the_pointer_names_the_files_the_note_reads():
+    """v1.164: the first five bullets are the note's five datasets, in its order, and the
+    LLMRouterBench claim of the pointer is the one its bullet asserts."""
+    text = WHERE_SCRIPT.read_text(encoding="utf-8")
+    block = text.split("DATASETS = (\n", 1)[1].split("\n)\n", 1)[0]
+    listed = re.findall(r'^    \("([^"]+)", "([^"]+)"\),$', block, re.M)
+    assert listed == [(n, str(FILES[n].relative_to(ROOT))) for n in list(FILES)[:5]]
+    assert "llmrouterbench" not in text.lower()
+    assert "passes that model's held-out success" in POINTER
+    llmrouterbench_bullet(committed()["LLMRouterBench"])
+
+
+@pending_readme
 def test_each_glance_bullet_links_its_subsection_in_heading_order():
     section = evidence_section()
     headings = re.findall(r"^### (.*)$", section, re.M)
@@ -269,6 +318,7 @@ def test_anchor_rule_gives_the_anchors_the_readme_already_links():
     assert anchor("AutoBench judges") == "#autobench-judges"
     assert anchor("tau2-bench") == "#tau2-bench"
     assert anchor("LiveCodeBench") == "#livecodebench"
+    assert anchor("LLMRouterBench") == "#llmrouterbench"
     assert anchor("Delegation on tau2-bench") == "#delegation-on-tau2-bench"
 
 
@@ -292,7 +342,10 @@ def test_the_glance_numbers_are_those_of_the_committed_files():
                    "`openai/gpt-4.1-mini-2025-04-14`, for no more held-out success",
                    "only `cost_blind` routing is run; it reaches held-out success 0.902 at every "
                    "bar, below the 0.909 of always calling the best single model, "
-                   "`openai/o4-mini-high`"):
+                   "`openai/o4-mini-high`",
+                   "`cost_blind` routing reaches held-out success 0.615 at every bar, above the 0.592 of "
+                   "always calling the best single model, `google/gemini-2.5-pro`, at less than half its "
+                   "cost; at bar 0.1 `cost_effective` routing costs less still and falls below"):
         assert needle in text, needle
     changed = copy.deepcopy(files)
     summary_row(changed["AutoBench"], 0.6, "cost_effective", LUNA)["cost_usd"] = 0.3095
@@ -350,6 +403,32 @@ def lcb_reaches_best(files):
                if r["strategy"].startswith("model:"))
     for r in lcb_routed(files):
         r["success"] = best
+
+
+def lrb_rows(files, flavor):
+    return [r for r in files["LLMRouterBench"]["summary"]
+            if (r["flavor"], r["strategy"]) == (flavor, "routed")]
+
+
+def lrb_blind_differs(files):
+    lrb_rows(files, "cost_blind")[-1]["success"] -= 0.01
+
+
+def lrb_blind_not_above(files):
+    for r in lrb_rows(files, "cost_blind"):
+        r["success"] = 0.592
+
+
+def lrb_blind_half(files):
+    lrb_rows(files, "cost_blind")[3]["cost_usd"] = 183.3
+
+
+def lrb_low_dearer(files):
+    lrb_rows(files, "cost_effective")[0]["cost_usd"] = 200.0
+
+
+def lrb_low_reaches(files):
+    lrb_rows(files, "cost_effective")[0]["success"] = 0.5924
 
 
 def delegation_rows(files, point, strategy):
@@ -415,6 +494,11 @@ def tau2_delegation_better(files):
     (lcb_second_flavor, "a flavor other than cost_blind"),
     (lcb_one_bar_differs, "the routed success differs between bars"),
     (lcb_reaches_best, "a routed row reaches it"),
+    (lrb_blind_differs, "the cost_blind success differs between bars"),
+    (lrb_blind_not_above, "cost_blind is not above the best model"),
+    (lrb_blind_half, "cost_blind costs half or more"),
+    (lrb_low_dearer, "the lowest bar costs no less than cost_blind"),
+    (lrb_low_reaches, "the lowest bar reaches the best model"),
     (cheap_decision, "not always delegating at point 0"),
     (costly_paths, r"more at \['8,000', '200,000'\], less at \['64,000'\]"),
     (worse_decision, "not always delegating at point 1"),
