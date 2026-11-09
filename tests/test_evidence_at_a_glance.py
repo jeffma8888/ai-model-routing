@@ -262,11 +262,6 @@ def evidence_section():
 
 # --- the README ------------------------------------------------------------------------------
 
-pending_readme = pytest.mark.xfail(strict=True, raises=AssertionError,
-                                   reason="v1.164: the README LLMRouterBench bullet is not written yet")
-
-
-@pending_readme
 def test_readme_opens_the_evidence_section_with_the_glance_list():
     intro = evidence_section().split("\n### ", 1)[0]
     paragraphs = intro.strip("\n").split("\n\n")
@@ -295,7 +290,6 @@ def test_the_pointer_names_the_files_the_note_reads():
     llmrouterbench_bullet(committed()["LLMRouterBench"])
 
 
-@pending_readme
 def test_each_glance_bullet_links_its_subsection_in_heading_order():
     section = evidence_section()
     headings = re.findall(r"^### (.*)$", section, re.M)

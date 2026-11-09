@@ -476,10 +476,6 @@ REGENERATE_LINE = (
     "`evidence` workflow does not rerun these commands, so the test suite rebuilds `results.json` from "
     "them only where the pinned file is cached):")
 EVIDENCE_LINK = "[evidence/llmrouterbench/README.md](evidence/llmrouterbench/README.md)"
-pending_readme = pytest.mark.xfail(strict=True, raises=AssertionError,
-                                   reason="v1.164: the README subsection is not written yet")
-
-
 def readme_text():
     return README.read_text(encoding="utf-8")
 
@@ -592,7 +588,6 @@ def readme_source_lines(cv, results):
         f"benchmarks and what a row keeps: {EVIDENCE_LINK}"]
 
 
-@pending_readme
 def test_readme_llmrouterbench_counts_and_tables_are_the_committed_results(cv):
     results, section = committed(), readme_subsection()
     lines = readme_source_lines(cv, results)
@@ -600,7 +595,6 @@ def test_readme_llmrouterbench_counts_and_tables_are_the_committed_results(cv):
     assert readme_columns(results) + "\n\n" + readme_tables(results) in section
 
 
-@pending_readme
 def test_readme_llmrouterbench_reading_and_limits_are_results_md_lines():
     section = readme_subsection()
     reading, limits = results_md_bullets()
@@ -615,7 +609,6 @@ def test_readme_llmrouterbench_reading_and_limits_are_results_md_lines():
     assert "](README.md)" not in section and "](results.json)" not in section and "../" not in section
 
 
-@pending_readme
 def test_readme_llmrouterbench_regenerate_and_layout():
     section, text = readme_subsection(), readme_text()
     assert section.rstrip("\n").endswith(REGENERATE_LINE + "\n\n" + REGENERATE.rstrip("\n"))
