@@ -1,4 +1,4 @@
-"""Command line interface: ``model-routing select|calibrate|report|demo|evaluate|delegate``."""
+"""Command line interface: ``model-routing select|calibrate|report|demo|evaluate|delegate|plan``."""
 
 from __future__ import annotations
 
@@ -15,7 +15,8 @@ from .monitor import load_records, report
 from .priors import Priors
 from .registry import Registry
 from .router import FLAVORS, NoModelClearsBar, Router
-from .stats import Stats, calibrate_from_results, wilson_lower_bound
+from .stats import (Stats, _planned_successes, calibrate_from_results, items_needed,
+                    wilson_lower_bound)
 from .tasks import load_tasks
 
 EXIT_OK = 0
@@ -106,6 +107,14 @@ def _build_parser() -> argparse.ArgumentParser:
     dg.add_argument("--stats", default="stats.json")
     dg.add_argument("--priors", default=str(DATA_DIR / "priors.json"))
     dg.add_argument("--json", action="store_true")
+
+    plan = sub.add_parser("plan", help="labelled items per model before a success rate "
+                                       "clears a bar")
+    plan.add_argument("--success", required=True, type=float,
+                      help="the success rate you expect the model to have on the task")
+    plan.add_argument("--bar", required=True, type=float)
+    plan.add_argument("--confidence", type=float, default=0.95)
+    plan.add_argument("--max-items", type=int, default=10_000)
     return parser
 
 
@@ -302,8 +311,24 @@ def _cmd_delegate(args) -> int:
     return EXIT_OK
 
 
+def _cmd_plan(args) -> int:
+    n = items_needed(args.success, args.bar, args.confidence, args.max_items)
+    print(f"success:     {args.success}")
+    print(f"bar:         {args.bar}")
+    print(f"confidence:  {args.confidence}")
+    if n is None:
+        print(f"items:       none up to --max-items {args.max_items}")
+        return EXIT_NO_MODEL
+    k = _planned_successes(args.success, n)
+    print(f"items:       {n}")
+    print(f"successes:   {k}")
+    print(f"lower_bound: {wilson_lower_bound(k, n, args.confidence):.6f}")
+    return EXIT_OK
+
+
 _COMMANDS = {"select": _cmd_select, "calibrate": _cmd_calibrate, "report": _cmd_report,
-             "demo": _cmd_demo, "evaluate": _cmd_evaluate, "delegate": _cmd_delegate}
+             "demo": _cmd_demo, "evaluate": _cmd_evaluate, "delegate": _cmd_delegate,
+             "plan": _cmd_plan}
 
 
 def main(argv: Optional[List[str]] = None, *, today: Optional[date] = None) -> int:

@@ -299,6 +299,20 @@ On public data, [Delegation on AutoBench](#delegation-on-autobench) scores this 
 
    Exit codes: 0 routed, 2 bad input, 3 no model clears the bar (for a `refuse` task).
 
+**How many labelled items per model?** Before step 2, ask `plan` how many items a model needs on the task before its Wilson lower bound can clear the bar, if its success rate there is what you expect (`items_needed` in code):
+
+```text
+$ model-routing plan --success 0.9 --bar 0.8
+success:     0.9
+bar:         0.8
+confidence:  0.95
+items:       74
+successes:   66
+lower_bound: 0.800912
+```
+
+The successes at a count are rounded down, and `items` is the count from which every larger one up to `--max-items` (default 10000) also clears at that rate: 68 items (61 right, bound 0.802) would clear here, but 73 (65 right, 0.798) would not. A rate at or below the bar never clears, and the closer the rate is to the bar the more items it takes (6338 at 0.81 against 0.8); with no count up to `--max-items`, `plan` exits 3. The count is per model on the task; the router also needs the task's `min_samples` measured trials, and for `evaluate` the count is the size of one calibration half.
+
 ## Use it in code
 
 ```python
@@ -928,7 +942,7 @@ model_routing/
   __main__.py   python -m model_routing runs the CLI
   registry.py   models, list prices, context windows
   tasks.py      task definitions (bar, min_samples, isolation, fallbacks)
-  stats.py      Wilson lower bound, calibration counts and token totals
+  stats.py      Wilson lower bound, items a bar needs, calibration counts and token totals
   priors.py     leaderboard priors (order only, never admit)
   router.py     the routing rules and both flavors
   providers.py  provider protocol, fake provider, OpenAI-compatible HTTP provider
@@ -938,7 +952,7 @@ model_routing/
   evaluate.py   offline evaluation on an outcome matrix, held-out split, baselines
   delegation.py inline or sub-agent for one piece of work, in both flavors
   delegation_eval.py  offline evidence for that choice on an outcome matrix with token counts
-  cli.py        model-routing select | calibrate | report | demo | evaluate | delegate
+  cli.py        model-routing select | calibrate | report | demo | evaluate | delegate | plan
   py.typed      empty PEP 561 marker: type checkers read the package's annotations
   data/         models.json, priors.json, example_tasks.json
 research/       public evidence behind the defaults

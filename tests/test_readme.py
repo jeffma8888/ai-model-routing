@@ -132,8 +132,6 @@ def test_readme_claims_about_the_package_match_the_repo():
     assert problems == []
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError,
-                   reason="v1.140 spec ahead of the plan subcommand (red)")
 def test_parser_subcommands_are_the_shipped_seven():
     assert parser_subcommands() == ["select", "calibrate", "report", "demo", "evaluate", "delegate",
                                     "plan"]

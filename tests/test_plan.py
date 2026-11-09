@@ -11,10 +11,6 @@ import pytest
 import model_routing
 from model_routing import main, wilson_lower_bound
 
-RED = pytest.mark.xfail(strict=True, raises=(ImportError, AssertionError),
-                        reason="v1.140 spec ahead of items_needed and plan (red)")
-
-
 def needed(*args, **kwargs):
     from model_routing import items_needed
     return items_needed(*args, **kwargs)
@@ -22,20 +18,18 @@ def needed(*args, **kwargs):
 
 def by_definition(success, bar, confidence, top):
     """4.3 read literally: the smallest n whose every count from n to top clears, or None."""
-    s = Fraction(repr(success))
+    s = Fraction(repr(float(success)))
     clears = [wilson_lower_bound(math.floor(n * s), n, confidence) >= bar
               for n in range(1, top + 1)]
     return next((n for n in range(1, top + 1) if all(clears[n - 1:])), None)
 
 
-@RED
 def test_items_needed_is_public_and_lives_in_stats():
     from model_routing import items_needed, stats
     assert "items_needed" in model_routing.__all__
     assert items_needed is stats.items_needed
 
 
-@RED
 def test_every_item_right_needs_nine_z_squared_at_bar_0_9():
     # p = 1 makes the Wilson lower bound n / (n + z*z), which is >= 0.9 from n >= 9 z*z
     z = NormalDist().inv_cdf(0.975)
@@ -48,7 +42,6 @@ def test_every_item_right_needs_nine_z_squared_at_bar_0_9():
     assert needed(1.0, 0.9, max_items=34) is None
 
 
-@RED
 def test_a_smaller_count_can_clear_where_a_larger_one_does_not():
     # floor(0.9 n) is 61 at 68, 65 at 73 (65.7) and 66 at 74 (66.6)
     assert [math.floor(Fraction("0.9") * n) for n in (68, 73, 74)] == [61, 65, 66]
@@ -60,7 +53,19 @@ def test_a_smaller_count_can_clear_where_a_larger_one_does_not():
                for n in range(74, 10_001))
 
 
-@RED
+class _Rate(float):
+    """A float subclass whose repr is not a bare decimal, as numpy 2's np.float64 is."""
+
+    def __repr__(self):
+        return f"_Rate({float.__repr__(self)})"
+
+
+def test_a_float_subclass_reads_as_its_float():
+    assert repr(_Rate(0.9)) == "_Rate(0.9)"
+    assert needed(_Rate(0.9), 0.8) == 74
+    assert needed(_Rate(0.29), 0.205, max_items=100) == 100
+
+
 def test_successes_are_the_floor_of_the_exact_decimal():
     # floating 0.29 * 100 is 28.999999999999996, so a float floor would count 28
     assert math.floor(0.29 * 100) == 28
@@ -69,7 +74,6 @@ def test_successes_are_the_floor_of_the_exact_decimal():
     assert needed(0.29, 0.205, max_items=100) == 100
 
 
-@RED
 def test_the_limit_decides_none_near_the_bar():
     assert needed(0.81, 0.8) == 6338
     assert round(wilson_lower_bound(5133, 6338), 6) == 0.80003
@@ -78,21 +82,18 @@ def test_the_limit_decides_none_near_the_bar():
     assert needed(0.81, 0.8, max_items=6338) == 6338
 
 
-@RED
 @pytest.mark.parametrize("success, bar", [(0.8, 0.8), (0.7, 0.8), (1.0, 1.0), (0.0, 0.5),
                                           (0.5, 1.0)])
 def test_no_count_clears_at_or_below_the_bar(success, bar):
     assert needed(success, bar) is None
 
 
-@RED
 @pytest.mark.parametrize("success", [0.0, 0.5, 1.0])
 def test_bar_zero_needs_one_item(success):
     assert needed(success, 0.0) == 1
     assert needed(success, 0) == 1
 
 
-@RED
 def test_confidence_and_other_values():
     assert needed(0.9, 0.8, confidence=0.9) == 55
     assert needed(0.95, 0.8) == 33
@@ -100,7 +101,6 @@ def test_confidence_and_other_values():
     assert needed(0.85, 0.8) == 276
 
 
-@RED
 @pytest.mark.parametrize("success, bar, confidence", [
     (0.9, 0.8, 0.95), (0.9, 0.8, 0.9), (0.95, 0.9, 0.95), (0.8, 0.7, 0.8), (0.6, 0.5, 0.95),
     (1.0, 0.95, 0.95), (0.73, 0.6, 0.99), (0.5, 0.5, 0.95), (0.3, 0.0, 0.95)])
@@ -109,7 +109,6 @@ def test_matches_the_definition_up_to_300(success, bar, confidence):
         by_definition(success, bar, confidence, 300)
 
 
-@RED
 @pytest.mark.parametrize("kwargs", [
     {"success": True}, {"success": "0.9"}, {"success": None}, {"success": float("nan")},
     {"success": float("inf")}, {"success": -0.1}, {"success": 1.1},
@@ -125,7 +124,6 @@ def test_argument_errors(kwargs):
         needed(**args)
 
 
-@RED
 def test_plan_prints_the_count_successes_and_bound(capsys):
     assert main(["plan", "--success", "0.9", "--bar", "0.8"]) == 0
     captured = capsys.readouterr()
@@ -141,7 +139,6 @@ def test_plan_prints_the_count_successes_and_bound(capsys):
     assert captured.err == ""
 
 
-@RED
 def test_plan_options(capsys):
     assert main(["plan", "--success", "0.90", "--bar", "0.8", "--confidence", "0.9",
                  "--max-items", "500"]) == 0
@@ -151,7 +148,6 @@ def test_plan_options(capsys):
     assert out[5] == f"lower_bound: {wilson_lower_bound(49, 55, 0.9):.6f}"
 
 
-@RED
 @pytest.mark.parametrize("argv, limit", [
     (["--success", "0.8", "--bar", "0.8"], 10000),
     (["--success", "0.9", "--bar", "0.8", "--max-items", "73"], 73)])
@@ -164,7 +160,6 @@ def test_plan_exits_3_when_no_count_clears(capsys, argv, limit):
     assert captured.err == ""
 
 
-@RED
 @pytest.mark.parametrize("argv, named", [
     (["--success", "1.5", "--bar", "0.8"], "success"),
     (["--success", "nan", "--bar", "0.8"], "success"),

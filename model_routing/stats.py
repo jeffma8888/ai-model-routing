@@ -1,9 +1,11 @@
-"""Measured quality: Wilson lower bounds and per (task, model) counts and token totals."""
+"""Measured quality: Wilson lower bounds, the items a bar needs, and per (task, model) counts
+and token totals."""
 
 from __future__ import annotations
 
 import json
-from math import sqrt
+from fractions import Fraction
+from math import floor, isfinite, sqrt
 from pathlib import Path
 from statistics import NormalDist
 from typing import Dict, Iterable, Optional, Tuple, Union
@@ -58,6 +60,41 @@ def wilson_lower_bound(successes: int, trials: int, confidence: float = 0.95) ->
     p = successes / n
     lb = (p + z * z / (2 * n) - z * sqrt(p * (1 - p) / n + z * z / (4 * n * n))) / (1 + z * z / n)
     return max(0.0, lb)
+
+
+def _check_rate(name: str, value: object) -> None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not isfinite(value) \
+            or not 0.0 <= value <= 1.0:
+        raise ValueError(f"{name} must be a finite number in [0, 1], got {value!r}")
+
+
+def _planned_successes(success: float, items: int) -> int:
+    """The successes of ``items`` items at rate ``success``: the floor of the exact decimal (4.3)."""
+    return floor(Fraction(repr(float(success))) * items)
+
+
+def items_needed(success: float, bar: float, confidence: float = 0.95,
+                 max_items: int = 10_000) -> Optional[int]:
+    """Return the labelled items a model at rate ``success`` needs to clear ``bar``, or None.
+
+    The smallest n in 1..max_items from which every count up to ``max_items`` gives a
+    Wilson lower bound at or above ``bar``, with the successes at a count rounded down
+    (DESIGN 4.3). ``None`` when ``max_items`` items do not clear. Raises ``ValueError``
+    for an invalid argument.
+    """
+    _check_rate("success", success)
+    _check_rate("bar", bar)
+    if isinstance(confidence, bool) or not isinstance(confidence, (int, float)) \
+            or not isfinite(confidence) or not 0.0 < confidence < 1.0:
+        raise ValueError(f"confidence must be a finite number in (0, 1), got {confidence!r}")
+    if not _is_int(max_items) or max_items < 1:
+        raise ValueError(f"max_items must be an integer >= 1, got {max_items!r}")
+    needed = None
+    for n in range(max_items, 0, -1):
+        if wilson_lower_bound(_planned_successes(success, n), n, confidence) < bar:
+            break
+        needed = n
+    return needed
 
 
 class Stats:
