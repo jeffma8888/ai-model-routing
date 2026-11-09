@@ -2,12 +2,14 @@
 subsections, from v1.55 the tau2-bench one, from v1.65 the LiveCodeBench one, from v1.80 the tau2-bench
 delegation one and from v1.84 its pooled run on GitHub and
 fails when a committed results file changes (DESIGN 12.13, v1.30),
-and both workflows run on one pinned runner image with a dated comment (v1.49).
+and both workflows run on one pinned runner image with a dated comment (v1.49), and the job
+has a time limit of 25 minutes, ten times its slowest run, with no download retry (v1.152).
 
 The workflow is read with a line parser for its own shape (no YAML library, so this runs in
 CI); the run itself is checked on GitHub, not here."""
 
 import datetime
+import math
 import re
 from pathlib import Path
 
@@ -33,6 +35,15 @@ ON = (
     "      - \"pyproject.toml\"\n"
     "      - \".github/workflows/evidence.yml\"\n")
 STEP_NAMES = [None, None, "Install", "Regenerate", "Compare"]
+# v1.152: the job's time limit, ten times the slowest of the workflow's 40 runs to 2026-11-09
+# (140 s from start to last update, run 42445989566), rounded up to a whole five minutes.
+SLOWEST_RUN_SECONDS = 140
+TIMEOUT_MINUTES = 25
+LIMIT_LINE = f"    timeout-minutes: {TIMEOUT_MINUTES}"
+LIMIT_SENTENCE = (f"The job's time limit of {TIMEOUT_MINUTES} minutes is about ten times its slowest run, "
+                  "and a failed download is retried by rerunning the job (DESIGN.md 12.13).")
+LIMIT_PROBLEM = f"the job's time limit is not {TIMEOUT_MINUTES} minutes"
+SENTENCE_PROBLEM = "the comment above jobs: does not end with the time-limit sentence"
 
 
 def readme():
@@ -191,8 +202,12 @@ def problems(text, readme_text, ci_text):
         header, steps = parse_steps(job)
     except (AssertionError, ValueError) as error:
         return found + [f"steps do not parse: {error}"]
-    if len(ci_runs_on) != 1 or header != ["jobs:", "  regenerate:", f"    runs-on: {ci_runs_on[0]}"]:
-        found.append("the job holds more than runs-on and steps, or runs-on differs from ci.yml")
+    if [line for line in header if "timeout" in line] != [LIMIT_LINE]:
+        found.append(LIMIT_PROBLEM)
+    if not comment_above_jobs(text).endswith(" " + LIMIT_SENTENCE):
+        found.append(SENTENCE_PROBLEM)
+    if len(ci_runs_on) != 1 or header != ["jobs:", "  regenerate:", f"    runs-on: {ci_runs_on[0]}", LIMIT_LINE]:
+        found.append("the job holds more than runs-on, its time limit and steps, or runs-on differs from ci.yml")
     if [s.get("name") for s in steps] != STEP_NAMES:
         return found + [f"step names {[s.get('name') for s in steps]}"]
     if [s["keys"] for s in steps] != [["uses", "with"]] * 2 + [["name", "run"]] * 3:
@@ -298,11 +313,41 @@ MUTANTS = {
     "a comment in Regenerate": lambda t: with_lines(t, lambda ls: ls[:1] + ["          # x"] + ls[1:]),
     "a job after the steps": lambda t: t + "  other:\n    runs-on: ubuntu-24.04\n",
     "the RouterBench reason dropped": lambda t: t.replace(" about 70 seconds.\n", "\n", 1),
+    "the time limit dropped": lambda t: t.replace(LIMIT_LINE + "\n", "", 1),
+    "the time limit raised by a minute": lambda t: t.replace(
+        LIMIT_LINE + "\n", "    timeout-minutes: 26\n", 1),
+    "the time limit at GitHub's default": lambda t: t.replace(
+        LIMIT_LINE + "\n", "    timeout-minutes: 360\n", 1),
+    "the time limit on Regenerate instead": lambda t: t.replace(LIMIT_LINE + "\n", "", 1).replace(
+        "      - name: Regenerate\n", "      - name: Regenerate\n        timeout-minutes: 25\n", 1),
+    "the time-limit sentence dropped": lambda t: t.replace(
+        "# The job's time limit of 25 minutes", "# The job's limit", 1),
+}
+TIME_LIMIT_MUTANTS = {
+    "the time limit dropped": LIMIT_PROBLEM,
+    "the time limit raised by a minute": LIMIT_PROBLEM,
+    "the time limit at GitHub's default": LIMIT_PROBLEM,
+    "the time limit on Regenerate instead": LIMIT_PROBLEM,
+    "the time-limit sentence dropped": SENTENCE_PROBLEM,
 }
 
 
 def test_the_mutant_count_is_the_one_design_states():
-    assert len(MUTANTS) == 17
+    assert len(MUTANTS) == 22
+    assert len(TIME_LIMIT_MUTANTS) == 5 and set(TIME_LIMIT_MUTANTS) <= set(MUTANTS)
+
+
+def test_the_time_limit_is_ten_times_the_slowest_run_in_whole_five_minutes():
+    assert TIMEOUT_MINUTES == 5 * math.ceil(10 * SLOWEST_RUN_SECONDS / 60 / 5)
+    assert TIMEOUT_MINUTES < 360
+
+
+@pytest.mark.parametrize("name", sorted(TIME_LIMIT_MUTANTS))
+def test_a_time_limit_mutant_fails_on_the_check_it_names(name):
+    text = workflow_text()
+    mutant = MUTANTS[name](text)
+    assert mutant != text, name
+    assert TIME_LIMIT_MUTANTS[name] in problems(mutant, readme(), CI.read_text(encoding="utf-8")), name
 
 
 @pytest.mark.parametrize("name", ["the compare step without pooled.json",
