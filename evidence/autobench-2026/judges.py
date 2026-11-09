@@ -73,12 +73,16 @@ def parse_grades(text, pid: str, model: str) -> dict:
     return out
 
 
+def _small_committee(answer, graders, min_committee) -> bool:
+    return sum(1 for j in graders if j != answer) - 1 < min_committee
+
+
 def _fate(answer, graders, chosen, min_committee) -> str:
     if answer in chosen:
         return "self_graded"
     if not all(c in graders for c in chosen):
         return "missing_candidate"
-    if sum(1 for j in graders if j != answer) - 1 < min_committee:
+    if _small_committee(answer, graders, min_committee):
         return "small_committee"
     return "kept"
 
@@ -94,7 +98,7 @@ def _most_cells(cells, judges, size, min_committee) -> tuple:
     bit = {j: 1 << i for i, j in enumerate(judges)}
     groups = {}
     for _, answer, graders, _ in cells:
-        if sum(1 for j in graders if j != answer) - 1 < min_committee:
+        if _small_committee(answer, graders, min_committee):
             continue
         mask = 0
         for j in graders:
