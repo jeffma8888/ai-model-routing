@@ -2,9 +2,10 @@
 
 The converter is a standard-library script outside the package (``evidence/llmrouterbench/convert.py``),
 so it is loaded from its path by an autouse fixture. Every test uses small synthetic result files,
-packed into a gzip tarball in a temporary folder where a test needs one, except one module-scoped
-CLI run on the pinned file, which runs only when it is in the default cache and skips otherwise
-(CI never downloads it).
+packed into a gzip tarball in a temporary folder where a test needs one, except one CLI run on the
+pinned file, which runs only when it is in the default cache and skips otherwise (CI never
+downloads it). From v1.156 (DESIGN 12.19) that run is the session fixture ``llmrouterbench_pinned``
+of tests/conftest.py, shared with the results tests, so a suite run reads the file once.
 """
 
 import contextlib
@@ -461,15 +462,9 @@ def test_main_reports_one_error_line_and_leaves_no_part(cv, tmp_path, monkeypatc
 # --- the pinned file, only when cached ---------------------------------------------------
 
 @pytest.fixture(scope="module")
-def pinned_run(tmp_path_factory):
-    module = load_cv()
-    if not (module.default_cache_dir() / module.FILE).is_file():
-        pytest.skip("the pinned LLMRouterBench file is not in the default cache")
-    out = tmp_path_factory.mktemp("lrb") / "rows.jsonl"
-    buf = io.StringIO()
-    with contextlib.redirect_stdout(buf):
-        code = module.main(["--out", str(out)])
-    return code, json.loads(buf.getvalue()) if code == 0 else None, out
+def pinned_run(llmrouterbench_pinned):
+    """The session run of tests/conftest.py, shared with the results tests (DESIGN 12.19, v1.156)."""
+    return llmrouterbench_pinned
 
 
 def test_pinned_file_default_output(pinned_run):

@@ -1,7 +1,12 @@
-"""Small fictional fixtures shared by contract tests."""
+"""Small fictional fixtures shared by contract tests, and one session-scoped run of the
+LLMRouterBench converter on its pinned file (DESIGN 12.19, v1.156)."""
 
+import contextlib
+import importlib.util
+import io
 import json
 from dataclasses import asdict
+from pathlib import Path
 
 import pytest
 
@@ -101,3 +106,28 @@ def record_factory():
         record.update(overrides)
         return record
     return make
+
+
+# --- the pinned LLMRouterBench file, read once per session (DESIGN 12.19, v1.156) ----------
+
+LLMROUTERBENCH_CONVERTER = Path(__file__).resolve().parents[1] / "evidence" / "llmrouterbench" / "convert.py"
+
+
+@pytest.fixture(scope="session")
+def llmrouterbench_pinned(tmp_path_factory):
+    """The converter's CLI run on the pinned tarball: (exit code, parsed report or None, rows path).
+
+    Shared by tests/test_evidence_llmrouterbench.py and tests/test_evidence_llmrouterbench_results.py,
+    so a suite run reads the 1.28 GB file at most once. Skips when the file is not in the default
+    cache (CI never downloads it).
+    """
+    spec = importlib.util.spec_from_file_location("lrb_convert_pinned", LLMROUTERBENCH_CONVERTER)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    if not (module.default_cache_dir() / module.FILE).is_file():
+        pytest.skip("the pinned LLMRouterBench file is not in the default cache")
+    out = tmp_path_factory.mktemp("lrb") / "rows.jsonl"
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        code = module.main(["--out", str(out)])
+    return code, json.loads(buf.getvalue()) if code == 0 else None, out
