@@ -33,8 +33,6 @@ CONFIG = {"bars": BARS, "seeds": list(range(50)), "flavors": FLAVORS,
 ITEMS = {"aime": 60, "arc-agi": 400, "arenahard": 749, "gpqa": 198, "hle": 2157,
          "livecodebench": 1055, "livemathbench": 121, "mmlupro": 3000, "simpleqa": 4326}
 STRATEGIES = ["routed", "oracle", "best_on_calibration", "cheapest"]
-RED = pytest.mark.xfail(strict=True, raises=FileNotFoundError,
-                        reason="evidence/llmrouterbench/results.json lands in v1.157")
 
 
 def load(name, path):
@@ -66,14 +64,12 @@ def committed():
 
 # --- the committed file -----------------------------------------------------------------------
 
-@RED
 def test_committed_results_are_small_and_reduced(rs):
     assert RESULTS.stat().st_size < 300_000
     text = RESULTS.read_text(encoding="utf-8")
     assert text == json.dumps(rs.reduce(json.loads(text)), indent=2) + "\n"
 
 
-@RED
 def test_committed_results_have_the_config_tasks_and_pool(cv):
     results = committed()
     assert results["config"] == CONFIG
@@ -83,7 +79,6 @@ def test_committed_results_have_the_config_tasks_and_pool(cv):
     assert list(results["tasks"]) == sorted(ITEMS)
 
 
-@RED
 def test_committed_results_rows_are_unique_routed_and_costed(cv):
     results = committed()
     models = model_ids(cv)
@@ -114,7 +109,6 @@ def without_cells(result):
     return {k: v for k, v in result.items() if k != "cells"}
 
 
-@RED
 def test_real_results_regenerate_byte_identical(rs, real_rows):
     result = evaluate(outcomes_from_rows(real_rows), bars=BARS, seeds=range(50))
     assert json.dumps(rs.reduce(without_cells(result)), indent=2) + "\n" == RESULTS.read_text(
