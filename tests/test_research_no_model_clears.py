@@ -57,12 +57,12 @@ def nmc():
 
 
 def tiny_rows():
-    """Two tasks, three models: `v/cheap` clears 0.5 on `easy` only, nothing clears 0.75."""
+    """Two tasks, three models: `v/strong` clears 0.5 everywhere and `v/cheap` on `easy` only; nothing clears 0.75."""
     rows = []
-    for task, n in (("easy", 60), ("hard", 50)):
+    for task, n in (("easy", 200), ("hard", 160)):
         for i in range(n):
             for model, ok, cost in (("v/strong", i % 10 < 7, 0.03), ("v/mid", i % 10 < 6, 0.01),
-                                    ("v/cheap", (i % 10 < 6) if task == "easy" else (i % 10 < 3), 0.001)):
+                                    ("v/cheap", (i % 20 < 13) if task == "easy" else (i % 10 < 3), 0.001)):
                 rows.append({"task": task, "item": f"{task}{i}", "model": model, "correct": ok,
                              "cost_usd": cost * (1 + i % 3)})
     return rows
@@ -128,7 +128,7 @@ def test_report_counts_tasks_when_there_are_more_than_five(nmc):
     rows = [dict(r, task=f"{r['task']}{k}", item=f"{r['item']}-{k}") for r in tiny_rows() for k in range(3)]
     lines = nmc.report("six", "evidence/six/results.json", outcomes_from_rows(rows), committed(rows))
     heads = [x for x in lines if x.startswith("  bar 0.75: ")]
-    assert len(heads) == 1 and heads[0].endswith("; tasks with such a cell: 3 of 6")
+    assert len(heads) == 1 and heads[0].endswith("; tasks with such a cell: 6 of 6")
     assert not any("by task:" in x for x in lines)
 
 
