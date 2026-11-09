@@ -2,7 +2,8 @@
 
 The committed ``evidence/llmrouterbench/results.json`` is made by the RouterBench results script,
 ``evidence/routerbench/results.py``, reused unchanged, from ``model-routing evaluate`` in both
-flavors, since every row of the 12.18 matrix has a recorded cost. The first tests need no
+flavors, since every row of the 12.18 matrix has a ``cost_usd`` (2,410 of them 0.0, but no
+(task, model) pair 0.0 on every item). The first tests need no
 download: they check the committed file alone. The last ones use the converter's CLI run on the
 pinned file, the session fixture ``llmrouterbench_pinned`` of tests/conftest.py that the converter
 tests share, so the suite reads the tarball at most once; they skip when it is not in the default
@@ -141,3 +142,16 @@ def test_real_calibration_halves_are_the_design_sizes(real_rows):
     others = {task: (min(v), max(v)) for task, v in sizes.items() if task != "aime"}
     assert min(low for low, _ in others.values()) == 50
     assert others["livemathbench"] == (50, 73)
+
+
+def test_real_zero_costs_never_fill_a_task_model_pair(real_rows):
+    zeros, rows = {}, {}
+    for r in real_rows:
+        key = (r["task"], r["model"])
+        rows[key] = rows.get(key, 0) + 1
+        zeros[key] = zeros.get(key, 0) + (r["cost_usd"] == 0)
+    assert all(r["cost_usd"] >= 0 for r in real_rows)
+    assert sum(zeros.values()) == 2410
+    assert len({t for (t, _), n in zeros.items() if n}) == 8
+    assert len({m for (_, m), n in zeros.items() if n}) == 9
+    assert all(zeros[key] < rows[key] for key in rows)
