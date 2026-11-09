@@ -83,6 +83,36 @@ def _fate(answer, graders, chosen, min_committee) -> str:
     return "kept"
 
 
+def _most_cells(cells, judges, size, min_committee) -> tuple:
+    """The first ``size``-set of ``judges``, in ``itertools.combinations`` order, that keeps the most cells.
+
+    A set keeps a cell when ``_fate`` would say ``kept``: the committee-size check does not depend on the set,
+    and a set of pool judges holds neither the answer model nor a judge outside the graders exactly when it is
+    a subset of the cell's pool graders other than the answer model. So each passing cell becomes the bitmask
+    of that grader set, equal masks are counted once, and each set sums the counts of the masks that hold it.
+    """
+    bit = {j: 1 << i for i, j in enumerate(judges)}
+    groups = {}
+    for _, answer, graders, _ in cells:
+        if sum(1 for j in graders if j != answer) - 1 < min_committee:
+            continue
+        mask = 0
+        for j in graders:
+            if j != answer:
+                mask |= bit.get(j, 0)
+        groups[mask] = groups.get(mask, 0) + 1
+    counted = list(groups.items())
+    best, chosen = -1, None
+    for combo in itertools.combinations(judges, size):
+        need = 0
+        for j in combo:
+            need |= bit[j]
+        n = sum(count for mask, count in counted if mask & need == need)
+        if n > best:
+            best, chosen = n, combo
+    return tuple(chosen)
+
+
 def judge_matrix(matrix, pool, tolerance=DEFAULT_TOLERANCE, candidates=None, size=DEFAULT_SIZE,
                  min_committee=DEFAULT_MIN_COMMITTEE, rubric_tokens=DEFAULT_RUBRIC_TOKENS,
                  grade_tokens=DEFAULT_GRADE_TOKENS, task_by="all", questions=None,
@@ -149,12 +179,7 @@ def judge_matrix(matrix, pool, tolerance=DEFAULT_TOLERANCE, candidates=None, siz
         judges = sorted({j for _, _, graders, _ in cells for j in graders if j in names})
         if size > len(judges):
             raise ValueError(f"size {size} is more than the {len(judges)} pool judges that grade a scored cell")
-        best, chosen = -1, None
-        for combo in itertools.combinations(judges, size):
-            n = sum(1 for _, answer, graders, _ in cells if _fate(answer, graders, combo, min_committee) == "kept")
-            if n > best:
-                best, chosen = n, combo
-        chosen, by = tuple(chosen), "most_cells"
+        chosen, by = _most_cells(cells, judges, size, min_committee), "most_cells"
     else:
         chosen, by = tuple(candidates), "given"
     rows, kept = [], {}

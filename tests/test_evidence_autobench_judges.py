@@ -290,9 +290,8 @@ def test_default_candidates_when_no_set_keeps_an_answer(jm):
     assert rows == [] and report["kept"] == {} and report["dropped_small_committee"] == 2
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError,
-                   reason="v1.129 spec ahead of the code: the v1.128 search runs the drop rules per answer per set")
 def test_default_search_runs_the_drop_rules_once_per_answer(jm, monkeypatch):
+    # v1.129: the search counts groups of answers, and the drop rules run once per answer for the chosen set
     calls = []
     fate = jm._fate
 
