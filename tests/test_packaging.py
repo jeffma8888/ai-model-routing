@@ -10,17 +10,21 @@ import pytest
 
 import model_routing
 
-if sys.version_info >= (3, 11):
-    import tomllib
-else:  # pytest itself depends on tomli before 3.11
-    tomllib = pytest.importorskip("tomli")
-
 ROOT = Path(__file__).resolve().parent.parent
 PACKAGE = ROOT / "model_routing"
 
 
+def toml_parser():
+    """tomllib from 3.11, tomli before it (pytest itself depends on tomli there).
+
+    Loaded here, not at import, so where it does not load only the tests that read
+    pyproject.toml skip (DESIGN 3 v1.121).
+    """
+    return pytest.importorskip("tomllib" if sys.version_info >= (3, 11) else "tomli")
+
+
 def pyproject():
-    return tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    return toml_parser().loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
 
 
 def version_bindings(source):
