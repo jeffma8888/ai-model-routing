@@ -54,12 +54,12 @@ def words(items):
     return items[0] if len(items) == 1 else ", ".join(items[:-1]) + " and " + items[-1]
 
 
-# v1.164: the first five bullets are the five files the note reads; LLMRouterBench is not one
-POINTER = ("Why routing costs less than the best single model on some of the first five datasets in the list "
-           "above and never reaches its held-out success on them: "
+# v1.166: the first six bullets are the six files the note reads, LLMRouterBench the sixth
+POINTER = ("Why routing costs less than the best single model on some of the first six datasets in the list "
+           "above, never reaches its held-out success on the first five and passes it on LLMRouterBench: "
            "[research/where-routing-pays.md](research/where-routing-pays.md) sets each dataset's tasks, "
-           "calibration halves and picks beside the best single model, read from the same files. The note "
-           "does not read LLMRouterBench, where `cost_blind` routing passes that model's held-out success")
+           "calibration halves and picks beside the best single model, read from the same files")
+RED = pytest.mark.xfail(strict=True, reason="v1.166 spec ahead of the README paragraph and the script (row R12)")
 WHERE_SCRIPT = ROOT / "research" / "where_routing_pays.py"
 
 
@@ -262,6 +262,7 @@ def evidence_section():
 
 # --- the README ------------------------------------------------------------------------------
 
+@RED
 def test_readme_opens_the_evidence_section_with_the_glance_list():
     intro = evidence_section().split("\n### ", 1)[0]
     paragraphs = intro.strip("\n").split("\n\n")
@@ -278,15 +279,17 @@ def test_the_pointer_link_resolves_to_the_note():
     assert (README.parent / target[0]).is_file()
 
 
+@RED
 def test_the_pointer_names_the_files_the_note_reads():
-    """v1.164: the first five bullets are the note's five datasets, in its order, and the
-    LLMRouterBench claim of the pointer is the one its bullet asserts."""
+    """v1.166: the first six bullets are the note's six datasets, in its order, and the
+    LLMRouterBench claim of the pointer is the one its bullet asserts; the note's tests check
+    on the files that no routed row of the first five reaches the best single model."""
     text = WHERE_SCRIPT.read_text(encoding="utf-8")
     block = text.split("DATASETS = (\n", 1)[1].split("\n)\n", 1)[0]
     listed = re.findall(r'^    \("([^"]+)", "([^"]+)"\),$', block, re.M)
-    assert listed == [(n, str(FILES[n].relative_to(ROOT))) for n in list(FILES)[:5]]
-    assert "llmrouterbench" not in text.lower()
-    assert "passes that model's held-out success" in POINTER
+    assert listed == [(n, str(FILES[n].relative_to(ROOT))) for n in list(FILES)[:6]]
+    assert list(FILES)[5] == "LLMRouterBench"
+    assert "never reaches its held-out success on the first five and passes it on LLMRouterBench" in POINTER
     llmrouterbench_bullet(committed()["LLMRouterBench"])
 
 
