@@ -660,6 +660,7 @@ def test_real_results_regenerate_byte_identical(rs, real):
     assert real["report"]["kept"] == {"all": 756}
     assert "cells" in real["result"]
     reduced = rs.reduce(without_cells(real["result"]))
+    assert "cells" in real["result"], "the shared result must keep its cells for the routed test"
     assert json.dumps(reduced, indent=2) + "\n" == RESULTS.read_text(encoding="utf-8")
 
 
