@@ -737,3 +737,76 @@ def test_demo_refuses_an_outcome_file_it_did_not_write(tmp_path):
         demo.run_demo(out)
     assert sorted(p.name for p in out.iterdir()) == ["outcomes.jsonl"]
     assert (out / "outcomes.jsonl").read_text(encoding="utf-8") == "keep\n"
+
+
+# --- v1.135: each split's sums once per (task, seed), shared across bars and flavors --------
+
+ONCE_BARS = [0.25, 0.5, 0.75]
+ONCE_SEEDS = range(3)
+GRADED = [f"graded-{i:03d}" for i in range(200)]
+
+
+def every(k, n):
+    return lambda item: int(item[-3:]) % n < k
+
+
+def once_outcomes():
+    """known_rows plus a task on which cheap is right on 1 item in 2, mid on 3 in 4 and best on
+    19 in 20, so `cost_effective` routes a different model at each of ONCE_BARS."""
+    rows = known_rows() + rows_for("graded", GRADED, {"fiction/cheap": every(1, 2),
+                                                       "fiction/mid": every(3, 4),
+                                                       "fiction/best": every(19, 20)})
+    return load_ev().outcomes_from_rows(rows)
+
+
+def run_once(outcomes, bars=ONCE_BARS, flavors=("cost_effective", "cost_blind")):
+    return load_ev().evaluate(outcomes, bars=bars, seeds=ONCE_SEEDS, flavors=flavors)
+
+
+@pytest.mark.xfail(strict=True, raises=AssertionError,
+                   reason="v1.135: the v1.134 code sums the split once per cell")
+def test_v1135_each_split_is_summed_once_per_task_and_seed(monkeypatch):
+    ev, outcomes = load_ev(), once_outcomes()
+    calls = {"sum": 0, "fsum": 0}
+
+    def counting(name, real):
+        def counted(values, *start):
+            calls[name] += 1
+            return real(values, *start)
+        return counted
+    monkeypatch.setattr(ev, "sum", counting("sum", sum), raising=False)
+    monkeypatch.setattr(ev, "fsum", counting("fsum", ev.fsum))
+    monkeypatch.setattr(ev, "_summary", lambda *args: [])
+    monkeypatch.setattr(ev, "_per_task", lambda *args: [])
+    result = run_once(outcomes)
+    m, splits = len(MODELS), 3 * len(ONCE_SEEDS)  # 3 tasks
+    # 3 bars x 2 flavors = 6 cells per (task, seed)
+    assert len(result["cells"]) == 6 * splits
+    # per (task, seed): a correct count per model over C and over H, a cost per model over C
+    # and over H and the oracle's cost; none per cell
+    assert calls == {"sum": splits * 2 * m, "fsum": splits * (2 * m + 1)}
+    # and again on a second run, so nothing is kept from one call to the next
+    calls.update(sum=0, fsum=0)
+    assert run_once(outcomes)["cells"] == result["cells"]
+    assert calls == {"sum": splits * 2 * m, "fsum": splits * (2 * m + 1)}
+
+
+def test_v1135_a_run_on_several_bars_and_flavors_is_the_runs_on_each_alone():
+    outcomes = once_outcomes()
+    result = run_once(outcomes)
+    alone = []
+    for bar in ONCE_BARS:
+        for flavor in ("cost_effective", "cost_blind"):
+            alone += run_once(outcomes, bars=[bar], flavors=[flavor])["cells"]
+    assert result["cells"] == alone
+    # the routed model moves with the bar, so a cell reads the pair of the model it names
+    graded = [c for c in result["cells"]
+              if (c["task"], c["flavor"]) == ("graded", "cost_effective")]
+    assert {c["bar"]: c["models"]["routed"] for c in graded} == {
+        0.25: "fiction/cheap", 0.5: "fiction/mid", 0.75: "fiction/best"}
+    assert all(c["success"]["routed"] == c["success"]["model:" + c["models"]["routed"]]
+               and c["cost_usd"]["routed"] == c["cost_usd"]["model:" + c["models"]["routed"]]
+               for c in result["cells"])
+    # no two cells share a dict, so a change to one cell never shows in another
+    cells = result["cells"]
+    assert len({id(c[k]) for c in cells for k in ("models", "success", "cost_usd")}) == 3 * len(cells)
