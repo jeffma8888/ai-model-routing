@@ -311,7 +311,7 @@ successes:   66
 lower_bound: 0.800912
 ```
 
-The successes at a count are rounded down, and `items` is the count from which every larger one up to `--max-items` (default 10000) also clears at that rate: 68 items (61 right, bound 0.802) would clear here, but 73 (65 right, 0.798) would not. A rate at or below the bar never clears, and the closer the rate is to the bar the more items it takes (6338 at 0.81 against 0.8); with no count up to `--max-items`, `plan` exits 3. The count is per model on the task; the router also needs the task's `min_samples` measured trials, and for `evaluate` the count is the size of one calibration half.
+The successes at a count are rounded down, and `items` is the count from which every larger one up to `--max-items` (default 10000) also clears at that rate: 68 items (61 right, bound 0.802) would clear here, but 73 (65 right, 0.798) would not. A rate at or below a bar above 0 never clears, and the closer the rate is to the bar the more items it takes (6338 at 0.81 against 0.8); with no count up to `--max-items`, `plan` exits 3. The count is per model on the task; the router also needs the task's `min_samples` measured trials, and for `evaluate` the count is the size of one calibration half, so the matrix needs about the count divided by `--calibration-fraction` items (twice the count at the default 0.5).
 
 ## Use it in code
 
