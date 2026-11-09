@@ -298,7 +298,7 @@ def main(argv=None) -> int:
             if registry is not None:
                 parts[1].write_text(json.dumps(registry, indent=2) + "\n", encoding="utf-8")
             # print before the renames, so a write to stdout that fails leaves --out and --registry as they were (v1.94)
-            print(json.dumps(report, indent=2), flush=True)
+            convert.print_report(json.dumps(report, indent=2))
             for part, target in zip(parts, targets):
                 part.replace(target)
         finally:

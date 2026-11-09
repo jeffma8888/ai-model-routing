@@ -14,6 +14,7 @@ never 13.1 inputs: each call's prompt count is everything that call read, the ru
 import argparse
 import hashlib
 import json
+import os
 import statistics
 import sys
 import urllib.request
@@ -319,6 +320,34 @@ class _Parser(argparse.ArgumentParser):
         raise ValueError(message)
 
 
+def print_report(text: str) -> None:
+    """Print `text` to stdout and flush it. After a BrokenPipeError, point the stdout file descriptor at
+    os.devnull and re-raise: the failed flush leaves the bytes in the stdout buffer, and the interpreter's
+    own flush at exit would try them again and fail with two more stderr lines and exit status 120
+    (DESIGN 13.11 v1.150; the Python `signal` module docs' note on SIGPIPE)."""
+    try:
+        print(text, flush=True)
+    except BrokenPipeError:
+        _stdout_to_devnull()
+        raise
+
+
+def _stdout_to_devnull() -> None:
+    """Point the stdout file descriptor at os.devnull; a stdout with none (a stand-in object), or one the
+    redirect fails on, is left as it is."""
+    try:
+        fd = sys.stdout.fileno()
+        devnull = os.open(os.devnull, os.O_WRONLY)
+    except (AttributeError, OSError, ValueError):  # io.UnsupportedOperation is both of the last two
+        return
+    try:
+        os.dup2(devnull, fd)
+    except OSError:
+        pass
+    finally:
+        os.close(devnull)
+
+
 def main(argv=None) -> int:
     parser = _Parser(prog="summary.py", description="TRAIL GAIA sub-agent runs to a small summary")
     parser.add_argument("--out", required=True, help="output JSON path")
@@ -335,7 +364,7 @@ def main(argv=None) -> int:
             with open(part, "w", encoding="utf-8") as f:
                 f.write(json.dumps(summary, indent=2) + "\n")
             # print before the rename, so a write to stdout that fails leaves --out as it was
-            print(json.dumps({key: value for key, value in summary.items() if key != "runs"}, indent=2), flush=True)
+            print_report(json.dumps({key: value for key, value in summary.items() if key != "runs"}, indent=2))
             part.replace(out)
         finally:
             part.unlink(missing_ok=True)

@@ -47,7 +47,7 @@ EXTRACT_KEYS = ["domain", "agent", "user", "trial", "tokens", "calls", "cells", 
 ROW_KEYS = ["task", "item", "model", "correct", "cost_usd"]
 TOKEN_ROW_KEYS = ROW_KEYS + ["input_tokens", "output_tokens"]
 REPORT_KEYS = ["models", "user_models", "trial", "task_by", "kept", "dropped_incomplete", "rows"]
-STDLIB = {"argparse", "hashlib", "json", "math", "re", "sys", "urllib", "pathlib"}
+STDLIB = {"argparse", "hashlib", "json", "math", "os", "re", "sys", "urllib", "pathlib"}
 
 
 def load_cv():

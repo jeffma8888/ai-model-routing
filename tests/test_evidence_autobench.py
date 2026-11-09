@@ -121,7 +121,7 @@ def test_standard_library_only():
             names.update(a.name.split(".")[0] for a in node.names)
         elif isinstance(node, ast.ImportFrom):
             names.add(node.module.split(".")[0])
-    assert names <= {"__future__", "argparse", "csv", "hashlib", "json", "math", "re", "sys",
+    assert names <= {"__future__", "argparse", "csv", "hashlib", "json", "math", "os", "re", "sys",
                      "urllib", "pathlib"}
 
 

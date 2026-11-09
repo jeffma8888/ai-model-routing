@@ -148,7 +148,7 @@ PINNED = [
 RUN_KEYS = ["trace_id", "span_id", "model_calls", "prompt_tokens", "completion_tokens", "first_call_prompt_tokens"]
 SUMMARY_KEYS = ["source", "traces", "traces_with_runs", "run_count", "stats", "runs"]
 STAT_KEYS = ["model_calls", "prompt_tokens", "completion_tokens", "first_call_prompt_tokens"]
-STDLIB = {"argparse", "hashlib", "json", "statistics", "sys", "urllib", "pathlib"}
+STDLIB = {"argparse", "hashlib", "json", "os", "statistics", "sys", "urllib", "pathlib"}
 TID = "0123456789abcdef0123456789abcdef"
 NAME = TID + ".json"
 

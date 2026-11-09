@@ -119,7 +119,7 @@ EXTRACT_KEYS = ["folder", "model", "cells"]
 CELL_KEYS = ["correct", "contest_date", "samples"]
 ROW_KEYS = ["task", "item", "model", "correct", "cost_usd"]
 REPORT_KEYS = ["models", "task", "items", "contest_dates", "dropped_not_common", "samples", "rows"]
-STDLIB = {"argparse", "hashlib", "json", "re", "sys", "urllib", "pathlib"}
+STDLIB = {"argparse", "hashlib", "json", "os", "re", "sys", "urllib", "pathlib"}
 
 
 def load_cv():

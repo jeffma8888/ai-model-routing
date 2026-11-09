@@ -13,6 +13,7 @@ label: no problem text and no generated code.
 import argparse
 import hashlib
 import json
+import os
 import re
 import sys
 import urllib.parse
@@ -282,6 +283,34 @@ class _Parser(argparse.ArgumentParser):
         raise ValueError(message)
 
 
+def print_report(text: str) -> None:
+    """Print `text` to stdout and flush it. After a BrokenPipeError, point the stdout file descriptor at
+    os.devnull and re-raise: the failed flush leaves the bytes in the stdout buffer, and the interpreter's
+    own flush at exit would try them again and fail with two more stderr lines and exit status 120
+    (DESIGN 13.11 v1.150; the Python `signal` module docs' note on SIGPIPE)."""
+    try:
+        print(text, flush=True)
+    except BrokenPipeError:
+        _stdout_to_devnull()
+        raise
+
+
+def _stdout_to_devnull() -> None:
+    """Point the stdout file descriptor at os.devnull; a stdout with none (a stand-in object), or one the
+    redirect fails on, is left as it is."""
+    try:
+        fd = sys.stdout.fileno()
+        devnull = os.open(os.devnull, os.O_WRONLY)
+    except (AttributeError, OSError, ValueError):  # io.UnsupportedOperation is both of the last two
+        return
+    try:
+        os.dup2(devnull, fd)
+    except OSError:
+        pass
+    finally:
+        os.close(devnull)
+
+
 def main(argv=None) -> int:
     parser = _Parser(prog="convert.py", description="LiveCodeBench submissions to an outcome matrix")
     parser.add_argument("--out", required=True, help="output JSONL path")
@@ -298,7 +327,7 @@ def main(argv=None) -> int:
             rows, report = convert(extracts)
             write_jsonl(rows, part)
             # print before the rename, so a write to stdout that fails leaves --out as it was (v1.94)
-            print(json.dumps(report, indent=2), flush=True)
+            print_report(json.dumps(report, indent=2))
             part.replace(out)
         finally:
             part.unlink(missing_ok=True)
