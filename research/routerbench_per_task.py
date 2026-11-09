@@ -139,8 +139,13 @@ def report(rows, committed, source) -> list:
         lines.append("largest margin: none above 0")
     moved = {k: [key for key, c in cells.items() if c["models"][k] != best_single]
              for k in ("routed", "best_on_calibration")}
+    moved_evals = sorted({t for t, _ in moved["routed"]})
+    varied = [t for t in moved_evals if len({cells[t, s]["models"]["routed"] for s in seeds}) > 1]
+    halves = [median_low([cells[t, s]["calibration_items"] for s in seeds]) for t in moved_evals]
+    span = f"calibration halves {min(halves)} to {max(halves)}" if halves else "no calibration half"
     lines.append(f"routed ({FLAVOR}, bar {bar}) takes another model on {len(moved['routed']):,} of {len(cells):,} "
-                 f"eval and seed cells, on {len({t for t, _ in moved['routed']})} evals; best_on_calibration on "
+                 f"eval and seed cells, on {len(moved_evals)} evals ({len(varied)} of them with two or more picks "
+                 f"across seeds, {span}); best_on_calibration on "
                  f"{len(moved['best_on_calibration']):,}, on {len({t for t, _ in moved['best_on_calibration']})} evals")
     lines.append(f"held-out success and cost over {len(seeds)} seeds, as 12.3's summary computes them; vs single: "
                  "the mean correct held-out items per seed minus the best single model's")
