@@ -636,13 +636,31 @@ def pinned(jm, tmp_path):
     return cv.read_csv(folder / "matrix.csv"), pool, Registry.load(path)
 
 
-def test_real_results_regenerate_byte_identical(rs, jm, tmp_path):
-    matrix, pool, registry = pinned(jm, tmp_path)
-    rows, report = jm.judge_matrix(matrix, pool)
-    assert report["kept"] == {"all": 756}
-    result = evaluate(outcomes_from_rows(rows, registry), bars=CONFIG["bars"], seeds=range(50))
-    result.pop("cells")
-    assert json.dumps(rs.reduce(result), indent=2) + "\n" == RESULTS.read_text(encoding="utf-8")
+@pytest.fixture(scope="module")
+def real(tmp_path_factory):
+    """The pinned files read once, and the default judge matrix with its evaluate run built once.
+
+    The three tests below share them and change none of them in place, so the default matrix's
+    candidate search and the evaluate run happen once per module instead of once per test (T2).
+    """
+    judges = load("autobench_judges", ROOT / "evidence" / "autobench-2026" / "judges.py")
+    matrix, pool, registry = pinned(judges, tmp_path_factory.mktemp("judges"))
+    rows, report = judges.judge_matrix(matrix, pool)
+    outcomes = outcomes_from_rows(rows, registry)
+    result = evaluate(outcomes, bars=CONFIG["bars"], seeds=range(50))
+    return {"matrix": matrix, "pool": pool, "registry": registry, "rows": rows, "report": report,
+            "outcomes": outcomes, "result": result}
+
+
+def without_cells(result):
+    return {k: v for k, v in result.items() if k != "cells"}
+
+
+def test_real_results_regenerate_byte_identical(rs, real):
+    assert real["report"]["kept"] == {"all": 756}
+    assert "cells" in real["result"]
+    reduced = rs.reduce(without_cells(real["result"]))
+    assert json.dumps(reduced, indent=2) + "\n" == RESULTS.read_text(encoding="utf-8")
 
 
 def calibration_half(items, seed, fraction):
@@ -651,11 +669,8 @@ def calibration_half(items, seed, fraction):
         hashlib.sha256(f"{seed}:{i}".encode("utf-8")).digest()[:8], "big") < fraction * 2 ** 64)
 
 
-def test_real_routed_judge_has_the_highest_lower_bound(jm, tmp_path):
-    matrix, pool, registry = pinned(jm, tmp_path)
-    rows, _ = jm.judge_matrix(matrix, pool)
-    outcomes = outcomes_from_rows(rows, registry)
-    result = evaluate(outcomes, bars=CONFIG["bars"], seeds=range(50))
+def test_real_routed_judge_has_the_highest_lower_bound(real):
+    outcomes, result = real["outcomes"], real["result"]
     config = result["config"]
     assert config == CONFIG
     grid = {}
@@ -704,10 +719,9 @@ def sensitivity_line(r):
             f"bar_violation_rate {rate(r['bar_violation_rate'])}")
 
 
-def test_real_sensitivity_numbers_are_in_results_md(jm, tmp_path):
-    matrix, pool, registry = pinned(jm, tmp_path)
+def test_real_sensitivity_numbers_are_in_results_md(jm, real):
+    matrix, pool, registry, base = real["matrix"], real["pool"], real["registry"], real["rows"]
     text, name = results_md(), best(committed())[0]
-    base, _ = jm.judge_matrix(matrix, pool)
     keys = [(b["task"], b["item"], b["model"]) for b in base]
     needles = ["so more of the judges' grades count as successes. At bar 0.8 with 50 seeds:",
                "Every grade keeps its label, and in the three lines below held-out success, "

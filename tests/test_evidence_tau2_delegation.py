@@ -353,10 +353,8 @@ def test_pinned_files_regenerate_results_byte_identical(td, calls_matrix):
     assert len(text.encode("utf-8")) == 132_475
 
 
-def test_pinned_files_give_the_stated_work_calls_and_window_checks(dr, calls_matrix):
-    rows, _ = calls_matrix
-    registry = Registry.load(REGISTRY)
-    full = evaluate_delegation(rows, registry, bars=list(BARS), points=dr.points(), seeds=range(50))
+def test_pinned_files_give_the_stated_work_calls_and_window_checks(dr, full_runs):
+    full = full_runs["per domain"]
     cells = full["cells"]
     assert len(cells) == 21_600
     spans = {"airline": ((10, 12), (604, 718)), "retail": ((11, 12), (643, 675)), "telecom": ((17, 19), (512, 574))}
@@ -639,12 +637,21 @@ def pooled_matrix(cv, calls_extracts):
 
 
 @pytest.fixture(scope="module")
-def run_cells(dr, calls_matrix, pooled_matrix):
-    """The cells of both runs with the committed registry, from in-process runs that keep them."""
+def full_runs(dr, calls_matrix, pooled_matrix):
+    """Both runs with the committed registry, from in-process runs that keep their cells.
+
+    Built once per module and read, never changed, by the tests that use it or `run_cells` (T2).
+    """
     registry = Registry.load(REGISTRY)
     return {label: evaluate_delegation(matrix[0], registry, bars=list(BARS), points=dr.points(),
-                                       seeds=range(50))["cells"]
+                                       seeds=range(50))
             for label, matrix in zip(RUNS, (calls_matrix, pooled_matrix))}
+
+
+@pytest.fixture(scope="module")
+def run_cells(full_runs):
+    """The cells of both runs with the committed registry."""
+    return {label: full_runs[label]["cells"] for label in RUNS}
 
 
 def test_pinned_pooled_matrix_is_the_per_domain_rows_as_one_task(calls_matrix, pooled_matrix):
