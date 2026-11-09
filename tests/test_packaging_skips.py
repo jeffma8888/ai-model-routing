@@ -2,6 +2,7 @@
 
 import importlib.metadata
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -58,9 +59,11 @@ with open(out, "w", encoding="utf-8") as handle:
 
 def run_child(tmp_path, blocked):
     out = tmp_path / ("blocked.json" if blocked else "open.json")
+    # PYTEST_ADDOPTS from the parent could change the child's test set.
+    env = {key: value for key, value in os.environ.items() if key != "PYTEST_ADDOPTS"}
     done = subprocess.run(
         [sys.executable, "-c", CHILD, blocked, str(out), str(PACKAGING)],
-        cwd=ROOT, capture_output=True, text=True, timeout=300)
+        cwd=ROOT, env=env, capture_output=True, text=True, timeout=300)
     assert out.is_file(), done.stdout + done.stderr
     return json.loads(out.read_text(encoding="utf-8"))
 
@@ -80,7 +83,8 @@ def test_blocking_the_toml_parser_skips_only_the_pyproject_tests(tmp_path):
     assert set(blocked["outcomes"]) == ALL_TESTS, blocked
     assert as_is["exit"] == 0 and blocked["exit"] == 0
     for name in TOML_TESTS:
-        assert as_is["outcomes"][name] == ["passed", ""]
+        # The run with no block needs the parser; pytest itself depends on tomli before 3.11.
+        assert as_is["outcomes"][name] == ["passed", ""], (name, as_is["outcomes"][name])
         outcome, reason = blocked["outcomes"][name]
         assert outcome == "skipped" and repr(PARSER) in reason, (name, reason)
     for name in ALWAYS_PASS:
