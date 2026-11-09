@@ -44,9 +44,6 @@ POOL_IDS = {
 }
 ROW_KEYS = ["task", "item", "model", "correct", "cost_usd", "input_tokens", "output_tokens"]
 
-pytestmark = pytest.mark.xfail(strict=True, raises=ModuleNotFoundError, reason="converter not written yet (v1.154 red)")
-
-
 def load_cv():
     if not SCRIPT.is_file():
         raise ModuleNotFoundError(f"no converter at {SCRIPT.name}")
@@ -158,8 +155,10 @@ def test_extract_accepts_scores(cv, score):
     {"prompt_tokens": 1.0}, {"completion_tokens": None}, {"prompt_tokens": False},
 ])
 def test_extract_refuses_bad_fields(cv, change):
+    rec = record(0)
+    rec.update(change)
     with pytest.raises(ValueError):
-        ext(cv, "b", "", "gpt-5", [record(0, **change)])
+        ext(cv, "b", "", "gpt-5", [rec])
 
 
 @pytest.mark.parametrize("missing", ["index", "cost", "prompt_tokens", "completion_tokens", "origin_query"])
