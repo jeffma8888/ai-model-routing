@@ -13,6 +13,7 @@ import ast
 import csv
 import importlib.util
 import inspect
+import itertools
 import json
 import math
 import random
@@ -219,6 +220,93 @@ def test_default_candidates_respect_the_self_graded_rule(jm):
     _, report = jm.judge_matrix(matrix, POOL, size=2)
     assert report["candidates"] == ["acme/delta-4", "zai/gamma-3"]
     assert report["kept"] == {"all": 2}
+
+
+def brute_force_candidates(jm, matrix, pool, size, min_committee):
+    """The v1.128 search: every candidate set tried on every answer, the first strictly highest count wins.
+
+    Returns the chosen mapped IDs and each set's count in ``itertools.combinations`` order, or None when
+    ``size`` is more than the pool judges that grade a scored answer."""
+    names = jm.convert.pool_models(pool)
+    cells = [(r["model"], jm.parse_grades(r["judges_json"], r["prompt_id"], r["model"])) for r in matrix
+             if r["model"] in names and r["score"] not in (None, "")]
+    judges = sorted({j for _, graders in cells for j in graders if j in names})
+    if size > len(judges):
+        return None
+    counts = [(combo, sum(1 for answer, graders in cells
+                          if jm._fate(answer, graders, combo, min_committee) == "kept"))
+              for combo in itertools.combinations(judges, size)]
+    best = max(n for _, n in counts)
+    first = next(combo for combo, n in counts if n == best)
+    return sorted(names[c] for c in first), counts
+
+
+def random_matrix(rng):
+    displays = [m["display_id"] for m in POOL["members"]]
+    matrix = []
+    for q in range(rng.randint(1, 8)):
+        for answer in rng.sample(displays, rng.randint(1, 3)):
+            grades = {}
+            for judge in displays + ["Out-7", "Out-8"]:
+                draw = rng.random()
+                if draw < 0.55:
+                    grades[judge] = rng.choice([3, 4, 4.5, 5])
+                elif draw < 0.65:
+                    grades[judge] = None
+            matrix.append(cell(f"q{q}", answer, grades, score="" if rng.random() < 0.05 else "4.5"))
+    return matrix
+
+
+def test_default_search_matches_trying_every_set_on_every_answer(jm):
+    # v1.129: the grouped search must choose what the v1.128 search over every answer chose
+    rng = random.Random(117)
+    seen = {"tie": 0, "later_wins": 0, "none_kept": 0, "size_too_big": 0}
+    for _ in range(300):
+        matrix = random_matrix(rng)
+        size, min_committee = rng.randint(1, 4), rng.randint(1, 4)
+        want = brute_force_candidates(jm, matrix, POOL, size, min_committee)
+        if want is None:
+            with pytest.raises(ValueError, match=f"size {size} is more than"):
+                jm.judge_matrix(matrix, POOL, size=size, min_committee=min_committee)
+            seen["size_too_big"] += 1
+            continue
+        chosen, counts = want
+        _, report = jm.judge_matrix(matrix, POOL, size=size, min_committee=min_committee)
+        assert report["candidates"] == chosen, (size, min_committee, counts)
+        assert report["candidates_by"] == "most_cells"
+        best = max(n for _, n in counts)
+        seen["tie"] += best > 0 and sum(1 for _, n in counts if n == best) > 1
+        seen["later_wins"] += counts[0][1] < best
+        seen["none_kept"] += best == 0
+    assert all(seen.values()), seen
+
+
+def test_default_candidates_when_no_set_keeps_an_answer(jm):
+    # two graders besides the answer model each: too small a committee for any set, so the first set is chosen
+    matrix = [cell("q1", "Zeta-6", {"Alpha-1": 4, "Beta-2": 4, "Delta-4": 4}),
+              cell("q2", "Zeta-6", {"Alpha-1": 4, "Beta-2": 4, "Delta-4": 5})]
+    rows, report = jm.judge_matrix(matrix, POOL, size=2)
+    assert report["candidates"] == ["acme/beta-2", "xai/alpha-1"]  # display IDs Alpha-1, Beta-2
+    assert rows == [] and report["kept"] == {} and report["dropped_small_committee"] == 2
+
+
+@pytest.mark.xfail(strict=True, raises=AssertionError,
+                   reason="v1.129 spec ahead of the code: the v1.128 search runs the drop rules per answer per set")
+def test_default_search_runs_the_drop_rules_once_per_answer(jm, monkeypatch):
+    calls = []
+    fate = jm._fate
+
+    def counted(*args):
+        calls.append(args)
+        return fate(*args)
+
+    monkeypatch.setattr(jm, "_fate", counted)
+    _, report = jm.judge_matrix(default_matrix(), POOL, candidates=["Beta-2", "Delta-4"])
+    assert len(calls) == report["scored_cells"] == 3
+    calls.clear()
+    _, report = jm.judge_matrix(default_matrix(), POOL, size=2)  # 6 sets of the 4 pool judges
+    assert report["candidates"] == ["acme/beta-2", "acme/delta-4"]
+    assert len(calls) == report["scored_cells"] == 3
 
 
 def test_size_larger_than_the_pool_judges(jm):
