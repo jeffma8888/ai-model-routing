@@ -83,6 +83,8 @@ def test_prose_numbers_are_in_the_output(output):
     text = note()
     prose = re.sub(r"^```text\n.*?^```$", "", text, flags=re.M | re.S)
     prose = re.sub(r"https?://\S+", "", prose)
+    # a code span holds a model ID, a path or a name, whose digits are not a claim (review iter-115)
+    prose = re.sub(r"`[^`\n]*`", "", prose)
     known = set(NUMBER.findall(output)) | ALLOWED
     stray = sorted(set(NUMBER.findall(prose)) - known)
     assert not stray, stray
@@ -117,6 +119,36 @@ def test_script_imports_only_the_standard_library_and_the_stats_module():
             names.add(node.module if node.module.startswith("model_routing") else node.module.split(".")[0])
     assert names <= {"argparse", "json", "sys", "collections", "pathlib", "statistics",
                      "model_routing.stats"}, names
+
+
+def test_no_routed_row_reaches_the_best_single_model(wrp):
+    """The note's main claim (Facts bullet 3), checked on the files, not only on the printed digits."""
+    for _, rel in wrp.DATASETS:
+        results = json.loads((ROOT / rel).read_text(encoding="utf-8"))
+        config = results["config"]
+        best = wrp.best_single(results, config["bars"][0], config["flavors"][0])
+        boc = wrp.summary_row(results, config["bars"][0], config["flavors"][0], "best_on_calibration")
+        routed = [wrp.summary_row(results, bar, flavor, "routed")
+                  for bar in config["bars"] for flavor in config["flavors"]]
+        assert max(r["success"] for r in routed) < best["success"], rel
+        assert boc["success"] < best["success"], rel
+    assert "no routed row at any bar or flavor reaches the best single model's held-out success" in note()
+
+
+# not an object (TypeError), not JSON (ValueError), no key (KeyError), a list for `tasks` (AttributeError)
+WRONG_TASKS = json.dumps({"config": {"bars": [0.5], "seeds": [0], "flavors": ["cost_blind"],
+                                     "calibration_fraction": 0.5, "min_samples": 30, "confidence": 0.95},
+                          "tasks": [], "summary": [], "per_task": []})
+
+
+@pytest.mark.parametrize("document", ["[]", "{", "{}", WRONG_TASKS])
+def test_a_bad_document_is_one_error_line(wrp, tmp_path, document):
+    path = tmp_path / "evidence" / "routerbench" / "results.json"
+    path.parent.mkdir(parents=True)
+    path.write_text(document, encoding="utf-8")
+    code, out, err = run(wrp, ["--root", str(tmp_path)])
+    assert (code, out) == (2, "")
+    assert err.startswith("error: ") and err.count("\n") == 1
 
 
 def test_a_missing_file_is_one_error_line(wrp, tmp_path):

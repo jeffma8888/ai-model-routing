@@ -130,7 +130,7 @@ def main(argv=None):
             with open(args.root / rel, encoding="utf-8") as fh:
                 out.extend(report(name, rel, json.load(fh)))
             out.append("")
-    except (OSError, ValueError, KeyError, TypeError) as exc:
+    except (OSError, ValueError, KeyError, TypeError, AttributeError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
     print("\n".join(out).rstrip("\n"))
