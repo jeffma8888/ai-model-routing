@@ -78,8 +78,6 @@ SCOPE = ("This license applies to the original code and benchmark data contribut
          "LLMRouterBench, to the extent of the contributors' rights. Third-party datasets, code, "
          "and other incorporated materials retain their original licenses.")
 HALF_SCORES = "2,144 kept `arenahard` cells"
-RED = pytest.mark.xfail(strict=True, raises=FileNotFoundError,
-                        reason="RESULTS.md and the evidence README come with v1.162")
 
 
 def load(name, path):
@@ -333,13 +331,11 @@ def reading_phrases(results):
     return phrases
 
 
-@RED
 def test_results_md_shows_the_table_of_the_committed_results(rs):
     block = "```text\n" + TABLE_COMMAND + "\n" + rs.table(committed()) + "\n```\n"
     assert block in results_md()
 
 
-@RED
 def test_results_md_regenerate_block_and_sources(cv):
     text = results_md()
     assert REGENERATE in text
@@ -359,7 +355,6 @@ def test_results_md_regenerate_block_and_sources(cv):
     assert not re.search(r"(?m)(^|[\s(])/(Users|home)/", text)
 
 
-@RED
 def test_results_md_single_model_sentence_is_the_committed_results():
     assert beats_statement(committed()) in results_md()
 
@@ -375,7 +370,6 @@ def test_beats_statement_drops_a_row_that_loses_on_cost():
     assert f"`{name(best)}` (by" not in beats_statement(fake)
 
 
-@RED
 def test_results_md_reading_numbers_are_the_committed_results():
     text = results_md()
     for phrase in reading_phrases(committed()):
@@ -408,7 +402,6 @@ def task_table(splits, items):
     return "\n".join(rows) + "\n"
 
 
-@RED
 def test_evidence_readme_states_the_source_pool_and_tasks(cv):
     text = evidence_readme()
     assert "(RESULTS.md)" in text and "(results.json)" in text
@@ -425,7 +418,6 @@ def test_evidence_readme_states_the_source_pool_and_tasks(cv):
     assert text.isascii() and "\u2013" not in text and "\u2014" not in text
 
 
-@RED
 def test_real_report_matches_the_evidence_readme_and_results_md(llmrouterbench_pinned, real_rows):
     code, report, _ = llmrouterbench_pinned
     assert code == 0
