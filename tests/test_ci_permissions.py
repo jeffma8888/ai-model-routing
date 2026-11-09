@@ -21,10 +21,6 @@ WORD = re.compile(r"permission", re.I)
 NOT_ONE_BLOCK = "not one top-level permissions block of contents: read"
 OUTSIDE = "names permissions outside its top-level block"
 
-RED = pytest.mark.xfail(strict=True, raises=AssertionError,
-                        reason="v1.137 spec: ci.yml sets no permissions until the change lands")
-
-
 def texts():
     return {name: path.read_text(encoding="utf-8") for name, path in WORKFLOWS.items()}
 
@@ -44,7 +40,6 @@ def permission_problems(by_name):
     return found
 
 
-@RED
 def test_each_workflow_sets_contents_read_at_the_top_level_and_no_job_sets_its_own():
     assert permission_problems(texts()) == []
 
@@ -86,7 +81,6 @@ def test_the_permission_mutant_count_is_the_one_design_states():
     assert len(MUTANTS) == 10
 
 
-@RED
 @pytest.mark.parametrize("name", sorted(MUTANTS))
 def test_a_widened_or_missing_permission_fails_the_check(name):
     committed = texts()
