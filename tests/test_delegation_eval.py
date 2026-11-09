@@ -778,3 +778,51 @@ def test_v135_the_context_check_keeps_the_pooled_median_sizes():
         assert (c["expected_input_tokens"], c["expected_output_tokens"]) == (1000, 300)
         assert c["inline_allowed"] is True and c["reason"] != "parent_context_full"
         assert c["cost_usd"]["inline"] == pytest.approx(5 * 0.081, rel=1e-12)
+
+
+# --- v1.132: each path's held-out pair once per key, shared across bars and flavors ----------
+
+ONCE_BARS = [0.4, 0.6, 0.8]
+
+
+def run_once_bars(**kwargs):
+    return run(rows=varied_rows(), reg=varied_registry(), seeds=VARIED_SEEDS, points=VARIED_POINTS,
+               bars=ONCE_BARS, **kwargs)
+
+
+def path_keys(cells):
+    """The distinct (task, seed, point, parent, path, model) keys the cells' strategies use."""
+    keys = set()
+    for c in cells:
+        group = (c["task"], c["seed"], c["point"], c["parent"])
+        keys.add(group + ("inline", c["parent"]))
+        keys.add(group + ("delegate", c["delegate"]))
+    return keys
+
+
+@pytest.mark.xfail(strict=True, raises=AssertionError,
+                   reason="v1.132: until each path's held-out pair is computed once per key")
+def test_v1132_each_held_out_sum_is_computed_once_per_path_key(monkeypatch):
+    module = load()
+    real, calls = module.fsum, []
+    monkeypatch.setattr(module, "fsum", lambda values: calls.append(1) or real(values))
+    monkeypatch.setattr(module, "_summary", lambda cells, seeds: [])
+    result = run_once_bars()
+    keys = path_keys(result["cells"])
+    # 3 bars x 2 flavors = 6 cells per (task, seed, point, parent), against at most 4 keys
+    assert len(keys) < len(result["cells"]) < 3 * len(result["cells"])
+    assert len(calls) == len(keys)
+
+
+def test_v1132_a_run_on_several_bars_and_flavors_is_the_runs_on_each_alone():
+    result = run_once_bars()
+    alone = []
+    for bar in ONCE_BARS:
+        for flavor in ("cost_effective", "cost_blind"):
+            alone += run(rows=varied_rows(), reg=varied_registry(), seeds=VARIED_SEEDS,
+                         points=VARIED_POINTS, bars=[bar], flavors=[flavor])["cells"]
+    assert result["cells"] == alone
+    # the delegate moves with the bar and is at times the parent, so a key needs both
+    cells = result["cells"]
+    assert len({(c["bar"], c["delegate"]) for c in cells}) > len({c["delegate"] for c in cells})
+    assert any(c["delegate"] == c["parent"] for c in cells)
