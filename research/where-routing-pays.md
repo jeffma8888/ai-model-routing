@@ -120,7 +120,7 @@ LiveCodeBench (evidence/livecodebench/results.json): 1 task, 67 models, 50 seeds
 
 ## Limits
 
-- The script reads the committed results files only. They hold no per-task single-model rows and no per-seed calibration sizes, so the note cannot name each task's best model, and its halves are the expected `int(items * calibration_fraction)`
+- The script reads the committed results files only. They hold no per-task single-model rows and no per-seed calibration sizes, so the note cannot name each task's best model, and its halves are the expected `int(items * calibration_fraction)`; [routerbench-per-task.md](routerbench-per-task.md) reads the pinned RouterBench file and names each eval's best model there
 - The shortfall is taken at the best single model's success; a success nearer 0.5 has a larger one at the same half
 - Costs are those each results file holds (recorded per call or priced at list, as each README subsection says); LiveCodeBench records none, so its cost columns are 0
 - The bars, seeds and settings are those each results file was run with; a different bar grid or `min_samples` would move the cleared rates and the picks

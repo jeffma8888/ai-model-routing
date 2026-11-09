@@ -193,7 +193,8 @@ def test_small_matrix_names_the_two_evals_another_model_leads(rpt):
             "it: 1; higher by more than the shortfall: 1") in lines
     [largest] = [x for x in lines if x.startswith("largest margin: ")]
     assert largest.startswith("largest margin: +0.150 on mmlu-b (v/alt), shortfall 0.")
-    rows = {x.split()[0]: x.split() for x in lines if re.match(r"  (mmlu-a|mmlu-b|other) ", x)}
+    rows = {x.split()[0]: x.split() for x in lines[4:7]}
+    assert sorted(rows) == list(TASKS)
     assert rows["mmlu-a"][3:5] == ["v/top", "1"] and rows["mmlu-b"][3:5] == ["v/alt", "1"]
     assert rows["other"][3:5] == ["v/cheap", "2"] and rows["other"][7] == "+0.000"
 
@@ -340,7 +341,8 @@ def test_note_results_block_is_the_script_output(output):
 def test_no_eval_has_another_model_ahead_by_more_than_its_shortfall(output):
     [line] = [x for x in output.split("\n") if x.startswith("evals whose best model on all items is not ")]
     assert line.endswith("; higher by more than the shortfall: 0")
-    rows = {x[10:45].strip(): float(x[47:54]) for x in output.split("\n") if x.startswith("  all   ")}
+    rows = {x[17:52].strip(): float(x[54:61]) for x in output.split("\n") if x.startswith("  all   ")}
+    assert len(rows) == 6
     single = rows["best single model"]
     assert 0 <= rows["per-eval best on all items"] - single < 0.001
     assert 0 <= rows["per-eval best on each held-out half"] - single < 0.001
