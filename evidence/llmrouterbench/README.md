@@ -57,7 +57,7 @@ One routing task per benchmark, in the one split that every pool model has (`are
 - `swe-bench`: no split holds every pool model
 - `tau2`: no split holds every pool model
 
-The three `arenahard` subsets hold 253, 250 and 247 questions, the 750 of `arenahard`, so keeping them too would count each question twice; `humaneval` has a file only for `openai/gpt-5-chat`, `swe-bench` lacks `qwen/qwen3-235b-a22b-thinking-2507` and `tau2` lacks `openai/gpt-5-chat`. A benchmark is never routed over fewer models, so every task routes over the same pool.
+The three `arenahard` subsets hold 253, 250 and 247 questions, the 750 of `arenahard` (749 after the question check), so keeping them too would count each question twice; `humaneval` has a file only for `openai/gpt-5-chat`, `swe-bench` lacks `qwen/qwen3-235b-a22b-thinking-2507` and `tau2` lacks `openai/gpt-5-chat`. A benchmark is never routed over fewer models, so every task routes over the same pool.
 
 ## What a row keeps
 

@@ -293,6 +293,10 @@ def reading_phrases(results):
             others.setdefault(next(iter(picks)), []).append(t)
     assert len(others) == 1, others
     (other, other_tasks), = others.items()
+    split = [t for t in tasks if len(task_row(results, b0, "cost_blind", t)["routed_models"]) > 1]
+    assert len(split) + len(other_tasks) + sum(
+        task_row(results, b0, "cost_blind", t)["routed_models"] == {name(best): seeds} for t in tasks
+    ) == len(tasks)
     phrases = [
         f"At bar {b0} a model clears on {round(ce[b0]['cleared_rate'] * cells)} of the {cells} "
         f"(task, seed) cells: on all {seeds} seeds of every task but `{short[0]}`, and on "
@@ -311,6 +315,7 @@ def reading_phrases(results):
         f"{boc['cost_usd'] / best['cost_usd']:.3f}",
         f"at bar {b0} it routes every seed of {join(['`' + t + '`' for t in other_tasks])} to "
         f"`{other}`",
+        f"while the other {len(split)} tasks split their seeds among two or more models",
         f"The {gap:.4f} is {gap / IN_SAMPLE_GAIN:.2f} of the in-sample gain of "
         f"{IN_SAMPLE_GAIN:.4f}",
         f"a nominal one-sided {(1 - config['confidence']) / 2:.3f}",
@@ -416,6 +421,8 @@ def test_evidence_readme_states_the_source_pool_and_tasks(cv):
         assert f"`{column}`" in text, column
     assert "no question, prompt, prediction, ground truth or output text" in text
     assert text.isascii() and "\u2013" not in text and "\u2014" not in text
+    assert not re.search(r"(?m)(^|[\s(])/(Users|home)/", text)
+    assert "10 of `openai/gpt-5`'s" in text and "(749 after the question check)" in text
 
 
 def test_real_report_matches_the_evidence_readme_and_results_md(llmrouterbench_pinned, real_rows):
@@ -436,3 +443,12 @@ def test_real_report_matches_the_evidence_readme_and_results_md(llmrouterbench_p
         under = sum(len(split_items(sorted(v), seed)[0]) < CONFIG["min_samples"] for seed in range(50))
         uncleared = round((1 - task_row(results, b0, "cost_effective", task)["cleared_rate"]) * 50)
         assert under == uncleared, task
+    nulls = {}
+    for r in real_rows:
+        if r["input_tokens"] is None or r["output_tokens"] is None:
+            nulls[r["model"]] = nulls.get(r["model"], 0) + 1
+    assert nulls == {"openai/gpt-5": 10}
+    halves = [len(split_items(sorted(items["aime"]), seed)[0]) for seed in range(50)]
+    assert (f"holds {min(halves)} to {max(halves)} of its {len(items['aime'])} items over the 50 "
+            f"seeds and is under `min_samples` {CONFIG['min_samples']} on "
+            f"{sum(n < CONFIG['min_samples'] for n in halves)} of them") in results_md()
