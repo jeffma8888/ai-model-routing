@@ -52,6 +52,11 @@ def words(items):
     return items[0] if len(items) == 1 else ", ".join(items[:-1]) + " and " + items[-1]
 
 
+POINTER = ("Why routing costs less than the best single model on some of these datasets and never reaches "
+           "its held-out success: [research/where-routing-pays.md](research/where-routing-pays.md) sets each "
+           "dataset's tasks, calibration halves and picks beside the best single model, read from the same files")
+
+
 def link(name):
     return f"- [{name}]({anchor(name)}): "
 
@@ -229,9 +234,17 @@ def evidence_section():
 def test_readme_opens_the_evidence_section_with_the_glance_list():
     intro = evidence_section().split("\n### ", 1)[0]
     paragraphs = intro.strip("\n").split("\n\n")
-    assert len(paragraphs) == 3, paragraphs[1:]
+    assert len(paragraphs) == 4, paragraphs[1:]
     assert not paragraphs[0].startswith(("- ", "Results at a glance"))
-    assert "\n\n".join(paragraphs[1:]) + "\n" == glance(committed())
+    assert "\n\n".join(paragraphs[1:3]) + "\n" == glance(committed())
+    # v1.124: one paragraph after the bullets links the note on where routing pays
+    assert paragraphs[3] == POINTER
+
+
+def test_the_pointer_link_resolves_to_the_note():
+    target = re.findall(r"\]\(([^)]+)\)", POINTER)
+    assert target == ["research/where-routing-pays.md"]
+    assert (README.parent / target[0]).is_file()
 
 
 def test_each_glance_bullet_links_its_subsection_in_heading_order():
