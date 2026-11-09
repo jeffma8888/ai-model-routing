@@ -36,9 +36,9 @@ ON = (
     "      - \"pyproject.toml\"\n"
     "      - \".github/workflows/evidence.yml\"\n")
 STEP_NAMES = [None, None, "Install", "Regenerate", "Compare"]
-# v1.170: the job's time limit, ten times the slowest of the workflow's 45 runs to 2026-11-09
-# (158 s from start to last update, run 42717985363), rounded up to a whole five minutes; at
-# v1.152 it was 140 s over 40 runs (run 42445989566), so 25.
+# The job's time limit, by the v1.152 rule: ten times the slowest run, rounded up to a whole
+# five minutes. The v1.170 value: the slowest of the workflow's 45 runs to 2026-11-09 took 158 s
+# from start to last update (run 42717985363), so 30; at v1.152, 140 s over 40 runs, so 25.
 SLOWEST_RUN_SECONDS = 158
 TIMEOUT_MINUTES = 30
 LIMIT_LINE = f"    timeout-minutes: {TIMEOUT_MINUTES}"
