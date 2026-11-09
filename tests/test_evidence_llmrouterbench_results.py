@@ -473,8 +473,8 @@ LAYOUT = INDENT + "(LLMRouterBench: evidence/llmrouterbench/RESULTS.md)\n"
 REGENERATE_LINE = (
     "Regenerate (the converter downloads the pinned file, about 1.28 GB, into a cache folder outside "
     "the repo, and verifying, reading and converting it takes about 13 seconds once it is cached; the "
-    "`evidence` workflow does not rerun these commands, so the test suite rebuilds `results.json` from "
-    "them only where the pinned file is cached):")
+    "`evidence` workflow reruns these commands on GitHub and fails if `results.json` changes by a byte, "
+    "while the test suite rebuilds `results.json` from them only where the pinned file is cached):")
 EVIDENCE_LINK = "[evidence/llmrouterbench/README.md](evidence/llmrouterbench/README.md)"
 def readme_text():
     return README.read_text(encoding="utf-8")
