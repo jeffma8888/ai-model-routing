@@ -19,6 +19,18 @@ def _is_price(value) -> bool:
             and math.isfinite(value) and value >= 0)
 
 
+def _tier_prices(model, input_tokens) -> Tuple[float, float]:
+    """The prices of one call that reads ``input_tokens``: the last tier it is over, else the base.
+
+    ``Model.cost`` and the per-call delegation costs of DESIGN 13.2 v1.219 read them.
+    """
+    price_in, price_out = model.price_in, model.price_out
+    for tier in model.price_tiers:
+        if input_tokens > tier.above_input_tokens:
+            price_in, price_out = tier.price_in, tier.price_out
+    return price_in, price_out
+
+
 @dataclass(frozen=True)
 class PriceTier:
     """The prices, in USD per 1M tokens, of a call whose input is over ``above_input_tokens``.
@@ -101,17 +113,14 @@ class Model:
         The call pays the prices of the last tier whose threshold its input is over, on all
         of its tokens, or ``price_in`` and ``price_out`` when it is over none.
         """
-        price_in, price_out = self.price_in, self.price_out
-        for tier in self.price_tiers:
-            if input_tokens > tier.above_input_tokens:
-                price_in, price_out = tier.price_in, tier.price_out
+        price_in, price_out = _tier_prices(self, input_tokens)
         return (input_tokens * price_in + output_tokens * price_out) / 1_000_000
 
     def base_cost(self, input_tokens: int, output_tokens: int) -> float:
         """Return the cost at ``price_in`` and ``price_out`` whatever the tiers.
 
-        Linear, for a total of several calls or a token increment, which has no one call's
-        size (DESIGN 13.2 v1.212).
+        Linear: every delegation cost term of a model without tiers and the 13.9 held-out
+        costs use it (DESIGN 13.2 v1.212 and v1.219).
         """
         return (input_tokens * self.price_in + output_tokens * self.price_out) / 1_000_000
 

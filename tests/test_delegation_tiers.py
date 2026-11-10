@@ -21,10 +21,6 @@ ROOT = Path(__file__).resolve().parents[1]
 TASK = "t"
 FLAVORS = ["cost_effective", "cost_blind"]
 
-pending = pytest.mark.xfail(strict=True, raises=AssertionError,
-                            reason="v1.218 prices a tiered path at the base prices")
-
-
 def registry(parent_tiers=True, small=(), extra=()):
     parent = Model("t/long", "t", 1.0, 4.0, 1_000_000,
                    price_tiers=(PriceTier(50_000, 3.0, 9.0),) if parent_tiers else ())
@@ -82,7 +78,6 @@ CASES = [
 ]
 
 
-@pending
 @pytest.mark.parametrize("flavor", FLAVORS)
 @pytest.mark.parametrize("work, inline, delegate", CASES)
 def test_a_tiered_parent_pays_each_call_at_its_own_tier(flavor, work, inline, delegate):
@@ -92,7 +87,6 @@ def test_a_tiered_parent_pays_each_call_at_its_own_tier(flavor, work, inline, de
                                                                       approx(delegate))
 
 
-@pending
 def test_only_the_second_work_call_crosses_the_threshold():
     """The first case with no tier on the parent costs 0.1095 inline; the tier moves only
     call 2, (51,500 + 2,000) = 0.0535 at base, and the next call, by (0.159 - 0.0535)
@@ -109,7 +103,6 @@ def agreeing(decision, parent):
                                + 1 * parent.base_cost(49_000 + 200, 0))
 
 
-@pending
 @pytest.mark.parametrize("flavor", FLAVORS)
 def test_k1_delegate_is_charged_what_its_select_ranks_it_at(flavor):
     """s/small over 50,000 at 0.3 / 0.9 reads B + S_in = 51,000: (15,300 + 450) = 0.01575,
@@ -123,7 +116,6 @@ def test_k1_delegate_is_charged_what_its_select_ranks_it_at(flavor):
     assert decision.delegate_cost_usd == charged
 
 
-@pending
 @pytest.mark.parametrize("flavor", FLAVORS)
 def test_k2_select_prices_a_tiered_candidate_per_call(flavor):
     """B = 47,000, K = 2: s/small's call 1 reads 49,000 at base, (4,900 + 200) = 0.0051, call 2
@@ -211,7 +203,6 @@ README_LIMITATION = (
     "tiered model can be costed at its higher price although each of its calls is shorter")
 
 
-@pending
 def test_readme_limitation_names_what_stays_at_the_base_prices():
     lines = (ROOT / "README.md").read_text(encoding="utf-8").split("\n")
     assert lines.count(README_LIMITATION) == 1

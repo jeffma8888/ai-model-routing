@@ -3,8 +3,8 @@
 A `models.json` row can carry `price_tiers`, each a `PriceTier(above_input_tokens, price_in,
 price_out)`. `Model.cost` prices one call: a call whose input is over a tier's threshold pays
 the last such tier's prices on all of its tokens. `Model.base_cost` keeps the linear price at
-`price_in` and `price_out`, which the delegation formulas of 13.2 and 13.9 use, since a total
-of several calls or a re-read increment has no one call's size."""
+`price_in` and `price_out`, which the 13.9 held-out costs use; from v1.219 the 13.2 decision
+prices a tiered model per call (tests/test_delegation_tiers.py)."""
 
 import dataclasses
 import json
@@ -289,16 +289,7 @@ README_NOTES = [
     "not state, so its `models.json` row has no tier and a longer call is costed at 2 / 6",
 ]
 README_LIMITATION = (
-    "- A long-prompt tier is costed per call where `models.json` gives its rates (`price_tiers`, "
-    "`DESIGN.md` 4.1): a call whose input is over the tier's threshold pays the tier's prices on "
-    "all of its input and output tokens, as the claude-haiku-5.5 and gpt-6-astra pages state. "
-    "Two costs stay at the base prices, so a long-context call there is under-costed: grok-4.7 "
-    "over 200K input tokens, whose page says the rates are higher without stating them, and the "
-    "inline-or-delegate cost, whose formulas price every term at the base prices, a path's one work "
-    "call included, since most of their terms are totals of several calls or re-read increments "
-    "(`DESIGN.md` 13.2). A task whose line is a whole conversation, such as "
-    "`tool_calling_support_agent`, is costed as one call of the conversation's summed sizes, so a "
-    "tiered model can be costed at its higher price although each of its calls is shorter")
+    "- A long-prompt tier is costed per call where `models.json` gives its rates (`price_tiers`, `DESIGN.md` 4.1): a call whose input is over the tier's threshold pays the tier's prices on all of its input and output tokens, as the claude-haiku-5.5 and gpt-6-astra pages state, and the inline-or-delegate cost prices each work call and each later parent call at its own tier (`DESIGN.md` 13.2). Three costs stay at the base prices, so a long-context call there is under-costed: grok-4.7 over 200K input tokens, whose page says the rates are higher without stating them; the parent's own output in a later call that a path's additions take over a threshold; and the held-out costs of the delegation evidence (`DESIGN.md` 13.9), whose registries have no tiers. A task whose line is a whole conversation, such as `tool_calling_support_agent`, is costed as one call of the conversation's summed sizes, so a tiered model can be costed at its higher price although each of its calls is shorter")
 
 
 def section(text, heading):
