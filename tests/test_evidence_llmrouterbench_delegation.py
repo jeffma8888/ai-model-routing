@@ -316,6 +316,38 @@ def test_cli_errors(ld, tmp_path, capsys):
     assert exc.value.code == 2
 
 
+@pytest.mark.xfail(strict=True, raises=ValueError, reason="v1.198: the CLI forms the output path inside its error handling")
+def test_cli_out_with_an_empty_name_is_one_error_line(ld, tmp_path, capsys):
+    rows, registry = synthetic()
+    matrix = tmp_path / "m.jsonl"
+    write_jsonl(matrix, rows)
+    reg = tmp_path / "registry.json"
+    reg.write_text(json.dumps(registry_json(registry)), encoding="utf-8")
+    for out in ("/", "."):
+        assert ld.main(["--matrix", str(matrix), "--registry", str(reg), "--out", out]) == 1, out
+        err = capsys.readouterr().err
+        assert err.startswith("error: ") and err.count("\n") == 1, out
+
+
+@pytest.mark.xfail(strict=True, raises=AssertionError, reason="v1.198: every exit 1 leaves no <out>.part")
+def test_cli_failure_removes_a_part_left_by_an_earlier_run(ld, tmp_path, capsys):
+    rows, registry = synthetic()
+    matrix = tmp_path / "m.jsonl"
+    write_jsonl(matrix, rows)
+    reg = tmp_path / "registry.json"
+    reg.write_text(json.dumps(registry_json(registry)), encoding="utf-8")
+    out = tmp_path / "results.json"
+    part = tmp_path / "results.json.part"
+    for argv in (["--matrix", str(tmp_path / "absent.jsonl"), "--registry", str(reg), "--out", str(out)],
+                 ["--matrix", str(matrix), "--registry", str(tmp_path / "absent.json"), "--out", str(out)]):
+        out.write_text("keep\n", encoding="utf-8")
+        part.write_text("stale\n", encoding="utf-8")
+        assert ld.main(argv) == 1
+        assert capsys.readouterr().err.startswith("error: ")
+        assert out.read_text(encoding="utf-8") == "keep\n"
+        assert not part.exists()
+
+
 def test_registry_file():
     text = REGISTRY.read_text(encoding="utf-8")
     content = json.loads(text)
