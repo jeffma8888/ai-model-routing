@@ -4,7 +4,7 @@ The executor tries a route's models in turn and moves to the next one when the c
 
 ## Facts
 
-- Every number here is an upper bound: the replay's check is the record's own score, a check that never passes a wrong answer or fails a right one, while a caller's check at call time can only do worse, and on every task but `arenahard` and `livecodebench` the score is made against an answer key a caller does not hold
+- Every number here is an upper bound: the replay's check is the record's own score, a check that never passes a wrong answer or fails a right one, while a caller's check at call time can only do worse, and on every task but `arenahard` the score is made against an answer key a caller does not hold, in part on `livecodebench`, whose public test cases a caller may hold
 - Data: the 12.18 matrix, 9 tasks, 13 models and 12,066 items, with the committed config at bars 0.1 and 0.8, the lowest and highest of 8, and 50 seeds; the oracle reaches 0.8207 at 33.6900
 - Two fallbacks, the `max_fallbacks` of every packaged task: `cost_blind` success rises from 0.6147 to 0.7542 at bar 0.1 and to 0.7500 at bar 0.8, recovering 0.678 and 0.657 of the gap to the oracle, at 2.069 and 2.009 times the cost; `cost_effective` from 0.5528 to 0.6803 at bar 0.1 (0.476 of the gap, 3.522 times the cost) and from 0.6060 to 0.7470 at bar 0.8 (0.657, 2.063 times)
 - Every listed model: success 0.8056 at bar 0.1 and 0.8120 at bar 0.8 in both flavors, 0.927 to 0.960 of the gap, at 2.454 to 8.772 times the cost of no fallback and 2.758 to 3.511 attempts per item
@@ -25,7 +25,7 @@ Each record keeps only its score; how the score was made is read from the scorin
 | `livecodebench` | the program in the output, run on the problem's public and private test cases, scored `1` when every case passes ([livecodebench.py](https://github.com/ynulihao/LLMRouterBench/blob/811df08b1b37646064eeb8cb6acfd498bf99885a/evaluation/LiveCodeBench/livecodebench.py)) | in part: a caller holding the public test cases can run those, not the private ones, so its check passes some programs the score fails |
 | `livemathbench` | as `aime`, the final answer graded against the reference answer by a math-equivalence test ([livemathbench.py](https://github.com/ynulihao/LLMRouterBench/blob/811df08b1b37646064eeb8cb6acfd498bf99885a/evaluation/LiveMathBench/livemathbench.py)) | no: the test needs the reference answer |
 | `mmlupro` | the option letter the output names, compared with the key ([mmlupro.py](https://github.com/ynulihao/LLMRouterBench/blob/811df08b1b37646064eeb8cb6acfd498bf99885a/evaluation/MMLUPro/mmlupro.py)) | no: only a format check, that a letter is named |
-| `simpleqa` | a grader model grades the output against the reference answer, and only its top grade is a success ([simpleqa.py](https://github.com/ynulihao/LLMRouterBench/blob/811df08b1b37646064eeb8cb6acfd498bf99885a/evaluation/SimpleQA/simpleqa.py)) | no: the grader is given the reference answer |
+| `simpleqa` | a grader model grades the output correct, incorrect or not attempted against the reference answer, and only correct is a success ([simpleqa.py](https://github.com/ynulihao/LLMRouterBench/blob/811df08b1b37646064eeb8cb6acfd498bf99885a/evaluation/SimpleQA/simpleqa.py)) | no: the grader is given the reference answer |
 
 ## Method
 
