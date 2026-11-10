@@ -536,7 +536,8 @@ def readme_subsection():
     assert re.findall(r"^### (.*)$", section, re.M) == ["RouterBench", "AutoBench",
                                                         "AutoBench judges", "tau2-bench",
                                                         "LiveCodeBench", "LLMRouterBench",
-                                                        "Delegation on AutoBench", "Delegation on tau2-bench"]
+                                                        "Delegation on AutoBench", "Delegation on tau2-bench",
+            "Delegation on LLMRouterBench"]
     return section.split("\n### Delegation on AutoBench\n", 1)[1].split("\n### ", 1)[0]
 
 
@@ -797,7 +798,11 @@ def test_readme_and_design_say_the_delegation_evidence_reads_one_dataset():
     limits = readme.split("\n## Limitations and non-goals (v1)\n", 1)[1].split("\n## ", 1)[0]
     bullets = [b for b in limits.split("\n") if b.startswith("- The delegation evidence reads")]
     assert bullets == [
-        "- The delegation evidence reads two datasets: the AutoBench 2026 matrix, and tau2-bench "
+        # v1.200: LLMRouterBench is the third (13.13, 12.8)
+        "- The delegation evidence reads three datasets: the AutoBench 2026 matrix, LLMRouterBench on the 8 of "
+        "its 13 pool models that a list price or the exact price pair of their recorded costs prices "
+        "([evidence/llmrouterbench-delegation/RESULTS.md](evidence/llmrouterbench-delegation/RESULTS.md)), which "
+        "leaves out its best single model, `google/gemini-2.5-pro`, and tau2-bench "
         f"({TAU2_RESULTS_LINK}), whose items are conversations of 2 to 100 model calls. The "
         "`DESIGN.md` 13.9 harness prices such an item "
         "on its own calls only from rows that list each call's input and output tokens "

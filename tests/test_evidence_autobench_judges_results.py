@@ -65,7 +65,8 @@ SECTION_LINK = "../autobench-2026/README.md#judge-evidence-one-item-per-graded-a
 README = ROOT / "README.md"
 EVIDENCE_README = ROOT / "evidence" / "autobench-2026" / "README.md"
 HEADINGS = ["RouterBench", "AutoBench", "AutoBench judges", "tau2-bench", "LiveCodeBench",
-            "LLMRouterBench", "Delegation on AutoBench", "Delegation on tau2-bench"]
+            "LLMRouterBench", "Delegation on AutoBench", "Delegation on tau2-bench",
+            "Delegation on LLMRouterBench"]
 RESULTS_LINK = "([AutoBench results](../autobench-2026/RESULTS.md))"
 
 

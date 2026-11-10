@@ -1,6 +1,7 @@
 """The `evidence` workflow reruns the README regenerate commands of the AutoBench-based
 subsections, from v1.55 the tau2-bench one, from v1.65 the LiveCodeBench one, from v1.80 the tau2-bench
-delegation one, from v1.84 its pooled run and from v1.168 the LLMRouterBench one on GitHub and
+delegation one, from v1.84 its pooled run, from v1.168 the LLMRouterBench one and from v1.200 the
+LLMRouterBench delegation one on GitHub and
 fails when a committed results file changes (DESIGN 12.13, v1.30),
 and both workflows run on one pinned runner image with a dated comment (v1.49), and the job
 has a time limit of ten times its slowest run, rounded up to whole five minutes, with no download
@@ -23,7 +24,7 @@ README = ROOT / "README.md"
 ROUTERBENCH_CONVERT = ROOT / "evidence" / "routerbench" / "convert.py"
 EVIDENCE = "## Evidence: held-out results on public data\n"
 SUBSECTIONS = ("AutoBench", "AutoBench judges", "tau2-bench", "LiveCodeBench", "LLMRouterBench",
-               "Delegation on AutoBench", "Delegation on tau2-bench")
+               "Delegation on AutoBench", "Delegation on tau2-bench", "Delegation on LLMRouterBench")
 INSTALL = "python -m pip install -e ."
 ON = (
     "on:\n"
@@ -244,9 +245,9 @@ def test_workflow_reruns_the_readme_commands_and_compares_the_results():
     assert problems(workflow_text(), readme(), CI.read_text(encoding="utf-8")) == []
 
 
-def test_readme_commands_are_the_seven_rerun_subsections():
+def test_readme_commands_are_the_eight_rerun_subsections():
     commands = expected_commands(readme())
-    assert len(commands) == 4 + 4 + 4 + 4 + 4 + 6 + 4 + 3
+    assert len(commands) == 4 + 4 + 4 + 4 + 4 + 6 + 4 + 3 + 4
     assert out_paths(commands) == ["evidence/autobench-2026/results.json",
                                    "evidence/autobench-judges/results.json",
                                    "evidence/tau2-bench/results.json",
@@ -255,7 +256,8 @@ def test_readme_commands_are_the_seven_rerun_subsections():
                                    "evidence/delegation/results.json",
                                    "evidence/delegation/variants.json",
                                    "evidence/tau2-bench-delegation/results.json",
-                                   "evidence/tau2-bench-delegation/pooled.json"]
+                                   "evidence/tau2-bench-delegation/pooled.json",
+                                   "evidence/llmrouterbench-delegation/results.json"]
     assert all((ROOT / p).is_file() for p in out_paths(commands))
     # v1.168: RouterBench stays out; `llmrouterbench-matrix.jsonl` holds its matrix name as a substring.
     assert not any(re.search(r"\brouterbench-matrix", c) for c in commands)
@@ -304,8 +306,12 @@ MUTANTS = {
         "evidence/livecodebench/results.json evidence/llmrouterbench/results.json",
         "evidence/livecodebench/results.json", 1),
     "the compare step without pooled.json": lambda t: t.replace(
-        "evidence/tau2-bench-delegation/results.json evidence/tau2-bench-delegation/pooled.json\n",
-        "evidence/tau2-bench-delegation/results.json\n", 1),
+        "evidence/tau2-bench-delegation/results.json evidence/tau2-bench-delegation/pooled.json ",
+        "evidence/tau2-bench-delegation/results.json ", 1),
+    # v1.200: the LLMRouterBench delegation file, last in command order
+    "the compare step without llmrouterbench delegation": lambda t: t.replace(
+        "evidence/tau2-bench-delegation/pooled.json evidence/llmrouterbench-delegation/results.json\n",
+        "evidence/tau2-bench-delegation/pooled.json\n", 1),
     "checkout with credentials": lambda t: t.replace("persist-credentials: false",
                                                      "persist-credentials: true", 1),
     "a job shell without pipefail": lambda t: t.replace(
@@ -343,7 +349,7 @@ TIME_LIMIT_MUTANTS = {
 
 
 def test_the_mutant_count_is_the_one_design_states():
-    assert len(MUTANTS) == 23
+    assert len(MUTANTS) == 24
     assert len(TIME_LIMIT_MUTANTS) == 5 and set(TIME_LIMIT_MUTANTS) <= set(MUTANTS)
 
 
@@ -361,6 +367,7 @@ def test_a_time_limit_mutant_fails_on_the_check_it_names(name):
 
 
 @pytest.mark.parametrize("name", ["the compare step without llmrouterbench",
+                                  "the compare step without llmrouterbench delegation",
                                   "the compare step without pooled.json",
                                   "the compare step without variants.json"])
 def test_a_compare_mutant_fails_on_the_compare_line_alone(name):

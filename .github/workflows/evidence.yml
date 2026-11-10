@@ -1,8 +1,8 @@
 name: evidence
 
 # Reruns the regenerate commands of the README subsections AutoBench, AutoBench judges,
-# tau2-bench, LiveCodeBench, LLMRouterBench, Delegation on AutoBench and Delegation on
-# tau2-bench, which download the pinned dataset files and check their sha256, then fails if a
+# tau2-bench, LiveCodeBench, LLMRouterBench, Delegation on AutoBench, Delegation on
+# tau2-bench and Delegation on LLMRouterBench, which download the pinned dataset files and check their sha256, then fails if a
 # committed results file changed (DESIGN.md 12.13). RouterBench is left out of it, since its
 # source is a 99,567,659-byte pickle that needs pandas and its evaluate step takes
 # about 70 seconds.
@@ -79,5 +79,9 @@ jobs:
           python evidence/tau2-bench/convert.py --out tau2-calls-all.jsonl --calls --task-by all
           python evidence/tau2-bench-delegation/results.py --matrix tau2-calls-all.jsonl --registry evidence/tau2-bench-delegation/registry.json --out evidence/tau2-bench-delegation/pooled.json
           python evidence/delegation/results.py --table evidence/tau2-bench-delegation/pooled.json
+          python evidence/llmrouterbench/convert.py --out llmrouterbench-matrix.jsonl
+          python evidence/llmrouterbench-delegation/results.py --matrix llmrouterbench-matrix.jsonl --registry evidence/llmrouterbench-delegation/registry.json --out evidence/llmrouterbench-delegation/results.json
+          python evidence/delegation/results.py --table evidence/llmrouterbench-delegation/results.json
+          python evidence/delegation/results.py --table evidence/llmrouterbench-delegation/results.json --bar 0.1 --point 0
       - name: Compare
-        run: git diff --exit-code -- evidence/autobench-2026/results.json evidence/autobench-judges/results.json evidence/tau2-bench/results.json evidence/livecodebench/results.json evidence/llmrouterbench/results.json evidence/delegation/results.json evidence/delegation/variants.json evidence/tau2-bench-delegation/results.json evidence/tau2-bench-delegation/pooled.json
+        run: git diff --exit-code -- evidence/autobench-2026/results.json evidence/autobench-judges/results.json evidence/tau2-bench/results.json evidence/livecodebench/results.json evidence/llmrouterbench/results.json evidence/delegation/results.json evidence/delegation/variants.json evidence/tau2-bench-delegation/results.json evidence/tau2-bench-delegation/pooled.json evidence/llmrouterbench-delegation/results.json

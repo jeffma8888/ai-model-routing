@@ -466,7 +466,8 @@ def test_real_report_matches_the_evidence_readme_and_results_md(llmrouterbench_p
 README = ROOT / "README.md"
 EVIDENCE_HEADING = "\n## Evidence: held-out results on public data\n"
 HEADINGS = ["RouterBench", "AutoBench", "AutoBench judges", "tau2-bench", "LiveCodeBench",
-            "LLMRouterBench", "Delegation on AutoBench", "Delegation on tau2-bench"]
+            "LLMRouterBench", "Delegation on AutoBench", "Delegation on tau2-bench",
+            "Delegation on LLMRouterBench"]
 INDENT = " " * 16
 LCB_LAYOUT = INDENT + "(LiveCodeBench: evidence/livecodebench/RESULTS.md)\n"
 LAYOUT = INDENT + "(LLMRouterBench: evidence/llmrouterbench/RESULTS.md)\n"

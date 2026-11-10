@@ -465,6 +465,123 @@ def test_results_md_regenerate_block():
     assert blocks and blocks[0].split("\n") == REGENERATE
 
 
+# ---- the README subsection (DESIGN 12.8 v1.200) ----
+
+README = ROOT / "README.md"
+EVIDENCE_HEADINGS = ["RouterBench", "AutoBench", "AutoBench judges", "tau2-bench", "LiveCodeBench",
+                     "LLMRouterBench", "Delegation on AutoBench", "Delegation on tau2-bench",
+                     "Delegation on LLMRouterBench"]
+README_LINKS = (
+    "[LLMRouterBench](https://huggingface.co/datasets/NPULH/LLMRouterBench)",
+    f"[`{REVISION[:7]}`]({DATASET_TREE})",
+    '(licence MIT, "Copyright (c) 2025-2026 LLMRouterBench contributors")',
+    "[RESULTS.md](evidence/llmrouterbench-delegation/RESULTS.md)",
+    "[results.json](evidence/llmrouterbench-delegation/results.json)",
+    "[registry.json](evidence/llmrouterbench-delegation/registry.json)",
+    "[evidence/llmrouterbench/README.md](evidence/llmrouterbench/README.md)",
+    "[research/delegation-datasets.md](research/delegation-datasets.md)",
+    "[inline or sub-agent](#inline-or-sub-agent)",
+    "[LLMRouterBench](#llmrouterbench)",
+    "8,000, 64,000 and 200,000",
+    "list-price estimate",
+)
+# Each is the start of one RESULTS.md bullet that the README repeats verbatim (12.8 v1.200).
+METHOD_LINES = ("`aime` has 60 items", "At point 2, C = 200,000", "Of the ")
+ASSUMED_LINES = ("The lossless brief", "Every cost is a list price", "The windows of the three DeepSeek models",
+                 "The 8 models are 2025 snapshots", "An `arenahard` score of 0.5", "The limits of `DESIGN.md` 13.8")
+ROOT_GEMINI = GEMINI.replace("](../llmrouterbench/RESULTS.md)", "](evidence/llmrouterbench/RESULTS.md)")
+
+
+def readme_subsection():
+    text = README.read_text(encoding="utf-8")
+    heading = "\n## Evidence: held-out results on public data\n"
+    assert text.count(heading) == 1
+    evidence = text.split(heading, 1)[1].split("\n## ", 1)[0]
+    assert re.findall(r"^### (.*)$", evidence, re.M) == EVIDENCE_HEADINGS
+    return evidence.split("\n### Delegation on LLMRouterBench\n", 1)[1].split("\n### ", 1)[0]
+
+
+def counts_sentence(results):
+    config, tasks = results["config"], results["tasks"]
+    benchmarks = join([f"`{name}` {task['items']:,}" for name, task in tasks.items()])
+    parents = join([f"`{p}`" for p in config["parents"]])
+    total = sum(task["items"] for task in tasks.values())
+    return (f"Each item is one benchmark question, which each model answered in one recorded call, one task per "
+            f"benchmark ({benchmarks} items, {total:,} in all), with each of the {len(config['parents'])} priced "
+            f"models ({parents}) as the parent, over {len(config['seeds'])} seeds.")
+
+
+def results_md_line(start, heading):
+    found = [line for line in section(RESULTS_MD.read_text(encoding="utf-8"), heading).split("\n")
+             if line.startswith(f"- {start}")]
+    assert len(found) == 1, start
+    return found[0]
+
+
+def test_readme_subsection_links_the_sources_and_licence():
+    sub = readme_subsection()
+    for needle in README_LINKS:
+        assert needle in sub, needle
+    assert sub.isascii() and "\u2013" not in sub and "\u2014" not in sub
+    assert "](../" not in sub
+
+
+def test_readme_subsection_shows_the_counts_tables_and_reading_it(dr):
+    sub = readme_subsection()
+    results = committed_results()
+    assert counts_sentence(results) in sub
+    assert sum(task["items"] for task in results["tasks"].values()) == 12_056
+    assert f"```text\n{TABLE_CMD}\n{dr.table(results)}\n```" in sub
+    assert f"```text\n{PARENT_CMD}\n{dr.parent_table(results, results['config']['bars'][0], 0)}\n```" in sub
+    # the first three Reading it bullets, which the RESULTS.md test builds from the committed file
+    reading = [line for line in section(RESULTS_MD.read_text(encoding="utf-8"), "## Reading it").split("\n")
+               if line.startswith("- ")]
+    assert reading[3].startswith("- `results.json` is ")
+    for line in reading[:3]:
+        assert f"\n{line}\n" in sub, line
+    assert "`results.json` is " not in sub
+
+
+def test_readme_subsection_repeats_the_results_md_lines():
+    sub = readme_subsection()
+    for start in METHOD_LINES:
+        assert f"\n{results_md_line(start, '## Method')}\n" in sub, start
+    for start in ASSUMED_LINES:
+        assert f"\n{results_md_line(start, '## Assumed')}\n" in sub, start
+    # The one repeated line with a link targets the routing RESULTS.md from the repo root.
+    assert results_md_line("The pool leaves out", "## Method") == "- " + GEMINI
+    assert f"\n- {ROOT_GEMINI}\n" in sub
+    limits = sub.index("\nLimits, as RESULTS.md states them:\n")
+    assert sub.index(results_md_line(METHOD_LINES[-1], "## Method")) < limits
+    assert limits < sub.index(results_md_line(ASSUMED_LINES[0], "## Assumed"))
+
+
+def test_readme_subsection_regenerate_block_is_the_results_md_one():
+    sub = readme_subsection()
+    assert re.findall(r"```bash\n.*?```\n", sub, re.S) == ["```bash\n" + "\n".join(REGENERATE) + "\n```\n"]
+
+
+def test_readme_layout_names_the_results_md():
+    text = README.read_text(encoding="utf-8")
+    layout = text.split("\n## Layout\n", 1)[1].split("\n## ", 1)[0]
+    tau2 = "(delegation on tau2-bench: evidence/tau2-bench-delegation/RESULTS.md)\n"
+    assert tau2 + "                (delegation on LLMRouterBench: evidence/llmrouterbench-delegation/RESULTS.md)\n" in layout
+
+
+def test_readme_limitations_name_the_third_dataset():
+    text = README.read_text(encoding="utf-8")
+    limits = text.split("\n## Limitations and non-goals (v1)\n", 1)[1].split("\n## ", 1)[0]
+    bullets = [line for line in limits.splitlines() if line.startswith("- The delegation evidence reads")]
+    assert len(bullets) == 1
+    assert bullets[0].startswith(
+        "- The delegation evidence reads three datasets: the AutoBench 2026 matrix, LLMRouterBench on the "
+        f"{len(POOL)} of its 13 pool models that a list price or the exact price pair of their recorded costs prices "
+        "([evidence/llmrouterbench-delegation/RESULTS.md](evidence/llmrouterbench-delegation/RESULTS.md)), which "
+        "leaves out its best single model, `google/gemini-2.5-pro`, and tau2-bench ")
+    # the left-out model is the one RESULTS.md names
+    assert GEMINI.startswith("The pool leaves out `google/gemini-2.5-pro`, the best single model")
+
+
 # ---- cached-file tests: run only when the pinned LLMRouterBench file is in the default cache ----
 
 @pytest.fixture(scope="module")

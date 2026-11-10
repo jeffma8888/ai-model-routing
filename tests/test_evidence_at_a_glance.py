@@ -4,7 +4,7 @@ The README evidence section opens with a short list, one bullet per subsection. 
 number and model ID in it is built here from the committed results files (four since v1.28,
 which adds the AutoBench judges bullet, five since v1.55, which adds tau2-bench, six since
 v1.65, which adds LiveCodeBench, seven since v1.80, which adds delegation on tau2-bench, eight
-since v1.164, which adds LLMRouterBench), at the rounding of the subsection tables, and every word that depends on the data (no routed row
+since v1.164, which adds LLMRouterBench, nine since v1.200, which adds delegation on LLMRouterBench), at the rounding of the subsection tables, and every word that depends on the data (no routed row
 reaches or beats, every seed, more, less) is asserted against those files, so the list cannot
 drift from them or keep a claim a regenerated file no longer supports.
 """
@@ -27,7 +27,8 @@ FILES = {"RouterBench": ROOT / "evidence" / "routerbench" / "results.json",
          "LiveCodeBench": ROOT / "evidence" / "livecodebench" / "results.json",
          "LLMRouterBench": ROOT / "evidence" / "llmrouterbench" / "results.json",
          "Delegation on AutoBench": ROOT / "evidence" / "delegation" / "results.json",
-         "Delegation on tau2-bench": ROOT / "evidence" / "tau2-bench-delegation" / "results.json"}
+         "Delegation on tau2-bench": ROOT / "evidence" / "tau2-bench-delegation" / "results.json",
+         "Delegation on LLMRouterBench": ROOT / "evidence" / "llmrouterbench-delegation" / "results.json"}
 LEAD = ("Results at a glance, each number from the committed results of the subsection it "
         "links:")
 LUNA = "model:openai/gpt-5.6-luna"
@@ -241,11 +242,44 @@ def tau2_delegation_bullet(results):
             f"for always inline, for less held-out success")
 
 
+def llmrouterbench_delegation_bullet(results):
+    """Delegation on LLMRouterBench (v1.200): at the lowest bar and point 0 every `cost_effective`
+    decision row delegates on every seed, the decision's mean cost over the parents is below
+    always inline's for no less held-out success at 3 decimals, and it costs more than always
+    inline for some parents but not all, a count that the bullet states."""
+    config = results["config"]
+    bar, parents, flavor = config["bars"][0], config["parents"], "cost_effective"
+    point = config["points"][0]
+    assert point["inline_separate_call"] is True, "LLMRouterBench delegation: point 0 folds inline work"
+    rows = {(r["bar"], r["flavor"], r["point"], r["parent"], r["strategy"]): r
+            for r in results["summary"]}
+    decision = [rows[(bar, flavor, 0, p, "decision")] for p in parents]
+    assert all(r["delegate_rate"] == 1.0 for r in decision), \
+        "LLMRouterBench delegation: not every seed delegates at the lowest bar and point 0"
+
+    def mean(strategy, key):
+        return math.fsum(rows[(bar, flavor, 0, p, strategy)][key] for p in parents) / len(parents)
+
+    dec_cost, inl_cost = mean("decision", "cost_usd"), mean("inline", "cost_usd")
+    assert dec_cost < inl_cost, "LLMRouterBench delegation: the decision costs no less than always inline"
+    assert float(f"{mean('decision', 'success'):.3f}") >= float(f"{mean('inline', 'success'):.3f}"), \
+        "LLMRouterBench delegation: the decision has less held-out success"
+    more = [p for p in parents
+            if rows[(bar, flavor, 0, p, "decision")]["cost_usd"] > rows[(bar, flavor, 0, p, "inline")]["cost_usd"]]
+    assert 0 < len(more) < len(parents), f"LLMRouterBench delegation: dearer than inline for {len(more)} parents"
+    return (link("Delegation on LLMRouterBench") + f"at bar {bar} and {point['context_tokens']:,} context tokens, "
+            f"with inline work in a parent call of its own, the `{flavor}` decision delegates on every seed for "
+            f"each of the {len(parents)} parents; its mean cost over the parents is {dec_cost:.4f} USD against "
+            f"{inl_cost:.4f} for always inline, for no less held-out success, but it costs more than always "
+            f"inline for {len(more)} of the {len(parents)} parents")
+
+
 BULLETS = {"RouterBench": routerbench_bullet, "AutoBench": autobench_bullet,
            "AutoBench judges": judges_bullet, "tau2-bench": tau2_bullet,
            "LiveCodeBench": livecodebench_bullet, "LLMRouterBench": llmrouterbench_bullet,
            "Delegation on AutoBench": delegation_bullet,
-           "Delegation on tau2-bench": tau2_delegation_bullet}
+           "Delegation on tau2-bench": tau2_delegation_bullet,
+           "Delegation on LLMRouterBench": llmrouterbench_delegation_bullet}
 
 
 def glance(files):
@@ -478,6 +512,30 @@ def tau2_delegation_better(files):
         r["success"] = 0.9
 
 
+def lrbd_rows(files, strategy):
+    return [r for r in files["Delegation on LLMRouterBench"]["summary"]
+            if (r["bar"], r["flavor"], r["point"], r["strategy"]) == (0.1, "cost_effective", 0, strategy)]
+
+
+def lrbd_one_seed_inline(files):
+    lrbd_rows(files, "decision")[-1]["delegate_rate"] = 0.98
+
+
+def lrbd_dearer(files):
+    for r in lrbd_rows(files, "decision"):
+        r["cost_usd"] = 1000.0
+
+
+def lrbd_worse(files):
+    for r in lrbd_rows(files, "decision"):
+        r["success"] = 0.1
+
+
+def lrbd_dearer_for_none(files):
+    for r in lrbd_rows(files, "inline"):
+        r["cost_usd"] = 1000.0
+
+
 @pytest.mark.parametrize("change, match", [
     (raise_routerbench, "a routed row reaches it"),
     (raise_judges, "a routed row reaches it"),
@@ -501,6 +559,10 @@ def tau2_delegation_better(files):
     (tau2_delegation_one_seed_inline, "not every seed delegates"),
     (tau2_delegation_dearer, "the decision costs no less than always inline"),
     (tau2_delegation_better, "the decision has no less held-out success"),
+    (lrbd_one_seed_inline, "LLMRouterBench delegation: not every seed delegates"),
+    (lrbd_dearer, "LLMRouterBench delegation: the decision costs no less than always inline"),
+    (lrbd_worse, "LLMRouterBench delegation: the decision has less held-out success"),
+    (lrbd_dearer_for_none, "LLMRouterBench delegation: dearer than inline for 0 parents"),
 ])
 def test_a_file_that_breaks_a_claim_fails_the_builder(change, match):
     files = committed()
