@@ -11,6 +11,7 @@ import hashlib
 import importlib.util
 import io
 import json
+import math
 import re
 from pathlib import Path
 
@@ -249,6 +250,33 @@ def test_report_on_a_small_matrix(cf):
             row = [r for r in record["summary"] if (r["bar"], r["flavor"], r["strategy"]) == (bar, flavor, "routed")][0]
             assert got[0][1:] == (f"{row['success']:.4f}", f"{row['cost_usd']:.4f}")
             assert [float(g[1]) for g in got] == sorted(float(g[1]) for g in got)
+    # each pooled line rebuilt per seed from the script's route and replay: the means over seeds
+    outcomes = outcomes_from_rows(rows)
+    table = {}
+    for o in outcomes:
+        table.setdefault(o.task, {}).setdefault(o.item, {})[o.model] = o
+    models = sorted({o.model for o in outcomes})
+    for flavor in CONFIG["flavors"]:
+        for bar in (0.3, 0.5):
+            k = lines.index(f"{flavor} bar {bar}:")
+            for j, limit in enumerate((0, 2, 3)):
+                per_seed = []
+                for seed in CONFIG["seeds"]:
+                    correct = held_n = tries = 0
+                    spent = []
+                    for task in sorted(table):
+                        cal, held = cf.split_items(table[task], seed, CONFIG["calibration_fraction"])
+                        succ, mean_cost = cf.calibration(table[task], cal, models)
+                        path = cf.route(succ, mean_cost, len(cal), task, flavor, bar, CONFIG["min_samples"],
+                                        CONFIG["confidence"], limit)
+                        c, n, s = cf.replay(table[task], held, path)
+                        correct, held_n, tries = correct + c, held_n + len(held), tries + n
+                        spent.extend(s)
+                    per_seed.append((correct / held_n, math.fsum(spent), tries / held_n))
+                means = [math.fsum(x[i] for x in per_seed) / len(per_seed) for i in range(3)]
+                assert lines[k + 1 + j].startswith(f"  max_fallbacks {limit}: success {means[0]:.4f}, "
+                                                   f"cost {means[1]:.4f}, ")
+                assert f", attempts per item {means[2]:.3f}, " in lines[k + 1 + j]
     assert lines[-3] == "per task at bar 0.5, held-out success with max_fallbacks 0 and 3, and the oracle's:"
     assert [x.split(" (")[0] for x in lines[-2:]] == ["  a", "  b"]
     # the matrix exercises the fallback: some route recovers part of the gap, short of all of it
