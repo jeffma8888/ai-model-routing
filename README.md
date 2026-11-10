@@ -389,7 +389,7 @@ for row in report(monitor.records, by="tag:team"):
 
 - Costs and token counts are summed per attempt, so a failed attempt that still burned tokens is charged to the model that burned them
 - Call counts, failures and the fallback rate are attributed by each call's final attempt
-- `below_bar_calls` counts the calls a model under the bar answered: those whose final attempt is `ok` and has `below_bar` (no model cleared, so the route was the best available) or `below_bar_fallback`. The text table shows that column only when some group has one
+- `below_bar_calls` counts the calls a model under the bar answered: those whose final attempt is `ok` and has `below_bar: true` (no model cleared, so the route was the best available) or `below_bar_fallback: true`. The text table shows that column only when some group has one
 - Latency percentiles are nearest-rank over successful attempts
 
 ## Evidence: held-out results on public data

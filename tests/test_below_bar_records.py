@@ -5,13 +5,14 @@ An attempt on a model of `RouteDecision.below_bar_fallbacks` (a task with `fallb
 `report` counts in `below_bar_calls` the calls whose final attempt is `ok` on a model under the
 bar, and the `report` text table shows that column only when some row counts one."""
 
+import hashlib
 import json
 from pathlib import Path
 
 import pytest
 
-from model_routing import (Completion, Executor, FakeProvider, Model, Monitor, ProviderError,
-                           Registry, Router, Stats, Task, load_records, report)
+from model_routing import (AllModelsFailed, Completion, Executor, FakeProvider, Model, Monitor,
+                           ProviderError, Registry, Router, Stats, Task, load_records, report)
 from model_routing.cli import _table, main
 from model_routing.demo import run_demo
 
@@ -24,6 +25,9 @@ WITH_KEY = V1_202_KEYS[:16] + ["below_bar_fallback"] + V1_202_KEYS[16:]
 V1_202_COLUMNS = ["calls", "attempts", "errors", "invalid", "fallback_calls", "fallback_rate",
                   "cost_usd", "routing_cost_usd", "p50_ms", "p95_ms"]
 V1_203_COLUMNS = V1_202_COLUMNS[:6] + ["below_bar_calls"] + V1_202_COLUMNS[6:]
+# sha256 of the whole calls.jsonl of `run_demo` (seed 7) at v1.202, all 456 records; the
+# v1.12 pin of tests/test_demo_delegation.py covers the first 455
+V1_202_CALLS_SHA256 = "e3f4eca7bc4c6e8ca0eb41da21c786cbd897c9fa1792e713a518664c3b02219a"
 
 # (id, family, price_in, successes, trials); bar 0.7, min_samples 20
 MODELS = [
@@ -87,7 +91,7 @@ def test_every_below_bar_fallback_attempt_has_the_key_when_all_fail():
     router = build(max_fallbacks=3)
     monitor = Monitor()
     run = executor(router, {}, monitor)
-    with pytest.raises(Exception):
+    with pytest.raises(AllModelsFailed):
         run.call("t", [{"role": "user", "content": "x"}])
     assert [rec["model"] for rec in monitor.records] == ["p/cheap", "p/dear", "b/close", "b/far"]
     assert keys(monitor.records) == [V1_202_KEYS, V1_202_KEYS, WITH_KEY, WITH_KEY]
@@ -100,10 +104,11 @@ def test_no_record_has_the_key_without_a_below_bar_fallback_attempt():
                                (True, {"p/dear": ok}, ["p/cheap", "p/dear"])]:
         monitor = Monitor()
         run = executor(build(on=on), script, monitor)
-        try:
-            run.call("t", [{"role": "user", "content": "x"}])
-        except Exception:
-            pass
+        if script:
+            assert run.call("t", [{"role": "user", "content": "x"}]).model == models[-1]
+        else:
+            with pytest.raises(AllModelsFailed):
+                run.call("t", [{"role": "user", "content": "x"}])
         assert [rec["model"] for rec in monitor.records] == models
         assert keys(monitor.records) == [V1_202_KEYS] * len(models)
 
@@ -142,6 +147,8 @@ def test_the_demo_records_keep_v1_202_keys(tmp_path):
     records = load_records(tmp_path / "demo" / "calls.jsonl")
     assert len(records) == 456
     assert keys(records) == [V1_202_KEYS] * len(records)
+    data = (tmp_path / "demo" / "calls.jsonl").read_bytes()
+    assert hashlib.sha256(data).hexdigest() == V1_202_CALLS_SHA256
 
 
 # ---- 8.3 below_bar_calls -----------------------------------------------------------------------
@@ -174,6 +181,17 @@ def test_report_counts_the_ok_calls_answered_under_the_bar(record_factory):
     assert {group: row["calls"] for group, row in rows.items()} == {
         "p/cheap": 2, "b/close": 2, "b/far": 2}
     assert rows["b/close"]["failed_calls"] == 1
+
+
+@pytest.mark.parametrize("flag", ["below_bar", "below_bar_fallback"])
+@pytest.mark.parametrize("value,counted", [(True, 1), (1, 0), ("true", 0), (False, 0), (None, 0),
+                                           ("missing", 0)])
+def test_only_a_json_true_counts_in_either_flag(record_factory, flag, value, counted):
+    rec = record_factory(model="b/far")
+    del rec["below_bar"]
+    if value != "missing":
+        rec[flag] = value
+    assert [row["below_bar_calls"] for row in report([rec])] == [counted]
 
 
 @pytest.mark.parametrize("by", ["model", "task", "flavor", "family", "tag:none"])
@@ -228,6 +246,13 @@ def test_report_text_without_a_call_under_the_bar_is_the_v1_202_table(tmp_path, 
               f"{r['routing_cost_usd']:.6f}", fmt(r["p50_latency_ms"]),
               fmt(r["p95_latency_ms"])] for r in rows]
     assert text == _table(["flavor"] + V1_202_COLUMNS, table) + "\n"
+    assert text == (
+        "flavor          calls  attempts  errors  invalid  fallback_calls  fallback_rate"
+        "  cost_usd  routing_cost_usd  p50_ms  p95_ms\n"
+        "--------------  -----  --------  ------  -------  --------------  -------------"
+        "  --------  ----------------  ------  ------\n"
+        "cost_effective  3      4         2       0        1               0.333"
+        "          0.000480  0.000480          10.0    10.0\n")
 
 
 # ---- README ------------------------------------------------------------------------------------
@@ -235,6 +260,7 @@ def test_report_text_without_a_call_under_the_bar_is_the_v1_202_table(tmp_path, 
 def test_readme_monitoring_names_the_key_and_the_count():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     section = readme.split("## Monitoring and cost attribution\n", 1)[1].split("\n## ", 1)[0]
-    assert "`below_bar_fallback: true`" in section
+    assert "also carries `below_bar_fallback: true`" in section
+    assert "has `below_bar: true`" in section
     assert "`below_bar_calls`" in section
     assert "`fallback_below_bar`" in section
