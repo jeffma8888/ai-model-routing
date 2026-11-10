@@ -383,7 +383,6 @@ def test_readme_counts_are_the_notes_recommendation(wdp, output):
     assert "better than both fixed policies on none" in first
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="v1.209: the README line lands in v1.210")
 def test_readme_limitations_say_what_the_per_task_decision_adds(wdp, output):
     readme = README.read_text(encoding="utf-8")
     limits = readme.split("\n## Limitations and non-goals (v1)\n", 1)[1].split("\n## ", 1)[0]
