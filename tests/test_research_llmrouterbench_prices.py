@@ -50,6 +50,16 @@ WINDOWS = {
     "z-ai/glm-4.6": (200000, VENDOR_PAGE, None),
 }
 DELEGATION_RESULTS = ROOT / "evidence" / "delegation" / "results.py"
+# the vendor-page rows: the page URL that opens the row and a verbatim quote the row gives (review iter-146)
+WINDOW_PAGES = {
+    "anthropic/claude-sonnet-4": ("https://platform.claude.com/docs/en/build-with-claude/context-windows",
+                                  "\"Other Claude models, including Claude Sonnet 4.5 (deprecated), have a 200k-token context window\""),
+    "openai/gpt-5": ("https://platform.openai.com/docs/models/gpt-5", "a 400,000 context window"),
+    "openai/gpt-5-chat": ("https://platform.openai.com/docs/models/gpt-5-chat-latest", "a 128,000 context window"),
+    "z-ai/glm-4.6": ("https://docs.z.ai/guides/llm/glm-4.6",
+                     "\"The context window has been expanded from 128K to 200K tokens\""),
+}
+R1_CARD_QUOTE = "\"the maximum generation length is set to 64K tokens\""
 
 
 def _load(name, path):
@@ -309,6 +319,14 @@ def test_window_table_gives_each_priced_model_a_window():
             assert f"max_position_embeddings` {window}" in row[2], row
         else:
             assert pinned is None and "huggingface.co" not in row[1], row
+            page, quote = WINDOW_PAGES[model]
+            assert row[1].startswith(page + " (2026-11-"), row
+            assert quote in row[2], row
+    assert sorted(WINDOW_PAGES) == sorted(m for m, (_, kind, _) in WINDOWS.items() if kind == VENDOR_PAGE)
+    [r1] = [r for r in rows if r[0] == "`deepseek/deepseek-r1-0528`"]
+    assert R1_CARD_QUOTE in r1[2]
+    [claude] = [r for r in rows if r[0] == "`anthropic/claude-sonnet-4`"]
+    assert "so the window is inferred, as the page does not name Claude Sonnet 4" in claude[2]
 
 
 def test_openai_windows_are_the_list_price_table_ones():
@@ -329,7 +347,8 @@ def test_window_bullets_are_the_rule_3_arithmetic_at_the_13_10_points():
     bullets = [x for x in part.split("\n") if x.startswith("- ")]
     assert len(bullets) == 5
     vendor = sorted(m for m, (_, kind, _) in WINDOWS.items() if kind == VENDOR_PAGE)
-    assert bullets[0].startswith(f"- A vendor page states a window for {len(vendor)} of the {len(WINDOWS)}: ")
+    assert bullets[0].startswith(f"- A vendor page gives a window for {len(vendor)} of the {len(WINDOWS)}: ")
+    assert bullets[0].endswith("its window is inferred from the page's sentence on every Claude model outside its 1M-token list")
     open_ = [m for m in WINDOWS if m not in vendor]
     limits = sorted({WINDOWS[m][0] for m in open_}, reverse=True)
     assert all(f"{w:,}" in bullets[1] for w in limits)
@@ -339,12 +358,17 @@ def test_window_bullets_are_the_rule_3_arithmetic_at_the_13_10_points():
     assert f"for the other {len(WINDOWS) - len(roomy)} parents on any work" in bullets[2]
     assert f"read as 204,800, the two 200K windows leave {204800 - large:,} tokens" in bullets[2]
     room = {m: WINDOWS[m][0] - mid for m in WINDOWS}
-    assert (f"At C = {mid:,} (point 1) the room left for the work is {room['internlm/intern-s1']:,} tokens for "
+    assert (f"At C = {mid:,} (point 1) the room the window leaves past C, for the K * (S_in + S_out) of the work, is "
+            f"{room['internlm/intern-s1']:,} tokens for "
             f"`internlm/intern-s1`, {room['openai/gpt-5-chat']:,} for `openai/gpt-5-chat` and "
             f"{room['deepseek/deepseek-r1-0528']:,} for the DeepSeek models") in bullets[2]
     tight = min(WINDOWS, key=lambda m: WINDOWS[m][0])
     assert f"at C = {small:,} (points 0 and 3) the smallest is `{tight}`'s {WINDOWS[tight][0] - small:,}" in bullets[2]
     assert sorted(set(dr.CONTEXT_TOKENS)) == [small, mid, large] and len(dr.CONTEXT_TOKENS) == 3
+    # the recommendation, pinned by its opening phrases (review iter-146 should-fix 3)
+    assert bullets[3].startswith(f"- Keep all {len(WINDOWS)} models, each window with its kind in `notes`, ")
+    assert "the window is the weights' position limit, not a served window" in bullets[3]
+    assert bullets[4].startswith("- Read 200K as 200,000 for the two pages that write it and say so in `notes`")
 
 
 def test_design_13_9_names_the_windows_subsection():
