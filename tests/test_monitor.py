@@ -9,7 +9,7 @@ from model_routing import Monitor, load_records, report
 REPORT_KEYS = {
     "group", "attempts", "ok", "errors", "invalid", "input_tokens", "output_tokens",
     "cost_usd", "routing_cost_usd", "calls", "failed_calls", "fallback_calls",
-    "fallback_rate", "p50_latency_ms", "p95_latency_ms",
+    "fallback_rate", "p50_latency_ms", "p95_latency_ms", "below_bar_calls",
 }
 
 
@@ -73,6 +73,7 @@ def mixed_records(record_factory):
     ]
 
 
+@pytest.mark.xfail(strict=True, reason="DESIGN v1.203 spec ahead of the code (row S2b)")
 def test_report_uses_each_attempt_for_sums_and_final_attempt_for_call_metrics(mixed_records):
     rows = report(mixed_records)
     assert all(set(row) == REPORT_KEYS for row in rows)
@@ -81,12 +82,12 @@ def test_report_uses_each_attempt_for_sums_and_final_attempt_for_call_metrics(mi
          "input_tokens": 40, "output_tokens": 4, "cost_usd": 0.4,
          "routing_cost_usd": 0.1, "calls": 1, "failed_calls": 0,
          "fallback_calls": 0, "fallback_rate": 0.0,
-         "p50_latency_ms": 10.0, "p95_latency_ms": 10.0},
+         "p50_latency_ms": 10.0, "p95_latency_ms": 10.0, "below_bar_calls": 0},
         {"group": "fiction/b", "attempts": 2, "ok": 1, "errors": 1, "invalid": 0,
          "input_tokens": 20, "output_tokens": 2, "cost_usd": 0.2,
          "routing_cost_usd": 0.2, "calls": 2, "failed_calls": 1,
          "fallback_calls": 2, "fallback_rate": 1.0,
-         "p50_latency_ms": 20.0, "p95_latency_ms": 20.0},
+         "p50_latency_ms": 20.0, "p95_latency_ms": 20.0, "below_bar_calls": 0},
     ]
 
 
