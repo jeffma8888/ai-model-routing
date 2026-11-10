@@ -5,7 +5,8 @@ LLMRouterBench delegation one on GitHub (from v1.215 running a repeated line onc
 fails when a committed results file changes (DESIGN 12.13, v1.30),
 and both workflows run on one pinned runner image with a dated comment (v1.49), and the job
 has a time limit of ten times its slowest run, rounded up to whole five minutes, with no download
-retry (v1.152; 25 minutes, restated as 30 at v1.170).
+retry (v1.152; 25 minutes, restated as 30 at v1.170 and as 40 at v1.217, whose basis is the
+slowest run on the `Regenerate` lines in force).
 
 The workflow is read with a line parser for its own shape (no YAML library, so this runs in
 CI); the run itself is checked on GitHub, not here."""
@@ -21,6 +22,7 @@ ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github" / "workflows" / "evidence.yml"
 CI = ROOT / ".github" / "workflows" / "ci.yml"
 README = ROOT / "README.md"
+DESIGN = ROOT / "DESIGN.md"
 ROUTERBENCH_CONVERT = ROOT / "evidence" / "routerbench" / "convert.py"
 EVIDENCE = "## Evidence: held-out results on public data\n"
 SUBSECTIONS = ("AutoBench", "AutoBench judges", "tau2-bench", "LiveCodeBench", "LLMRouterBench",
@@ -38,10 +40,13 @@ ON = (
     "      - \".github/workflows/evidence.yml\"\n")
 STEP_NAMES = [None, None, "Install", "Regenerate", "Compare"]
 # The job's time limit, by the v1.152 rule: ten times the slowest run, rounded up to a whole
-# five minutes. The v1.170 value: the slowest of the workflow's 45 runs to 2026-11-09 took 158 s
-# from start to last update (run 42717985363), so 30; at v1.152, 140 s over 40 runs, so 25.
-SLOWEST_RUN_SECONDS = 158
-TIMEOUT_MINUTES = 30
+# five minutes. The v1.217 value: the slowest run on the Regenerate lines in force, the one run
+# of the v1.215 lines among the 54 to 2026-11-10, took 213 s from start to last update (run
+# 42883099079), so 40; the four runs of v1.200 to v1.214 (up to 278 s) also ran the converter
+# line twice. At v1.170, 158 s over 45 runs, so 30; at v1.152, 140 s over 40 runs, so 25.
+SLOWEST_RUN_SECONDS = 213
+SLOWEST_RUN_ID = 42883099079
+TIMEOUT_MINUTES = 40
 LIMIT_LINE = f"    timeout-minutes: {TIMEOUT_MINUTES}"
 LIMIT_SENTENCE = (f"The job's time limit of {TIMEOUT_MINUTES} minutes is about ten times its slowest run, "
                   "and a failed download is retried by rerunning the job (DESIGN.md 12.13).")
@@ -471,6 +476,21 @@ def test_a_repeat_mutant_fails_on_the_one_check_it_names(name):
 def test_the_time_limit_is_ten_times_the_slowest_run_in_whole_five_minutes():
     assert TIMEOUT_MINUTES == 5 * math.ceil(10 * SLOWEST_RUN_SECONDS / 60 / 5)
     assert TIMEOUT_MINUTES < 360
+
+
+def test_the_design_time_limit_bullet_gives_the_value_and_its_basis_run():
+    bullets = [line for line in DESIGN.read_text(encoding="utf-8").split("\n")
+               if line.startswith("- Time limit and retries (")]
+    assert len(bullets) == 1
+    bullet = bullets[0]
+    assert f"sets `timeout-minutes: {TIMEOUT_MINUTES}`" in bullet
+    _, marker, rest = bullet.partition("Basis (v1.217, row E17h): ")
+    assert marker
+    basis = rest.split(" The v1.170 basis", 1)[0]
+    assert f"run {SLOWEST_RUN_ID} on " in basis
+    assert f"took {SLOWEST_RUN_SECONDS} seconds from its start to its last update" in basis
+    tenfold = 10 * SLOWEST_RUN_SECONDS
+    assert f"{tenfold:,} seconds is {tenfold / 60:.1f} minutes, so {TIMEOUT_MINUTES}." in basis
 
 
 @pytest.mark.parametrize("name", sorted(TIME_LIMIT_MUTANTS))
