@@ -155,17 +155,55 @@ def test_report_lines_on_a_small_matrix(lrs):
     assert any(re.search(r"above on [1-5], equal on \d, below on [1-5]", x) for x in lines)
 
 
+COST_RED = pytest.mark.xfail(strict=True, reason="v1.179: the script checks cost in the implementing commit")
+
+
+@pytest.mark.parametrize("key", ["success", pytest.param("cost_usd", marks=COST_RED)])
 @pytest.mark.parametrize("strategy", ["routed", "best_on_calibration", "model:"])
-def test_report_stops_when_a_row_is_not_the_committed_one(lrs, strategy):
+def test_report_stops_when_a_row_is_not_the_committed_one(lrs, strategy, key):
     rows = tiny_rows()
     record = committed(rows)
     best = lrs.best_single_model(record["summary"])
     name = f"model:{best}" if strategy == "model:" else strategy
     hit = [r for r in record["summary"] if (r["bar"], r["flavor"], r["strategy"]) == (0.65, "cost_blind", name)]
     assert len(hit) == 1
-    hit[0]["success"] *= 1 + 1e-9
+    hit[0][key] *= 1 + 1e-9
     with pytest.raises(ValueError, match="committed"):
         lrs.report(outcomes_from_rows(rows), record)
+
+
+# Two seed sets for the one-sign count, as (base correct, routed correct at bar 0.5, at bar 0.6)
+# per seed out of 1,000 held-out items: level then below beside below twice keeps one sign on 1 seed
+# of 2; above twice on both seeds, once by 3 items (a gap of +0.003), keeps one sign on 2 of 2.
+SIGN_SEEDS = [([(500, 500, 480), (500, 490, 480)], "1 of 2"), ([(500, 503, 520), (500, 530, 520)], "2 of 2")]
+
+
+@pytest.mark.parametrize("seeds, count", SIGN_SEEDS)
+def test_one_sign_count_compares_correct_counts(lrs, monkeypatch, seeds, count):
+    bars, held = [0.5, 0.6], 1000
+    cells = []
+    for k, bar in enumerate(bars):
+        for seed, (base, *routed) in enumerate(seeds):
+            cells.append({"bar": bar, "flavor": "cost_blind", "seed": seed, "task": "t", "calibration_items": held,
+                          "held_out_items": held, "cleared": True,
+                          "models": {"routed": "v/a", "best_on_calibration": "v/a", "cheapest": "v/b"},
+                          "success": {"routed": routed[k] / held, "best_on_calibration": base / held,
+                                      "model:v/a": base / held, "model:v/b": 0.4},
+                          "cost_usd": {"routed": 1.5, "best_on_calibration": 2.0, "model:v/a": 2.0, "model:v/b": 1.0}})
+    summary = []
+    for bar in bars:
+        for strategy in ("routed", "best_on_calibration", "model:v/a", "model:v/b"):
+            mine = [c for c in cells if c["bar"] == bar]
+            summary.append({"bar": bar, "flavor": "cost_blind", "strategy": strategy,
+                            "success": math.fsum(c["success"][strategy] for c in mine) / len(mine),
+                            "cost_usd": math.fsum(c["cost_usd"][strategy] for c in mine) / len(mine)})
+    config = {"bars": bars, "seeds": [0, 1], "flavors": ["cost_blind"], "calibration_fraction": 0.5,
+              "min_samples": 1, "confidence": 0.95}
+    result = {"config": config, "tasks": {"t": {"items": 2 * held, "models": ["v/a", "v/b"]}}, "cells": cells}
+    monkeypatch.setattr(lrs, "evaluate", lambda outcomes, **kwargs: result)
+    lines = lrs.report(None, {"config": config, "summary": summary})
+    assert lines[-1] == (f"  seeds whose gap has one sign at every bar: {count}; "
+                         "(task, seed) cells routed to one model at every bar: 2 of 2")
 
 
 def _tree(tmp_path, rows):
