@@ -16,6 +16,9 @@ from pathlib import Path
 
 import pytest
 
+# v1.189: the review fixes land in v1.190
+RED = pytest.mark.xfail(strict=True, reason="v1.189: the review fixes land in v1.190")
+
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "research" / "llmrouterbench_prices.py"
 NOTE = ROOT / "research" / "delegation-datasets.md"
@@ -79,19 +82,33 @@ def _main(lrp, argv):
     return code, out.getvalue(), err.getvalue()
 
 
+@RED
 def test_fit_recovers_an_exact_pair(lrp):
     points = [(1000 + 13 * k, 40 + 9 * k * k, (1000 + 13 * k) * 0.27e-6 + (40 + 9 * k * k) * 1.0e-6)
               for k in range(6)]
-    a, b, worst = lrp.fit(points)
-    assert (a, b) == (0.27, 1.0) and worst <= lrp.TOLERANCE
+    a, b, worst, unrounded = lrp.fit(points)
+    assert (a, b) == (0.27, 1.0) and worst <= lrp.TOLERANCE and unrounded <= lrp.TOLERANCE
 
 
+@RED
 def test_fit_reports_how_far_a_cost_off_the_pair_is(lrp):
     points = [(1000 + 13 * k, 40 + 9 * k * k, (1000 + 13 * k) * 0.27e-6 + (40 + 9 * k * k) * 1.0e-6)
               for k in range(6)]
     points[2] = (points[2][0], points[2][1], points[2][2] + 0.002)
-    a, b, worst = lrp.fit(points)
+    a, b, worst, unrounded = lrp.fit(points)
     assert worst > lrp.TOLERANCE and worst < 0.002
+    assert unrounded > math.sqrt(len(points)) * lrp.TOLERANCE
+
+
+# review iter-144 must-fix 2: an exact pair with more than 4 decimals fails only after rounding
+FINER = [(n_in, n_out, (n_in * 1.23456 + n_out * 2.34567) / 1e6) for n_in, n_out in ((1000, 100), (100, 1000), (500, 700))]
+
+
+@RED
+def test_fit_tells_a_finer_pair_from_no_pair(lrp):
+    a, b, worst, unrounded = lrp.fit(FINER)
+    assert (a, b) == (1.2346, 2.3457)
+    assert worst > lrp.TOLERANCE and unrounded <= lrp.TOLERANCE
 
 
 def test_fit_with_counts_that_fix_no_pair_is_none(lrp):
@@ -99,6 +116,7 @@ def test_fit_with_counts_that_fix_no_pair_is_none(lrp):
     assert lrp.fit([]) is None
 
 
+@RED
 def test_report_lines_on_a_small_matrix(lrp):
     lines = lrp.report(tiny_rows(), {"v/x": (2, 10), "v/y": (2, 2)})
     kept = ITEMS[:4]
@@ -120,8 +138,8 @@ def test_report_lines_on_a_small_matrix(lrp):
                         f"{x / at('v/x', 2, 10):.3f}; exact pair 2 in, 10 out")
     y = recorded("v/y")
     assert lines[4].startswith(f"  v/y: recorded {y:.6f}; list 2 in, 2 out: {at('v/y', 2, 2):.6f}, ratio "
-                               f"{y / at('v/y', 2, 2):.3f}; no exact pair (least squares ")
-    assert lines[4].endswith(" USD)")
+                               f"{y / at('v/y', 2, 2):.3f}; no pair within 1e-09 USD (least squares ")
+    assert re.fullmatch(r".* in, .* out to 4 decimals; unrounded off by up to \d+\.\d{6} USD\)", lines[4])
     assert lines[5] == f"  v/z: recorded {recorded('v/z'):.6f}; list none; exact pair 0.5 in, 1.5 out"
     assert lines[6] == "summary: list price 2 of 3, exact pair 2 of 3, either 3 of 3"
     assert len(lines) == 7
@@ -131,6 +149,40 @@ def test_report_drops_every_row_of_an_item_with_a_null_count(lrp):
     both = tiny_rows(null_on=("a|0", "v/x"))
     lines = lrp.report(both, {})
     assert lines[1] == "null token count: 1 items (a 1), 3 rows; kept 4 items, 12 rows"
+
+
+def finer_rows():
+    return [{"task": "t", "item": f"t|{k}", "model": "v/f", "cost_usd": cost, "input_tokens": n_in,
+             "output_tokens": n_out} for k, (n_in, n_out, cost) in enumerate(FINER)]
+
+
+@RED
+def test_report_says_no_4_decimal_pair_when_a_finer_pair_is_not_ruled_out(lrp):
+    lines = lrp.report(finer_rows(), {})
+    assert lines[1] == "null token count: 0 items, 0 rows; kept 3 items, 3 rows"
+    assert re.fullmatch(r"  v/f: recorded \d+\.\d{6}; list none; no 4-decimal pair \(least squares 1\.2346 in, "
+                        r"2\.3457 out, off by up to \d+\.\d{6} USD; a finer pair is not ruled out\)", lines[3]), lines[3]
+
+
+# review iter-144 must-fix 1: a zero list cost and a matrix with no count left report, not crash
+@RED
+def test_report_with_a_zero_list_cost_prints_ratio_none(lrp):
+    rows = [{"task": "t", "item": f"t|{k}", "model": "v/z", "cost_usd": 0.0, "input_tokens": 0, "output_tokens": 0}
+            for k in range(2)]
+    lines = lrp.report(rows, {"v/z": (1, 2)})
+    assert lines[0] == "2 items over 1 tasks and 1 models; largest input_tokens 0"
+    assert lines[3] == "  v/z: recorded 0.000000; list 1 in, 2 out: 0.000000, ratio none; no exact pair (the counts fix no pair)"
+    assert lines[4] == "summary: list price 1 of 1, exact pair 0 of 1, either 1 of 1"
+
+
+@RED
+def test_report_when_every_item_is_dropped_and_no_row_has_an_input_count(lrp):
+    rows = [{"task": "t", "item": f"t|{k}", "model": "v/n", "cost_usd": 0.5, "input_tokens": None, "output_tokens": 3}
+            for k in range(2)]
+    lines = lrp.report(rows, {"v/n": (1, 2)})
+    assert lines[0] == "2 items over 1 tasks and 1 models; largest input_tokens none"
+    assert lines[1] == "null token count: 2 items (t 2), 2 rows; kept 0 items, 0 rows"
+    assert lines[3] == "  v/n: recorded 0.000000; list 1 in, 2 out: 0.000000, ratio none; no exact pair (the counts fix no pair)"
 
 
 def test_main_prints_the_report(lrp, tmp_path):
@@ -221,6 +273,11 @@ def test_design_13_9_names_the_section_and_the_script():
     design = DESIGN.read_text(encoding="utf-8")
     assert "(v1.187) LLMRouterBench as a third dataset: [`research/delegation-datasets.md`]" in design
     assert "`research/llmrouterbench_prices.py`" in design
+    bullet = [x for x in design.split("\n") if x.startswith("  - (v1.187) LLMRouterBench as a third dataset: ")]
+    assert len(bullet) == 1
+    for phrase in ("must be non-empty strings", "a file with no rows is an error", "dropped items included, and `none`",
+                   "prints `ratio none`", "`no pair within 1e-09 USD`", "sqrt(n) times `TOLERANCE`", "`no 4-decimal pair`"):
+        assert phrase in bullet[0], phrase
 
 
 # --- the pinned file, only when already cached (one session read, tests/conftest.py) ----------
