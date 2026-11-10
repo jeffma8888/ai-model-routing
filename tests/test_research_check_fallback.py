@@ -414,10 +414,11 @@ def limitations_first_bullet():
     return ("- Routes per task, not per prompt: the router picks each task's first model, with no difficulty "
             "prediction or confidence-based cascade. What reacts per call is the executor's fallback, which moves "
             "to the next model of the route when the caller's `validate` check fails (`DESIGN.md` 7). Replayed on "
-            "LLMRouterBench with a check as good as the record's own score, two fallbacks recover "
-            f"{span(2, 1)} of the gap between routed and per-item oracle success, at {span(2, 0)} times the "
-            f"cost, and the router's whole sorted list {span(models - 1, 1)}, at {span(models - 1, 0)} times. "
-            "Those are upper bounds: a check at call time can only do worse, and on every task but `arenahard` "
+            "LLMRouterBench with a check as good as the record's own score, so as upper bounds, two fallbacks "
+            f"recover {span(2, 1)} of the gap between routed and per-item oracle success, at {span(2, 0)} times "
+            "the cost, and the router's whole sorted list, which at a high bar holds only the models that clear "
+            f"it, {span(models - 1, 1)}, at {span(models - 1, 0)} times. "
+            "A check at call time can only do worse, and on every task but `arenahard` "
             "the score is made against an answer key a caller does not hold, in part on `livecodebench`, whose "
             "public test cases a caller may hold ([research/check-fallback.md](research/check-fallback.md))")
 
@@ -431,6 +432,9 @@ def test_readme_limitations_first_bullet_names_the_fallback_on_a_failed_check():
     design = (ROOT / "DESIGN.md").read_text(encoding="utf-8")
     section = design.split("\n## 7. Execution with fallback (`executor.py`)\n", 1)[1].split("\n## ", 1)[0]
     assert "- `validate` given and `validate(text)` is falsy: outcome `invalid`" in section
+    reading = [x for x in _section(NOTE.read_text(encoding="utf-8"), "Reading it").split("\n") if x.startswith("- ")]
+    assert "](../README.md#limitations-and-non-goals-v1)' first bullet" in reading[-1], reading[-1]
+    assert "backlog row" not in reading[-1] and "now also says" in reading[-1], reading[-1]
 
 
 # --- the pinned file, only when already cached (one session read, tests/conftest.py) ----------
