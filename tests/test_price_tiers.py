@@ -3,8 +3,9 @@
 A `models.json` row can carry `price_tiers`, each a `PriceTier(above_input_tokens, price_in,
 price_out)`. `Model.cost` prices one call: a call whose input is over a tier's threshold pays
 the last such tier's prices on all of its tokens. `Model.base_cost` keeps the linear price at
-`price_in` and `price_out`, which the 13.9 held-out costs use; from v1.219 the 13.2 decision
-prices a tiered model per call (tests/test_delegation_tiers.py)."""
+`price_in` and `price_out`; from v1.219 the 13.2 decision prices a tiered model per call
+(tests/test_delegation_tiers.py), and from v1.222 the 13.9 held-out costs do too
+(tests/test_delegation_eval_tiers.py)."""
 
 import dataclasses
 import json
@@ -250,32 +251,6 @@ def test_evaluate_prices_a_token_form_row_as_one_call():
     outcomes = outcomes_from_rows(rows, pair(True))
     assert [o.cost_usd for o in outcomes] == [linear(60_000, 1_000, 3.0, 9.0),
                                               linear(40_000, 1_000, 1.0, 4.0)]
-
-
-@pytest.mark.parametrize("per_call", [False, True])
-def test_evaluate_delegation_prices_its_paths_at_the_base_prices(per_call):
-    """13.9 v1.212, on single-call rows and on rows with per-call sizes (v1.74): two calls
-    that read 600 and 400 and write 100 each read 2 * 600 + 400 + 100 = 1,700 in all."""
-    from model_routing import evaluate_delegation
-    sizes = ({"input_tokens": 1_700, "output_tokens": 200, "call_input_tokens": [600, 400],
-              "call_output_tokens": [100, 100]} if per_call
-             else {"input_tokens": 1_000, "output_tokens": 200})
-    rows = [dict({"task": TASK, "item": f"q{i}", "model": m,
-                  "correct": m == "t/long" or i % 4 != 0}, **sizes)
-            for i in range(1, 9) for m in ("t/long", "s/small")]
-    points = [{"context_tokens": 100_000, "brief_tokens": 500, "result_tokens": 300,
-               "carry_turns": 1, "inline_separate_call": True},
-              {"context_tokens": 100_000, "brief_tokens": 500, "result_tokens": 300,
-               "carry_turns": 1, "inline_separate_call": False}]
-    if not per_call:  # 13.9 refuses work_calls above 1 on rows with per-call sizes
-        points[1]["work_calls"] = 2
-    args = {"bars": [0.4], "points": points, "seeds": [0, 1], "min_samples": 3}
-    # a tier over 1 input token: every formula call that reads any input would be at the tier
-    # under Model.cost, and both models scale by 3, so the router ranks them as at base prices
-    with_tiers = evaluate_delegation(rows, pair(True, above=1), **args)
-    without = evaluate_delegation(rows, pair(False), **args)
-    assert json.dumps(with_tiers, sort_keys=True) == json.dumps(without, sort_keys=True)
-    assert any(cost > 0 for c in with_tiers["cells"] for cost in c["cost_usd"].values())
 
 
 README_HEADER = ("Pricing notes (a row's `price_tiers` in `models.json` prices a long-prompt tier "
