@@ -182,6 +182,23 @@ def test_routes_by_hand(bb):
             assert bb.routes(low, limit) == (whole, whole)
 
 
+def test_the_below_bar_tail_leaves_out_ineligible_and_unmeasured_models(bb):
+    rows = {}
+    for o in hand_outcomes():
+        rows.setdefault(o.item, {})[o.model] = o
+    succ, mean_cost = bb.CF.calibration(rows, tuple(f"c{k}" for k in range(4)), sorted(HAND_CAL))
+    decision = bb.decide(succ, mean_cost, 4, "t", "cost_effective", 0.4, 1, 0.95)
+    model = decision.candidates[0]
+    # both would sort first in the tail on their bound, so only the filter keeps them out
+    unmeasured = dataclasses.replace(model, model_id="v/e", successes=0, trials=0, quality_lb=0.9,
+                                     eligible=True, passes=False, reason="insufficient_samples")
+    ineligible = dataclasses.replace(model, model_id="v/f", quality_lb=0.9, eligible=False, passes=False,
+                                     reason="excluded_model")
+    wider = dataclasses.replace(decision, candidates=decision.candidates + (unmeasured, ineligible))
+    assert bb.routes(wider, 5) == (("v/a", "v/d"), ("v/a", "v/d", "v/b", "v/c"))
+    assert (bb._ratio(29.0, 24.0), bb._ratio(1.0, 0.0), bb._ratio(0.0, 0.0)) == ("1.208", "-", "-")
+
+
 @pytest.mark.parametrize("key", ["success", "cost_usd"])
 @pytest.mark.parametrize("which", ["routed", "per_task", "oracle"])
 def test_report_stops_when_a_row_is_not_the_committed_one(bb, hand, which, key):
