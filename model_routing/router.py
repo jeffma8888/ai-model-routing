@@ -63,18 +63,24 @@ class RouteDecision:
     below_bar: bool
     basis: str
     candidates: Tuple[Candidate, ...]
+    below_bar_fallbacks: Tuple[str, ...] = ()
 
     def to_dict(self) -> dict:
-        """Return the decision as plain JSON-able types."""
-        return {
+        """Return the decision as plain JSON-able types.
+
+        ``below_bar_fallbacks`` is a key only when it is not empty (DESIGN 5.1).
+        """
+        data = {
             "task": self.task,
             "flavor": self.flavor,
             "primary": self.primary,
             "fallbacks": list(self.fallbacks),
-            "below_bar": self.below_bar,
-            "basis": self.basis,
-            "candidates": [asdict(c) for c in self.candidates],
         }
+        if self.below_bar_fallbacks:
+            data["below_bar_fallbacks"] = list(self.below_bar_fallbacks)
+        data.update(below_bar=self.below_bar, basis=self.basis,
+                    candidates=[asdict(c) for c in self.candidates])
+        return data
 
 
 class NoModelClearsBar(Exception):
@@ -121,7 +127,13 @@ class Router:
         passing = [c for c in candidates if c.passes]
         if passing:
             passing.sort(key=lambda c: (c.routing_cost, -c.quality_lb, c.model_id))
-            return self._decision(task, flavor, passing, False, "measured", candidates)
+            under = []
+            if task.fallback_below_bar:
+                under = sorted((c for c in candidates
+                                if c.eligible and not c.passes and c.trials > 0),
+                               key=lambda c: (-c.quality_lb, c.routing_cost, c.model_id))
+            return self._decision(task, flavor, passing + under, False, "measured", candidates,
+                                  under=frozenset(c.model_id for c in under))
 
         if task.on_no_model == "refuse":
             raise NoModelClearsBar(
@@ -221,14 +233,17 @@ class Router:
 
     @staticmethod
     def _decision(task: Task, flavor: str, ordered: Sequence[Candidate], below_bar: bool,
-                  basis: str, candidates: Tuple[Candidate, ...]) -> RouteDecision:
+                  basis: str, candidates: Tuple[Candidate, ...],
+                  under: frozenset = frozenset()) -> RouteDecision:
         chosen: List[Candidate] = list(ordered)
+        fallbacks = tuple(c.model_id for c in chosen[1:1 + task.max_fallbacks])
         return RouteDecision(
             task=task.name,
             flavor=flavor,
             primary=chosen[0].model_id,
-            fallbacks=tuple(c.model_id for c in chosen[1:1 + task.max_fallbacks]),
+            fallbacks=fallbacks,
             below_bar=below_bar,
             basis=basis,
             candidates=candidates,
+            below_bar_fallbacks=tuple(m for m in fallbacks if m in under),
         )

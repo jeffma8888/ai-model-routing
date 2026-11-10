@@ -171,7 +171,9 @@ def _cmd_select(args) -> int:
     print(f"task:      {decision.task}")
     print(f"flavor:    {decision.flavor}")
     print(f"primary:   {decision.primary}")
-    print(f"fallbacks: {', '.join(decision.fallbacks) or '(none)'}")
+    marked = [m + " (below bar)" if m in decision.below_bar_fallbacks else m
+              for m in decision.fallbacks]
+    print(f"fallbacks: {', '.join(marked) or '(none)'}")
     print(f"basis:     {decision.basis}")
     print(f"below_bar: {str(decision.below_bar).lower()}")
     print()

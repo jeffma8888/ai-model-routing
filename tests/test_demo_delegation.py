@@ -16,7 +16,8 @@ V111_FILE_SHA256 = {
     "stats.json": "91f0394b0fe8b15dd9ced30216c65e01c15ea6c1cd1e76b2a85beaa19f1f4b79",
     "outcomes.jsonl": "5490bfdc336c30558f21dfd2e047fc5af923399ed9239f33ac10b9105c6918ec",
     "models.json": "00aceac37c9ca8fff3f8b00d01e819df88cc3b474dc7c12c61f3e8ddf4004124",
-    "tasks.json": "cdd12d0d1fb3466397dc3e43bc60377c55d66123c5a5cde49c5899840dc06bd7",
+    # v1.202 (DESIGN 11): every 4.2 field, so the v1.11 file plus `"fallback_below_bar": false` last
+    "tasks.json": "81793ea3b26dae535cbbdd18f754c22fa870d19d76f33c659340ad06f034f806",
 }
 V111_SUMMARY = {
     "cost_effective": {"primary": "demo/atlas-mid", "fallbacks": ["demo/birch-pro", "demo/atlas-max"],

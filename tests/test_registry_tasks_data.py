@@ -61,7 +61,6 @@ def test_registry_load_accepts_metadata_sources_aliases_and_preserves_order(writ
     assert registry.get("fiction/a").aliases == {}
 
 
-@pytest.mark.xfail(strict=True, reason="DESIGN v1.201 spec ahead of the code (row S2)")
 def test_task_defaults_and_frozen_dataclass():
     task = Task("judge", 0.8)
     assert asdict(task) == {

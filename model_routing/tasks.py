@@ -34,6 +34,7 @@ class Task:
     max_fallbacks: int = 2
     prior_category: Optional[str] = None
     timeout_s: float = 60.0
+    fallback_below_bar: bool = False
 
     def __post_init__(self) -> None:
         if not isinstance(self.exclude_families, tuple):
@@ -54,6 +55,9 @@ class Task:
         if self.on_no_model not in ON_NO_MODEL_CHOICES:
             raise ValueError(
                 f"task {self.name!r}: on_no_model must be one of {ON_NO_MODEL_CHOICES}")
+        if type(self.fallback_below_bar) is not bool:
+            raise ValueError(f"task {self.name!r}: fallback_below_bar must be a bool, "
+                             f"got {self.fallback_below_bar!r}")
 
 
 _TASK_FIELDS = {f.name for f in fields(Task)}

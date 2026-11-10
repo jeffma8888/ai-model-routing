@@ -20,7 +20,6 @@ from model_routing import (DATA_DIR, Model, NoModelClearsBar, Registry, Router, 
 from model_routing.cli import main
 
 ROOT = Path(__file__).resolve().parents[1]
-NEW = pytest.mark.xfail(strict=True, reason="DESIGN v1.201 spec ahead of the code (row S2)")
 V1_200_KEYS = ["task", "flavor", "primary", "fallbacks", "below_bar", "basis", "candidates"]
 
 # (id, family, price_in, context_window, successes, trials); bar 0.7, min_samples 20
@@ -58,7 +57,6 @@ def route(decision):
 
 # ---- 4.2 the field ----------------------------------------------------------------------------
 
-@NEW
 def test_the_field_is_last_and_off_by_default():
     names = [f.name for f in dataclasses.fields(Task)]
     assert names[-1] == "fallback_below_bar"
@@ -66,14 +64,12 @@ def test_the_field_is_last_and_off_by_default():
     assert Task("t", 0.5, fallback_below_bar=True).fallback_below_bar is True
 
 
-@NEW
 @pytest.mark.parametrize("value", [1, 0, "true", None, 1.0])
 def test_a_value_that_is_not_a_bool_raises_valueerror(value):
     with pytest.raises(ValueError, match="fallback_below_bar"):
         Task("t", 0.5, fallback_below_bar=value)
 
 
-@NEW
 def test_load_tasks_reads_true_and_false_and_refuses_a_string(tmp_path):
     path = tmp_path / "tasks.json"
     path.write_text(json.dumps({"tasks": [{"name": "a", "bar": 0.5, "fallback_below_bar": True},
@@ -94,7 +90,6 @@ def test_no_packaged_task_sets_the_option():
 
 # ---- 5.3 the order ----------------------------------------------------------------------------
 
-@NEW
 def test_cost_effective_fills_the_places_with_the_best_bounds_under_the_bar():
     decision = build(max_fallbacks=5).select("t", exclude_models=("x/excl",))
     assert decision.primary == "p/cheap"
@@ -103,7 +98,6 @@ def test_cost_effective_fills_the_places_with_the_best_bounds_under_the_bar():
     assert decision.below_bar is False and decision.basis == "measured"
 
 
-@NEW
 def test_every_eligible_measured_model_and_nothing_else_with_room_for_all():
     decision = build(max_fallbacks=20).select("t", exclude_models=("x/excl",))
     assert route(decision) == ("p/cheap", "p/dear", "s/few", "b/close", "b/tie2", "b/tie1", "b/far")
@@ -112,14 +106,12 @@ def test_every_eligible_measured_model_and_nothing_else_with_room_for_all():
     assert reasons["x/excl"] == "excluded_model" and reasons["c/small"] == "context_too_small"
 
 
-@NEW
 def test_cost_blind_ties_on_the_bound_go_by_model_id():
     decision = build(max_fallbacks=20).select("t", flavor="cost_blind", exclude_models=("x/excl",))
     assert route(decision) == ("p/dear", "p/cheap", "s/few", "b/close", "b/tie1", "b/tie2", "b/far")
     assert decision.below_bar_fallbacks == ("s/few", "b/close", "b/tie1", "b/tie2", "b/far")
 
 
-@NEW
 @pytest.mark.parametrize("max_fallbacks, fallbacks, below", [
     (0, (), ()),
     (1, ("p/dear",), ()),
@@ -131,21 +123,18 @@ def test_below_bar_models_take_only_the_places_the_passing_list_leaves(max_fallb
     assert decision.fallbacks == fallbacks and decision.below_bar_fallbacks == below
 
 
-@NEW
 def test_one_passing_model_then_only_models_under_the_bar():
     decision = build(max_fallbacks=2).select("t", exclude_models=("x/excl", "p/dear"))
     assert route(decision) == ("p/cheap", "s/few", "b/close")
     assert decision.below_bar_fallbacks == ("s/few", "b/close")
 
 
-@NEW
 def test_option_off_keeps_the_passing_fallbacks_alone():
     decision = build(max_fallbacks=5, on=False).select("t", exclude_models=("x/excl",))
     assert route(decision) == ("p/cheap", "p/dear")
     assert decision.below_bar_fallbacks == ()
 
 
-@NEW
 def test_nothing_passes_the_option_changes_nothing():
     for flavor in ("cost_effective", "cost_blind"):
         on = build(bar=0.99, on_no_model="best_available").select("t", flavor)
@@ -164,7 +153,6 @@ def _load_research():
     return module
 
 
-@NEW
 def test_the_route_is_the_research_below_bar_route_on_seeded_cells():
     research = _load_research()
     rng = random.Random(151)
@@ -234,7 +222,6 @@ def test_default_route_on_the_packaged_tasks_is_the_v1_200_rule():
     assert seen >= 7
 
 
-@NEW
 def test_default_decisions_on_the_packaged_tasks_have_no_below_bar_fallback():
     cells = list(_packaged_cells())
     assert cells
@@ -245,7 +232,6 @@ def test_default_decisions_on_the_packaged_tasks_have_no_below_bar_fallback():
 
 # ---- 5.1 the dict and 10 the CLI --------------------------------------------------------------
 
-@NEW
 def test_to_dict_has_the_key_after_fallbacks_only_when_not_empty():
     on = build(max_fallbacks=2).select("t", exclude_models=("x/excl",)).to_dict()
     assert list(on) == V1_200_KEYS[:4] + ["below_bar_fallbacks"] + V1_200_KEYS[4:]
@@ -276,7 +262,6 @@ def _cli_files(tmp_path, on):
     return args
 
 
-@NEW
 def test_select_marks_each_below_bar_fallback(tmp_path, capsys):
     assert main(_cli_files(tmp_path, True)) == 0
     lines = capsys.readouterr().out.split("\n")
@@ -302,7 +287,6 @@ def _rules_section():
     return text[start:end]
 
 
-@NEW
 def test_readme_rules_name_the_option_and_link_the_note():
     hits = [line for line in _rules_section().split("\n") if "`fallback_below_bar`" in line]
     assert len(hits) == 1
