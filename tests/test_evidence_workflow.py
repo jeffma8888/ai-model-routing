@@ -486,9 +486,10 @@ def test_the_design_time_limit_bullet_gives_the_value_and_its_basis_run():
     assert f"sets `timeout-minutes: {TIMEOUT_MINUTES}`" in bullet
     _, marker, rest = bullet.partition("Basis (v1.217, row E17h): ")
     assert marker
+    assert " The v1.170 basis" in rest
     basis = rest.split(" The v1.170 basis", 1)[0]
-    assert f"run {SLOWEST_RUN_ID} on " in basis
-    assert f"took {SLOWEST_RUN_SECONDS} seconds from its start to its last update" in basis
+    assert re.search(rf"run {SLOWEST_RUN_ID} on `[0-9a-f]{{7}}`, which took {SLOWEST_RUN_SECONDS} seconds "
+                     "from its start to its last update", basis)
     tenfold = 10 * SLOWEST_RUN_SECONDS
     assert f"{tenfold:,} seconds is {tenfold / 60:.1f} minutes, so {TIMEOUT_MINUTES}." in basis
 
