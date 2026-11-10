@@ -8,7 +8,7 @@ bars, seeds, flavors and options of evidence/llmrouterbench/results.json, and pr
 `best_on_calibration` and for the routed row of each flavor at each bar, on how many seeds its
 pooled held-out success is above, equal to and below the best single model's on the same halves,
 the lowest, median, highest and mean gap, and its cost over that model's. The mean over seeds of
-each row must be the committed one. Standard library and the model_routing package. Read by
+each row's success and cost must be the committed one. Standard library and the model_routing package. Read by
 research/llmrouterbench-seeds.md. Exit 0, or 2 with one `error: ...` line on a missing or
 unreadable file, a row `load_outcomes` refuses, a missing key or a row that is not the committed one.
 """
@@ -75,9 +75,11 @@ def _check(rel, committed, bar, flavor, strategy, counts):
             if (r["bar"], r["flavor"], r["strategy"]) == (bar, flavor, strategy)]
     if len(rows) != 1:
         raise ValueError(f"{rel}: not one {strategy} row at bar {bar}, {flavor}")
-    mean = math.fsum(c / n for c, n, _ in counts) / len(counts)
-    if abs(mean - rows[0]["success"]) > 1e-12 * max(abs(mean), abs(rows[0]["success"])):
-        raise ValueError(f"{rel}: the {strategy} {flavor} row at bar {bar} is not the committed one")
+    success = math.fsum(c / n for c, n, _ in counts) / len(counts)
+    cost = math.fsum(x for _, _, x in counts) / len(counts)
+    for mine, key in ((success, "success"), (cost, "cost_usd")):
+        if abs(mine - rows[0][key]) > 1e-12 * max(abs(mine), abs(rows[0][key])):
+            raise ValueError(f"{rel}: the {strategy} {flavor} row at bar {bar} is not the committed one ({key})")
 
 
 def report(outcomes, committed, rel=RESULTS) -> list:

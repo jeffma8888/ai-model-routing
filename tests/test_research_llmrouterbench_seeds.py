@@ -155,10 +155,7 @@ def test_report_lines_on_a_small_matrix(lrs):
     assert any(re.search(r"above on [1-5], equal on \d, below on [1-5]", x) for x in lines)
 
 
-COST_RED = pytest.mark.xfail(strict=True, reason="v1.179: the script checks cost in the implementing commit")
-
-
-@pytest.mark.parametrize("key", ["success", pytest.param("cost_usd", marks=COST_RED)])
+@pytest.mark.parametrize("key", ["success", "cost_usd"])
 @pytest.mark.parametrize("strategy", ["routed", "best_on_calibration", "model:"])
 def test_report_stops_when_a_row_is_not_the_committed_one(lrs, strategy, key):
     rows = tiny_rows()
