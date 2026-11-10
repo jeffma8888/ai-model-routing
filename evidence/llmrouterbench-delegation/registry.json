@@ -1,0 +1,78 @@
+{
+  "as_of": "2026-11-10",
+  "note": "List prices and context windows of the 8 LLMRouterBench pool models with a price, used only to reprice their recorded 2025 calls; research/delegation-datasets.md records each value and the page it comes from, opened on 2026-11-09 and 2026-11-10 (DESIGN 13.13).",
+  "models": [
+    {
+      "id": "anthropic/claude-sonnet-4",
+      "family": "anthropic",
+      "price_in": 3,
+      "price_out": 15,
+      "context_window": 200000,
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "notes": "Price as that page states it on 2026-11-09; its recorded costs are this pair exactly. The 200,000-token window is inferred from the sentence of https://platform.claude.com/docs/en/build-with-claude/context-windows on every Claude model outside its 1M-token list, since that page does not name Claude Sonnet 4. The deprecations page gives it the retirement date June 15, 2026."
+    },
+    {
+      "id": "deepseek/deepseek-r1-0528",
+      "family": "deepseek",
+      "price_in": 0.5,
+      "price_out": 2.15,
+      "context_window": 163840,
+      "source": "https://huggingface.co/datasets/NPULH/LLMRouterBench/tree/b95870f9e60c589e82f7972c91ffa8de9ca89f85",
+      "notes": "No vendor page found states its price. The prices are the pair its recorded costs give within 1e-9 USD on all 12,056 kept items (research/llmrouterbench_prices.py). The 163,840-token window is the open weights' position limit, max_position_embeddings in https://huggingface.co/deepseek-ai/DeepSeek-R1-0528/raw/4236a6af538feda4548eca9ab308586007567f52/config.json, not a served window: the dataset does not name the service that recorded the costs."
+    },
+    {
+      "id": "deepseek/deepseek-v3-0324",
+      "family": "deepseek",
+      "price_in": 0.25,
+      "price_out": 0.88,
+      "context_window": 163840,
+      "source": "https://huggingface.co/datasets/NPULH/LLMRouterBench/tree/b95870f9e60c589e82f7972c91ffa8de9ca89f85",
+      "notes": "No vendor page found states its price. The prices are the pair its recorded costs give within 1e-9 USD on all 12,056 kept items (research/llmrouterbench_prices.py). The 163,840-token window is the open weights' position limit, max_position_embeddings in https://huggingface.co/deepseek-ai/DeepSeek-V3-0324/raw/e9b33add76883f293d6bf61f6bd89b497e80e335/config.json, not a served window: the dataset does not name the service that recorded the costs."
+    },
+    {
+      "id": "deepseek/deepseek-v3.1-terminus",
+      "family": "deepseek",
+      "price_in": 0.27,
+      "price_out": 1,
+      "context_window": 163840,
+      "source": "https://huggingface.co/datasets/NPULH/LLMRouterBench/tree/b95870f9e60c589e82f7972c91ffa8de9ca89f85",
+      "notes": "No vendor page found states its price. The prices are the pair its recorded costs give within 1e-9 USD on all 12,056 kept items (research/llmrouterbench_prices.py). The 163,840-token window is the open weights' position limit, max_position_embeddings in https://huggingface.co/deepseek-ai/DeepSeek-V3.1-Terminus/raw/19510d6dc61f79dbd925bd51ee8a9081c509a4b6/config.json, not a served window: the dataset does not name the service that recorded the costs."
+    },
+    {
+      "id": "internlm/intern-s1",
+      "family": "internlm",
+      "price_in": 0.18,
+      "price_out": 0.54,
+      "context_window": 65536,
+      "source": "https://huggingface.co/datasets/NPULH/LLMRouterBench/tree/b95870f9e60c589e82f7972c91ffa8de9ca89f85",
+      "notes": "No vendor page found states its price. The prices are the pair its recorded costs give within 1e-9 USD on all 12,056 kept items (research/llmrouterbench_prices.py). The 65,536-token window is the open weights' position limit, text_config.max_position_embeddings in https://huggingface.co/internlm/Intern-S1/raw/4ecad381e28293c4825793f113327cc016cdcbda/config.json, not a served window: the dataset does not name the service that recorded the costs."
+    },
+    {
+      "id": "openai/gpt-5",
+      "family": "openai",
+      "price_in": 1.25,
+      "price_out": 10,
+      "context_window": 400000,
+      "source": "https://platform.openai.com/docs/models/gpt-5",
+      "notes": "The model page lists it as Deprecated; price and window as that page states them on 2026-11-09. Its recorded costs are 0.906 of this list price on the same token counts."
+    },
+    {
+      "id": "openai/gpt-5-chat",
+      "family": "openai",
+      "price_in": 1.25,
+      "price_out": 10,
+      "context_window": 128000,
+      "source": "https://platform.openai.com/docs/models/gpt-5-chat-latest",
+      "notes": "The model page lists it as Shut down; price and window as that page states them on 2026-11-09. Its recorded costs are 0.967 of this list price on the same token counts."
+    },
+    {
+      "id": "z-ai/glm-4.6",
+      "family": "z-ai",
+      "price_in": 0.6,
+      "price_out": 2.2,
+      "context_window": 200000,
+      "source": "https://docs.z.ai/guides/overview/pricing",
+      "notes": "Price as that page states it on 2026-11-09. The window is the 200K of https://docs.z.ai/guides/llm/glm-4.6, read as 200,000 tokens. Its recorded costs are 0.996 of this list price on the same token counts."
+    }
+  ]
+}

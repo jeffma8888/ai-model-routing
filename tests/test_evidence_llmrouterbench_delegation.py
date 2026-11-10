@@ -3,11 +3,11 @@
 The 13.9 harness on the LLMRouterBench converter's default rows (12.18), filtered by the
 script's ``select_rows`` to the 8 pool models the research note prices, with the 10 items that
 have a null token count dropped, a committed registry of those 8 models, the 13.10 base points
-and 4 of the 12.19 bars. v1.196 holds every test that loads
+and 4 of the 12.19 bars. v1.196 held every test that loads
 ``evidence/llmrouterbench-delegation/results.py`` or reads one of its three committed files
 (``registry.json``, ``results.json``, ``RESULTS.md``) under a strict xfail marker naming
-``FileNotFoundError``; row E17c commits them and removes the markers. The other tests pass
-before and after: the 13.10 base points carry no ``work_calls``, the research note states each
+``FileNotFoundError``; row E17c (v1.197) commits them and removes the markers. The other tests
+passed before and after: the 13.10 base points carry no ``work_calls``, the research note states each
 price, window and window kind the registry takes from it, and, when the pinned file is cached,
 the converter's rows filtered to the 8 models give the dropped items, kept counts and success
 span that 13.13 states.
@@ -88,8 +88,6 @@ GEMINI = ("The pool leaves out `google/gemini-2.5-pro`, the best single model of
           "results](../llmrouterbench/RESULTS.md), since no vendor page prices it and its recorded costs give "
           "no exact price pair.")
 NONE_CLEAR = "`none_clear` is 13.5 row 7: no model clears the bar, so the calibration bounds decide, not cost."
-missing = pytest.mark.xfail(strict=True, raises=FileNotFoundError,
-                            reason="DESIGN 13.13: the script and its files land in row E17c")
 
 
 def _load(name, path):
@@ -223,9 +221,8 @@ def test_research_note_states_each_registry_value():
     assert "summary: list price 4 of 13, exact pair 5 of 13, either 8 of 13" in section_text
 
 
-# ---- red tests: the script and its files (row E17c) ----
+# ---- the script and its files (row E17c) ----
 
-@missing
 def test_constants(ld):
     assert ld.POOL == POOL
     assert ld.BARS == BARS
@@ -233,12 +230,10 @@ def test_constants(ld):
     assert ld.KEYS == KEYS
 
 
-@missing
 def test_points_are_the_13_10_base_points(ld, dr):
     assert ld.points() == dr.points()
 
 
-@missing
 def test_select_rows_keeps_the_models_and_drops_null_count_items(ld):
     rows = [row("t", "t|1", "vendor/a", True, 10, 5), row("t", "t|1", "vendor/b", False, 11, 6),
             row("t", "t|1", "other/c", True, None, None),
@@ -253,7 +248,6 @@ def test_select_rows_keeps_the_models_and_drops_null_count_items(ld):
     assert ld.select_rows(rows, ("vendor/b",)) == ([rows[1], rows[4], rows[5], rows[8]], [])
 
 
-@missing
 def test_select_rows_errors(ld):
     good = [row("t", "t|1", "vendor/a", True, 10, 5)]
     for models in ([], (), "vendor/a", ["vendor/a", "vendor/a"], [""], [3], None):
@@ -275,7 +269,6 @@ def test_select_rows_errors(ld):
         ld.select_rows([row("t", "t|1", "vendor/a", True, None, 5)], ["vendor/a"])
 
 
-@missing
 def test_run_is_evaluate_delegation_keeping_keys(ld):
     rows, registry = synthetic()
     kept, dropped = ld.select_rows(rows, ["vendor/a", "vendor/b"])
@@ -286,7 +279,6 @@ def test_run_is_evaluate_delegation_keeping_keys(ld):
     assert result == {key: full[key] for key in KEYS}
 
 
-@missing
 def test_cli_writes_the_run_on_the_rows_left(ld, tmp_path):
     rows, registry = synthetic()
     rows.append(row("t", "t|0", "other/c", True, None, None))
@@ -301,7 +293,6 @@ def test_cli_writes_the_run_on_the_rows_left(ld, tmp_path):
     assert not (tmp_path / "results.json.part").exists()
 
 
-@missing
 def test_cli_errors(ld, tmp_path, capsys):
     rows, registry = synthetic()
     matrix = tmp_path / "m.jsonl"
@@ -325,7 +316,6 @@ def test_cli_errors(ld, tmp_path, capsys):
     assert exc.value.code == 2
 
 
-@missing
 def test_registry_file():
     text = REGISTRY.read_text(encoding="utf-8")
     content = json.loads(text)
@@ -356,7 +346,6 @@ def test_registry_file():
     Registry.load(REGISTRY)
 
 
-@missing
 def test_results_file_shape(dr):
     text = RESULTS.read_text(encoding="utf-8")
     assert len(text.encode("utf-8")) < 300_000
@@ -374,7 +363,6 @@ def test_results_file_shape(dr):
     assert len(keys) == len(results["summary"]) == len(BARS) * 2 * 4 * len(POOL) * 3 == 768
 
 
-@missing
 def test_results_md_structure():
     text = RESULTS_MD.read_text(encoding="utf-8")
     assert text.split("\n")[0] == "# Delegation on LLMRouterBench: inline or sub-agent on held-out single calls"
@@ -396,7 +384,6 @@ def test_results_md_structure():
         assert phrase in assumed, phrase
 
 
-@missing
 def test_results_md_tables_are_the_committed_file(dr):
     results = committed_results()
     blocks = fenced(section(RESULTS_MD.read_text(encoding="utf-8"), "## Results"), "text")
@@ -405,7 +392,6 @@ def test_results_md_tables_are_the_committed_file(dr):
     assert blocks[1] == PARENT_CMD + "\n" + dr.parent_table(results, 0.1, 0).rstrip("\n")
 
 
-@missing
 def test_results_md_reading_it_is_built_from_the_committed_file():
     results = committed_results()
     index = summary_index(results)
@@ -444,7 +430,6 @@ def test_results_md_reading_it_is_built_from_the_committed_file():
         assert bullet in bullets, bullet
 
 
-@missing
 def test_results_md_regenerate_block():
     blocks = fenced(section(RESULTS_MD.read_text(encoding="utf-8"), "## Regenerate"), "bash")
     assert blocks and blocks[0].split("\n") == REGENERATE
@@ -492,7 +477,6 @@ def pinned_full(pinned_rows):
     return kept, dropped, full
 
 
-@missing
 def test_pinned_results_are_the_committed_bytes(pinned_full):
     kept, dropped, full = pinned_full
     assert dropped == DROPPED and len(kept) == 96_448
@@ -501,7 +485,6 @@ def test_pinned_results_are_the_committed_bytes(pinned_full):
     assert len(text.encode("utf-8")) == 230_012
 
 
-@missing
 def test_pinned_prototype_numbers(pinned_full):
     _kept, _dropped, full = pinned_full
     cells = full["cells"]
@@ -529,7 +512,6 @@ def test_pinned_prototype_numbers(pinned_full):
             assert f"{mean(r['cost_usd'] for r in rows):.4f}" == f"{c:.4f}"
 
 
-@missing
 def test_pinned_method_sentences(pinned_full):
     _kept, dropped, full = pinned_full
     per_task = Counter(item.split("|")[0] for item in dropped)
