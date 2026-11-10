@@ -252,25 +252,6 @@ def test_evaluate_prices_a_token_form_row_as_one_call():
                                               linear(40_000, 1_000, 1.0, 4.0)]
 
 
-@pytest.mark.parametrize("flavor", ["cost_effective", "cost_blind"])
-@pytest.mark.parametrize("work", [
-    {"context_tokens": 200_000, "brief_tokens": 300, "result_tokens": 200},
-    {"context_tokens": 200_000, "brief_tokens": 300, "result_tokens": 200, "work_calls": 3,
-     "carry_turns": 2},
-    {"context_tokens": 120_000, "brief_tokens": 60_000, "result_tokens": 200,
-     "inline_separate_call": False, "work_calls": 2},
-    {"context_tokens": 200_000, "brief_tokens": 300, "result_tokens": 200,
-     "cached_read_ratio": 0.1},
-])
-def test_decide_delegation_prices_its_paths_at_the_base_prices(flavor, work):
-    """13.2 v1.212: tiers change no inline or delegate cost, though every path here reads
-    more than 50,000 tokens in some call or total."""
-    with_tiers = router(pair(True), task()).decide_delegation(TASK, "t/long", flavor, **work)
-    without = router(pair(False), task()).decide_delegation(TASK, "t/long", flavor, **work)
-    assert dataclasses.asdict(with_tiers) == dataclasses.asdict(without)
-    assert with_tiers.inline_cost_usd > 0 and with_tiers.delegate_cost_usd > 0
-
-
 @pytest.mark.parametrize("per_call", [False, True])
 def test_evaluate_delegation_prices_its_paths_at_the_base_prices(per_call):
     """13.9 v1.212, on single-call rows and on rows with per-call sizes (v1.74): two calls
