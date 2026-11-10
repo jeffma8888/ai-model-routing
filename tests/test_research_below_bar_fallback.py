@@ -20,8 +20,6 @@ import pytest
 
 from model_routing import Outcome, evaluate, outcomes_from_rows
 
-# v1.191: red until v1.192 lands the script and the note
-RED = pytest.mark.xfail(strict=True, reason="v1.191: the script and the note land in v1.192")
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "research" / "below_bar_fallback.py"
 SIBLING = ROOT / "research" / "check_fallback.py"
@@ -156,12 +154,10 @@ def hand(bb, monkeypatch):
         tuple(f"c{k}" for k in range(4)), tuple(f"h{k}" for k in range(4))))
 
 
-@RED
 def test_report_by_hand(bb, hand):
     assert bb.report(hand_outcomes(), hand_committed(), rel="evidence/hand/results.json") == HAND_LINES
 
 
-@RED
 def test_routes_by_hand(bb):
     rows = {}
     for o in hand_outcomes():
@@ -188,7 +184,6 @@ def test_routes_by_hand(bb):
 
 @pytest.mark.parametrize("key", ["success", "cost_usd"])
 @pytest.mark.parametrize("which", ["routed", "per_task", "oracle"])
-@RED
 def test_report_stops_when_a_row_is_not_the_committed_one(bb, hand, which, key):
     record = hand_committed()
     rows = record["per_task"] if which == "per_task" else record["summary"]
@@ -200,7 +195,6 @@ def test_report_stops_when_a_row_is_not_the_committed_one(bb, hand, which, key):
         bb.report(hand_outcomes(), record)
 
 
-@RED
 def test_report_stops_when_a_route_does_not_start_with_the_routed_model(bb, hand, monkeypatch):
     real = bb.decide
     monkeypatch.setattr(bb, "decide", lambda *a: dataclasses.replace(real(*a), primary="v/b")
@@ -228,7 +222,6 @@ def committed(rows):
     return {"config": result["config"], "summary": result["summary"], "per_task": result["per_task"]}
 
 
-@RED
 def test_the_5_3_route_is_the_first_part_of_the_below_bar_route_on_every_cell(bb):
     outcomes = outcomes_from_rows(tiny_rows())
     result = evaluate(outcomes, **CONFIG)
@@ -253,7 +246,6 @@ def test_the_5_3_route_is_the_first_part_of_the_below_bar_route_on_every_cell(bb
     assert differ > 0
 
 
-@RED
 def test_report_on_a_small_matrix(bb):
     rows = tiny_rows()
     record = committed(rows)
@@ -303,7 +295,6 @@ def _main(bb, argv):
     return code, out.getvalue(), err.getvalue()
 
 
-@RED
 def test_main_prints_the_report(bb, tmp_path):
     rows = tiny_rows()
     code, out, err = _main(bb, _tree(tmp_path, rows))
@@ -313,7 +304,6 @@ def test_main_prints_the_report(bb, tmp_path):
 
 
 @pytest.mark.parametrize("break_it", ["matrix", "results", "key", "row"])
-@RED
 def test_main_exits_2_with_one_error_line(bb, tmp_path, break_it):
     rows = tiny_rows()
     argv = _tree(tmp_path, rows)
@@ -331,7 +321,6 @@ def test_main_exits_2_with_one_error_line(bb, tmp_path, break_it):
     assert err.startswith("error: ") and err.count("\n") == 1
 
 
-@RED
 def test_script_is_standard_library_model_routing_and_its_sibling():
     text = SCRIPT.read_text(encoding="utf-8")
     imports = {m.split(".")[0] for m in re.findall(r"^(?:from|import) ([\w.]+)", text, flags=re.M)}
@@ -359,7 +348,6 @@ def _bullets(text):
     return [x for x in text.split("\n") if x.startswith("- ")]
 
 
-@RED
 def test_note_quotes_its_commands_and_links():
     note = NOTE.read_text(encoding="utf-8")
     assert note.startswith("# Should a route go on below the bar after its clearing models fail?\n\n")
@@ -374,20 +362,17 @@ def test_note_quotes_its_commands_and_links():
         assert f"]({link})" in note, link
 
 
-@RED
 def test_facts_says_first_that_the_numbers_are_an_upper_bound():
     first = _bullets(_section(NOTE.read_text(encoding="utf-8"), "Facts"))[0]
     assert "upper bound" in first and "check" in first, first
 
 
-@RED
 def test_recommendation_names_an_option_on_task_with_the_default_unchanged():
     text = _section(NOTE.read_text(encoding="utf-8"), "Recommendation")
     assert "`Task`" in text and "default" in text and "because" in text, text
     assert not re.search(r"\b[A-Z]+\d+[a-z]?\b", text), "the note names no backlog row"
 
 
-@RED
 def test_every_number_of_the_prose_is_in_the_output_or_allowed():
     note = NOTE.read_text(encoding="utf-8")
     [text] = _blocks(note, "text")
@@ -395,7 +380,6 @@ def test_every_number_of_the_prose_is_in_the_output_or_allowed():
     assert sorted({n for n in NUMBER.findall(_prose(note)) if n not in printed and n not in ALLOWED}) == []
 
 
-@RED
 def test_the_research_index_and_the_check_fallback_note_link_the_note():
     index = INDEX.read_text(encoding="utf-8").split("\n")
     rows = [x for x in index if x.startswith("| [below-bar-fallback.md](below-bar-fallback.md) | ")]
@@ -430,13 +414,11 @@ def output(bb, llmrouterbench_pinned):
     return out
 
 
-@RED
 def test_note_results_block_is_the_script_output(output):
     [text] = _blocks(NOTE.read_text(encoding="utf-8"), "text")
     assert text == COMMAND + "\n" + output
 
 
-@RED
 def test_the_whole_below_bar_route_reaches_the_oracle(output):
     lines = output.split("\n")
     top = re.fullmatch(r"oracle: success (\S+), cost \S+", lines[2]).group(1)
