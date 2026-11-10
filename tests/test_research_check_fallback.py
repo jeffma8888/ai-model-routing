@@ -18,9 +18,6 @@ import pytest
 
 from model_routing import Outcome, evaluate, outcomes_from_rows
 
-pytestmark = pytest.mark.xfail(strict=True, raises=(FileNotFoundError, AssertionError),
-                               reason="v1.181: the script and note land in the implementing commit")
-
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "research" / "check_fallback.py"
 NOTE = ROOT / "research" / "check-fallback.md"
@@ -106,7 +103,8 @@ HAND_LINES = [
     "  max_fallbacks 3: success 0.5000, cost 24.0000, 2.000 times no fallback's, attempts per item 1.750, "
     "routes of 2 to 2 models, gap to the oracle recovered 0.500",
     "per task at bar 0.4, held-out success with max_fallbacks 0 and 3, and the oracle's:",
-    "  t (8 items): cost_effective from 0.2500 to 0.5000, cost_blind from 0.2500 to 0.5000; oracle 0.7500",
+    "  t (8 items): cost_effective from 0.2500 to 0.5000, cost_blind from 0.2500 to 0.5000, routes of 2 to 2 models; "
+    "oracle 0.7500",
 ]
 
 
