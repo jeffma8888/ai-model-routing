@@ -159,7 +159,7 @@ def test_judges_has_no_copy_of_the_check():
     assert "_check_out" not in vars(load("autobench-judges"))
 
 
-def _refused(cli, argv, option, tmp_path, monkeypatch, capsys, value):
+def _refused(cli, argv, option, tmp_path, monkeypatch, capsys, value, start=None):
     calls = []
     monkeypatch.setattr(owner(cli), "fetch", _stand_in_fetch(calls))
     before = _tree(tmp_path)
@@ -172,7 +172,7 @@ def _refused(cli, argv, option, tmp_path, monkeypatch, capsys, value):
     assert code == 2  # a return value, never SystemExit from argparse
     captured = capsys.readouterr()
     assert captured.out == ""
-    assert len(captured.err.splitlines()) == 1 and captured.err.startswith(f"error: {option} ")
+    assert len(captured.err.splitlines()) == 1 and captured.err.startswith(start or f"error: {option} ")
     assert _tree(tmp_path) == before
 
 
@@ -194,9 +194,11 @@ def test_a_bad_registry_is_refused_before_the_fetch(cli, case, tmp_path, monkeyp
 @pytest.mark.parametrize("cli", REGISTRY_CLIS)
 def test_out_is_checked_before_registry_and_registry_before_the_four_files(cli, tmp_path, monkeypatch, capsys):
     monkeypatch.chdir(tmp_path)
-    _refused(cli, ["--out", "", "--registry", ""], "--out", tmp_path, monkeypatch, capsys, "")
+    # the four-files error also starts `error: --registry and --out`, so the check's own words are required
+    _refused(cli, ["--out", "", "--registry", ""], "--out", tmp_path, monkeypatch, capsys, "",
+             start="error: --out must end in a file name, got ''")
     _refused(cli, ["--out", "m.jsonl", "--registry", "m.jsonl/"], "--registry", tmp_path, monkeypatch, capsys,
-             "m.jsonl/")
+             "m.jsonl/", start="error: --registry must end in a file name, got 'm.jsonl/'")
 
 
 def _good(cli, argvs, tmp_path, monkeypatch):
