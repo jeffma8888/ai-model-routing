@@ -326,6 +326,10 @@ RUN_ONCE_CASES = [
     (["a --matrix x.jsonl --out x.jsonl", "a --matrix x.jsonl --out x.jsonl"],
      ["a --matrix x.jsonl --out x.jsonl", "a --matrix x.jsonl --out x.jsonl"]),
     (["a >> x.jsonl", "a >> x.jsonl"], ["a >> x.jsonl", "a >> x.jsonl"]),
+    # v1.216 (review): a read flag joined to its file by `=` is a mention, and `x.json.bak` names no file
+    (["a --out x.jsonl", "b --outcomes=x.jsonl", "a --out x.jsonl"],
+     ["a --out x.jsonl", "b --outcomes=x.jsonl", "a --out x.jsonl"]),
+    (["a --out x.json.bak", "a --out x.json.bak"], ["a --out x.json.bak", "a --out x.json.bak"]),
     # a third copy is compared with the last copy run, not the first
     (["a --out x.jsonl", "w --out x.jsonl", "a --out x.jsonl", "r --table x.jsonl", "a --out x.jsonl"],
      ["a --out x.jsonl", "w --out x.jsonl", "a --out x.jsonl", "r --table x.jsonl"]),
@@ -338,7 +342,7 @@ def test_a_repeat_is_left_out_only_when_nothing_between_names_its_files_but_to_r
 
 
 def test_the_hand_built_list_count_is_the_one_design_states():
-    assert len(RUN_ONCE_CASES) == 10
+    assert len(RUN_ONCE_CASES) == 12
 
 
 def test_regenerate_leaves_out_the_one_repeated_converter_line():
