@@ -433,11 +433,17 @@ def test_cli_a_verified_file_that_is_not_a_frame_exits_2(cv, blob, tmp_path, cap
 
 
 def test_cli_a_failed_rename_leaves_no_part_file(cv, tmp_path, capsys, monkeypatch):
-    monkeypatch.setattr(cv, "fetch", lambda cache=None: tmp_path / "unused")
+    out = tmp_path / "out-is-a-folder"
+
+    def fetch(cache=None):
+        # a folder there at the start is a bad option (12.14 v1.174, tests/test_evidence_out_option.py),
+        # so it appears during the fetch, after the check, and the rename after the print fails
+        out.mkdir()
+        return tmp_path / "unused"
+
+    monkeypatch.setattr(cv, "fetch", fetch)
     monkeypatch.setattr(cv, "load_frame", lambda path: "frame")
     monkeypatch.setattr(cv, "frame_columns", lambda frame: columns(binary_task("alpha", 3)))
-    out = tmp_path / "out-is-a-folder"
-    out.mkdir()
     assert cv.main(["--out", str(out), "--min-items", "1"]) == 2
     captured = capsys.readouterr()
     _, report = cv.convert(columns(binary_task("alpha", 3)), min_items=1)

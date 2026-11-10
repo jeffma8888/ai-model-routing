@@ -114,23 +114,19 @@ PASSED_BEFORE = {
     "autobench-judges": set(BAD),
 }
 REGISTRY_PASSED_BEFORE = {cli: set(BAD) for cli in REGISTRY_CLIS}
-PENDING = {"routerbench", "autobench", "autobench-judges"}  # red until v1.175 puts the check in
-pending_check = pytest.mark.xfail(strict=True, raises=Downloaded,
-                                  reason="v1.174 spec: the check is not in this CLI yet (row H4b)")
+LATE = {"routerbench", "autobench", "autobench-judges"}  # the three that took the check in v1.175
 
 
 def _cases():
     for cli in CLIS:
         for case in BAD:
-            marks = [pending_check] if cli in PENDING else []
-            yield pytest.param(cli, case, marks=marks, id=f"{cli}-{case}")
+            yield pytest.param(cli, case, id=f"{cli}-{case}")
 
 
 def _registry_cases():
     for cli in REGISTRY_CLIS:
         for case in BAD:
-            marks = [pending_check] if cli in PENDING else []
-            yield pytest.param(cli, case, marks=marks, id=f"{cli}-registry-{case}")
+            yield pytest.param(cli, case, id=f"{cli}-registry-{case}")
 
 
 def _stand_in_fetch(calls):
@@ -149,13 +145,11 @@ def test_the_red_cases_are_bad_cases():
     assert set(REGISTRY_CLIS) == set(REGISTRY_PASSED_BEFORE)
     assert all(cases <= set(BAD) for cases in PASSED_BEFORE.values())
     assert all(cases <= set(BAD) for cases in REGISTRY_PASSED_BEFORE.values())
-    assert sum(len(PASSED_BEFORE[cli]) for cli in CLIS if cli not in PENDING) == 27
-    assert sum(len(PASSED_BEFORE[cli]) for cli in PENDING) == 36
+    assert sum(len(PASSED_BEFORE[cli]) for cli in CLIS if cli not in LATE) == 27
+    assert sum(len(PASSED_BEFORE[cli]) for cli in LATE) == 36
     assert sum(len(cases) for cases in REGISTRY_PASSED_BEFORE.values()) == 24
 
 
-@pytest.mark.xfail(strict=True, raises=AttributeError,
-                   reason="v1.174 spec: three CLIs have no _check_out yet (row H4b)")
 def test_the_checks_are_one_check():
     sources = {cli: inspect.getsource(owner(cli)._check_out) for cli in CLIS}
     assert len(set(sources.values())) == 1, sorted(sources)
@@ -197,8 +191,6 @@ def test_a_bad_registry_is_refused_before_the_fetch(cli, case, tmp_path, monkeyp
              value)
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError,
-                   reason="v1.174 spec: the four-files check comes first in v1.173 (row H4b)")
 @pytest.mark.parametrize("cli", REGISTRY_CLIS)
 def test_out_is_checked_before_registry_and_registry_before_the_four_files(cli, tmp_path, monkeypatch, capsys):
     monkeypatch.chdir(tmp_path)

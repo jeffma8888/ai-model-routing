@@ -935,10 +935,16 @@ def test_main_failed_stdout_is_one_error_line_and_leaves_both_files(cv, tmp_path
 def test_main_rename_error_removes_both_parts(cv, tmp_path, monkeypatch, capsys):
     matrix, questions = small()
     data = write_folder(tmp_path / "data", matrix, questions, pool=PRICED_POOL)
-    monkeypatch.setattr(cv, "fetch", lambda cache_dir=None: data)
     out, reg = tmp_path / "taken", tmp_path / "models.json"
-    out.mkdir()
-    (out / "keep").write_text("x", encoding="utf-8")   # a non-empty folder: renaming onto it fails
+
+    def fetch(cache_dir=None):
+        # a folder there at the start is a bad option (12.14 v1.174, tests/test_evidence_out_option.py),
+        # so it appears during the fetch, after the check, and the rename after the print fails
+        out.mkdir()
+        (out / "keep").write_text("x", encoding="utf-8")   # a non-empty folder: renaming onto it fails
+        return data
+
+    monkeypatch.setattr(cv, "fetch", fetch)
     assert cv.main(["--out", str(out), "--registry", str(reg)]) == 2
     captured = capsys.readouterr()
     _, report = cv.convert(cv.read_csv(data / "matrix.csv"), cv.read_csv(data / "questions.csv"), PRICED_POOL,

@@ -279,6 +279,19 @@ def _stdout_to_devnull() -> None:
         os.close(devnull)
 
 
+def _check_out(value, option="--out"):
+    """The path an output option names, or a ValueError for a bad one, checked before any download (12.14 v1.174)."""
+    if value.rsplit("/", 1)[-1] in ("", ".", ".."):
+        raise ValueError(f"{option} must end in a file name, got {value!r}")
+    out = Path(value)
+    for path in (out, out.with_name(out.name + ".part")):
+        if path.is_dir():  # a link to a folder included
+            raise ValueError(f"{option} {value!r}: {str(path)!r} is a folder")
+    if not out.parent.is_dir():
+        raise ValueError(f"{option} {value!r}: folder {str(out.parent)!r} does not exist")
+    return out
+
+
 def main(argv=None) -> int:
     parser = _Parser(prog="convert.py", description="RouterBench 0-shot to an outcome matrix")
     parser.add_argument("--out", required=True, help="output JSONL path")
@@ -290,9 +303,9 @@ def main(argv=None) -> int:
                         help="drop tasks with fewer items (default: %(default)s)")
     try:
         args = parser.parse_args(argv)
+        out = _check_out(args.out)
         frame = load_frame(fetch(args.cache))
         rows, report = convert(frame_columns(frame), args.pass_score, args.min_items)
-        out = Path(args.out)
         part = out.with_name(out.name + ".part")
         try:
             write_jsonl(rows, part)

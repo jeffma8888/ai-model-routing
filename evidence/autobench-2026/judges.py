@@ -274,7 +274,9 @@ def main(argv=None) -> int:
                              "or all output tokens (default: %(default)s)")
     try:
         args = parser.parse_args(argv)
+        convert._check_out(args.out)
         if args.registry is not None:
+            convert._check_out(args.registry, "--registry")
             paths = [p.resolve() for name in (args.out, args.registry)
                      for p in (Path(name), Path(name + ".part"))]
             if len(set(paths)) < len(paths):

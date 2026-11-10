@@ -311,16 +311,16 @@ def _stdout_to_devnull() -> None:
         os.close(devnull)
 
 
-def _check_out(value):
-    """The `--out` path, or a ValueError for a bad one, checked before any download (12.14 v1.171)."""
+def _check_out(value, option="--out"):
+    """The path an output option names, or a ValueError for a bad one, checked before any download (12.14 v1.174)."""
     if value.rsplit("/", 1)[-1] in ("", ".", ".."):
-        raise ValueError(f"--out must end in a file name, got {value!r}")
+        raise ValueError(f"{option} must end in a file name, got {value!r}")
     out = Path(value)
     for path in (out, out.with_name(out.name + ".part")):
         if path.is_dir():  # a link to a folder included
-            raise ValueError(f"--out {value!r}: {str(path)!r} is a folder")
+            raise ValueError(f"{option} {value!r}: {str(path)!r} is a folder")
     if not out.parent.is_dir():
-        raise ValueError(f"--out {value!r}: folder {str(out.parent)!r} does not exist")
+        raise ValueError(f"{option} {value!r}: folder {str(out.parent)!r} does not exist")
     return out
 
 
