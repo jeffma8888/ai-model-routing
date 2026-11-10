@@ -16,10 +16,6 @@ from pathlib import Path
 
 import pytest
 
-# v1.187: every test but the DESIGN one fails until v1.188 adds the script and the section
-RED = pytest.mark.xfail(strict=True, raises=(FileNotFoundError, AssertionError),
-                        reason="v1.187: the script and the section land in v1.188")
-
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "research" / "llmrouterbench_prices.py"
 NOTE = ROOT / "research" / "delegation-datasets.md"
@@ -83,7 +79,6 @@ def _main(lrp, argv):
     return code, out.getvalue(), err.getvalue()
 
 
-@RED
 def test_fit_recovers_an_exact_pair(lrp):
     points = [(1000 + 13 * k, 40 + 9 * k * k, (1000 + 13 * k) * 0.27e-6 + (40 + 9 * k * k) * 1.0e-6)
               for k in range(6)]
@@ -91,7 +86,6 @@ def test_fit_recovers_an_exact_pair(lrp):
     assert (a, b) == (0.27, 1.0) and worst <= lrp.TOLERANCE
 
 
-@RED
 def test_fit_reports_how_far_a_cost_off_the_pair_is(lrp):
     points = [(1000 + 13 * k, 40 + 9 * k * k, (1000 + 13 * k) * 0.27e-6 + (40 + 9 * k * k) * 1.0e-6)
               for k in range(6)]
@@ -100,13 +94,11 @@ def test_fit_reports_how_far_a_cost_off_the_pair_is(lrp):
     assert worst > lrp.TOLERANCE and worst < 0.002
 
 
-@RED
 def test_fit_with_counts_that_fix_no_pair_is_none(lrp):
     assert lrp.fit([(10, 20, 1e-5), (20, 40, 2e-5)]) is None
     assert lrp.fit([]) is None
 
 
-@RED
 def test_report_lines_on_a_small_matrix(lrp):
     lines = lrp.report(tiny_rows(), {"v/x": (2, 10), "v/y": (2, 2)})
     kept = ITEMS[:4]
@@ -135,21 +127,18 @@ def test_report_lines_on_a_small_matrix(lrp):
     assert len(lines) == 7
 
 
-@RED
 def test_report_drops_every_row_of_an_item_with_a_null_count(lrp):
     both = tiny_rows(null_on=("a|0", "v/x"))
     lines = lrp.report(both, {})
     assert lines[1] == "null token count: 1 items (a 1), 3 rows; kept 4 items, 12 rows"
 
 
-@RED
 def test_main_prints_the_report(lrp, tmp_path):
     code, out, err = _main(lrp, ["--matrix", str(_write(tmp_path / "m.jsonl", tiny_rows()))])
     assert (code, err) == (0, "")
     assert out == "\n".join(lrp.report(tiny_rows())) + "\n"
 
 
-@RED
 @pytest.mark.parametrize("break_it", ["missing", "not_json", "not_object", "no_key", "negative_tokens",
                                       "bool_tokens", "bad_cost", "repeated", "incomplete"])
 def test_main_exits_2_with_one_error_line(lrp, tmp_path, break_it):
@@ -180,7 +169,6 @@ def test_main_exits_2_with_one_error_line(lrp, tmp_path, break_it):
     assert err.startswith("error: ") and err.count("\n") == 1
 
 
-@RED
 def test_script_is_standard_library():
     text = SCRIPT.read_text(encoding="utf-8")
     imports = {m.split(".")[0] for m in re.findall(r"^(?:from|import) ([\w.]+)", text, flags=re.M)}
@@ -200,7 +188,6 @@ def _blocks(text, lang):
     return re.findall(rf"^```{lang}\n(.*?)^```$", text, flags=re.M | re.S)
 
 
-@RED
 def test_section_shape_commands_and_ascii():
     section = _section()
     assert re.findall(r"^### (.+)$", section, flags=re.M) == ["List prices", "Recorded costs", "Recommendation"]
@@ -212,7 +199,6 @@ def test_section_shape_commands_and_ascii():
     assert not re.search(r"\d", re.sub(r"`[^`]*`", "", first)), "the finding comes before any number"
 
 
-@RED
 def test_price_table_names_the_pool_and_the_script_prices(lrp):
     section = _section()
     table = section.split("\n### List prices\n", 1)[1].split("\n### ", 1)[0]
@@ -249,13 +235,11 @@ def output(lrp, llmrouterbench_pinned):
     return out
 
 
-@RED
 def test_section_results_block_is_the_script_output(output):
     [text] = _blocks(_section(), "text")
     assert text == COMMAND + "\n" + output
 
 
-@RED
 def test_null_counts_are_the_12_18_ones(output):
     lines = output.split("\n")
     assert lines[0] == "12066 items over 9 tasks and 13 models; largest input_tokens 16563"
