@@ -9,8 +9,11 @@ rows where the decision changed something by point, how many of them cost less t
 delegate and at no less success, and the largest success gain over the better fixed policy, and
 the counts over all four files. Standard library only. Exit 0, or 2 with one
 `error: ...` line when a file is missing, is not JSON, lacks a key the report reads, a row lacks
-a strategy or has one twice, or a row's decision equals a fixed policy while its `delegate_rate`
-says the decision did not take that path on every cell (or the reverse).
+a strategy or has one twice, a success or a cost is not a number, or a row's decision equals a
+fixed policy while its `delegate_rate` says the decision did not take that path on every cell (or
+the reverse). That last check is a consistency check on the committed files, not a property of
+DESIGN 13.9: a file whose two fixed policies share one pair, or whose mixed decision ties a policy
+exactly, would fail it.
 """
 
 import argparse
@@ -83,12 +86,19 @@ def rows_of(results, rel):
     for key, group in groups.items():
         if sorted(group) != sorted(STRATEGIES):
             raise ValueError(f"{rel}: the row {key} has the strategies {sorted(group)}")
-        pair(group["inline"]), pair(group["delegate"])
+        for strategy in STRATEGIES:
+            for value in pair(group[strategy]):
+                if isinstance(value, bool) or not isinstance(value, (int, float)):
+                    raise ValueError(f"{rel}: the {strategy!r} row {key} has a success or cost {value!r}")
         rate = group["decision"]["delegate_rate"]
         same = classify(group["decision"], group["inline"], group["delegate"])
         if (same == "= delegate") != (rate == 1.0) or (same == "= inline") != (rate == 0.0):
             raise ValueError(f"{rel}: the row {key} is {same!r} with delegate_rate {rate!r}")
     return groups
+
+
+def plural(n, word):
+    return f"{n} {word}{'' if n == 1 else 's'}"
 
 
 def table_line(flavor, bar, counts, top):
@@ -111,9 +121,9 @@ def report(root):
         try:
             config, groups = results["config"], rows_of(results, rel)
             flavors, bars, points = config["flavors"], config["bars"], config["points"]
-            head = (f"{name} (`{rel}`): {len(groups)} rows, {len(results['tasks'])} "
-                    f"task{'s' if len(results['tasks']) != 1 else ''}, bars {' '.join(str(b) for b in bars)}, "
-                    f"{len(points)} points, {len(config['parents'])} parents")
+            head = (f"{name} (`{rel}`): {plural(len(groups), 'row')}, {plural(len(results['tasks']), 'task')}, "
+                    f"bars {' '.join(str(b) for b in bars)}, {plural(len(points), 'point')}, "
+                    f"{plural(len(config['parents']), 'parent')}")
         except (KeyError, TypeError) as exc:
             raise ValueError(f"{rel}: lacks a key the report reads ({exc!r})") from None
         lines += [head, HEADER]
@@ -138,7 +148,7 @@ def report(root):
                 continue
             cheaper = [g for _, g in changed if g["decision"]["cost_usd"] < g["delegate"]["cost_usd"]]
             kept = sum(1 for g in cheaper if g["decision"]["success"] >= g["delegate"]["success"])
-            lines.append(f"  against always delegate, {flavor}: {len(changed)} changed rows, {len(cheaper)} cheaper "
+            lines.append(f"  against always delegate, {flavor}: {plural(len(changed), 'changed row')}, {len(cheaper)} cheaper "
                          f"({kept} of them at no less success), {len(changed) - len(cheaper)} not cheaper")
             key, g = max(changed, key=lambda kg: gain(kg[1]))
             d, i, e = (pair(g[s]) for s in STRATEGIES)

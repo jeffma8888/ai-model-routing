@@ -220,7 +220,7 @@ def test_no_changed_row_and_task_plural(wdp, tmp_path):
     code, out, err = run(wdp, ["--root", str(write_root(tmp_path, [document] * 4))])
     assert (code, err) == (0, "")
     lines = out.splitlines()
-    assert lines[1].endswith(": 1 rows, 2 tasks, bars 0.5, 2 points, 1 parents")
+    assert lines[1].endswith(": 1 row, 2 tasks, bars 0.5, 2 points, 1 parent")
     assert lines[4:7] == ["  changed rows by point, cost_effective: 0: 0, 1: 0",
                           "  against always delegate, cost_effective: no changed row",
                           "  largest gain, cost_effective: no changed row"]
@@ -237,6 +237,9 @@ BAD = {
                                                                (0.4, 3.0), (0.6, 1.0), 0.0)),
     "no summary": {"config": SMALL["config"], "tasks": SMALL["tasks"]},
     "no success": small_file([{k: v for k, v in r.items() if k != "success"} for r in SMALL["summary"]]),
+    "a success that is not a number": small_file(triple(0.5, "cost_effective", 0, "a/p", (None, 2.0),
+                                                        (0.4, 3.0), (None, 2.0), 1.0)),
+    "a bool cost": small_file(triple(0.5, "cost_effective", 0, "a/p", (0.5, 2.0), (0.4, True), (0.5, 2.0), 1.0)),
     "not JSON": "{",
     "not an object": "[]",
 }
@@ -271,6 +274,8 @@ def test_cost_effective_changes_only_where_inline_folds(wdp):
     """Reading it: every cost_effective row at a separate-call point is `= delegate`."""
     for name, results, groups in committed(wdp):
         points = results["config"]["points"]
+        # the note's "points 0, 1 and 2" and "point 3" (review iter-153 nit 6)
+        assert [p["inline_separate_call"] for p in points] == [True, True, True, False], name
         for key, group in groups.items():
             kind = wdp.classify(group["decision"], group["inline"], group["delegate"])
             if key[1] == "cost_effective" and points[key[2]]["inline_separate_call"]:
@@ -301,5 +306,5 @@ def test_a_changed_row_at_always_delegates_cost_is_not_cheaper(wdp, tmp_path):
                           parents=("a/p",))
     code, out, err = run(wdp, ["--root", str(write_root(tmp_path, [document] * 4))])
     assert (code, err) == (0, "")
-    assert out.splitlines()[5] == ("  against always delegate, cost_effective: 1 changed rows, 0 cheaper "
+    assert out.splitlines()[5] == ("  against always delegate, cost_effective: 1 changed row, 0 cheaper "
                                    "(0 of them at no less success), 1 not cheaper")
