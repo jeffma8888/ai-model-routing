@@ -316,7 +316,6 @@ def test_cli_errors(ld, tmp_path, capsys):
     assert exc.value.code == 2
 
 
-@pytest.mark.xfail(strict=True, raises=ValueError, reason="v1.198: the CLI forms the output path inside its error handling")
 def test_cli_out_with_an_empty_name_is_one_error_line(ld, tmp_path, capsys):
     rows, registry = synthetic()
     matrix = tmp_path / "m.jsonl"
@@ -329,7 +328,6 @@ def test_cli_out_with_an_empty_name_is_one_error_line(ld, tmp_path, capsys):
         assert err.startswith("error: ") and err.count("\n") == 1, out
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="v1.198: every exit 1 leaves no <out>.part")
 def test_cli_failure_removes_a_part_left_by_an_earlier_run(ld, tmp_path, capsys):
     rows, registry = synthetic()
     matrix = tmp_path / "m.jsonl"
