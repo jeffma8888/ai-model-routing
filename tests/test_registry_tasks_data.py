@@ -61,6 +61,7 @@ def test_registry_load_accepts_metadata_sources_aliases_and_preserves_order(writ
     assert registry.get("fiction/a").aliases == {}
 
 
+@pytest.mark.xfail(strict=True, reason="DESIGN v1.201 spec ahead of the code (row S2)")
 def test_task_defaults_and_frozen_dataclass():
     task = Task("judge", 0.8)
     assert asdict(task) == {
@@ -68,7 +69,7 @@ def test_task_defaults_and_frozen_dataclass():
         "independent_of_generator": True, "exclude_families": (),
         "expected_input_tokens": 1000, "expected_output_tokens": 200,
         "on_no_model": "refuse", "max_fallbacks": 2, "prior_category": None,
-        "timeout_s": 60.0,
+        "timeout_s": 60.0, "fallback_below_bar": False,
     }
     with pytest.raises(FrozenInstanceError):
         task.bar = 0.1
