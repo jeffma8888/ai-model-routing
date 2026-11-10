@@ -30,7 +30,6 @@ FILES = ["evidence/delegation/results.json", "evidence/tau2-bench-delegation/res
 # note's prose that are not in the script's output
 ALLOWED = {"13.2", "13.4", "13.5", "13.8", "13.9", "13.10", "1.0", "0.0"}
 NUMBER = re.compile(r"(?<![\w.])\d+(?:,\d{3})*(?:\.\d+)?%?")
-RED = pytest.mark.xfail(strict=True, reason="v1.206: the script and the note land in v1.207")
 
 
 def _load():
@@ -84,17 +83,14 @@ def test_design_specifies_the_note_and_the_script():
     assert bullets[0] in section
 
 
-@RED
 def test_note_results_block_is_the_script_output(output):
     assert results_block(note()) == COMMAND + "\n" + output
 
 
-@RED
 def test_note_sections_in_order():
     assert re.findall(r"^## .*$", note(), re.M) == SECTIONS
 
 
-@RED
 def test_prose_numbers_are_in_the_output(output):
     prose = re.sub(r"^```text\n.*?^```$", "", note(), flags=re.M | re.S)
     prose = re.sub(r"https?://\S+", "", prose)
@@ -103,7 +99,6 @@ def test_prose_numbers_are_in_the_output(output):
     assert not stray, stray
 
 
-@RED
 def test_rule_comes_before_any_count():
     text = note()
     method = text.split("\n## Method\n", 1)[1].split("\n## ", 1)[0]
@@ -112,14 +107,12 @@ def test_rule_comes_before_any_count():
     assert text.index("The rule, stated before the counts it gives.") < text.index("\n## Results\n")
 
 
-@RED
 def test_regenerate_section_and_files():
     assert COMMAND[2:] in note().split("\n## Regenerate\n", 1)[1]
     for rel in FILES:
         assert f"`{rel}`" in note(), rel
 
 
-@RED
 def test_research_index_row_and_bullet():
     text = INDEX.read_text(encoding="utf-8")
     rows = [line for line in text.splitlines()
@@ -129,7 +122,6 @@ def test_research_index_row_and_bullet():
     assert sum(1 for line in text.splitlines() if line.startswith("- `research/where-delegation-pays.md` ")) == 1
 
 
-@RED
 def test_script_imports_only_the_standard_library():
     tree = ast.parse(SCRIPT.read_text(encoding="utf-8"))
     names = set()
@@ -145,7 +137,6 @@ def s(success, cost):
     return {"success": success, "cost_usd": cost}
 
 
-@RED
 @pytest.mark.parametrize("decision, inline, delegate, expected", [
     ((0.5, 2.0), (0.4, 1.0), (0.5, 2.0), "= delegate"),
     ((0.4, 1.0), (0.4, 1.0), (0.5, 2.0), "= inline"),
@@ -198,7 +189,6 @@ SMALL = small_file(
     + triple(0.5, "cost_effective", 1, "b/q", (0.5, 2.0), (0.6, 2.0), (0.4, 1.0), 0.5))
 
 
-@RED
 def test_report_on_small_files(wdp, tmp_path):
     root = write_root(tmp_path, [SMALL] * 4)
     code, out, err = run(wdp, ["--root", str(root)])
@@ -207,7 +197,9 @@ def test_report_on_small_files(wdp, tmp_path):
     assert lines[1] == ("AutoBench (`evidence/delegation/results.json`): 4 rows, 1 task, bars 0.5, "
                         "2 points, 2 parents")
     assert lines[2] == wdp.HEADER
-    assert lines[3] == ("  cost_effective  0.5        4           1         1       0"
+    # rows 4: point 0 a/p = delegate, point 0 b/q = inline, point 1 b/q beaten on success (inline 0.6 at
+    # the same 2.0), point 1 a/p a trade-off (inline cheaper, delegate dearer) and the one top success row
+    assert lines[3] == ("  cost_effective  0.5      4           1         1       0"
                         "                  1               0          1            1")
     assert lines[4] == "  changed rows by point, cost_effective: 0: 0, 1: 2"
     # point 1, a/p: 1.5 < 3.0 and 0.7 >= 0.6; point 1, b/q: 2.0 > 1.0
@@ -216,12 +208,11 @@ def test_report_on_small_files(wdp, tmp_path):
     assert lines[6] == ("  largest gain, cost_effective: bar 0.5, point 1, parent a/p: decision 0.7000 at "
                         "1.5000 USD, inline 0.4000 at 1.0000, delegate 0.6000 at 3.0000, gain +0.1000")
     assert lines[-3:] == ["All four files", wdp.HEADER,
-                          "  cost_effective  all       16           4         4       0"
+                          "  cost_effective  all     16           4         4       0"
                           "                  4               0          4            4"]
     assert len(lines) == 1 + 4 * 6 + 3
 
 
-@RED
 def test_no_changed_row_and_task_plural(wdp, tmp_path):
     document = small_file(triple(0.5, "cost_effective", 0, "a/p", (0.5, 2.0), (0.4, 3.0), (0.5, 2.0), 1.0),
                           parents=("a/p",))
@@ -251,7 +242,6 @@ BAD = {
 }
 
 
-@RED
 @pytest.mark.parametrize("case", sorted(BAD))
 def test_a_bad_file_is_one_error_line(wdp, tmp_path, case):
     root = write_root(tmp_path, [SMALL, SMALL, BAD[case], SMALL])
@@ -260,7 +250,6 @@ def test_a_bad_file_is_one_error_line(wdp, tmp_path, case):
     assert err.count("\n") == 1 and err.startswith("error: evidence/tau2-bench-delegation/pooled.json: "), err
 
 
-@RED
 def test_a_missing_file_is_one_error_line(wdp, tmp_path):
     root = write_root(tmp_path, [SMALL, SMALL, SMALL])
     code, out, err = run(wdp, ["--root", str(root)])
@@ -274,12 +263,10 @@ def committed(wdp):
         yield name, results, wdp.rows_of(results, rel)
 
 
-@RED
 def test_the_script_reads_the_four_files_in_order(wdp):
     assert [rel for _, rel in wdp.DATASETS] == FILES
 
 
-@RED
 def test_cost_effective_changes_only_where_inline_folds(wdp):
     """Reading it: every cost_effective row at a separate-call point is `= delegate`."""
     for name, results, groups in committed(wdp):
@@ -290,7 +277,6 @@ def test_cost_effective_changes_only_where_inline_folds(wdp):
                 assert kind == "= delegate", (name, key, kind)
 
 
-@RED
 def test_no_row_is_better_than_both(wdp):
     """Facts: on no row of either flavor is the decision better than both fixed policies."""
     for name, _, groups in committed(wdp):
@@ -298,7 +284,6 @@ def test_no_row_is_better_than_both(wdp):
             assert wdp.classify(group["decision"], group["inline"], group["delegate"]) != "better", (name, key)
 
 
-@RED
 def test_top_success_rows_are_trade_offs(wdp):
     """A changed row with a positive gain can be neither beaten nor better, so it is a trade-off."""
     seen = 0
@@ -308,3 +293,13 @@ def test_top_success_rows_are_trade_offs(wdp):
                 seen += 1
                 assert wdp.classify(group["decision"], group["inline"], group["delegate"]) == "trade-off"
     assert seen == 3
+
+
+def test_a_changed_row_at_always_delegates_cost_is_not_cheaper(wdp, tmp_path):
+    """Cheaper than always delegate is strictly cheaper: an equal cost is counted with the rest."""
+    document = small_file(triple(0.5, "cost_effective", 1, "a/p", (0.4, 2.0), (0.5, 1.0), (0.5, 2.0), 0.5),
+                          parents=("a/p",))
+    code, out, err = run(wdp, ["--root", str(write_root(tmp_path, [document] * 4))])
+    assert (code, err) == (0, "")
+    assert out.splitlines()[5] == ("  against always delegate, cost_effective: 1 changed rows, 0 cheaper "
+                                   "(0 of them at no less success), 1 not cheaper")
