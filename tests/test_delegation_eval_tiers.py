@@ -144,6 +144,26 @@ def test_a_row_with_per_call_sizes_pays_each_of_its_calls_at_its_tier():
             approx(n * inline), approx(n * delegate))
 
 
+def one_call(i, m):
+    return {"input_tokens": 2_000, "output_tokens": 500, "call_input_tokens": [2_000],
+            "call_output_tokens": [500]}
+
+
+def test_a_folded_one_call_row_is_the_parents_next_call():
+    """Review iter-159 nit 1: no work call before the next call. C = 49,800, folded, T = 1: the
+    row's one call is the next call, A = 2,000 to 51,800, 6,000 + 49,800 * 2 + 500 * 9 = 0.1101;
+    the T call adds 2,500 to 52,300, 7,500 + 99,600 = 0.1071. As the row without the keys."""
+    reg = registry()
+    pt = point(context_tokens=49_800, carry_turns=1, inline_separate_call=False)
+    calls = run(rows_of(one_call), reg, [pt])
+    single = run(rows_of(constant), reg, [pt])
+    assert len(calls["cells"]) == len(single["cells"]) == 2 * len(SEEDS)
+    for a, b in zip(calls["cells"], single["cells"]):
+        assert a["expected_work_calls"] == 1
+        assert a["cost_usd"]["inline"] == approx(a["held_out_items"] * (0.1101 + 0.1071))
+        assert a["cost_usd"] == b["cost_usd"]
+
+
 def equal_calls(i, m):
     return {"input_tokens": 3 * 2_000 + 500, "output_tokens": 1_000,
             "call_input_tokens": [2_000, 2_000], "call_output_tokens": [500, 500]}
