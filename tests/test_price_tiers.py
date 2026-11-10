@@ -18,7 +18,6 @@ from model_routing import (DATA_DIR, Completion, Executor, FakeProvider, Model, 
                            Router, Stats, Task, outcomes_from_rows)
 
 ROOT = Path(__file__).resolve().parents[1]
-NEW = pytest.mark.xfail(strict=True, reason="DESIGN v1.212 spec ahead of the code (row P1)")
 TASK = "t"
 
 
@@ -36,10 +35,10 @@ def two_tiers():
                  price_tiers=(tier(50_000, 3.0, 9.0), tier(200_000, 5.0, 15.0)))
 
 
-def pair(with_tiers):
-    """A parent and a delegate, each with a tier over 50,000 input tokens, or none."""
-    big = (tier(50_000, 3.0, 9.0),) if with_tiers else ()
-    small = (tier(50_000, 0.3, 0.9),) if with_tiers else ()
+def pair(with_tiers, above=50_000):
+    """A parent and a delegate, each with a tier over ``above`` input tokens, or none."""
+    big = (tier(above, 3.0, 9.0),) if with_tiers else ()
+    small = (tier(above, 0.3, 0.9),) if with_tiers else ()
     return Registry([Model("t/long", "t", 1.0, 4.0, 1_000_000, price_tiers=big),
                      Model("s/small", "s", 0.1, 0.4, 1_000_000, price_tiers=small)])
 
@@ -82,7 +81,6 @@ def test_no_packaged_task_reaches_the_first_packaged_threshold():
     assert len(sizes) == 7 and max(sizes) < 100_000
 
 
-@NEW
 def test_price_tier_fields_and_float_prices():
     t = tier(100_000, 1, 2)
     assert (t.above_input_tokens, t.price_in, t.price_out) == (100_000, 1.0, 2.0)
@@ -93,7 +91,6 @@ def test_price_tier_fields_and_float_prices():
     assert model_routing.PriceTier is model_routing.registry.PriceTier
 
 
-@NEW
 @pytest.mark.parametrize("args", [
     (0, 1.0, 1.0), (-1, 1.0, 1.0), (True, 1.0, 1.0), (100_000.0, 1.0, 1.0), ("100000", 1.0, 1.0),
     (None, 1.0, 1.0), (1, -0.5, 1.0), (1, 1.0, -0.5), (1, math.nan, 1.0), (1, 1.0, math.inf),
@@ -104,7 +101,6 @@ def test_price_tier_refuses_bad_values(args):
         tier(*args)
 
 
-@NEW
 def test_model_default_has_no_tiers_and_positional_fields_keep_their_meaning():
     model = Model("a/b", "a", 1.0, 2.0, 10, {"p": "b"}, "2026-12-31")
     assert model.price_tiers == ()
@@ -112,7 +108,6 @@ def test_model_default_has_no_tiers_and_positional_fields_keep_their_meaning():
     assert [f.name for f in dataclasses.fields(Model)][-1] == "price_tiers"
 
 
-@NEW
 @pytest.mark.parametrize("tiers", [
     "list", "not a tier", "equal", "falling", "at the window", "over the window",
 ])
@@ -129,12 +124,10 @@ def test_model_refuses_bad_tier_lists(tiers):
         Model("a/b", "a", 1.0, 2.0, 1_000, price_tiers=values)
 
 
-@NEW
 def test_a_tier_just_below_the_window_is_allowed():
     assert Model("a/b", "a", 1.0, 2.0, 1_000, price_tiers=(tier(999, 1.0, 1.0),)).price_tiers
 
 
-@NEW
 @pytest.mark.parametrize("tokens_in, tokens_out, price_in, price_out", [
     (0, 0, 1.0, 4.0),
     (50_000, 1_000, 1.0, 4.0),      # at the first threshold: not over it
@@ -150,7 +143,6 @@ def test_cost_prices_one_call_at_the_last_tier_its_input_is_over(tokens_in, toke
     assert model.base_cost(tokens_in, tokens_out) == linear(tokens_in, tokens_out, 1.0, 4.0)
 
 
-@NEW
 @pytest.mark.parametrize("tokens_in, tokens_out", [
     (0, 0), (1, 1), (3_000, 150), (89_000, 1_500), (1_049_999, 128_000), (12_345.5, 0),
 ])
@@ -173,7 +165,6 @@ def row(model_id, **extra):
     return base
 
 
-@NEW
 def test_registry_load_reads_price_tiers(tmp_path):
     path = write(tmp_path, [
         row("a/tiered", price_tiers=[{"above_input_tokens": 100_000, "price_in": 0.5,
@@ -191,7 +182,6 @@ def test_registry_load_reads_price_tiers(tmp_path):
         assert registry.get(model_id).price_tiers == ()
 
 
-@NEW
 @pytest.mark.parametrize("value", [
     "tiers", {"above_input_tokens": 1, "price_in": 1, "price_out": 1},
     [[100_000, 0.5, 2.5]], [{"price_in": 1, "price_out": 1}],
@@ -208,14 +198,12 @@ def test_registry_load_refuses_bad_price_tiers_naming_the_file(tmp_path, value):
         Registry.load(path)
 
 
-@NEW
 def test_asdict_round_trips_a_tiered_model(tmp_path):
     model = two_tiers()
     path = write(tmp_path, [dataclasses.asdict(model)])
     assert Registry.load(path).get("t/long") == model
 
 
-@NEW
 def test_packaged_registry_tiers():
     raw = json.loads((DATA_DIR / "models.json").read_text(encoding="utf-8"))
     assert (raw["version"], raw["as_of"]) == ("2026.10.29", "2026-10-29")
@@ -235,7 +223,6 @@ def test_packaged_registry_tiers():
     assert grok.cost(300_000, 1_000) == linear(300_000, 1_000, 2.0, 6.0)
 
 
-@NEW
 def test_router_prices_one_call_of_the_task_sizes_at_its_tier():
     registry = pair(True)
     decision = router(registry, task(expected_input_tokens=60_000,
@@ -245,7 +232,6 @@ def test_router_prices_one_call_of_the_task_sizes_at_its_tier():
                      "s/small": linear(60_000, 1_000, 0.3, 0.9)}
 
 
-@NEW
 def test_executor_records_the_tier_price_of_each_attempt():
     registry = pair(True)
     provider = FakeProvider({m.id: (lambda messages: Completion("ok", 60_000, 1_000))
@@ -256,7 +242,6 @@ def test_executor_records_the_tier_price_of_each_attempt():
     assert result.attempts[0].cost_usd == linear(60_000, 1_000, 0.3, 0.9)
 
 
-@NEW
 def test_evaluate_prices_a_token_form_row_as_one_call():
     rows = [{"task": TASK, "item": "i1", "model": "t/long", "correct": True,
              "input_tokens": 60_000, "output_tokens": 1_000},
@@ -267,7 +252,6 @@ def test_evaluate_prices_a_token_form_row_as_one_call():
                                               linear(40_000, 1_000, 1.0, 4.0)]
 
 
-@NEW
 @pytest.mark.parametrize("flavor", ["cost_effective", "cost_blind"])
 @pytest.mark.parametrize("work", [
     {"context_tokens": 200_000, "brief_tokens": 300, "result_tokens": 200},
@@ -287,21 +271,30 @@ def test_decide_delegation_prices_its_paths_at_the_base_prices(flavor, work):
     assert with_tiers.inline_cost_usd > 0 and with_tiers.delegate_cost_usd > 0
 
 
-@NEW
-def test_evaluate_delegation_prices_its_paths_at_the_base_prices():
+@pytest.mark.parametrize("per_call", [False, True])
+def test_evaluate_delegation_prices_its_paths_at_the_base_prices(per_call):
+    """13.9 v1.212, on single-call rows and on rows with per-call sizes (v1.74): two calls
+    that read 600 and 400 and write 100 each read 2 * 600 + 400 + 100 = 1,700 in all."""
     from model_routing import evaluate_delegation
-    rows = [{"task": TASK, "item": f"q{i}", "model": m, "correct": m == "t/long" or i % 4 != 0,
-             "input_tokens": 1_000, "output_tokens": 200}
+    sizes = ({"input_tokens": 1_700, "output_tokens": 200, "call_input_tokens": [600, 400],
+              "call_output_tokens": [100, 100]} if per_call
+             else {"input_tokens": 1_000, "output_tokens": 200})
+    rows = [dict({"task": TASK, "item": f"q{i}", "model": m,
+                  "correct": m == "t/long" or i % 4 != 0}, **sizes)
             for i in range(1, 9) for m in ("t/long", "s/small")]
     points = [{"context_tokens": 100_000, "brief_tokens": 500, "result_tokens": 300,
                "carry_turns": 1, "inline_separate_call": True},
               {"context_tokens": 100_000, "brief_tokens": 500, "result_tokens": 300,
-               "carry_turns": 0, "inline_separate_call": False, "work_calls": 2}]
+               "carry_turns": 1, "inline_separate_call": False}]
+    if not per_call:  # 13.9 refuses work_calls above 1 on rows with per-call sizes
+        points[1]["work_calls"] = 2
     args = {"bars": [0.4], "points": points, "seeds": [0, 1], "min_samples": 3}
-    with_tiers = evaluate_delegation(rows, pair(True), **args)
+    # a tier over 1 input token: every formula call that reads any input would be at the tier
+    # under Model.cost, and both models scale by 3, so the router ranks them as at base prices
+    with_tiers = evaluate_delegation(rows, pair(True, above=1), **args)
     without = evaluate_delegation(rows, pair(False), **args)
     assert json.dumps(with_tiers, sort_keys=True) == json.dumps(without, sort_keys=True)
-    assert any(c["cost_usd"] > 0 for c in with_tiers["cells"])
+    assert any(cost > 0 for c in with_tiers["cells"] for cost in c["cost_usd"].values())
 
 
 README_HEADER = ("Pricing notes (a row's `price_tiers` in `models.json` prices a long-prompt tier "
@@ -333,7 +326,6 @@ def section(text, heading):
     return lines[start + 1:end]
 
 
-@NEW
 def test_readme_pricing_notes_and_limitation():
     text = (ROOT / "README.md").read_text(encoding="utf-8")
     lines = text.split("\n")

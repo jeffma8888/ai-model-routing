@@ -75,7 +75,7 @@ def _count(name: str, value) -> int:
 
 
 def _work_cost(model, k: int, base_reads: int, s_in: int, s_out: int) -> float:
-    """List cost of K work calls as one ``Model.cost`` of their token totals (13.2, v1.38).
+    """List cost of K work calls as one ``Model.base_cost`` of their token totals (13.2).
 
     Call j reads the path's base context, the j inputs and the j - 1 outputs so far,
     and writes ``s_out``, so the K calls read ``base_reads + w_in * s_in + w_out * s_out``
@@ -83,7 +83,7 @@ def _work_cost(model, k: int, base_reads: int, s_in: int, s_out: int) -> float:
     ``base_reads`` is the base context times the calls charged for it.
     """
     w_in, w_out = k * (k + 1) // 2, k * (k - 1) // 2
-    return model.cost(base_reads + w_in * s_in + w_out * s_out, k * s_out)
+    return model.base_cost(base_reads + w_in * s_in + w_out * s_out, k * s_out)
 
 
 class _WorkCallsRouter(Router):
@@ -172,10 +172,10 @@ def decide_delegation(router: Router, task_name: str, parent_model: str,
     # the work calls' reads of C are priced at rho times the list input price (v1.41)
     if inline_separate_call:
         inline_cost = (_work_cost(parent, k, k * c * rho, p_in, p_out)
-                       + (1 + t) * parent.cost(k * (p_in + p_out), 0))
+                       + (1 + t) * parent.base_cost(k * (p_in + p_out), 0))
     else:
         inline_cost = (_work_cost(parent, k, (k - 1) * c * rho, p_in, p_out)
-                       + t * parent.cost(k * (p_in + p_out), 0))
+                       + t * parent.base_cost(k * (p_in + p_out), 0))
 
     # 13.4: the first rule that applies blocks inline
     block = None
@@ -207,8 +207,8 @@ def decide_delegation(router: Router, task_name: str, parent_model: str,
     if route is not None:
         delegate = router.registry.get(route.primary)
         d_in, d_out = _sizes(router.stats, task, delegate.id)
-        delegate_cost = (parent.cost(0, b) + _work_cost(delegate, k, k * b, d_in, d_out)
-                         + (1 + t) * parent.cost(b + r, 0))
+        delegate_cost = (parent.base_cost(0, b) + _work_cost(delegate, k, k * b, d_in, d_out)
+                         + (1 + t) * parent.base_cost(b + r, 0))
         delegate_lb = next(x.quality_lb for x in route.candidates
                            if x.model_id == route.primary)
     successes, trials = router.stats.get(task.name, parent.id)

@@ -9,7 +9,7 @@ from pathlib import Path
 
 DATA_DIR = Path(__file__).resolve().parent / "data"
 
-from .registry import Model, Registry  # noqa: E402
+from .registry import Model, PriceTier, Registry  # noqa: E402
 from .tasks import Task, load_tasks  # noqa: E402
 from .stats import Stats, calibrate_from_results, items_needed, wilson_lower_bound  # noqa: E402
 from .priors import Priors  # noqa: E402
@@ -31,7 +31,7 @@ from .delegation_eval import evaluate_delegation  # noqa: E402
 __version__ = "0.1.0"
 
 __all__ = [
-    "DATA_DIR", "Model", "Registry", "Task", "load_tasks", "Stats",
+    "DATA_DIR", "Model", "PriceTier", "Registry", "Task", "load_tasks", "Stats",
     "calibrate_from_results", "wilson_lower_bound", "items_needed", "Priors", "Candidate",
     "RouteDecision", "Router", "NoModelClearsBar", "EXCLUDED_MODEL", "EXCLUDED_FAMILY",
     "GENERATOR", "GENERATOR_FAMILY", "CONTEXT_TOO_SMALL", "INSUFFICIENT_SAMPLES",

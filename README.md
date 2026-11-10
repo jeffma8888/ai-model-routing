@@ -1051,17 +1051,17 @@ Sources: [Terminal-Bench 4.0 on Vals](https://www.vals.ai/benchmarks/terminal-be
 
 
 
-Pricing notes (the router uses the listed price linearly; see Limitations):
+Pricing notes (a row's `price_tiers` in `models.json` prices a long-prompt tier whose page states its rates; see Limitations):
 
 
 
-- claude-haiku-5.5: short-prompt tier, prompts up to 100K tokens; longer prompts cost 0.50 in and 2.50 out
+- claude-haiku-5.5: short-prompt tier, prompts up to 100K tokens; longer prompts cost 0.50 in and 2.50 out, and its `models.json` row prices them as a tier over 100,000 input tokens
 
-- gpt-6-astra: prompts over 272K input tokens are billed at 2x input and 1.5x output
+- gpt-6-astra: prompts over 272K input tokens are billed at 2x input and 1.5x output, and its `models.json` row prices them as a tier over 272,000 input tokens at 20 in and 75 out
 
 - gpt-5.6-sol: promotional price, stated through at least 2026-11-21; its `models.json` row sets `price_valid_until`, so `select` and `delegate` print a warning on stderr from 2026-11-22 until the row is refreshed
 
-- grok-4.7: price for context up to 200K tokens; higher beyond that
+- grok-4.7: price for context up to 200K tokens; higher beyond that, at rates its page does not state, so its `models.json` row has no tier and a longer call is costed at 2 / 6
 
 What this does and does not tell you:
 
@@ -1093,7 +1093,7 @@ Full survey with sources and dates: [research/prior-art.md](research/prior-art.m
 - On the four delegation results files of those three datasets the per-task decision is close to a fixed policy. The `cost_effective` decision equals always delegating on 403 of their 432 (bar, point, parent) rows, every row at a point where inline work takes a parent call of its own among them, while in `cost_blind` a fixed policy, always inline or always delegate, has more held-out success at no more cost on 106 of 432, and in neither flavor is the decision better than both fixed policies on any row. So the evidence shows how the decision prices the two paths at the stated sizes, not a gain from choosing per task; such a gain needs work whose cheaper path differs from item to item, as where it folds into the parent's next call ([research/where-delegation-pays.md](research/where-delegation-pays.md))
 - When neither path clears the bar, a task whose `on_no_model` is `best_available` still decides (`DESIGN.md` 13.5 row 7, reason `none_clear`, `below_bar` true), by the calibration bounds and not by cost, while the default, `refuse`, raises `NoModelClearsBar`. On the committed tau2-bench delegation runs row 7 decides most `cost_effective` cells, and the path it takes has a held-out success below the bar on most of them; [research/no-path-clears.md](research/no-path-clears.md) measures it on both delegation datasets and recommends keeping the rule
 - When no model clears the bar, a task whose `on_no_model` is `best_available` takes the measured model with the highest calibration bound (`DESIGN.md` 5.3) in both flavors, whatever its price. On the committed tau2-bench evidence that agent costs several times the cheapest one at the lower bars for no more held-out success, while on RouterBench and AutoBench the cheapest model would lose most of the success; [research/no-model-clears.md](research/no-model-clears.md) measures it on the four routing datasets that record a cost and recommends keeping the rule
-- Cost is linear at the listed price. Tiered and promotional pricing (long-prompt tiers, promotional rates; see the notes under the capability table) is not modelled, so long-context tasks on those models are under-costed
+- A long-prompt tier is costed per call where `models.json` gives its rates (`price_tiers`, `DESIGN.md` 4.1): a call whose input is over the tier's threshold pays the tier's prices on all of its input and output tokens, as the claude-haiku-5.5 and gpt-6-astra pages state. Two costs stay at the base prices, so a long-context call there is under-costed: grok-4.7 over 200K input tokens, whose page says the rates are higher without stating them, and the inline-or-delegate cost, whose formulas price several calls and re-read increments together (`DESIGN.md` 13.2). A task whose line is a whole conversation, such as `tool_calling_support_agent`, is costed as one call of the conversation's summed sizes, so a tiered model can be costed at its higher price although each of its calls is shorter
 
 ## Layout
 

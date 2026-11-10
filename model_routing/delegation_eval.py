@@ -275,29 +275,29 @@ def _cell(table, registry, router, calibration, task, bar, flavor, index, point,
         if "cached_read_ratio" in point:
             base = base * point["cached_read_ratio"]
         if point["inline_separate_call"]:
-            return p.cost(base + rd, o) + (1 + t) * p.cost(a + o, 0)
-        return p.cost(base + rd, o) + t * p.cost(a + o, 0)
+            return p.base_cost(base + rd, o) + (1 + t) * p.base_cost(a + o, 0)
+        return p.base_cost(base + rd, o) + t * p.base_cost(a + o, 0)
 
     def delegate_calls(item: str) -> float:
         kd, rd, _, o = table[task, item][d.id][3]
-        return p.cost(0, b) + d.cost(kd * b + rd, o) + (1 + t) * p.cost(b + r, 0)
+        return p.base_cost(0, b) + d.base_cost(kd * b + rd, o) + (1 + t) * p.base_cost(b + r, 0)
 
     def inline_cost(item: str) -> float:
         if k_dec is not None:
             return inline_calls(item)
         _, tin, tout, _ = table[task, item][p.id]
         if point["inline_separate_call"]:
-            return (p.cost(reads + w_in * tin + w_out * tout, k * tout)
-                    + (1 + t) * p.cost(k * (tin + tout), 0))
-        return (p.cost(reads + w_in * tin + w_out * tout, k * tout)
-                + t * p.cost(k * (tin + tout), 0))
+            return (p.base_cost(reads + w_in * tin + w_out * tout, k * tout)
+                    + (1 + t) * p.base_cost(k * (tin + tout), 0))
+        return (p.base_cost(reads + w_in * tin + w_out * tout, k * tout)
+                + t * p.base_cost(k * (tin + tout), 0))
 
     def delegate_cost(item: str) -> float:
         if k_dec is not None:
             return delegate_calls(item)
         _, tin, tout, _ = table[task, item][d.id]
-        return (p.cost(0, b) + d.cost(k * b + w_in * tin + w_out * tout, k * tout)
-                + (1 + t) * p.cost(b + r, 0))
+        return (p.base_cost(0, b) + d.base_cost(k * b + w_in * tin + w_out * tout, k * tout)
+                + (1 + t) * p.base_cost(b + r, 0))
 
     inline, delegate = ("inline", p.id, inline_cost), ("delegate", d.id, delegate_cost)
     plans = {"decision": inline if decision.mode == "inline" else delegate,

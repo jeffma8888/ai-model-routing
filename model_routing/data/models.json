@@ -26,6 +26,7 @@
       "price_in": 0.1,
       "price_out": 0.5,
       "context_window": 1000000,
+      "price_tiers": [{"above_input_tokens": 100000, "price_in": 0.5, "price_out": 2.5}],
       "source": "https://platform.claude.com/docs/en/about-claude/pricing",
       "notes": "short-prompt tier (prompt up to 100K tokens); longer prompts cost 0.50 in and 2.50 out"
     },
@@ -59,6 +60,7 @@
       "price_in": 10,
       "price_out": 50,
       "context_window": 1050000,
+      "price_tiers": [{"above_input_tokens": 272000, "price_in": 20, "price_out": 75}],
       "source": "https://platform.openai.com/docs/models/gpt-6-astra",
       "notes": "prompts over 272K input tokens are billed at 2x input and 1.5x output"
     },
