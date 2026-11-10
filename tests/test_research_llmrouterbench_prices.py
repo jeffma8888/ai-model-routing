@@ -31,6 +31,25 @@ REGENERATE = [
 # the vendor pages read on 2026-11-09, as the section's table gives them (USD per 1M tokens)
 VENDOR = {"anthropic/claude-sonnet-4": (3, 15), "openai/gpt-5": (1.25, 10), "openai/gpt-5-chat": (1.25, 10),
           "z-ai/glm-4.6": (0.6, 2.2)}
+# the subsection of 2026-11-10 (DESIGN 13.9 v1.194, row E17a): per priced model, its window in tokens,
+# its kind and, for a weights' position limit, the Hugging Face repo and pinned revision of its config.json
+WINDOW_HEADING = "### Context windows (2026-11-10)"
+VENDOR_PAGE, POSITION_LIMIT = "vendor page", "weights' position limit"
+WINDOWS = {
+    "anthropic/claude-sonnet-4": (200000, VENDOR_PAGE, None),
+    "deepseek/deepseek-r1-0528": (163840, POSITION_LIMIT,
+                                  ("deepseek-ai/DeepSeek-R1-0528", "4236a6af538feda4548eca9ab308586007567f52")),
+    "deepseek/deepseek-v3-0324": (163840, POSITION_LIMIT,
+                                  ("deepseek-ai/DeepSeek-V3-0324", "e9b33add76883f293d6bf61f6bd89b497e80e335")),
+    "deepseek/deepseek-v3.1-terminus": (163840, POSITION_LIMIT,
+                                        ("deepseek-ai/DeepSeek-V3.1-Terminus",
+                                         "19510d6dc61f79dbd925bd51ee8a9081c509a4b6")),
+    "internlm/intern-s1": (65536, POSITION_LIMIT, ("internlm/Intern-S1", "4ecad381e28293c4825793f113327cc016cdcbda")),
+    "openai/gpt-5": (400000, VENDOR_PAGE, None),
+    "openai/gpt-5-chat": (128000, VENDOR_PAGE, None),
+    "z-ai/glm-4.6": (200000, VENDOR_PAGE, None),
+}
+DELEGATION_RESULTS = ROOT / "evidence" / "delegation" / "results.py"
 
 
 def _load(name, path):
@@ -232,7 +251,8 @@ def _blocks(text, lang):
 
 def test_section_shape_commands_and_ascii():
     section = _section()
-    assert re.findall(r"^### (.+)$", section, flags=re.M) == ["List prices", "Recorded costs", "Recommendation"]
+    assert re.findall(r"^### (.+)$", section, flags=re.M) == [
+        "List prices", "Recorded costs", "Recommendation", WINDOW_HEADING[4:]]
     assert _blocks(section, "bash") == ["\n".join(REGENERATE) + "\n"]
     [text] = _blocks(section, "text")
     assert text.startswith(COMMAND + "\n")
@@ -257,6 +277,81 @@ def test_price_table_names_the_pool_and_the_script_prices(lrp):
             assert cells[3] == f"{p_in:g}, {p_out:g}", row
         else:
             assert cells[3] == "none found", row
+
+
+def _table_rows(text):
+    return [[c.strip() for c in x.strip("|").split("|")] for x in text.split("\n") if x.startswith("| `")]
+
+
+def _windows_part():
+    section = _section()
+    assert section.count("\n" + WINDOW_HEADING + "\n") == 1
+    return section.split("\n" + WINDOW_HEADING + "\n", 1)[1]
+
+
+def test_window_table_gives_each_priced_model_a_window():
+    """Every model priced by a page or an exact pair has one window row, in ID order (v1.194)."""
+    section = _section()
+    [text] = _blocks(section, "text")
+    exact = sorted(re.findall(r"^  (\S+): .*; exact pair ", text, flags=re.M))
+    assert sorted(set(VENDOR) | set(exact)) == sorted(WINDOWS)
+    rows = _table_rows(_windows_part())
+    assert [re.fullmatch(r"`([^`]+)`", r[0])[1] for r in rows] == sorted(WINDOWS)
+    for row in rows:
+        model = row[0].strip("`")
+        window, kind, pinned = WINDOWS[model]
+        assert len(row) == 5, row
+        assert row[3] == f"{window:,}" and row[4] == kind, row
+        assert row[1].startswith("https://") and re.search(r" \(2026-11-(09|10)[;)]", row[1]), row
+        if kind == POSITION_LIMIT:
+            repo, rev = pinned
+            assert row[1].startswith(f"https://huggingface.co/{repo}/raw/{rev}/config.json (2026-11-10; "), row
+            assert f"max_position_embeddings` {window}" in row[2], row
+        else:
+            assert pinned is None and "huggingface.co" not in row[1], row
+
+
+def test_openai_windows_are_the_list_price_table_ones():
+    section = _section()
+    prices = section.split("\n### List prices\n", 1)[1].split("\n### ", 1)[0]
+    listed = {r[0].strip("`"): r[4] for r in _table_rows(prices)}
+    windows = {r[0].strip("`"): r for r in _table_rows(_windows_part())}
+    for model in ("openai/gpt-5", "openai/gpt-5-chat"):
+        assert listed[model] == f"{WINDOWS[model][0]:,}"
+        assert listed[model] in windows[model][2]
+
+
+def test_window_bullets_are_the_rule_3_arithmetic_at_the_13_10_points():
+    """The room C leaves for the work under 13.4 rule 3, at the committed 13.10 context sizes."""
+    dr = _load("delegation_results_for_windows", DELEGATION_RESULTS)
+    small, mid, large = sorted(set(dr.CONTEXT_TOKENS))
+    part = _windows_part()
+    bullets = [x for x in part.split("\n") if x.startswith("- ")]
+    assert len(bullets) == 5
+    vendor = sorted(m for m, (_, kind, _) in WINDOWS.items() if kind == VENDOR_PAGE)
+    assert bullets[0].startswith(f"- A vendor page states a window for {len(vendor)} of the {len(WINDOWS)}: ")
+    open_ = [m for m in WINDOWS if m not in vendor]
+    limits = sorted({WINDOWS[m][0] for m in open_}, reverse=True)
+    assert all(f"{w:,}" in bullets[1] for w in limits)
+    roomy = [m for m in WINDOWS if WINDOWS[m][0] > large]
+    assert roomy == ["openai/gpt-5"]
+    assert f"`openai/gpt-5`'s {WINDOWS['openai/gpt-5'][0]:,} is at most {large:,}" in bullets[2]
+    assert f"for the other {len(WINDOWS) - len(roomy)} parents on any work" in bullets[2]
+    assert f"read as 204,800, the two 200K windows leave {204800 - large:,} tokens" in bullets[2]
+    room = {m: WINDOWS[m][0] - mid for m in WINDOWS}
+    assert (f"At C = {mid:,} (point 1) the room left for the work is {room['internlm/intern-s1']:,} tokens for "
+            f"`internlm/intern-s1`, {room['openai/gpt-5-chat']:,} for `openai/gpt-5-chat` and "
+            f"{room['deepseek/deepseek-r1-0528']:,} for the DeepSeek models") in bullets[2]
+    tight = min(WINDOWS, key=lambda m: WINDOWS[m][0])
+    assert f"at C = {small:,} (points 0 and 3) the smallest is `{tight}`'s {WINDOWS[tight][0] - small:,}" in bullets[2]
+    assert sorted(set(dr.CONTEXT_TOKENS)) == [small, mid, large] and len(dr.CONTEXT_TOKENS) == 3
+
+
+def test_design_13_9_names_the_windows_subsection():
+    design = DESIGN.read_text(encoding="utf-8")
+    [bullet] = [x for x in design.split("\n") if x.startswith("  - (v1.187) LLMRouterBench as a third dataset: ")]
+    assert f"(v1.194, row E17a) The section ends with `{WINDOW_HEADING}`" in bullet
+    assert f"`{VENDOR_PAGE}` or `{POSITION_LIMIT}`" in bullet
 
 
 def test_design_13_9_names_the_section_and_the_script():
