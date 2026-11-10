@@ -308,3 +308,87 @@ def test_a_changed_row_at_always_delegates_cost_is_not_cheaper(wdp, tmp_path):
     assert (code, err) == (0, "")
     assert out.splitlines()[5] == ("  against always delegate, cost_effective: 1 changed row, 0 cheaper "
                                    "(0 of them at no less success), 1 not cheaper")
+
+
+# --- README Limitations (DESIGN 13.8 v1.209, row DOC12) ----------------------------------------
+
+README = ROOT / "README.md"
+NOTE_LINK = "([research/where-delegation-pays.md](research/where-delegation-pays.md))"
+
+
+def test_design_specifies_the_readme_line():
+    text = DESIGN.read_text(encoding="utf-8")
+    bullets = [line for line in text.splitlines()
+               if line.startswith("- v1.209, where delegation pays in the README (row DOC12): ")]
+    assert len(bullets) == 1
+    for name in ("`research/where-delegation-pays.md`", "`research/where_delegation_pays.py`", "`All four files`",
+                 "`= delegate`", "`inline_separate_call`", "`beaten on success`", "`better`"):
+        assert name in bullets[0], name
+    section = text.split("\n### 13.8 ", 1)[1].split("\n### ", 1)[0]
+    assert bullets[0] in section
+
+
+def all_four(wdp, output):
+    """{flavor: {column: count}} from the script's `All four files` lines."""
+    lines = output.split("\nAll four files\n", 1)[1].splitlines()
+    assert lines[0] == wdp.HEADER
+    columns = ("rows",) + wdp.CLASSES + ("top success",)
+    totals = {}
+    for line in lines[1:]:
+        flavor, bar, *counts = line.split()
+        assert bar == "all" and len(counts) == len(columns), line
+        totals[flavor] = dict(zip(columns, map(int, counts)))
+    assert sorted(totals) == ["cost_blind", "cost_effective"], totals
+    return totals
+
+
+def separate_call_rows(wdp):
+    """The cost_effective rows at a point whose inline work is a parent call of its own; each must be `= delegate`."""
+    n = 0
+    for name, results, groups in committed(wdp):
+        points = results["config"]["points"]
+        for key, group in groups.items():
+            if key[1] == "cost_effective" and points[key[2]]["inline_separate_call"]:
+                kind = wdp.classify(group["decision"], group["inline"], group["delegate"])
+                assert kind == "= delegate", (name, key, kind)
+                n += 1
+    return n
+
+
+def limitations_bullet(wdp, output):
+    """The README Limitations bullet of v1.209, its counts from the script's output on the committed files."""
+    totals = all_four(wdp, output)
+    effective, blind = totals["cost_effective"], totals["cost_blind"]
+    assert effective["better"] == blind["better"] == 0, totals
+    assert 0 < separate_call_rows(wdp) <= effective["= delegate"]
+    return ("- On the four delegation results files of those three datasets the per-task decision is close to a "
+            f"fixed policy. The `cost_effective` decision equals always delegating on {effective['= delegate']:,} "
+            f"of their {effective['rows']:,} (bar, point, parent) rows, every row at a point where inline work takes "
+            "a parent call of its own among them, while in `cost_blind` a fixed policy, always inline or always "
+            f"delegate, has more held-out success at no more cost on {blind['beaten on success']:,} of "
+            f"{blind['rows']:,}, and in neither flavor is the decision better than both fixed policies on any row. "
+            "So the evidence shows how the decision prices the two paths at the stated sizes, not a gain from "
+            "choosing per task; such a gain needs work whose cheaper path differs from item to item, as where it "
+            f"folds into the parent's next call {NOTE_LINK}")
+
+
+def test_readme_counts_are_the_notes_recommendation(wdp, output):
+    """The counts the README bullet gives are the ones the note's Recommendation gives."""
+    totals = all_four(wdp, output)
+    effective, blind = totals["cost_effective"], totals["cost_blind"]
+    recommendation = note().split("\n## Recommendation\n", 1)[1].split("\n## ", 1)[0]
+    first = [line for line in recommendation.splitlines() if line.startswith("- ")][0]
+    assert f"on {effective['= delegate']} of {effective['rows']} rows" in first
+    assert f"on {blind['beaten on success']} of {blind['rows']}" in first
+    assert "better than both fixed policies on none" in first
+
+
+@pytest.mark.xfail(strict=True, raises=AssertionError, reason="v1.209: the README line lands in v1.210")
+def test_readme_limitations_say_what_the_per_task_decision_adds(wdp, output):
+    readme = README.read_text(encoding="utf-8")
+    limits = readme.split("\n## Limitations and non-goals (v1)\n", 1)[1].split("\n## ", 1)[0]
+    bullets = [line for line in limits.splitlines() if line.startswith("- ")]
+    datasets = [i for i, b in enumerate(bullets) if b.startswith("- The delegation evidence reads three datasets")]
+    assert len(datasets) == 1
+    assert bullets[datasets[0] + 1] == limitations_bullet(wdp, output)
+    assert sum(NOTE_LINK in b for b in bullets) == 1
