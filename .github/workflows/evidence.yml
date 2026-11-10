@@ -6,6 +6,8 @@ name: evidence
 # committed results file changed (DESIGN.md 12.13). RouterBench is left out of it, since its
 # source is a 99,567,659-byte pickle that needs pandas and its evaluate step takes
 # about 70 seconds.
+# A README line identical to one already run in the step is not run again when no line
+# between them names one of its files except to read it (DESIGN.md 12.13).
 
 on:
   workflow_dispatch:
@@ -79,7 +81,6 @@ jobs:
           python evidence/tau2-bench/convert.py --out tau2-calls-all.jsonl --calls --task-by all
           python evidence/tau2-bench-delegation/results.py --matrix tau2-calls-all.jsonl --registry evidence/tau2-bench-delegation/registry.json --out evidence/tau2-bench-delegation/pooled.json
           python evidence/delegation/results.py --table evidence/tau2-bench-delegation/pooled.json
-          python evidence/llmrouterbench/convert.py --out llmrouterbench-matrix.jsonl
           python evidence/llmrouterbench-delegation/results.py --matrix llmrouterbench-matrix.jsonl --registry evidence/llmrouterbench-delegation/registry.json --out evidence/llmrouterbench-delegation/results.json
           python evidence/delegation/results.py --table evidence/llmrouterbench-delegation/results.json
           python evidence/delegation/results.py --table evidence/llmrouterbench-delegation/results.json --bar 0.1 --point 0

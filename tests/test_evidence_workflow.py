@@ -1,7 +1,7 @@
 """The `evidence` workflow reruns the README regenerate commands of the AutoBench-based
 subsections, from v1.55 the tau2-bench one, from v1.65 the LiveCodeBench one, from v1.80 the tau2-bench
 delegation one, from v1.84 its pooled run, from v1.168 the LLMRouterBench one and from v1.200 the
-LLMRouterBench delegation one on GitHub and
+LLMRouterBench delegation one on GitHub (from v1.215 running a repeated line once) and
 fails when a committed results file changes (DESIGN 12.13, v1.30),
 and both workflows run on one pinned runner image with a dated comment (v1.49), and the job
 has a time limit of ten times its slowest run, rounded up to whole five minutes, with no download
@@ -83,6 +83,47 @@ def expected_commands(text):
         assert INSTALL not in block[1:]
         commands += block[1:]
     return commands
+
+
+# v1.215 (row CI8): `Regenerate` leaves out a README line identical to one it has already run when
+# the line names a .json or .jsonl file, names each once, appends to none, and no line run since
+# its last run names a file of the same base name other than right after a flag that only reads.
+# The README blocks stay whole.
+READ_FLAGS = ("--outcomes", "--matrix", "--evaluate", "--table")
+DATA_FILE = re.compile(r"[^\s=<>|;&'\"]+\.jsonl?(?![\w.])")
+REPEATED = "python evidence/llmrouterbench/convert.py --out llmrouterbench-matrix.jsonl"
+REPEAT_SENTENCE = ("A README line identical to one already run in the step is not run again when no line "
+                   "between them names one of its files except to read it (DESIGN.md 12.13).")
+REPEAT_PROBLEM = "the top comment does not give the repeated-line rule"
+
+
+def data_files(line):
+    """The base names of the .json and .jsonl files a line names, in order, repeats kept."""
+    return [Path(found).name for found in DATA_FILE.findall(line)]
+
+
+def unread(line):
+    """The line without each flag that only reads a file and the argument after it."""
+    args = line.split()
+    return " ".join(a for i, a in enumerate(args)
+                    if a not in READ_FLAGS and not (i and args[i - 1] in READ_FLAGS))
+
+
+def run_once(commands):
+    """The commands in order, without each repeat the v1.215 rule leaves out."""
+    run = []
+    for line in commands:
+        files = data_files(line)
+        if line in run and files and len(set(files)) == len(files) and ">>" not in line:
+            last = len(run) - 1 - run[::-1].index(line)
+            if not any(set(files) & set(data_files(unread(between))) for between in run[last + 1:]):
+                continue
+        run.append(line)
+    return run
+
+
+def regenerate_commands(text):
+    return run_once(expected_commands(text))
 
 
 def out_paths(commands):
@@ -184,6 +225,8 @@ def problems(text, readme_text, ci_text):
     comment = " ".join(line[2:] for line in head if line.startswith("# "))
     if readme_sentence(readme_text).split("; ", 1)[1] not in comment:
         found.append("the top comment does not give the README's RouterBench reason")
+    if REPEAT_SENTENCE not in comment:
+        found.append(REPEAT_PROBLEM)
     blocks = top_blocks(text)
     keys = [k for k, _ in blocks]
     if keys != ["name", "on", "permissions", "defaults", "jobs"]:
@@ -227,7 +270,7 @@ def problems(text, readme_text, ci_text):
         found.append("setup-python is not one ci.yml Python")
     if install["run"] != [INSTALL] or "uses" in install:
         found.append("install line differs")
-    commands = expected_commands(readme_text)
+    commands = regenerate_commands(readme_text)
     if regenerate["run"] != commands or "uses" in regenerate:
         found.append("Regenerate is not the README commands in order")
     diff = "git diff --exit-code -- " + " ".join(out_paths(commands))
@@ -265,6 +308,49 @@ def test_readme_commands_are_the_eight_rerun_subsections():
     assert any("llmrouterbench-matrix.jsonl" in c for c in commands)
 
 
+RUN_ONCE_CASES = [
+    # (commands, the commands run): a file only read between the two copies leaves the repeat out
+    (["a --out x.jsonl", "b --outcomes x.jsonl --out y.json", "a --out x.jsonl"],
+     ["a --out x.jsonl", "b --outcomes x.jsonl --out y.json"]),
+    (["a --out x.jsonl", "b --out x.jsonl", "a --out x.jsonl"],
+     ["a --out x.jsonl", "b --out x.jsonl", "a --out x.jsonl"]),
+    (["a --out x.jsonl", "b --out=x.jsonl", "a --out x.jsonl"],
+     ["a --out x.jsonl", "b --out=x.jsonl", "a --out x.jsonl"]),
+    (["a --out x.jsonl", "b --matrix y.jsonl >x.jsonl", "a --out x.jsonl"],
+     ["a --out x.jsonl", "b --matrix y.jsonl >x.jsonl", "a --out x.jsonl"]),
+    (["a --out x.jsonl", "b --registry x.jsonl", "a --out x.jsonl"],
+     ["a --out x.jsonl", "b --registry x.jsonl", "a --out x.jsonl"]),
+    (["a --out x.jsonl", "b --out tmp/x.jsonl", "a --out x.jsonl"],
+     ["a --out x.jsonl", "b --out tmp/x.jsonl", "a --out x.jsonl"]),
+    (["echo x", "echo x"], ["echo x", "echo x"]),
+    (["a --matrix x.jsonl --out x.jsonl", "a --matrix x.jsonl --out x.jsonl"],
+     ["a --matrix x.jsonl --out x.jsonl", "a --matrix x.jsonl --out x.jsonl"]),
+    (["a >> x.jsonl", "a >> x.jsonl"], ["a >> x.jsonl", "a >> x.jsonl"]),
+    # a third copy is compared with the last copy run, not the first
+    (["a --out x.jsonl", "w --out x.jsonl", "a --out x.jsonl", "r --table x.jsonl", "a --out x.jsonl"],
+     ["a --out x.jsonl", "w --out x.jsonl", "a --out x.jsonl", "r --table x.jsonl"]),
+]
+
+
+@pytest.mark.parametrize("commands, run", RUN_ONCE_CASES)
+def test_a_repeat_is_left_out_only_when_nothing_between_names_its_files_but_to_read(commands, run):
+    assert run_once(commands) == run
+
+
+def test_the_hand_built_list_count_is_the_one_design_states():
+    assert len(RUN_ONCE_CASES) == 10
+
+
+def test_regenerate_leaves_out_the_one_repeated_converter_line():
+    commands = expected_commands(readme())
+    run = regenerate_commands(readme())
+    assert len(commands) == 37 and len(run) == 36
+    assert commands.count(REPEATED) == 2 and run.count(REPEATED) == 1
+    second = len(commands) - 1 - commands[::-1].index(REPEATED)
+    assert commands[second + 1].startswith("python evidence/llmrouterbench-delegation/results.py --matrix")
+    assert run == commands[:second] + commands[second + 1:]
+
+
 def test_readme_evidence_intro_names_the_workflow():
     text = readme()
     intro = text.split(EVIDENCE, 1)[1].strip("\n").split("\n\n", 1)[0]
@@ -288,6 +374,13 @@ def regenerate_lines(text):
 def with_lines(text, change):
     head, lines, tail = regenerate_lines(text)
     return head + "        run: |\n" + "\n".join(change(lines)) + "\n      - name: Compare\n" + tail
+
+
+def with_repeat(lines):
+    """The Regenerate lines with the repeated converter line run again before the 13.13 script."""
+    at = [k for k, line in enumerate(lines) if "llmrouterbench-delegation/results.py --matrix" in line]
+    assert len(at) == 1
+    return lines[:at[0]] + ["          " + REPEATED] + lines[at[0]:]
 
 
 MUTANTS = {
@@ -338,6 +431,15 @@ MUTANTS = {
         "      - name: Regenerate\n", f"      - name: Regenerate\n        timeout-minutes: {TIMEOUT_MINUTES}\n", 1),
     "the time-limit sentence dropped": lambda t: t.replace(
         f"# The job's time limit of {TIMEOUT_MINUTES} minutes", "# The job's limit", 1),
+    # v1.215: the repeated-line rule
+    "the repeated converter line kept": lambda t: with_lines(t, with_repeat),
+    "the repeated-line sentence dropped": lambda t: t.replace(
+        "# A README line identical to one already run in the step is not run again when no line\n"
+        "# between them names one of its files except to read it (DESIGN.md 12.13).\n", "", 1),
+}
+REPEAT_MUTANTS = {
+    "the repeated converter line kept": "Regenerate is not the README commands in order",
+    "the repeated-line sentence dropped": REPEAT_PROBLEM,
 }
 TIME_LIMIT_MUTANTS = {
     "the time limit dropped": LIMIT_PROBLEM,
@@ -349,8 +451,17 @@ TIME_LIMIT_MUTANTS = {
 
 
 def test_the_mutant_count_is_the_one_design_states():
-    assert len(MUTANTS) == 24
+    assert len(MUTANTS) == 26
     assert len(TIME_LIMIT_MUTANTS) == 5 and set(TIME_LIMIT_MUTANTS) <= set(MUTANTS)
+    assert len(REPEAT_MUTANTS) == 2 and set(REPEAT_MUTANTS) <= set(MUTANTS)
+
+
+@pytest.mark.parametrize("name", sorted(REPEAT_MUTANTS))
+def test_a_repeat_mutant_fails_on_the_one_check_it_names(name):
+    text = workflow_text()
+    mutant = MUTANTS[name](text)
+    assert mutant != text, name
+    assert problems(mutant, readme(), CI.read_text(encoding="utf-8")) == [REPEAT_MUTANTS[name]], name
 
 
 def test_the_time_limit_is_ten_times_the_slowest_run_in_whole_five_minutes():
