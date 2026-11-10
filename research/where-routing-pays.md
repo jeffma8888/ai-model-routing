@@ -158,6 +158,7 @@ The finding of the first five files does not hold on LLMRouterBench: routing pas
 
 - The script reads the committed results files only. They hold no per-task single-model rows and no per-seed calibration sizes, so the note cannot name each task's best model, and its halves are the expected `int(items * calibration_fraction)`; [routerbench-per-task.md](routerbench-per-task.md) reads the pinned RouterBench file and names each eval's best model there
 - The LLMRouterBench shares compare gains on different items, the in-sample one on all items with each task's model chosen in hindsight and the held-out ones on the halves, and the best single model they are measured from is itself chosen in hindsight on the held-out halves (12.7)
+- Every held-out number here is a mean over the seeds of a results file; [llmrouterbench-seeds.md](llmrouterbench-seeds.md) reruns the LLMRouterBench evaluation and gives its gain over the best single model seed by seed
 - The shortfall is taken at the best single model's success; a success nearer 0.5 has a larger one at the same half
 - Costs are those each results file holds (recorded per call or priced at list, as each README subsection says); LiveCodeBench records none, so its cost columns are 0
 - The bars, seeds and settings are those each results file was run with; a different bar grid or `min_samples` would move the cleared rates and the picks

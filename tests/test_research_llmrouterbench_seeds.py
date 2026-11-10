@@ -20,9 +20,6 @@ import pytest
 
 from model_routing import evaluate, outcomes_from_rows
 
-pytestmark = pytest.mark.xfail(strict=True, raises=(FileNotFoundError, AssertionError),
-                               reason="v1.177: the script and note land in the implementing commit")
-
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "research" / "llmrouterbench_seeds.py"
 NOTE = ROOT / "research" / "llmrouterbench-seeds.md"
@@ -117,10 +114,10 @@ def test_best_single_model_is_the_12_7_rule(lrs):
         return {"bar": 0.5, "flavor": flavor, "strategy": strategy, "success": success, "cost_usd": cost}
     rows = [row("routed", 0.9, 1.0), row("model:v/b", 0.6, 2.0), row("model:v/a", 0.6, 2.0), row("model:v/c", 0.6, 3.0)]
     assert lrs.best_single_model(rows) == "v/a"
-    assert lrs.best_single_model(rows + [row("model:v/d", 0.6, 1.5, "cost_effective")]) == "v/d"
+    assert lrs.best_single_model(rows + [row("model:v/d", 0.6, 1.5)]) == "v/d"
+    assert lrs.best_single_model(rows + [row("model:v/e", 0.61, 9.0)]) == "v/e"
     with pytest.raises(ValueError, match="differs"):
-        lrs.best_single_model(rows + [row("model:v/d", 0.6, 1.5, "cost_effective"),
-                                      row("model:v/a", 0.6, 2.0, "cost_effective")])
+        lrs.best_single_model(rows + [row("model:v/d", 0.6, 1.5, "cost_effective")])
 
 
 def test_report_lines_on_a_small_matrix(lrs):
