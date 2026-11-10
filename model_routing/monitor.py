@@ -71,11 +71,15 @@ def report(records: Iterable[dict], by: str = "model") -> List[dict]:
 
     Attempt-level sums use each attempt; call-level counts (``calls``,
     ``failed_calls``, ``fallback_calls``) use the group of the call's final
-    attempt. Rows are sorted by descending ``cost_usd``, then ``group``.
+    attempt. ``below_bar_calls`` (the last key) counts the calls whose final
+    attempt is ``ok`` on a model under the bar: its record's ``below_bar`` or
+    ``below_bar_fallback`` is true (DESIGN 8.1, 8.3, v1.203). Rows are sorted
+    by descending ``cost_usd``, then ``group``.
     """
     group_of = _grouper(by)
     groups: Dict[str, dict] = {}
     latencies: Dict[str, List[float]] = {}
+    under: Dict[str, int] = {}
     for rec in records:
         group = group_of(rec)
         row = groups.get(group)
@@ -87,6 +91,7 @@ def report(records: Iterable[dict], by: str = "model") -> List[dict]:
                 "fallback_calls": 0,
             }
             latencies[group] = []
+            under[group] = 0
         outcome = rec.get("outcome")
         row["attempts"] += 1
         if outcome == "ok":
@@ -106,6 +111,9 @@ def report(records: Iterable[dict], by: str = "model") -> List[dict]:
                 row["failed_calls"] += 1
             if int(rec.get("attempt", 0)) > 0:
                 row["fallback_calls"] += 1
+            if outcome == "ok" and (rec.get("below_bar") is True
+                                    or rec.get("below_bar_fallback") is True):
+                under[group] += 1
     rows = []
     for group, row in groups.items():
         row["cost_usd"] = round(row["cost_usd"], 6)
@@ -114,6 +122,7 @@ def report(records: Iterable[dict], by: str = "model") -> List[dict]:
         values = sorted(latencies[group])
         row["p50_latency_ms"] = _nearest_rank(values, 0.50)
         row["p95_latency_ms"] = _nearest_rank(values, 0.95)
+        row["below_bar_calls"] = under[group]
         rows.append(row)
     rows.sort(key=lambda r: (-r["cost_usd"], r["group"]))
     return rows

@@ -73,7 +73,6 @@ def mixed_records(record_factory):
     ]
 
 
-@pytest.mark.xfail(strict=True, reason="DESIGN v1.203 spec ahead of the code (row S2b)")
 def test_report_uses_each_attempt_for_sums_and_final_attempt_for_call_metrics(mixed_records):
     rows = report(mixed_records)
     assert all(set(row) == REPORT_KEYS for row in rows)

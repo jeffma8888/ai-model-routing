@@ -203,13 +203,16 @@ def _cmd_report(args) -> int:
 
     def fmt(value):
         return "-" if value is None else f"{value:.1f}"
+    # DESIGN 10 v1.203: the below_bar_calls column only when some row counts one
+    under = any(r["below_bar_calls"] > 0 for r in rows)
     table = [[r["group"], r["calls"], r["attempts"], r["errors"], r["invalid"],
-              r["fallback_calls"], f"{r['fallback_rate']:.3f}", f"{r['cost_usd']:.6f}",
-              f"{r['routing_cost_usd']:.6f}", fmt(r["p50_latency_ms"]),
-              fmt(r["p95_latency_ms"])] for r in rows]
+              r["fallback_calls"], f"{r['fallback_rate']:.3f}"]
+             + ([r["below_bar_calls"]] if under else [])
+             + [f"{r['cost_usd']:.6f}", f"{r['routing_cost_usd']:.6f}",
+                fmt(r["p50_latency_ms"]), fmt(r["p95_latency_ms"])] for r in rows]
     print(_table([args.by, "calls", "attempts", "errors", "invalid", "fallback_calls",
-                  "fallback_rate", "cost_usd", "routing_cost_usd", "p50_ms", "p95_ms"],
-                 table))
+                  "fallback_rate"] + (["below_bar_calls"] if under else [])
+                 + ["cost_usd", "routing_cost_usd", "p50_ms", "p95_ms"], table))
     return EXIT_OK
 
 

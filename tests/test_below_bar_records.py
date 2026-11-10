@@ -16,7 +16,6 @@ from model_routing.cli import _table, main
 from model_routing.demo import run_demo
 
 ROOT = Path(__file__).resolve().parents[1]
-NEW = pytest.mark.xfail(strict=True, reason="DESIGN v1.203 spec ahead of the code (row S2b)")
 
 V1_202_KEYS = ["ts", "call_id", "task", "flavor", "model", "family", "attempt", "final",
                "outcome", "error", "latency_ms", "input_tokens", "output_tokens", "cost_usd",
@@ -69,7 +68,6 @@ def keys(records):
 
 # ---- 8.1 the key on an attempt record --------------------------------------------------------
 
-@NEW
 @pytest.mark.parametrize("flavor", ["cost_effective", "cost_blind"])
 def test_an_attempt_on_a_below_bar_fallback_carries_the_key_after_below_bar(flavor):
     router = build()
@@ -85,7 +83,6 @@ def test_an_attempt_on_a_below_bar_fallback_carries_the_key_after_below_bar(flav
     assert [rec["below_bar"] for rec in monitor.records] == [False, False, False]
 
 
-@NEW
 def test_every_below_bar_fallback_attempt_has_the_key_when_all_fail():
     router = build(max_fallbacks=3)
     monitor = Monitor()
@@ -126,7 +123,6 @@ def test_a_best_available_route_keeps_v1_202_keys_with_below_bar_true():
     assert [rec["below_bar"] for rec in monitor.records] == [True, True]
 
 
-@NEW
 def test_call_delegated_takes_the_key_from_the_route():
     router = build()
     decision = router.decide_delegation("t", "b/far", "cost_effective", context_tokens=1000,
@@ -171,7 +167,6 @@ def logged(record_factory):
     ]
 
 
-@NEW
 def test_report_counts_the_ok_calls_answered_under_the_bar(record_factory):
     rows = {row["group"]: row for row in report(logged(record_factory))}
     assert {group: row["below_bar_calls"] for group, row in rows.items()} == {
@@ -181,7 +176,6 @@ def test_report_counts_the_ok_calls_answered_under_the_bar(record_factory):
     assert rows["b/close"]["failed_calls"] == 1
 
 
-@NEW
 @pytest.mark.parametrize("by", ["model", "task", "flavor", "family", "tag:none"])
 def test_every_row_has_the_count_as_its_last_key(record_factory, by):
     rows = report(logged(record_factory), by=by)
@@ -189,7 +183,6 @@ def test_every_row_has_the_count_as_its_last_key(record_factory, by):
     assert sum(row["below_bar_calls"] for row in rows) == 3
 
 
-@NEW
 def test_a_log_without_any_call_under_the_bar_counts_zero(record_factory):
     rows = report([record_factory(), record_factory(call_id="2", model="fiction/b")])
     assert [row["below_bar_calls"] for row in rows] == [0, 0]
@@ -205,7 +198,6 @@ def header(text):
     return text.splitlines()[0].split()
 
 
-@NEW
 def test_report_text_shows_the_column_when_some_call_was_under_the_bar(tmp_path, record_factory, capsys):
     path = tmp_path / "calls.jsonl"
     write(path, logged(record_factory))
@@ -240,7 +232,6 @@ def test_report_text_without_a_call_under_the_bar_is_the_v1_202_table(tmp_path, 
 
 # ---- README ------------------------------------------------------------------------------------
 
-@NEW
 def test_readme_monitoring_names_the_key_and_the_count():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     section = readme.split("## Monitoring and cost attribution\n", 1)[1].split("\n## ", 1)[0]

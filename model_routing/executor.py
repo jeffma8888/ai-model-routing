@@ -149,7 +149,7 @@ class Executor:
 
     def _record(self, call_id: str, decision: RouteDecision, registry, index: int,
                 final: bool, attempt: Attempt, tags: Dict[str, str]) -> dict:
-        return {
+        record = {
             "ts": self.now(),
             "call_id": call_id,
             "task": decision.task,
@@ -166,9 +166,12 @@ class Executor:
             "cost_usd": attempt.cost_usd,
             "routing_cost_usd": attempt.cost_usd if decision.flavor == "cost_effective" else 0.0,
             "below_bar": decision.below_bar,
-            "basis": decision.basis,
-            "tags": dict(tags),
         }
+        if attempt.model in decision.below_bar_fallbacks:
+            record["below_bar_fallback"] = True
+        record["basis"] = decision.basis
+        record["tags"] = dict(tags)
+        return record
 
 
 def json_validator(*required_keys: str) -> Callable[[str], bool]:

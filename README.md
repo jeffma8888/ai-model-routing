@@ -374,7 +374,7 @@ if decision.mode == "delegate":
 
 ## Monitoring and cost attribution
 
-Each attempt is one JSON line with the task, flavor, model, family, attempt index, outcome, latency, tokens, list-price `cost_usd`, `routing_cost_usd` (0 in `cost_blind`), `below_bar`, `basis` and your tags. Roll it up any way you need:
+Each attempt is one JSON line with the task, flavor, model, family, attempt index, outcome, latency, tokens, list-price `cost_usd`, `routing_cost_usd` (0 in `cost_blind`), `below_bar`, `basis` and your tags; an attempt on a fallback under the bar (a task with `fallback_below_bar`, above) also carries `below_bar_fallback: true`. Roll it up any way you need:
 
 ```bash
 model-routing report --log calls.jsonl --by model
@@ -389,6 +389,7 @@ for row in report(monitor.records, by="tag:team"):
 
 - Costs and token counts are summed per attempt, so a failed attempt that still burned tokens is charged to the model that burned them
 - Call counts, failures and the fallback rate are attributed by each call's final attempt
+- `below_bar_calls` counts the calls a model under the bar answered: those whose final attempt is `ok` and has `below_bar` (no model cleared, so the route was the best available) or `below_bar_fallback`. The text table shows that column only when some group has one
 - Latency percentiles are nearest-rank over successful attempts
 
 ## Evidence: held-out results on public data
