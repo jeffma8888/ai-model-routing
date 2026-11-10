@@ -76,7 +76,8 @@ def _count(name: str, value) -> int:
     return value
 
 
-def _call_costs(model, calls: int, context: int, charged, s_in: int, s_out: int) -> List[float]:
+def _call_costs(model, calls: int, context: int, charged: float, s_in: int,
+                s_out: int) -> List[float]:
     """Each of ``calls`` work calls priced at its own tier (13.2 v1.219).
 
     Call j reads ``context + j * s_in + (j - 1) * s_out``, which sets its tier, and pays that
@@ -90,8 +91,8 @@ def _call_costs(model, calls: int, context: int, charged, s_in: int, s_out: int)
     return costs
 
 
-def _work_cost(model, k: int, base_reads, s_in: int, s_out: int, context: int,
-               charged) -> float:
+def _work_cost(model, k: int, base_reads: float, s_in: int, s_out: int, context: int,
+               charged: float) -> float:
     """List cost of K work calls (13.2).
 
     Call j reads the path's base context, the j inputs and the j - 1 outputs so far,
@@ -108,7 +109,7 @@ def _work_cost(model, k: int, base_reads, s_in: int, s_out: int, context: int,
     return model.base_cost(base_reads + w_in * s_in + w_out * s_out, k * s_out)
 
 
-def _shared(parent, c: int, rho, added_in: int, added_out: int = 0) -> float:
+def _shared(parent, c: int, rho: float, added_in: int, added_out: int = 0) -> float:
     """What a parent call over C is charged for the tokens a path adds to it (13.2).
 
     Without tiers ``Model.base_cost`` of the additions (v1.212); with tiers the additions at

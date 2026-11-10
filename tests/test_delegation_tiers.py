@@ -134,6 +134,40 @@ def test_k2_select_prices_a_tiered_candidate_per_call(flavor):
                                           + 1 * parent.base_cost(47_000 + 2_200, 0))
 
 
+@pytest.mark.parametrize("flavor", FLAVORS)
+def test_a_tiered_parent_and_delegate_at_three_calls_with_two_tiers_each(flavor):
+    """t/long over 50,000 at 3 / 9 and over 52,200 at 5 / 15; s/small over 1,000 at 0.2 / 0.8 and
+    over 4,000 at 0.3 / 1.2; C = 45,000, K = 3. Inline: the calls read 47,000, 49,500 and
+    52,000, (47,000 + 2,000) + (49,500 + 2,000) + (156,000 + 4,500) = 0.261; the next call adds
+    7,500 to 52,500, past the second tier: 37,500 + 45,000 * (5 - 1) = 0.2175. Delegated:
+    300 * 4 = 0.0012; s/small reads 2,300, 4,800 and 7,300, (460 + 400) + (1,440 + 600)
+    + (2,190 + 600) = 0.00569; the next call 500 at base. t/long as a delegate would cost
+    (4,300 + 6,800 + 9,300) = 0.0204, so s/small is the primary in both flavors."""
+    reg = Registry([
+        Model("t/long", "t", 1.0, 4.0, 1_000_000,
+              price_tiers=(PriceTier(50_000, 3.0, 9.0), PriceTier(52_200, 5.0, 15.0))),
+        Model("s/small", "s", 0.1, 0.4, 1_000_000,
+              price_tiers=(PriceTier(1_000, 0.2, 0.8), PriceTier(4_000, 0.3, 1.2)))])
+    decision = decide(reg, flavor, context_tokens=45_000, work_calls=3)
+    assert decision.route.primary == "s/small"
+    costs = {c.model_id: c.list_cost for c in decision.route.candidates}
+    assert costs == {"s/small": approx(0.00569), "t/long": approx(0.0204)}
+    assert (decision.inline_cost_usd, decision.delegate_cost_usd) == (approx(0.4785),
+                                                                      approx(0.00739))
+
+
+def test_a_tier_cheaper_than_the_base_makes_the_re_read_term_negative():
+    """t/odd at 1 / 4, over 50,000 at 0.5 / 2; C = 49,800, K = 1. The work call reads 51,800,
+    (25,900 + 1,000) = 0.0269; the next call adds 2,500 to 52,300: 1,250 + 49,800 * (0.5 - 1)
+    = -0.02365, since the path lowers the price of the whole call."""
+    reg = Registry([Model("t/odd", "t", 1.0, 4.0, 1_000_000,
+                          price_tiers=(PriceTier(50_000, 0.5, 2.0),)),
+                    Model("s/small", "s", 0.1, 0.4, 1_000_000)])
+    decision = router(reg).decide_delegation(TASK, "t/odd", context_tokens=49_800,
+                                             brief_tokens=300, result_tokens=200)
+    assert decision.inline_cost_usd == approx(0.0269 - 0.02365)
+
+
 SHAPES = [
     {"context_tokens": 47_000, "work_calls": 2},
     {"context_tokens": 49_800, "carry_turns": 3},
@@ -167,7 +201,8 @@ def test_without_tiers_every_cost_is_the_v1_218_one(flavor, work):
 
 
 def test_no_committed_delegation_registry_has_a_tier():
-    """So v1.219 moves no committed delegation result (their own tests pin the bytes)."""
+    """So v1.219 moves no committed delegation result: the byte tests of the four committed
+    delegation results files (tests/test_evidence_*delegation*.py) pass unchanged."""
     for name in ("tau2-bench-delegation", "llmrouterbench-delegation"):
         path = ROOT / "evidence" / name / "registry.json"
         assert all(m.price_tiers == () for m in Registry.load(path).models)
