@@ -313,7 +313,8 @@ README_LIMITATION = (
     "all of its input and output tokens, as the claude-haiku-5.5 and gpt-6-astra pages state. "
     "Two costs stay at the base prices, so a long-context call there is under-costed: grok-4.7 "
     "over 200K input tokens, whose page says the rates are higher without stating them, and the "
-    "inline-or-delegate cost, whose formulas price several calls and re-read increments together "
+    "inline-or-delegate cost, whose formulas price every term at the base prices, a path's one work "
+    "call included, since most of their terms are totals of several calls or re-read increments "
     "(`DESIGN.md` 13.2). A task whose line is a whole conversation, such as "
     "`tool_calling_support_agent`, is costed as one call of the conversation's summed sizes, so a "
     "tiered model can be costed at its higher price although each of its calls is shorter")
