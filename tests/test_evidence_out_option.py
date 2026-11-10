@@ -12,6 +12,7 @@ held as strict xfail (raising `Downloaded`) until v1.172 put the check in.
 """
 
 import importlib.util
+import inspect
 import os
 from pathlib import Path
 
@@ -60,6 +61,11 @@ def _part_folder(root):
     return "m.jsonl"
 
 
+def _file_parent(root):
+    (root / "afile").write_text("keep\n", encoding="utf-8")
+    return "afile/m.jsonl"
+
+
 # Each case builds what it needs under the test's folder, the working directory, and returns the value.
 BAD = {
     "empty": lambda root: "",
@@ -73,6 +79,7 @@ BAD = {
     "link-to-folder": _link,
     "part-folder": _part_folder,
     "missing-parent": lambda root: "nodir/m.jsonl",
+    "file-parent": _file_parent,
 }
 
 # The cases each v1.170 check lets through (to the fetch): tau2-bench refused only an empty name,
@@ -111,6 +118,11 @@ def test_the_red_cases_are_bad_cases():
     assert sum(len(cases) for cases in PASSED_BEFORE.values()) == 27
 
 
+def test_the_four_checks_are_one_check():
+    sources = {cli: inspect.getsource(load(cli)._check_out) for cli in CLIS}
+    assert len(set(sources.values())) == 1, sorted(sources)
+
+
 @pytest.mark.parametrize("cli, case", list(_cases()))
 def test_a_bad_out_is_refused_before_the_fetch(cli, case, tmp_path, monkeypatch, capsys):
     module = load(cli)
@@ -138,7 +150,9 @@ def test_a_good_out_gets_past_the_check_to_the_fetch(cli, tmp_path, monkeypatch)
     monkeypatch.setattr(module, "fetch", _stand_in_fetch([]))
     monkeypatch.chdir(tmp_path)
     (tmp_path / "sub").mkdir()
-    for value in ("m.jsonl", "sub/m.jsonl", str(tmp_path / "sub" / "m.jsonl")):
+    (tmp_path / "old.jsonl").write_text("old\n", encoding="utf-8")  # a rerun over an existing file
+    for value in ("m.jsonl", "sub/m.jsonl", str(tmp_path / "sub" / "m.jsonl"), "old.jsonl"):
         with pytest.raises(Fetched):
             module.main(["--out", value])
-    assert _tree(tmp_path) == ["sub"]
+    assert _tree(tmp_path) == ["old.jsonl", "sub"]
+    assert (tmp_path / "old.jsonl").read_text(encoding="utf-8") == "old\n"
