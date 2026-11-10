@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from math import fsum
-from typing import Iterable, List, Optional
+from typing import Iterable, List, Optional, Sequence
 
 from .registry import _tier_prices
 from .router import FLAVORS, NoModelClearsBar, RouteDecision, Router, _sizes
@@ -83,11 +83,25 @@ def _call_costs(model, calls: int, context: int, charged: float, s_in: int,
     Call j reads ``context + j * s_in + (j - 1) * s_out``, which sets its tier, and pays that
     tier's prices on ``charged + j * s_in + (j - 1) * s_out`` input and ``s_out`` output tokens.
     """
+    return _listed_call_costs(model, context, charged, [s_in] * calls, [s_out] * calls)
+
+
+def _listed_call_costs(model, context: int, charged: float, ins: Sequence[int],
+                       outs: Sequence[int]) -> List[float]:
+    """Work calls of their own sizes, each priced at its own tier (13.2 v1.219, 13.9 v1.222).
+
+    Call j reads ``context`` plus ``ins[:j + 1]`` and ``outs[:j]``, which sets its tier, and pays
+    that tier's prices on ``charged`` plus those tokens and on ``outs[j]`` output tokens. The
+    tokens added so far are a running integer sum, so with equal sizes it is the integer
+    ``j * s_in + (j - 1) * s_out`` of ``_call_costs`` and each cost the same float.
+    """
     costs = []
-    for j in range(1, calls + 1):
-        added = j * s_in + (j - 1) * s_out
+    added = 0
+    for s_in, s_out in zip(ins, outs):
+        added += s_in
         price_in, price_out = _tier_prices(model, context + added)
         costs.append(((charged + added) * price_in + s_out * price_out) / 1_000_000)
+        added += s_out
     return costs
 
 

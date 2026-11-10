@@ -11,6 +11,8 @@ parent's reads of its context in the inline work calls at that fraction of its l
 price), both assumed like the rest of the grid. A row may instead carry each of its work
 calls, ``call_input_tokens`` and ``call_output_tokens``, so a multi-call item is priced on
 its own calls by position, each path at the calls of the model doing the work (v1.74).
+On a model with price tiers each held-out call is priced at its own tier, as the decision
+prices it (v1.222).
 """
 
 from __future__ import annotations
@@ -19,6 +21,7 @@ import statistics
 from math import fsum
 from typing import Dict, List, Optional, Sequence, Tuple
 
+from .delegation import _listed_call_costs, _shared
 from .evaluate import _check_run_options, _is_int, split_items
 from .registry import Registry
 from .router import NoModelClearsBar, Router
@@ -31,9 +34,10 @@ OPTIONAL_KEYS = ("work_calls", "cached_read_ratio")
 CALL_KEYS = ("call_input_tokens", "call_output_tokens")
 STRATEGIES = ("decision", "inline", "delegate")
 
-# (K, Rd, A, O) of a row's per-call sizes: its number of work calls, what they read, their
-# new input and what they write (DESIGN 13.9 v1.74)
-Calls = Tuple[int, int, int, int]
+# (K, Rd, A, O, a, b) of a row's per-call sizes: its number of work calls, what they read, their
+# new input, what they write (DESIGN 13.9 v1.74) and each call's new input and output, which a
+# tiered model's held-out cost reads (v1.222)
+Calls = Tuple[int, int, int, int, Tuple[int, ...], Tuple[int, ...]]
 # (correct, input_tokens, output_tokens, calls) of one model's row for one item, calls
 # None on a row without per-call sizes
 Row = Tuple[bool, int, int, Optional[Calls]]
@@ -79,7 +83,7 @@ def _calls(row: dict) -> Optional[Calls]:
     if row["input_tokens"] != rd or row["output_tokens"] != o:
         raise ValueError(f"'input_tokens' must be what the row's calls read, {rd}, and "
                          f"'output_tokens' what they write, {o}: {row!r}")
-    return k, rd, sum(a), o
+    return k, rd, sum(a), o, tuple(a), tuple(b)
 
 
 def _points(points) -> List[dict]:
@@ -269,24 +273,49 @@ def _cell(table, registry, router, calibration, task, bar, flavor, index, point,
     if "cached_read_ratio" in point:
         reads = reads * point["cached_read_ratio"]
 
+    separate = point["inline_separate_call"]
+    rho = point.get("cached_read_ratio", 1.0)
+
+    def inline_tiered(ins: Sequence[int], outs: Sequence[int]) -> float:
+        # 13.9 v1.222: a tiered parent's work calls and shared calls, each at its own tier
+        left = sum(ins) + sum(outs)
+        if separate:
+            return (fsum(_listed_call_costs(p, c, c * rho, ins, outs))
+                    + (1 + t) * _shared(p, c, rho, left))
+        return (fsum(_listed_call_costs(p, c, c * rho, ins[:-1], outs[:-1])
+                     + [_shared(p, c, rho, left - outs[-1], outs[-1])])
+                + t * _shared(p, c, rho, left))
+
+    def delegate_tiered(work: float) -> float:
+        # 13.9 v1.222: the brief and the calls after the work on the parent, either one tiered
+        return _shared(p, c, rho, 0, b) + work + (1 + t) * _shared(p, c, rho, b + r)
+
     def inline_calls(item: str) -> float:
-        kp, rd, a, o = table[task, item][p.id][3]
-        base = kp * c if point["inline_separate_call"] else (kp - 1) * c
+        kp, rd, a, o, ins, outs = table[task, item][p.id][3]
+        if p.price_tiers:
+            return inline_tiered(ins, outs)
+        base = kp * c if separate else (kp - 1) * c
         if "cached_read_ratio" in point:
             base = base * point["cached_read_ratio"]
-        if point["inline_separate_call"]:
+        if separate:
             return p.base_cost(base + rd, o) + (1 + t) * p.base_cost(a + o, 0)
         return p.base_cost(base + rd, o) + t * p.base_cost(a + o, 0)
 
     def delegate_calls(item: str) -> float:
-        kd, rd, _, o = table[task, item][d.id][3]
+        kd, rd, _, o, ins, outs = table[task, item][d.id][3]
+        if p.price_tiers or d.price_tiers:
+            work = (fsum(_listed_call_costs(d, b, b, ins, outs)) if d.price_tiers
+                    else d.base_cost(kd * b + rd, o))
+            return delegate_tiered(work)
         return p.base_cost(0, b) + d.base_cost(kd * b + rd, o) + (1 + t) * p.base_cost(b + r, 0)
 
     def inline_cost(item: str) -> float:
         if k_dec is not None:
             return inline_calls(item)
         _, tin, tout, _ = table[task, item][p.id]
-        if point["inline_separate_call"]:
+        if p.price_tiers:
+            return inline_tiered([tin] * k, [tout] * k)
+        if separate:
             return (p.base_cost(reads + w_in * tin + w_out * tout, k * tout)
                     + (1 + t) * p.base_cost(k * (tin + tout), 0))
         return (p.base_cost(reads + w_in * tin + w_out * tout, k * tout)
@@ -296,6 +325,10 @@ def _cell(table, registry, router, calibration, task, bar, flavor, index, point,
         if k_dec is not None:
             return delegate_calls(item)
         _, tin, tout, _ = table[task, item][d.id]
+        if p.price_tiers or d.price_tiers:
+            work = (fsum(_listed_call_costs(d, b, b, [tin] * k, [tout] * k)) if d.price_tiers
+                    else d.base_cost(k * b + w_in * tin + w_out * tout, k * tout))
+            return delegate_tiered(work)
         return (p.base_cost(0, b) + d.base_cost(k * b + w_in * tin + w_out * tout, k * tout)
                 + (1 + t) * p.base_cost(b + r, 0))
 

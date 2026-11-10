@@ -223,22 +223,3 @@ def test_design_specifies_per_call_tiers():
     ]:
         assert text.count(fragment) == 1, fragment
 
-
-README_LIMITATION = (
-    "- A long-prompt tier is costed per call where `models.json` gives its rates (`price_tiers`, "
-    "`DESIGN.md` 4.1): a call whose input is over the tier's threshold pays the tier's prices on "
-    "all of its input and output tokens, as the claude-haiku-5.5 and gpt-6-astra pages state, "
-    "and the inline-or-delegate cost prices each work call and each later parent call at its own "
-    "tier (`DESIGN.md` 13.2). Three costs stay at the base prices, so a long-context call there "
-    "is under-costed: grok-4.7 over 200K input tokens, whose page says the rates are higher "
-    "without stating them; the parent's own output in a later call that a path's additions take "
-    "over a threshold; and the held-out costs of the delegation evidence (`DESIGN.md` 13.9), "
-    "whose registries have no tiers. A task whose line is a whole conversation, such as "
-    "`tool_calling_support_agent`, is costed as one call of the conversation's summed sizes, so a "
-    "tiered model can be costed at its higher price although each of its calls is shorter")
-
-
-def test_readme_limitation_names_what_stays_at_the_base_prices():
-    lines = (ROOT / "README.md").read_text(encoding="utf-8").split("\n")
-    assert lines.count(README_LIMITATION) == 1
-    assert not any("whose formulas price every term at the base prices" in line for line in lines)

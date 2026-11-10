@@ -25,8 +25,6 @@ ITEMS = [f"q{i}" for i in range(1, 9)]
 SEEDS = [0, 1]
 BAR = 0.4
 FLAVORS = ["cost_effective", "cost_blind"]
-RED = pytest.mark.xfail(strict=True, raises=AssertionError,
-                        reason="v1.221 prices every held-out cost at the base prices (13.9 v1.222)")
 
 
 def registry(parent_tiers=True, small=()):
@@ -78,7 +76,6 @@ CASES = [
 ]
 
 
-@RED
 def test_constant_rows_cost_the_hand_worked_decision_cases_per_item():
     """Each held-out item has the sizes the decision prices, so it costs what the case does."""
     result = run(rows_of(constant), registry(), [point(**w) for w, _, _ in CASES])
@@ -106,7 +103,6 @@ def growing(i, m):
     return {"input_tokens": 1_000 * i, "output_tokens": 200 if m == "t/long" else 100}
 
 
-@RED
 @pytest.mark.parametrize("flavor", FLAVORS)
 def test_each_held_out_item_pays_the_tier_of_its_own_calls(flavor):
     reg = registry(small=(PriceTier(5_000, 0.3, 0.9),))
@@ -137,7 +133,6 @@ PER_CALL = [(point(context_tokens=47_000), 0.312, 0.00362),
              0.00412)]
 
 
-@RED
 def test_a_row_with_per_call_sizes_pays_each_of_its_calls_at_its_tier():
     reg = registry(small=(PriceTier(2_000, 0.3, 0.9),))
     result = run(rows_of(per_call), reg, [p for p, _, _ in PER_CALL])
@@ -187,9 +182,7 @@ TIERS = {"none": (False, ()), "parent": (True, ()), "delegate": (False, (PriceTi
 SHAPES = [w for w, _, _ in CASES] + [{"context_tokens": 45_000, "work_calls": 3, "carry_turns": 2}]
 
 
-@pytest.mark.parametrize("tiers", [pytest.param("none"), pytest.param("parent", marks=RED),
-                                   pytest.param("delegate", marks=RED),
-                                   pytest.param("both", marks=RED)])
+@pytest.mark.parametrize("tiers", ["none", "parent", "delegate", "both"])
 def test_the_decision_and_its_scoring_price_the_same_calls_the_same_way(tiers):
     """On constant rows each held-out item costs the decision's own costs, bit for bit."""
     parent_tiers, small = TIERS[tiers]
@@ -287,8 +280,9 @@ README_LIMITATION = (
     "each of its calls is shorter")
 
 
-@RED
 def test_readme_limitation_names_the_two_costs_still_at_the_base_prices():
+    """Moved here from tests/test_delegation_tiers.py in v1.223."""
     lines = (ROOT / "README.md").read_text(encoding="utf-8").split("\n")
     assert lines.count(README_LIMITATION) == 1
-    assert not any("whose registries have no tiers" in line for line in lines)
+    assert not any("whose registries have no tiers" in line
+                   or "whose formulas price every term at the base prices" in line for line in lines)
