@@ -1,4 +1,4 @@
-"""research/check-fallback.md and research/check_fallback.py (DESIGN 12.8 v1.181).
+"""research/check-fallback.md and research/check_fallback.py (DESIGN 12.8 v1.181; README Limitations v1.185).
 
 The note's numbers are the script's lines on the LLMRouterBench matrix, compared byte for byte when
 the pinned file is cached (the session fixture `llmrouterbench_pinned` of tests/conftest.py, which
@@ -23,6 +23,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "research" / "check_fallback.py"
 NOTE = ROOT / "research" / "check-fallback.md"
 INDEX = ROOT / "research" / "README.md"
+README = ROOT / "README.md"
 RESULTS = "evidence/llmrouterbench/results.json"
 COMMAND = "$ python research/check_fallback.py --matrix llmrouterbench-matrix.jsonl"
 REGENERATE = [
@@ -390,6 +391,46 @@ def test_the_research_index_lists_the_note():
     rows = [x for x in index if x.startswith("| [check-fallback.md](check-fallback.md) | ")]
     assert len(rows) == 1 and "[check_fallback.py](check_fallback.py)" in rows[0]
     assert sum(x.startswith("- `research/check-fallback.md` ") for x in index) == 1
+
+
+
+def limitations_first_bullet():
+    """README Limitations bullet 1 (v1.185), its ranges built from the note's Results block."""
+    [text] = _blocks(NOTE.read_text(encoding="utf-8"), "text")
+    lines = text.split("\n")
+    models = int(re.search(r", (\d+) models, ", lines[1]).group(1))
+    got = {}
+    for x in lines:
+        m = re.fullmatch(r"  max_fallbacks (\d+): success \S+, cost \S+, (\S+) times no fallback's, .*, "
+                         r"gap to the oracle recovered (\S+)", x)
+        if m:
+            got.setdefault(int(m.group(1)), []).append((m.group(2), m.group(3)))
+    assert sorted(got) == [0, 2, models - 1] and all(len(v) == 4 for v in got.values()), got
+
+    def span(k, i):
+        values = sorted((v[i] for v in got[k]), key=float)
+        return f"{values[0]} to {values[-1]}"
+
+    return ("- Routes per task, not per prompt: the router picks each task's first model, with no difficulty "
+            "prediction or confidence-based cascade. What reacts per call is the executor's fallback, which moves "
+            "to the next model of the route when the caller's `validate` check fails (`DESIGN.md` 7). Replayed on "
+            "LLMRouterBench with a check as good as the record's own score, two fallbacks recover "
+            f"{span(2, 1)} of the gap between routed and per-item oracle success, at {span(2, 0)} times the "
+            f"cost, and the router's whole sorted list {span(models - 1, 1)}, at {span(models - 1, 0)} times. "
+            "Those are upper bounds: a check at call time can only do worse, and on every task but `arenahard` "
+            "the score is made against an answer key a caller does not hold, in part on `livecodebench`, whose "
+            "public test cases a caller may hold ([research/check-fallback.md](research/check-fallback.md))")
+
+
+def test_readme_limitations_first_bullet_names_the_fallback_on_a_failed_check():
+    readme = README.read_text(encoding="utf-8")
+    limits = readme.split("\n## Limitations and non-goals (v1)\n", 1)[1].split("\n## ", 1)[0]
+    bullets = [line for line in limits.splitlines() if line.startswith("- ")]
+    assert bullets[0] == limitations_first_bullet()
+    assert sum("(research/check-fallback.md)" in b for b in bullets) == 1
+    design = (ROOT / "DESIGN.md").read_text(encoding="utf-8")
+    section = design.split("\n## 7. Execution with fallback (`executor.py`)\n", 1)[1].split("\n## ", 1)[0]
+    assert "- `validate` given and `validate(text)` is falsy: outcome `invalid`" in section
 
 
 # --- the pinned file, only when already cached (one session read, tests/conftest.py) ----------
