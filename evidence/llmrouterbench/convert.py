@@ -304,15 +304,26 @@ def _stdout_to_devnull() -> None:
         os.close(devnull)
 
 
+def _check_out(value):
+    """The `--out` path, or a ValueError for a bad one, checked before any download (12.14 v1.171)."""
+    if value.rsplit("/", 1)[-1] in ("", ".", ".."):
+        raise ValueError(f"--out must end in a file name, got {value!r}")
+    out = Path(value)
+    for path in (out, out.with_name(out.name + ".part")):
+        if path.is_dir():  # a link to a folder included
+            raise ValueError(f"--out {value!r}: {str(path)!r} is a folder")
+    if not out.parent.is_dir():
+        raise ValueError(f"--out {value!r}: folder {str(out.parent)!r} does not exist")
+    return out
+
+
 def main(argv=None) -> int:
     parser = _Parser(prog="convert.py", description="LLMRouterBench results to an outcome matrix")
     parser.add_argument("--out", required=True, help="output JSONL path")
     parser.add_argument("--cache", default=None, help=f"download folder (default: {default_cache_dir()})")
     try:
         args = parser.parse_args(argv)
-        out = Path(args.out)
-        if args.out in ("", ".", "/") or args.out.endswith("/") or not out.name:
-            raise ValueError(f"--out must end in a file name, got {args.out!r}")
+        out = _check_out(args.out)
         part = out.with_name(out.name + ".part")
         try:
             rows, report = convert(read_archive(fetch(args.cache)))

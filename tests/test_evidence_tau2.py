@@ -795,12 +795,21 @@ def test_main_output_folder_missing(cv, monkeypatch, tmp_path, capsys):
     assert not (tmp_path / "missing").exists()
 
 
-def test_main_output_that_is_a_folder_is_left_as_it_was(cv, monkeypatch, tmp_path, capsys):
+def test_main_output_that_becomes_a_folder_is_left_as_it_was(cv, monkeypatch, tmp_path, capsys):
+    # a folder there at the start is a bad option (12.14 v1.171, tests/test_evidence_out_option.py),
+    # so this one appears after the option checks, during the fetch, and only the rename fails
     cache = tmp_path / "cache"
     install(cv, monkeypatch, cache, runs())
     out = tmp_path / "out"
-    out.mkdir()
-    (out / "keep.txt").write_text("keep\n", encoding="utf-8")
+    fetch = cv.fetch
+
+    def fetch_then_make_the_folder(*args, **kwargs):
+        folder = fetch(*args, **kwargs)
+        out.mkdir()
+        (out / "keep.txt").write_text("keep\n", encoding="utf-8")
+        return folder
+
+    monkeypatch.setattr(cv, "fetch", fetch_then_make_the_folder)
     assert cv.main(["--out", str(out), "--cache", str(cache)]) == 2
     captured = capsys.readouterr()
     _, report = cv.convert(extracts(cv))

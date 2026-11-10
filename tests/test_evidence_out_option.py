@@ -7,9 +7,8 @@ that is an existing folder (a link to one counts), or a path whose parent is not
 folder is a bad option: `main` returns 2 with one `error: --out` line and nothing on stdout,
 and neither fetches nor writes a file. A good value gets past the check to `fetch`.
 
-Until v1.172 lands, each case one of the four v1.170 checks lets through is held as strict
-xfail that must raise `Downloaded`, raised when the stand-in `fetch` was called, so it fails
-now by downloading and passes once the check is in.
+`PASSED_BEFORE` lists the 27 cases the four v1.170 checks let through to the fetch; they were
+held as strict xfail (raising `Downloaded`) until v1.172 put the check in.
 """
 
 import importlib.util
@@ -87,15 +86,12 @@ PASSED_BEFORE = {
                        "missing-parent"},
     "trail": {"sub-dot", "folder", "link-to-folder", "part-folder", "missing-parent"},
 }
-pending_check = pytest.mark.xfail(strict=True, raises=Downloaded,
-                                  reason="v1.171 --out check not implemented yet (v1.172)")
 
 
 def _cases():
     for cli in CLIS:
         for case in BAD:
-            marks = [pending_check] if case in PASSED_BEFORE[cli] else []
-            yield pytest.param(cli, case, marks=marks, id=f"{cli}-{case}")
+            yield pytest.param(cli, case, id=f"{cli}-{case}")
 
 
 def _stand_in_fetch(calls):

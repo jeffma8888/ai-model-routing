@@ -376,6 +376,19 @@ def _stdout_to_devnull() -> None:
         os.close(devnull)
 
 
+def _check_out(value):
+    """The `--out` path, or a ValueError for a bad one, checked before any download (12.14 v1.171)."""
+    if value.rsplit("/", 1)[-1] in ("", ".", ".."):
+        raise ValueError(f"--out must end in a file name, got {value!r}")
+    out = Path(value)
+    for path in (out, out.with_name(out.name + ".part")):
+        if path.is_dir():  # a link to a folder included
+            raise ValueError(f"--out {value!r}: {str(path)!r} is a folder")
+    if not out.parent.is_dir():
+        raise ValueError(f"--out {value!r}: folder {str(out.parent)!r} does not exist")
+    return out
+
+
 def main(argv=None) -> int:
     parser = _Parser(prog="convert.py", description="tau2-bench paper results to an outcome matrix")
     parser.add_argument("--out", required=True, help="output JSONL path")
@@ -392,9 +405,7 @@ def main(argv=None) -> int:
         trial = int(args.trial)
         if args.task_by not in TASK_BY:
             raise _UsageError(f"--task-by {args.task_by!r} is not one of {', '.join(TASK_BY)}")
-        out = Path(args.out)
-        if not out.name:
-            raise _UsageError(f"--out {args.out!r} does not end in a file name")
+        out = _check_out(args.out)
     except (_UsageError, ValueError) as exc:  # int() refuses a digit string past the interpreter's limit
         print(f"error: {_one_line(exc)}", file=sys.stderr)
         return 2
