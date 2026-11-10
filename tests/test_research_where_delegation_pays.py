@@ -343,16 +343,18 @@ def all_four(wdp, output):
 
 
 def separate_call_rows(wdp):
-    """The cost_effective rows at a point whose inline work is a parent call of its own; each must be `= delegate`."""
-    n = 0
+    """Per file, the cost_effective rows at a point whose inline work is a parent call of its own; each must be
+    `= delegate`."""
+    counts = {}
     for name, results, groups in committed(wdp):
         points = results["config"]["points"]
+        counts[name] = 0
         for key, group in groups.items():
             if key[1] == "cost_effective" and points[key[2]]["inline_separate_call"]:
                 kind = wdp.classify(group["decision"], group["inline"], group["delegate"])
                 assert kind == "= delegate", (name, key, kind)
-                n += 1
-    return n
+                counts[name] += 1
+    return counts
 
 
 def limitations_bullet(wdp, output):
@@ -360,7 +362,10 @@ def limitations_bullet(wdp, output):
     totals = all_four(wdp, output)
     effective, blind = totals["cost_effective"], totals["cost_blind"]
     assert effective["better"] == blind["better"] == 0, totals
-    assert 0 < separate_call_rows(wdp) <= effective["= delegate"]
+    separate = separate_call_rows(wdp)
+    # each file has such rows, so the claim is about every file (review iter-154 should-fix 1)
+    assert len(separate) == len(FILES) and all(separate.values()), separate
+    assert sum(separate.values()) <= effective["= delegate"]
     return ("- On the four delegation results files of those three datasets the per-task decision is close to a "
             f"fixed policy. The `cost_effective` decision equals always delegating on {effective['= delegate']:,} "
             f"of their {effective['rows']:,} (bar, point, parent) rows, every row at a point where inline work takes "
