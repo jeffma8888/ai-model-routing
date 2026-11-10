@@ -40,13 +40,15 @@ ON = (
     "      - \".github/workflows/evidence.yml\"\n")
 STEP_NAMES = [None, None, "Install", "Regenerate", "Compare"]
 # The job's time limit, by the v1.152 rule: ten times the slowest run, rounded up to a whole
-# five minutes. The v1.217 value: the slowest run on the Regenerate lines in force, the one run
-# of the v1.215 lines among the 54 to 2026-11-10, took 213 s from start to last update (run
-# 42883099079), so 40; the four runs of v1.200 to v1.214 (up to 278 s) also ran the converter
-# line twice. At v1.170, 158 s over 45 runs, so 30; at v1.152, 140 s over 40 runs, so 25.
-SLOWEST_RUN_SECONDS = 213
-SLOWEST_RUN_ID = 42883099079
-TIMEOUT_MINUTES = 40
+# five minutes. The v1.225 value: the slowest run on the Regenerate lines in force, of the four
+# runs of the v1.215 lines among the 57 to 2026-11-10 (213, 219, 290 and 275 s from start to
+# last update), took 290 s (run 42904515973), so 50; its extra time was the LLMRouterBench
+# download. At v1.217, the one such run then, 213 s, so 40; the four runs of v1.200 to v1.214
+# (up to 278 s) also ran the converter line twice. At v1.170, 158 s over 45 runs, so 30; at
+# v1.152, 140 s over 40 runs, so 25.
+SLOWEST_RUN_SECONDS = 290
+SLOWEST_RUN_ID = 42904515973
+TIMEOUT_MINUTES = 50
 LIMIT_LINE = f"    timeout-minutes: {TIMEOUT_MINUTES}"
 LIMIT_SENTENCE = (f"The job's time limit of {TIMEOUT_MINUTES} minutes is about ten times its slowest run, "
                   "and a failed download is retried by rerunning the job (DESIGN.md 12.13).")
@@ -484,14 +486,20 @@ def test_the_design_time_limit_bullet_gives_the_value_and_its_basis_run():
     assert len(bullets) == 1
     bullet = bullets[0]
     assert f"sets `timeout-minutes: {TIMEOUT_MINUTES}`" in bullet
-    _, marker, rest = bullet.partition("Basis (v1.217, row E17h): ")
+    _, marker, rest = bullet.partition("Basis (v1.217, row E17h; restated v1.225, row E17i): ")
     assert marker
-    assert " The v1.170 basis" in rest
-    basis = rest.split(" The v1.170 basis", 1)[0]
+    assert " The v1.217 basis" in rest
+    basis, _, history = rest.partition(" The v1.217 basis")
+    assert " The v1.170 basis" in history
     assert re.search(rf"run {SLOWEST_RUN_ID} on `[0-9a-f]{{7}}`, which took {SLOWEST_RUN_SECONDS} seconds "
                      "from its start to its last update", basis)
     tenfold = 10 * SLOWEST_RUN_SECONDS
     assert f"{tenfold:,} seconds is {tenfold / 60:.1f} minutes, so {TIMEOUT_MINUTES}." in basis
+    # v1.225: the run length past which the rule gives more than the value in force, six times
+    # the value in seconds, so the next restatement is named in step with the value.
+    assert f"so a run on these lines over {6 * TIMEOUT_MINUTES} seconds restates the value" in basis
+    assert 5 * math.ceil(10 * 6 * TIMEOUT_MINUTES / 60 / 5) == TIMEOUT_MINUTES
+    assert 5 * math.ceil(10 * (6 * TIMEOUT_MINUTES + 1) / 60 / 5) == TIMEOUT_MINUTES + 5
 
 
 @pytest.mark.parametrize("name", sorted(TIME_LIMIT_MUTANTS))
