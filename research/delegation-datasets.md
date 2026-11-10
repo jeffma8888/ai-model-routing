@@ -94,11 +94,11 @@ What the recorded costs imply, per model call at trial 0:
 
 ## LLMRouterBench (2026-11-09)
 
-Question: can the LLMRouterBench matrix (`DESIGN.md` 12.18), whose items are single calls, each with a success, a recorded cost and both token counts, feed the 13.9 harness, which prices every row from a registry at list price and needs both counts on every row of a complete matrix? Prices are from the vendor pages below, opened 2026-11-09; every other number is a line of [llmrouterbench_prices.py](llmrouterbench_prices.py) on the converter's default matrix.
+Question: can the LLMRouterBench matrix (`DESIGN.md` 12.18), whose items are single calls, each with a success, a recorded cost and both token counts apart from 10 null output counts, feed the 13.9 harness, which prices every row from a registry at list price and needs both counts on every row of a complete matrix? Prices are from the vendor pages below, opened 2026-11-09; every other number is a line of [llmrouterbench_prices.py](llmrouterbench_prices.py) on the converter's default matrix.
 
-- Not with the whole pool: no current vendor page prices most of its models, and the recorded costs give an exact price table for only some of the rest
-- A vendor page states a price for 4 of the 13 pool models: `anthropic/claude-sonnet-4` (3 and 15 USD per 1M input and output tokens), `openai/gpt-5` and `openai/gpt-5-chat` (1.25 and 10; the first is deprecated and the second shut down) and `z-ai/glm-4.6` (0.6 and 2.2). None was found for the other 9: both Gemini 2.5 models are deprecated and off Google's pricing page, DeepSeek's page names only its V4 models, and the Moonshot, Qwen and InternLM pages served no readable price table
-- The recorded costs of 5 models are one input and one output price on every kept item, within 1e-09 USD: `anthropic/claude-sonnet-4` at 3 and 15, its list price; `deepseek/deepseek-r1-0528` at 0.5 and 2.15, `deepseek/deepseek-v3-0324` at 0.25 and 0.88 and `deepseek/deepseek-v3.1-terminus` at 0.27 and 1; and `internlm/intern-s1` at 0.18 and 0.54. For the other 8 no one pair fits: the least-squares pair is off by up to 0.004045 to 0.297967 USD on some item
+- Not with the whole pool: none of the vendor pages fetched prices most of its models, and the recorded costs give an exact price table for only some of the rest
+- A vendor page states a price for 4 of the 13 pool models: `anthropic/claude-sonnet-4` (3 and 15 USD per 1M input and output tokens), `openai/gpt-5` and `openai/gpt-5-chat` (1.25 and 10; the first is deprecated and the second shut down) and `z-ai/glm-4.6` (0.6 and 2.2). None was found in the pages fetched for the other 9: both Gemini 2.5 models are deprecated and off Google's pricing page, DeepSeek's page names only its V4 models, and the Moonshot, Qwen and InternLM pages served no readable price table
+- The recorded costs of 5 models are one input and one output price on every kept item, within 1e-09 USD: `anthropic/claude-sonnet-4` at 3 and 15, its list price; `deepseek/deepseek-r1-0528` at 0.5 and 2.15, `deepseek/deepseek-v3-0324` at 0.25 and 0.88 and `deepseek/deepseek-v3.1-terminus` at 0.27 and 1; and `internlm/intern-s1` at 0.18 and 0.54. For the other 8 no pair can be within 1e-09 USD of every recorded cost: even the unrounded least-squares pair is off by 0.004045 to 0.297965 USD at its worst item, where a pair within 1e-09 USD of every cost would leave it at most the square root of the item count times 1e-09 USD
 - Recorded over list price on the same token counts is 1.000 for `anthropic/claude-sonnet-4`, 0.996 for `z-ai/glm-4.6`, 0.967 for `openai/gpt-5-chat` and 0.906 for `openai/gpt-5`, inside the 0.853 to 1.502 that 12.18 gives against the dataset README's own price list
 - A delegation run loses 10 of the 12066 items to a null token count, 5 in `hle` and 5 in `simpleqa`, the 10 negative `openai/gpt-5` completion counts that 12.18 writes as null, so 130 rows, and keeps 12056 items
 - No prompt reaches more than 16563 input tokens, so no price tier by prompt length applies to any of these calls
@@ -116,14 +116,14 @@ Question: can the LLMRouterBench matrix (`DESIGN.md` 12.18), whose items are sin
 | `z-ai/glm-4.6` | https://docs.z.ai/guides/overview/pricing | listed among the text models | 0.6, 2.2 | not on that page |
 | `openai/gpt-5` | https://platform.openai.com/docs/models/gpt-5 | Deprecated | 1.25, 10 | 400,000 |
 | `openai/gpt-5-chat` | https://platform.openai.com/docs/models/gpt-5-chat-latest | Shut down | 1.25, 10 | 128,000 |
-| `internlm/intern-s1` | https://internlm.intern-ai.org.cn/api/document | the page served no text to a plain HTTP fetch, so no model or price could be read | none found | not on that page |
-| `moonshotai/kimi-k2-0905` | https://platform.moonshot.ai/docs/pricing/chat | not named in the page's text, which names the K3 and K2 series and links guides for Kimi K3.1 Pro, K3, K2.7 Code and K2.6; its price tables did not come through as text | none found | not on that page |
+| `internlm/intern-s1` | https://internlm.intern-ai.org.cn/api/document | the page served no readable model or price text to a plain HTTP fetch | none found | not on that page |
+| `moonshotai/kimi-k2-0905` | https://platform.moonshot.ai/docs/pricing/chat | not named in the page's text, which names the K3 and K2 series and links guides for Kimi K3.1 Pro, K3, K2.7 Code and K2.6; its price tables did not come through as text | none found | 262,144 for every K2 series model (the page does not name this one) |
 | `qwen/qwen3-235b-a22b-2507` | https://www.alibabacloud.com/help/en/model-studio/models | not named in the text the page served to a plain HTTP fetch, which held no model table | none found | not on that page |
 | `qwen/qwen3-235b-a22b-thinking-2507` | https://www.alibabacloud.com/help/en/model-studio/models | not named in the text the page served to a plain HTTP fetch, which held no model table | none found | not on that page |
 
 ### Recorded costs
 
-Each line is one pool model on the kept items: the sum of its recorded costs, the same token counts at its list price and the ratio of the two when a page above gives one, and the least-squares input and output price over its items, called exact when it reproduces every recorded cost within 1e-09 USD.
+Each line is one pool model on the kept items: the sum of its recorded costs, the same token counts at its list price and the ratio of the two when a page above gives one, and the least-squares input and output price over its items, rounded to 4 decimals: `exact pair` when that rounded pair reproduces every recorded cost within 1e-09 USD; `no pair within 1e-09 USD` when even the unrounded pair is off by more than the square root of the item count times 1e-09 USD, a bound that any pair within 1e-09 USD of every cost would keep it under; and `no 4-decimal pair` when only the rounding fails it, which no model here does.
 
 ```text
 $ python research/llmrouterbench_prices.py --matrix llmrouterbench-matrix.jsonl
@@ -134,15 +134,15 @@ per model on the kept items: recorded cost, cost at the list price, their ratio,
   deepseek/deepseek-r1-0528: recorded 164.659235; list none; exact pair 0.5 in, 2.15 out
   deepseek/deepseek-v3-0324: recorded 8.217254; list none; exact pair 0.25 in, 0.88 out
   deepseek/deepseek-v3.1-terminus: recorded 10.928473; list none; exact pair 0.27 in, 1 out
-  google/gemini-2.5-flash: recorded 102.374935; list none; no exact pair (least squares 0.198 in, 2.4803 out, off by up to 0.049651 USD)
-  google/gemini-2.5-pro: recorded 732.489198; list none; no exact pair (least squares 1.16 in, 10.0021 out, off by up to 0.010601 USD)
+  google/gemini-2.5-flash: recorded 102.374935; list none; no pair within 1e-09 USD (least squares 0.198 in, 2.4803 out to 4 decimals; unrounded off by up to 0.049652 USD)
+  google/gemini-2.5-pro: recorded 732.489198; list none; no pair within 1e-09 USD (least squares 1.16 in, 10.0021 out to 4 decimals; unrounded off by up to 0.010600 USD)
   internlm/intern-s1: recorded 34.803192; list none; exact pair 0.18 in, 0.54 out
-  moonshotai/kimi-k2-0905: recorded 15.761589; list none; no exact pair (least squares 0.4989 in, 2.0029 out, off by up to 0.004661 USD)
-  openai/gpt-5: recorded 382.877608; list 1.25 in, 10 out: 422.603241, ratio 0.906; no exact pair (least squares 4.2373 in, 8.6936 out, off by up to 0.297967 USD)
-  openai/gpt-5-chat: recorded 52.919864; list 1.25 in, 10 out: 54.726774, ratio 0.967; no exact pair (least squares 1.4882 in, 9.0396 out, off by up to 0.071824 USD)
-  qwen/qwen3-235b-a22b-2507: recorded 9.767046; list none; no exact pair (least squares 0.0375 in, 0.6464 out, off by up to 0.036806 USD)
-  qwen/qwen3-235b-a22b-thinking-2507: recorded 84.637969; list none; no exact pair (least squares 1.6766 in, 1.7042 out, off by up to 0.026697 USD)
-  z-ai/glm-4.6: recorded 201.726410; list 0.6 in, 2.2 out: 202.505216, ratio 0.996; no exact pair (least squares 0.5535 in, 2.2004 out, off by up to 0.004045 USD)
+  moonshotai/kimi-k2-0905: recorded 15.761589; list none; no pair within 1e-09 USD (least squares 0.4989 in, 2.0029 out to 4 decimals; unrounded off by up to 0.004661 USD)
+  openai/gpt-5: recorded 382.877608; list 1.25 in, 10 out: 422.603241, ratio 0.906; no pair within 1e-09 USD (least squares 4.2373 in, 8.6936 out to 4 decimals; unrounded off by up to 0.297965 USD)
+  openai/gpt-5-chat: recorded 52.919864; list 1.25 in, 10 out: 54.726774, ratio 0.967; no pair within 1e-09 USD (least squares 1.4882 in, 9.0396 out to 4 decimals; unrounded off by up to 0.071824 USD)
+  qwen/qwen3-235b-a22b-2507: recorded 9.767046; list none; no pair within 1e-09 USD (least squares 0.0375 in, 0.6464 out to 4 decimals; unrounded off by up to 0.036806 USD)
+  qwen/qwen3-235b-a22b-thinking-2507: recorded 84.637969; list none; no pair within 1e-09 USD (least squares 1.6766 in, 1.7042 out to 4 decimals; unrounded off by up to 0.026696 USD)
+  z-ai/glm-4.6: recorded 201.726410; list 0.6 in, 2.2 out: 202.505216, ratio 0.996; no pair within 1e-09 USD (least squares 0.5535 in, 2.2004 out to 4 decimals; unrounded off by up to 0.004045 USD)
 summary: list price 4 of 13, exact pair 5 of 13, either 8 of 13
 ```
 
@@ -156,6 +156,6 @@ The converter downloads the pinned 1.28 GB file once into `~/.cache/ai-model-rou
 
 ### Recommendation
 
-- Not a 13-model delegation run. 13.9 needs every model of the rows in the registry, and with a registry rule of a vendor page price, else the exact pair the recorded costs give (as `DESIGN.md` 13.12 prices `anthropic/claude-3-7-sonnet-20250219` from its recorded costs), 8 models are priced: the 4 with a page price, the three DeepSeek models and `internlm/intern-s1`. The two Gemini 2.5 models, `moonshotai/kimi-k2-0905` and the two Qwen3 models have neither, and a least-squares pair that misses some item's recorded cost would be a price made up for the run
+- Not a 13-model delegation run. 13.9 needs every model of the rows in the registry, and with a registry rule of a vendor page price, else the exact pair the recorded costs give (as `DESIGN.md` 13.12 prices `anthropic/claude-3-7-sonnet-20250219` from its recorded costs), 8 models are priced: the 4 with a page price, the three DeepSeek models and `internlm/intern-s1`. The two Gemini 2.5 models, `moonshotai/kimi-k2-0905` and the two Qwen3 models have neither, and a least-squares pair that misses some item's recorded cost would be an assumed price, given neither by the data nor by a page
 - Take it as a later version on that 8-model pool, specified in `DESIGN.md` first: a third delegation dataset, of single-call items as the AutoBench matrix holds, over the benchmarks that hold every model of the pool (9 kinds of job with the whole pool). That version has to state four things. The pool: `convert` takes a `pool` (12.18) but the CLI does not, and a smaller pool can change which benchmarks hold every pool model, so it names its benchmarks. The 10 dropped items. The list prices, which put `openai/gpt-5` about a tenth above its recorded cost (0.906). And a context window per model, which the pages above give for only 2 of the 8 (13.4 reads the parent's window)
 - What it cannot show: how delegation would fare with `google/gemini-2.5-pro`, the best single model of the LLMRouterBench routing results, which this pool leaves out; and every one of the 8 models dates from 2025

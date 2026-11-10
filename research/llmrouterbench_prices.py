@@ -73,8 +73,8 @@ def load_rows(path):
 
 def fit(points):
     """Least-squares (input, output) prices, USD per 1M tokens, each rounded to 4 decimals, over
-    (input_tokens, output_tokens, cost) points, with the largest difference they leave; None when
-    the counts fix no pair."""
+    (input_tokens, output_tokens, cost) points, with the largest difference they leave and the
+    largest difference the unrounded least-squares pair leaves; None when the counts fix no pair."""
     sxx = math.fsum(x * x for x, _, _ in points)
     syy = math.fsum(y * y for _, y, _ in points)
     sxy = math.fsum(x * y for x, y, _ in points)
@@ -83,10 +83,12 @@ def fit(points):
     det = sxx * syy - sxy * sxy
     if not points or det <= 0:
         return None
-    a = round((sxz * syy - syz * sxy) / det * 1e6, 4)
-    b = round((syz * sxx - sxz * sxy) / det * 1e6, 4)
+    a0 = (sxz * syy - syz * sxy) / det * 1e6
+    b0 = (syz * sxx - sxz * sxy) / det * 1e6
+    unrounded = max(abs(z - (x * a0 + y * b0) / 1e6) for x, y, z in points)
+    a, b = round(a0, 4), round(b0, 4)
     worst = max(abs(z - (x * a + y * b) / 1e6) for x, y, z in points)
-    return a, b, worst
+    return a, b, worst, unrounded
 
 
 def _price(value):
@@ -98,7 +100,8 @@ def report(rows, list_prices=LIST_PRICES):
     models = sorted({r["model"] for r in rows})
     tasks = sorted({r["task"] for r in rows})
     items = {r["item"]: r["task"] for r in rows}
-    largest = max(r["input_tokens"] for r in rows if r["input_tokens"] is not None)
+    counts = [r["input_tokens"] for r in rows if r["input_tokens"] is not None]
+    largest = max(counts) if counts else "none"
     dropped = sorted({r["item"] for r in rows if r["input_tokens"] is None or r["output_tokens"] is None})
     per_task = {}
     for item in dropped:
@@ -106,9 +109,9 @@ def report(rows, list_prices=LIST_PRICES):
     kept = [r for r in rows if r["item"] not in set(dropped)]
     lines = [
         f"{len(items)} items over {len(tasks)} tasks and {len(models)} models; largest input_tokens {largest}",
-        f"null token count: {len(dropped)} items ("
-        + ", ".join(f"{t} {n}" for t, n in sorted(per_task.items()))
-        + f"), {len(dropped) * len(models)} rows; kept {len(items) - len(dropped)} items, {len(kept)} rows",
+        f"null token count: {len(dropped)} items"
+        + (" (" + ", ".join(f"{t} {n}" for t, n in sorted(per_task.items())) + ")" if dropped else "")
+        + f", {len(dropped) * len(models)} rows; kept {len(items) - len(dropped)} items, {len(kept)} rows",
         "per model on the kept items: recorded cost, cost at the list price, their ratio, and one price pair "
         f"for every recorded cost (USD per 1M tokens, exact within {TOLERANCE:g} USD)",
     ]
@@ -120,7 +123,8 @@ def report(rows, list_prices=LIST_PRICES):
         if model in list_prices:
             p_in, p_out = list_prices[model]
             at = math.fsum((r["input_tokens"] * p_in + r["output_tokens"] * p_out) / 1e6 for r in mine)
-            line += f"list {_price(p_in)} in, {_price(p_out)} out: {at:.6f}, ratio {recorded / at:.3f}; "
+            ratio = f"{recorded / at:.3f}" if at > 0 else "none"
+            line += f"list {_price(p_in)} in, {_price(p_out)} out: {at:.6f}, ratio {ratio}; "
             listed += 1
         else:
             line += "list none; "
@@ -130,9 +134,14 @@ def report(rows, list_prices=LIST_PRICES):
         elif pair[2] <= TOLERANCE:
             line += f"exact pair {_price(pair[0])} in, {_price(pair[1])} out"
             exact += 1
+        elif pair[3] > math.sqrt(len(mine)) * TOLERANCE:
+            # a pair within TOLERANCE of every cost leaves a sum of squares of at most n * TOLERANCE**2,
+            # which the least-squares pair cannot exceed, so none of its differences could pass this
+            line += (f"no pair within {TOLERANCE:g} USD (least squares {_price(pair[0])} in, {_price(pair[1])} out "
+                     f"to 4 decimals; unrounded off by up to {pair[3]:.6f} USD)")
         else:
-            line += (f"no exact pair (least squares {_price(pair[0])} in, {_price(pair[1])} out, "
-                     f"off by up to {pair[2]:.6f} USD)")
+            line += (f"no 4-decimal pair (least squares {_price(pair[0])} in, {_price(pair[1])} out, "
+                     f"off by up to {pair[2]:.6f} USD; a finer pair is not ruled out)")
         either += model in list_prices or (pair is not None and pair[2] <= TOLERANCE)
         lines.append(line)
     lines.append(f"summary: list price {listed} of {len(models)}, exact pair {exact} of {len(models)}, "

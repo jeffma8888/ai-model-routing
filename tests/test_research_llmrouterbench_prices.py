@@ -16,9 +16,6 @@ from pathlib import Path
 
 import pytest
 
-# v1.189: the review fixes land in v1.190
-RED = pytest.mark.xfail(strict=True, reason="v1.189: the review fixes land in v1.190")
-
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "research" / "llmrouterbench_prices.py"
 NOTE = ROOT / "research" / "delegation-datasets.md"
@@ -82,7 +79,6 @@ def _main(lrp, argv):
     return code, out.getvalue(), err.getvalue()
 
 
-@RED
 def test_fit_recovers_an_exact_pair(lrp):
     points = [(1000 + 13 * k, 40 + 9 * k * k, (1000 + 13 * k) * 0.27e-6 + (40 + 9 * k * k) * 1.0e-6)
               for k in range(6)]
@@ -90,7 +86,6 @@ def test_fit_recovers_an_exact_pair(lrp):
     assert (a, b) == (0.27, 1.0) and worst <= lrp.TOLERANCE and unrounded <= lrp.TOLERANCE
 
 
-@RED
 def test_fit_reports_how_far_a_cost_off_the_pair_is(lrp):
     points = [(1000 + 13 * k, 40 + 9 * k * k, (1000 + 13 * k) * 0.27e-6 + (40 + 9 * k * k) * 1.0e-6)
               for k in range(6)]
@@ -104,7 +99,6 @@ def test_fit_reports_how_far_a_cost_off_the_pair_is(lrp):
 FINER = [(n_in, n_out, (n_in * 1.23456 + n_out * 2.34567) / 1e6) for n_in, n_out in ((1000, 100), (100, 1000), (500, 700))]
 
 
-@RED
 def test_fit_tells_a_finer_pair_from_no_pair(lrp):
     a, b, worst, unrounded = lrp.fit(FINER)
     assert (a, b) == (1.2346, 2.3457)
@@ -116,7 +110,6 @@ def test_fit_with_counts_that_fix_no_pair_is_none(lrp):
     assert lrp.fit([]) is None
 
 
-@RED
 def test_report_lines_on_a_small_matrix(lrp):
     lines = lrp.report(tiny_rows(), {"v/x": (2, 10), "v/y": (2, 2)})
     kept = ITEMS[:4]
@@ -156,7 +149,6 @@ def finer_rows():
              "output_tokens": n_out} for k, (n_in, n_out, cost) in enumerate(FINER)]
 
 
-@RED
 def test_report_says_no_4_decimal_pair_when_a_finer_pair_is_not_ruled_out(lrp):
     lines = lrp.report(finer_rows(), {})
     assert lines[1] == "null token count: 0 items, 0 rows; kept 3 items, 3 rows"
@@ -165,7 +157,6 @@ def test_report_says_no_4_decimal_pair_when_a_finer_pair_is_not_ruled_out(lrp):
 
 
 # review iter-144 must-fix 1: a zero list cost and a matrix with no count left report, not crash
-@RED
 def test_report_with_a_zero_list_cost_prints_ratio_none(lrp):
     rows = [{"task": "t", "item": f"t|{k}", "model": "v/z", "cost_usd": 0.0, "input_tokens": 0, "output_tokens": 0}
             for k in range(2)]
@@ -175,7 +166,6 @@ def test_report_with_a_zero_list_cost_prints_ratio_none(lrp):
     assert lines[4] == "summary: list price 1 of 1, exact pair 0 of 1, either 1 of 1"
 
 
-@RED
 def test_report_when_every_item_is_dropped_and_no_row_has_an_input_count(lrp):
     rows = [{"task": "t", "item": f"t|{k}", "model": "v/n", "cost_usd": 0.5, "input_tokens": None, "output_tokens": 3}
             for k in range(2)]
