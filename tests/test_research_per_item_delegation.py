@@ -614,6 +614,7 @@ def test_note_tau2_blocks_are_the_script_output(pid, tau2_matrices, tmp_path, da
 README = ROOT / "README.md"
 README_LINK = "([research/per-item-delegation.md](research/per-item-delegation.md))"
 PAYS_LINK = "([research/where-delegation-pays.md](research/where-delegation-pays.md))"
+NOTE_PLACE = "the bullet after the one on where delegation pays"
 BLOCK_ROW = re.compile(r"^  (cost_effective|cost_blind) +(\d\.\d) +(pick|size rule) +(\d+) +([\d,]+) / ([\d,]+) +"
                        r"(-|\d\.\d{4}) +(\d\.\d{4}) +([+-]\d\.\d{4}) +(\d+)$")
 DATASETS = {"LLMRouterBench": (COMMAND,), "AutoBench 2026": (AB_COMMAND,),
@@ -686,7 +687,8 @@ def per_item_bullet():
             f"{cuts['LLMRouterBench']}% on LLMRouterBench, {cuts['AutoBench 2026']}% on AutoBench 2026 and "
             f"{cuts['tau2-bench']}% on tau2-bench, at no lower mean success, while taking it on every item cuts up "
             f"to {pick_cut}% at a mean success up to {pick_loss} points lower. Each is the largest cut that a rule "
-            "choosing item by item could make on those items, since every item takes its cheaper path "
+            "choosing between the two paths item by item could make on those items, since every item takes its "
+            "cheaper path "
             f"{README_LINK}")
 
 
@@ -709,3 +711,8 @@ def test_note_recommendation_names_the_readme_line():
     assert len(line) == 1
     largest = max(cuts.values(), key=decimal.Decimal)
     assert f"on up to {share}% of the held-out items" in line[0] and f"at most {largest}%" in line[0]
+    # both name the README bullet's place (review iter-165 should-fix 1)
+    assert NOTE_PLACE in line[0]
+    facts = note.split("\n## Facts\n", 1)[1].split("\n## ", 1)[0]
+    stated = [b for b in facts.splitlines() if b.startswith("- Recommendation: ")]
+    assert len(stated) == 1 and NOTE_PLACE in stated[0]
