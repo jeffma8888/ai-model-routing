@@ -233,6 +233,74 @@ def test_cli_writes_run_and_prints_both_tables(dr, tmp_path, capsys):
     assert capsys.readouterr().err.startswith("error: bar 0.9")
 
 
+# --- v1.249 the --matrix output path and a stale part (row H5, DESIGN 13.10) -------------------
+# Committed as strict xfail ahead of the code; the implementing commit removed the markers.
+
+class _Unread:
+    """A stand-in for both reads: a call means a file was read before the --out check."""
+
+    @staticmethod
+    def load(path):
+        raise AssertionError(f"{path} read before the --out check")
+
+
+def matrix_inputs(tmp_path):
+    rows, registry = tiny()
+    matrix = tmp_path / "m.jsonl"
+    matrix.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    pool = tmp_path / "pool.json"
+    pool.write_text(json.dumps({"models": [
+        {"id": m.id, "family": m.family, "price_in": m.price_in, "price_out": m.price_out,
+         "context_window": m.context_window} for m in registry.models]}), encoding="utf-8")
+    return rows, registry, matrix, pool
+
+
+@pytest.mark.xfail(strict=True, raises=AssertionError, reason="v1.249: the run goes before the --out path")
+def test_cli_out_with_an_empty_name_is_one_error_line_before_any_read(dr, tmp_path, capsys, monkeypatch):
+    _, _, matrix, pool = matrix_inputs(tmp_path)
+    monkeypatch.setattr(dr, "_read_rows", _Unread.load)
+    monkeypatch.setattr(dr, "Registry", _Unread)
+    for out in ("/", "."):
+        assert dr.main(["--matrix", str(matrix), "--registry", str(pool), "--out", out]) == 2, out
+        err = capsys.readouterr().err
+        assert err.startswith("error: ") and err.count("\n") == 1, out
+
+
+@pytest.mark.xfail(strict=True, raises=AssertionError, reason="v1.249: a stale .part survives a failed read")
+def test_cli_failure_removes_a_part_left_by_an_earlier_run(dr, tmp_path, capsys):
+    _, _, matrix, pool = matrix_inputs(tmp_path)
+    out, part = tmp_path / "results.json", tmp_path / "results.json.part"
+    for argv in (["--matrix", str(tmp_path / "absent.jsonl"), "--registry", str(pool), "--out", str(out)],
+                 ["--matrix", str(matrix), "--registry", str(tmp_path / "absent.json"), "--out", str(out)]):
+        out.write_text("keep", encoding="utf-8")
+        part.write_text("stale\n", encoding="utf-8")
+        assert dr.main(argv) == 2
+        err = capsys.readouterr().err
+        assert err.startswith("error: ") and err.count("\n") == 1
+        assert out.read_text(encoding="utf-8") == "keep"
+        assert not part.exists()
+
+
+@pytest.mark.xfail(strict=True, raises=AssertionError, reason="v1.249: an OSError from removing .part")
+def test_cli_ignores_an_oserror_from_removing_the_part(dr, tmp_path, capsys, monkeypatch):
+    rows, registry, matrix, pool = matrix_inputs(tmp_path)
+    want = json.dumps(dr.run(rows, registry), indent=2) + "\n"
+
+    def refuse(self, missing_ok=False):
+        raise PermissionError(13, "refused", str(self))
+
+    monkeypatch.setattr(Path, "unlink", refuse)
+    out = tmp_path / "results.json"
+    assert dr.main(["--matrix", str(matrix), "--registry", str(pool), "--out", str(out)]) == 0
+    assert out.read_text(encoding="utf-8") == want
+    assert capsys.readouterr().err == ""
+    assert dr.main(["--matrix", str(tmp_path / "absent.jsonl"), "--registry", str(pool),
+                    "--out", str(out)]) == 2
+    err = capsys.readouterr().err
+    assert err.startswith("error: ") and "absent.jsonl" in err and "refused" not in err
+    assert out.read_text(encoding="utf-8") == want
+
+
 # --- v1.37 the break-even table on small inputs (DESIGN 13.10) -----------------------------------
 # Committed as strict xfail ahead of breakeven_table; the implementing commit removed the markers.
 

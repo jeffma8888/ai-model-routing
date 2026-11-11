@@ -255,6 +255,71 @@ def test_main_requires_every_option(td, tmp_path):
     assert exc.value.code == 2
 
 
+# --- v1.249 the output path and a stale part (row H5, DESIGN 13.12) ----------------------------
+# Committed as strict xfail ahead of the code; the implementing commit removed the markers.
+
+class _Unread:
+    """A stand-in for both reads: a call means a file was read before the --out check."""
+
+    @staticmethod
+    def load(path):
+        raise AssertionError(f"{path} read before the --out check")
+
+
+def _inputs(tmp_path):
+    rows, registry = synthetic()
+    matrix, reg = tmp_path / "m.jsonl", tmp_path / "r.json"
+    matrix.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    reg.write_text(json.dumps(registry_json(registry)), encoding="utf-8")
+    return rows, matrix, reg
+
+
+@pytest.mark.xfail(strict=True, raises=ValueError, reason="v1.249: the .part path is formed before the try")
+def test_main_out_with_an_empty_name_is_one_error_line_before_any_read(td, tmp_path, capsys, monkeypatch):
+    _, matrix, reg = _inputs(tmp_path)
+    monkeypatch.setattr(td, "_read_rows", _Unread.load)
+    monkeypatch.setattr(td, "Registry", _Unread)
+    for out in ("/", "."):
+        assert td.main(["--matrix", str(matrix), "--registry", str(reg), "--out", out]) == 1, out
+        err = capsys.readouterr().err
+        assert err.startswith("error: ") and err.count("\n") == 1, out
+
+
+@pytest.mark.xfail(strict=True, raises=AssertionError, reason="v1.249: a stale .part survives a failed read")
+def test_main_failure_removes_a_part_left_by_an_earlier_run(td, tmp_path, capsys):
+    _, matrix, reg = _inputs(tmp_path)
+    out, part = tmp_path / "out.json", tmp_path / "out.json.part"
+    for argv in (["--matrix", str(tmp_path / "absent.jsonl"), "--registry", str(reg), "--out", str(out)],
+                 ["--matrix", str(matrix), "--registry", str(tmp_path / "absent.json"), "--out", str(out)]):
+        out.write_text("keep", encoding="utf-8")
+        part.write_text("stale\n", encoding="utf-8")
+        assert td.main(argv) == 1
+        err = capsys.readouterr().err
+        assert err.startswith("error: ") and err.count("\n") == 1
+        assert out.read_text(encoding="utf-8") == "keep"
+        assert not part.exists()
+
+
+@pytest.mark.xfail(strict=True, raises=AssertionError, reason="v1.249: an OSError from removing .part")
+def test_main_ignores_an_oserror_from_removing_the_part(td, tmp_path, capsys, monkeypatch):
+    rows, matrix, reg = _inputs(tmp_path)
+    want = json.dumps(td.run(rows, Registry.load(reg)), indent=2) + "\n"
+
+    def refuse(self, missing_ok=False):
+        raise PermissionError(13, "refused", str(self))
+
+    monkeypatch.setattr(Path, "unlink", refuse)
+    out = tmp_path / "out.json"
+    assert td.main(["--matrix", str(matrix), "--registry", str(reg), "--out", str(out)]) == 0
+    assert out.read_text(encoding="utf-8") == want
+    assert capsys.readouterr().err == ""
+    assert td.main(["--matrix", str(tmp_path / "absent.jsonl"), "--registry", str(reg),
+                    "--out", str(out)]) == 1
+    err = capsys.readouterr().err
+    assert err.startswith("error: ") and "absent.jsonl" in err and "refused" not in err
+    assert out.read_text(encoding="utf-8") == want
+
+
 # --- the committed files (v1.79) ---------------------------------------------------------------
 
 def test_committed_registry_is_the_stated_one():
