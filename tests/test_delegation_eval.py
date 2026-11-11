@@ -858,8 +858,6 @@ def count_item_costs(call):
     return result, counts
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError,
-                   reason="v1.244 spec: v1.243 computes an item's cost once per held item and seed")
 def test_v1244_each_items_cost_is_computed_once_per_key_across_seeds():
     result, counts = count_item_costs(run_once_bars)
     held = {(t, s): split_items(ITEMS, s, 0.5)[1] for t in VARIED_TASKS for s in VARIED_SEEDS}

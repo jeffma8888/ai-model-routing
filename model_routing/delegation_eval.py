@@ -187,6 +187,10 @@ def evaluate_delegation(rows, registry: Registry, bars, points, seeds=range(10),
     # (task, seed, point, parent, path, model) -> (correct, cost_usd) on the held-out half:
     # neither the bar nor the flavor enters a held-out sum (DESIGN 13.9 v1.132)
     paths: Dict[tuple, Tuple[int, float]] = {}
+    # (task, seed, model) -> correct on the held-out half, and (task, point, parent, path, model)
+    # -> {item: cost_usd}: no point, parent or path enters a correct count and no seed enters
+    # an item's cost, so each is computed once a run (DESIGN 13.9 v1.244)
+    sums: Tuple[Dict[tuple, int], Dict[tuple, Dict[str, float]]] = ({}, {})
     for bar in bars:
         routers = {(task, seed): _router(registry, task, calibrated[task, seed], bar,
                                          min_samples, confidence)
@@ -198,7 +202,7 @@ def evaluate_delegation(rows, registry: Registry, bars, points, seeds=range(10),
                         for task in tasks:
                             cells.append(_cell(table, registry, routers[task, seed],
                                                calibrated[task, seed], task, bar, flavor,
-                                               index, point, parent, seed, paths))
+                                               index, point, parent, seed, paths, sums))
     return {
         "config": {"bars": bars, "seeds": seeds, "flavors": flavors, "points": points,
                    "parents": parents, "calibration_fraction": calibration_fraction,
@@ -253,7 +257,7 @@ def _router(registry, task, calibration, bar, min_samples, confidence) -> Router
 
 
 def _cell(table, registry, router, calibration, task, bar, flavor, index, point, parent,
-          seed, paths) -> dict:
+          seed, paths, sums) -> dict:
     where = f"task {task!r}, parent {parent!r}, point {index}"
     k_dec = calibration.get("k")
     try:
@@ -343,8 +347,14 @@ def _cell(table, registry, router, calibration, task, bar, flavor, index, point,
         # path, the point's sizes and, on a per-call task, k_dec from (task, seed)
         key = (task, seed, index, parent, path, model)
         if key not in paths:
-            paths[key] = (sum(table[task, i][model][0] for i in held),
-                          fsum(item_cost(i) for i in held))
+            hits, items = sums
+            if (task, seed, model) not in hits:
+                hits[task, seed, model] = sum(table[task, i][model][0] for i in held)
+            costs = items.setdefault((task, index, parent, path, model), {})
+            for i in held:
+                if i not in costs:
+                    costs[i] = item_cost(i)
+            paths[key] = (hits[task, seed, model], fsum(costs[i] for i in held))
         correct[s], cost[s] = paths[key]
         success[s] = correct[s] / len(held)
     out = {"bar": bar, "flavor": flavor, "point": index, "parent": parent, "seed": seed,
