@@ -808,3 +808,61 @@ def test_v1135_a_run_on_several_bars_and_flavors_is_the_runs_on_each_alone():
     # no two cells share a dict, so a change to one cell never shows in another
     cells = result["cells"]
     assert len({id(c[k]) for c in cells for k in ("models", "success", "cost_usd")}) == 3 * len(cells)
+
+
+# v1.261 (row E1c, review iter-006 should-fix items 2 and 3): 12.3 type-checks `min_samples` and
+# `confidence`, and rejects a repeated (task, item, model) among the Outcomes `evaluate` is given
+# directly, which a dict keyed by model used to let the last one win. Each case fails before
+# v1.262: a bool, a float or a string got through or raised `TypeError`, and the messages were
+# `min_samples must be >= 1` and `confidence must be in (0, 1)`.
+RED_E1C = pytest.mark.xfail(strict=True, reason="v1.262 implements v1.261 (row E1c)")
+MIN_SAMPLES_MESSAGE = "min_samples must be an integer >= 1"
+CONFIDENCE_MESSAGE = "confidence must be a finite number in (0, 1)"
+BAD_RUN_OPTIONS = [
+    ({"min_samples": True}, MIN_SAMPLES_MESSAGE), ({"min_samples": False}, MIN_SAMPLES_MESSAGE),
+    ({"min_samples": 0}, MIN_SAMPLES_MESSAGE), ({"min_samples": -3}, MIN_SAMPLES_MESSAGE),
+    ({"min_samples": 2.5}, MIN_SAMPLES_MESSAGE), ({"min_samples": 30.0}, MIN_SAMPLES_MESSAGE),
+    ({"min_samples": "30"}, MIN_SAMPLES_MESSAGE), ({"min_samples": None}, MIN_SAMPLES_MESSAGE),
+    ({"confidence": True}, CONFIDENCE_MESSAGE), ({"confidence": False}, CONFIDENCE_MESSAGE),
+    ({"confidence": 0.0}, CONFIDENCE_MESSAGE), ({"confidence": 1.0}, CONFIDENCE_MESSAGE),
+    ({"confidence": 1}, CONFIDENCE_MESSAGE), ({"confidence": float("nan")}, CONFIDENCE_MESSAGE),
+    ({"confidence": float("inf")}, CONFIDENCE_MESSAGE), ({"confidence": "0.95"}, CONFIDENCE_MESSAGE),
+    ({"confidence": None}, CONFIDENCE_MESSAGE),
+]
+
+
+def option_id(case):
+    kwargs = case if isinstance(case, dict) else {}
+    return "-".join(f"{k}={v!r}" for k, v in kwargs.items()) or "message"
+
+
+@RED_E1C
+@pytest.mark.parametrize("kwargs,message", BAD_RUN_OPTIONS, ids=option_id)
+def test_min_samples_and_confidence_are_type_checked(kwargs, message):
+    ev = load_ev()
+    with pytest.raises(ValueError, match="^" + re.escape(message)):
+        ev.evaluate(ev.outcomes_from_rows(known_rows()), bars=[0.8], seeds=[0], **kwargs)
+
+
+def test_an_int_min_samples_and_a_float_confidence_still_run():
+    ev = load_ev()
+    result = ev.evaluate(ev.outcomes_from_rows(known_rows()), bars=[0.8], seeds=[0],
+                         min_samples=1, confidence=0.5)
+    assert (result["config"]["min_samples"], result["config"]["confidence"]) == (1, 0.5)
+
+
+@RED_E1C
+@pytest.mark.parametrize("flip", [False, True], ids=["equal", "different"])
+def test_a_repeated_outcome_given_directly_is_a_value_error(flip):
+    ev = load_ev()
+    rows = known_rows()
+    outcomes = list(ev.outcomes_from_rows(rows))
+    o = outcomes[17]
+    outcomes.append(ev.Outcome(o.task, o.item, o.model, o.correct != flip, o.cost_usd))
+    with pytest.raises(ValueError, match="^repeated outcome") as info:
+        ev.evaluate(outcomes, bars=[0.8], seeds=[0])
+    # the same message `outcomes_from_rows` gives for the same repeat (12.1)
+    with pytest.raises(ValueError) as from_rows:
+        ev.outcomes_from_rows(rows + [dict(rows[17], correct=rows[17]["correct"] != flip)])
+    assert str(info.value) == str(from_rows.value)
+    assert all(part in str(info.value) for part in (repr(o.task), repr(o.item), repr(o.model)))

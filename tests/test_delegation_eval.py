@@ -879,3 +879,24 @@ def test_v1244_each_items_cost_is_computed_once_per_key_across_seeds():
     # and again on a second run, so no item's cost is kept from one call to the next
     again, counts = count_item_costs(run_once_bars)
     assert again["cells"] == result["cells"] and counts == once
+
+
+# v1.261 (row E1c): 13.9 checks `min_samples` and `confidence` as in 12.3, so the 12.3 type
+# checks reach `evaluate_delegation` through the check the two share.
+RED_E1C = pytest.mark.xfail(strict=True, reason="v1.262 implements v1.261 (row E1c)")
+
+
+@RED_E1C
+@pytest.mark.parametrize("kwargs,message", [
+    ({"min_samples": True}, "min_samples must be an integer >= 1"),
+    ({"min_samples": 2.5}, "min_samples must be an integer >= 1"),
+    ({"min_samples": "3"}, "min_samples must be an integer >= 1"),
+    ({"confidence": True}, "confidence must be a finite number in (0, 1)"),
+    ({"confidence": float("nan")}, "confidence must be a finite number in (0, 1)"),
+    ({"confidence": "0.95"}, "confidence must be a finite number in (0, 1)"),
+], ids=lambda case: "-".join(f"{k}={v!r}" for k, v in case.items()) if isinstance(case, dict)
+    else "message")
+def test_min_samples_and_confidence_are_type_checked_as_in_12_3(kwargs, message):
+    import re
+    with pytest.raises(ValueError, match="^" + re.escape(message)):
+        run(**kwargs)
