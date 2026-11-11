@@ -595,6 +595,8 @@ def test_readme_subsection_shows_the_counts_tables_and_reading_it(dr):
     assert reading[-1].startswith("- `results.json` is ")
     for line in reading[:3]:
         assert f"\n{line}\n" in sub, line
+    for line in reading[3:]:
+        assert line[2:] not in sub, line
     assert "`results.json` is " not in sub
 
 
