@@ -10,6 +10,12 @@ every `cost_effective` cell of that run, and compare the note's four results blo
 script's output where the pinned files are cached. v1.253 commits them ahead of the script and the
 note, each a strict xfail but the one that reads the DESIGN bullet; v1.254 lands both and removes
 the markers.
+
+v1.256 (row DOC16) adds the README `Inline or sub-agent` paragraph that states the condition in the
+`delegate` flags' names, built here from the note's results blocks (the point 0 line the four
+blocks share, their title lines and their check lines), so the README test runs where the pinned
+files are not cached. v1.256 commits it ahead of the paragraph as a strict xfail; v1.257 lands the
+paragraph.
 """
 
 import collections
@@ -324,3 +330,88 @@ def test_section_prose_numbers_are_in_its_blocks():
     known.add(_value(f"{sum(_separate_totals().values()):,}"))
     stray = sorted({n for n in NUMBER.findall(prose) if n not in CITED and _value(n) not in known})
     assert stray == []
+
+
+# --- README Inline or sub-agent (DESIGN 13.8 v1.256, row DOC16) ---------------------------------
+README = ROOT / "README.md"
+PAYS_LINK = "([research/where-delegation-pays.md](research/where-delegation-pays.md))"
+PUBLIC_DATA = "On public data, [Delegation on AutoBench](#delegation-on-autobench) "
+TITLE = re.compile(r"^Which 13\.5 row chose each cell's path on (.+): the cells of the 13\.9 run by flavor, point, row and reason$")
+POINT_0 = re.compile(r"^  point 0: C ([\d,]+), B ([\d,]+), R ([\d,]+), T (\d+), separate, K 1, rho 1: slack ([\d,]+), ")
+CHECK = re.compile(r"^check, cost_effective: ([\d,]+) cells at a separate point whose parent meets the condition, "
+                   r"([\d,]+) of them delegate$")
+
+
+def test_design_specifies_the_readme_paragraph():
+    section = DESIGN.read_text(encoding="utf-8").split("\n### 13.8 ", 1)[1].split("\n### ", 1)[0]
+    bullets = [line for line in section.splitlines()
+               if line.startswith("- v1.256, which 13.5 row chose in the README (row DOC16): ")]
+    assert len(bullets) == 1
+    for phrase in ("`### Inline or sub-agent`", "`On public data, ...`", "`--context-tokens`", "`--carry-turns`",
+                   "no `--fold-inline`", "`--work-calls 1`", "no `--cached-read-ratio`",
+                   "`C - B - (1 + T) * (B + R)` is above `B * p_out / p_in`", "`C > X + B * p_out / p_in`",
+                   "`separate, K 1, rho 1`", "X = B + (1 + T) * (B + R)", "N cells of which N delegate",
+                   "strict xfail", "No library code"):
+        assert phrase in bullets[0], phrase
+
+
+def _int(text):
+    return int(text.replace(",", ""))
+
+
+def readme_figures():
+    """(B, T, X, run names, cells) for the README paragraph, read from the note's four results blocks."""
+    shared, names, cells = set(), [], 0
+    for dataset in COMMANDS:
+        block = _block(dataset)
+        title = TITLE.match(block[0])
+        assert title, dataset
+        names.append(title[1])
+        point_0 = [line for line in block if line.startswith("  point 0: ")]
+        assert len(point_0) == 1 and POINT_0.match(point_0[0]), dataset
+        shared.add(POINT_0.match(point_0[0])[0])  # its sizes and slack; the parents differ by pool
+        check = CHECK.match(block[-1])
+        assert check and check[1] == check[2] and _int(check[1]) > 0, dataset
+        cells += _int(check[1])
+    assert len(shared) == 1                       # the four runs share point 0's sizes and slack
+    c, b, r, t, slack = (_int(v) for v in POINT_0.match(shared.pop()).groups())
+    x = c - slack
+    assert b == r and x == b + (1 + t) * (b + r)  # "a B-token brief and result", K = 1, rho = 1
+    return b, t, x, names, cells
+
+
+def readme_paragraph():
+    """The README paragraph of v1.256."""
+    b, t, x, names, cells = readme_figures()
+    runs = ", ".join(names[:-1]) + " and " + names[-1]
+    return ("In numbers, with C, B, R and T the `--context-tokens`, `--brief-tokens`, `--result-tokens` and "
+            "`--carry-turns` values and `p_out / p_in` the parent's output price over its input price: for work in a "
+            "call of its own (no `--fold-inline`), in one work call (`--work-calls 1`) with full-price reads of the "
+            "context (no `--cached-read-ratio`), from a parent with stats for the task that the router does not "
+            "exclude as a delegate and with no `price_tiers` in `models.json`, `cost_effective` delegates whenever "
+            "`C - B - (1 + T) * (B + R)` is above `B * p_out / p_in`, whatever the size of the work itself, since "
+            f"that call re-reads the parent's whole context; at a {b:,}-token brief and result and `--carry-turns {t}` "
+            f"that is any `C > {x:,} + {b:,} * p_out / p_in`, and on the four committed delegation runs ({runs}) all "
+            f"{cells:,} `cost_effective` cells at such a point delegate {PAYS_LINK}.")
+
+
+def test_note_recommends_the_same_form():
+    b, t, x, names, cells = readme_figures()
+    assert (b, t, x, len(names)) == (500, 1, 2_500, 4) and cells > 0
+    recommended = [line for line in _section().splitlines() if line.startswith("- Recommended for the README ")]
+    assert len(recommended) == 1
+    assert f"at a {b:,}-token brief and result and one later call, any `C > {x:,} + {b:,} * p_out / p_in`" \
+        in recommended[0]
+    assert "`C - B - (1 + T) * (B + R)` is above `B` times the parent's output price over its input price" \
+        in recommended[0]
+
+
+@pytest.mark.xfail(strict=True, raises=AssertionError)
+def test_readme_inline_subsection_states_when_a_separate_call_delegates():
+    readme = README.read_text(encoding="utf-8")
+    inline = readme.split("\n### Inline or sub-agent\n", 1)[1].split("\n## ", 1)[0]
+    paragraphs = [p.strip("\n") for p in inline.split("\n\n")]
+    public = [i for i, p in enumerate(paragraphs) if p.startswith(PUBLIC_DATA)]
+    assert len(public) == 1
+    assert public[0] + 1 < len(paragraphs) and paragraphs[public[0] + 1] == readme_paragraph()
+    assert readme.count(readme_paragraph()) == 1
