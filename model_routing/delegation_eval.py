@@ -344,7 +344,8 @@ def _cell(table, registry, router, calibration, task, bar, flavor, index, point,
         path, model, item_cost = plans[s]
         # p.id is `parent` and `index` names one point of the run's checked list, so the key
         # fixes every input of the pair: held from (task, seed), P, D = model on a delegated
-        # path, the point's sizes and, on a per-call task, k_dec from (task, seed)
+        # path and the point's sizes; on a per-call task k_dec, from (task, seed), enters the
+        # decision, which D records, and never an item's cost (DESIGN 13.9 v1.244)
         key = (task, seed, index, parent, path, model)
         if key not in paths:
             hits, items = sums
