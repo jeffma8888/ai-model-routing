@@ -120,10 +120,11 @@ def _check_run_options(bars: list, seeds: list, flavors: list, min_samples, conf
         raise ValueError(f"seeds must be distinct integers, got {seeds}")
     if not flavors or any(f not in FLAVORS for f in flavors) or len(set(flavors)) != len(flavors):
         raise ValueError(f"flavors must be distinct names from {FLAVORS}")
-    if min_samples < 1:
-        raise ValueError("min_samples must be >= 1")
-    if not 0.0 < confidence < 1.0:
-        raise ValueError("confidence must be in (0, 1)")
+    if not _is_int(min_samples) or min_samples < 1:
+        raise ValueError(f"min_samples must be an integer >= 1, got {min_samples!r}")
+    if isinstance(confidence, bool) or not isinstance(confidence, (int, float)) \
+            or not isfinite(confidence) or not 0.0 < confidence < 1.0:
+        raise ValueError(f"confidence must be a finite number in (0, 1), got {confidence!r}")
     _check_fraction(calibration_fraction)
 
 
@@ -148,7 +149,12 @@ def evaluate(outcomes, bars, seeds=range(10), flavors=("cost_effective", "cost_b
     table: Dict[Tuple[str, str], Dict[str, Outcome]] = {}
     models = sorted({o.model for o in outcomes})
     for o in outcomes:
-        table.setdefault((o.task, o.item), {})[o.model] = o
+        by_model = table.setdefault((o.task, o.item), {})
+        if o.model in by_model:
+            # v1.261: as outcomes_from_rows (12.1), never the last one winning
+            raise ValueError(f"repeated outcome for task {o.task!r}, item {o.item!r}, "
+                             f"model {o.model!r}")
+        by_model[o.model] = o
     for (task, item), by_model in sorted(table.items()):
         for m in models:
             if m not in by_model:

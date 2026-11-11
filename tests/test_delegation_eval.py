@@ -883,10 +883,6 @@ def test_v1244_each_items_cost_is_computed_once_per_key_across_seeds():
 
 # v1.261 (row E1c): 13.9 checks `min_samples` and `confidence` as in 12.3, so the 12.3 type
 # checks reach `evaluate_delegation` through the check the two share.
-RED_E1C = pytest.mark.xfail(strict=True, reason="v1.262 implements v1.261 (row E1c)")
-
-
-@RED_E1C
 @pytest.mark.parametrize("kwargs,message", [
     ({"min_samples": True}, "min_samples must be an integer >= 1"),
     ({"min_samples": 2.5}, "min_samples must be an integer >= 1"),

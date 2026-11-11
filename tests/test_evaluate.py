@@ -815,7 +815,6 @@ def test_v1135_a_run_on_several_bars_and_flavors_is_the_runs_on_each_alone():
 # directly, which a dict keyed by model used to let the last one win. Each case fails before
 # v1.262: a bool, a float or a string got through or raised `TypeError`, and the messages were
 # `min_samples must be >= 1` and `confidence must be in (0, 1)`.
-RED_E1C = pytest.mark.xfail(strict=True, reason="v1.262 implements v1.261 (row E1c)")
 MIN_SAMPLES_MESSAGE = "min_samples must be an integer >= 1"
 CONFIDENCE_MESSAGE = "confidence must be a finite number in (0, 1)"
 BAD_RUN_OPTIONS = [
@@ -836,7 +835,6 @@ def option_id(case):
     return "-".join(f"{k}={v!r}" for k, v in kwargs.items()) or "message"
 
 
-@RED_E1C
 @pytest.mark.parametrize("kwargs,message", BAD_RUN_OPTIONS, ids=option_id)
 def test_min_samples_and_confidence_are_type_checked(kwargs, message):
     ev = load_ev()
@@ -851,7 +849,6 @@ def test_an_int_min_samples_and_a_float_confidence_still_run():
     assert (result["config"]["min_samples"], result["config"]["confidence"]) == (1, 0.5)
 
 
-@RED_E1C
 @pytest.mark.parametrize("flip", [False, True], ids=["equal", "different"])
 def test_a_repeated_outcome_given_directly_is_a_value_error(flip):
     ev = load_ev()
