@@ -1,16 +1,21 @@
-"""Whether held-out items' cheaper delegation paths differ from the per-task decision (DESIGN 13.8 v1.227, v1.230)
+"""Whether held-out items' cheaper delegation paths differ from the per-task decision (DESIGN 13.8 v1.227, v1.230, v1.233)
 
 Usage:
   python research/per_item_delegation.py --matrix llmrouterbench-matrix.jsonl [--root PATH]
   python research/per_item_delegation.py --dataset autobench --matrix autobench-tokens.jsonl --registry autobench-pool.json [--root PATH]
+  python research/per_item_delegation.py --dataset tau2-bench --matrix tau2-calls.jsonl [--root PATH]
+  python research/per_item_delegation.py --dataset tau2-bench-pooled --matrix tau2-calls-all.jsonl [--root PATH]
 
 Runs `evaluate_delegation` (DESIGN 13.9) on the LLMRouterBench matrix that the converter writes, as
 evidence/llmrouterbench-delegation/results.py does (its `select_rows`, registry, bars, seeds and
 points), or with `--dataset autobench` on the AutoBench 2026 converter's `--task-by all --tokens`
 matrix and `--registry` pool, as evidence/delegation/results.py does on its base grid (v1.230),
-checks that the run's summary is the committed results.json one, and rebuilds, for every
-held-out item of every cell, the list-price cost 13.9 charges always inline (the parent at its own
-sizes on that item) and always delegating (the cell's delegate at its own sizes); each pair of
+or with `--dataset tau2-bench` (`tau2-bench-pooled`) on the tau2-bench converter's `--calls`
+(`--calls --task-by all`) matrix and the committed registry, as evidence/tau2-bench-delegation/
+results.py makes results.json (pooled.json) (v1.233), checks that the run's summary is the
+committed one, and rebuilds, for every held-out item of every cell, the list-price cost 13.9
+charges always inline (the parent at its own sizes on that item, or on its own calls on a row with
+per-call sizes, 13.9 v1.74) and always delegating (the cell's delegate likewise); each pair of
 rebuilt sums must equal its cell's costs and correct counts exactly. An item's cheaper path is the
 one with the lower rebuilt cost, the decision's mode on a tie. Two strategies take it: `pick` on
 every cell, and `size rule` only on the cells where the decision compared the two paths' costs
@@ -19,7 +24,7 @@ Each item's success is the record of the path it takes, so on cost `pick` is a f
 that sees each item's sizes before the call. Standard library and the model_routing package. Read
 by research/per-item-delegation.md. Exit 0, or 2 with one `error: ...` line on a missing or
 unreadable file, a row the 13.13 script or 13.9 refuses, a summary that is not the committed one, a
-rebuilt cost or count that is not its cell's, a tiered model or per-call rows (not rebuilt here), or
+rebuilt cost or count that is not its cell's, a tiered model (not rebuilt here), or
 `--dataset autobench` without `--registry` or `--registry` without it.
 """
 
@@ -36,8 +41,13 @@ from model_routing import Registry, evaluate_delegation, split_items
 ROOT = Path(__file__).resolve().parents[1]
 FOLDER = "evidence/llmrouterbench-delegation"
 AUTOBENCH_FOLDER = "evidence/delegation"
-DATASETS = ("llmrouterbench", "autobench")
-NAMES = {"llmrouterbench": "LLMRouterBench", "autobench": "AutoBench 2026"}
+TAU2_FOLDER = "evidence/tau2-bench-delegation"
+DATASETS = ("llmrouterbench", "autobench", "tau2-bench", "tau2-bench-pooled")
+NAMES = {"llmrouterbench": "LLMRouterBench", "autobench": "AutoBench 2026",
+         "tau2-bench": "tau2-bench per domain", "tau2-bench-pooled": "tau2-bench pooled"}
+# dataset: (folder of its 13.13, 13.10 or 13.12 script, the committed file whose summary it gives)
+SOURCES = {"llmrouterbench": (FOLDER, "results.json"), "autobench": (AUTOBENCH_FOLDER, "results.json"),
+           "tau2-bench": (TAU2_FOLDER, "results.json"), "tau2-bench-pooled": (TAU2_FOLDER, "pooled.json")}
 STRATEGIES = ("pick", "size rule")
 COMPARED = ("delegate_cheaper", "inline_cheaper")
 HEADER = "  flavor          bar  strategy    cells  switched / items     share  cost / decision  success - decision  better"
@@ -74,6 +84,46 @@ def _delegate(p, d, point, tin, tout):
             + (1 + t) * p.base_cost(b + r, 0))
 
 
+def _inline_calls(p, point, k, rd, a, o):
+    """13.9 v1.74 always inline for one held-out item of a row with per-call sizes, a model without
+    tiers: its k calls read rd and write o, and leave a + o in the context."""
+    c, t = point["context_tokens"], point["carry_turns"]
+    base = k * c if point["inline_separate_call"] else (k - 1) * c
+    if "cached_read_ratio" in point:
+        base = base * point["cached_read_ratio"]
+    if point["inline_separate_call"]:
+        return p.base_cost(base + rd, o) + (1 + t) * p.base_cost(a + o, 0)
+    return p.base_cost(base + rd, o) + t * p.base_cost(a + o, 0)
+
+
+def _delegate_calls(p, d, point, k, rd, o):
+    """13.9 v1.74 always delegate for one held-out item of a row with per-call sizes, models
+    without tiers: the delegate's k calls read rd and write o after the brief."""
+    b, r, t = point["brief_tokens"], point["result_tokens"], point["carry_turns"]
+    return p.base_cost(0, b) + d.base_cost(k * b + rd, o) + (1 + t) * p.base_cost(b + r, 0)
+
+
+def _calls(r):
+    """(K, Rd, A, O) of a row with per-call sizes (13.9 v1.74), or None without them."""
+    if "call_input_tokens" not in r and "call_output_tokens" not in r:
+        return None
+    a, b = r["call_input_tokens"], r["call_output_tokens"]
+    k = len(a)
+    rd = sum((k - j) * x for j, x in enumerate(a)) + sum((k - j - 1) * y for j, y in enumerate(b))
+    return k, rd, sum(a), sum(b)
+
+
+def _inline_item(p, point, row):
+    return _inline(p, point, row[1], row[2]) if row[3] is None else _inline_calls(p, point, *row[3])
+
+
+def _delegate_item(p, d, point, row):
+    if row[3] is None:
+        return _delegate(p, d, point, row[1], row[2])
+    k, rd, _a, o = row[3]
+    return _delegate_calls(p, d, point, k, rd, o)
+
+
 def _mask(flags):
     return sum(1 << j for j, f in enumerate(flags) if f)
 
@@ -81,18 +131,17 @@ def _mask(flags):
 def tally(rows, registry, full):
     """Per summary row (bar, flavor, point, parent) and strategy: the decision's and the strategy's
     (success, cost) as 13.9 aggregates them, and the switched and held-out items of the cells the
-    strategy may change. Also returns the number of path pairs rebuilt. Raises ValueError on a
-    rebuilt cost or count that is not its cell's, a tiered model or a row with per-call sizes."""
+    strategy may change. Also returns the number of path pairs rebuilt. A row with per-call sizes
+    is priced on its own calls (13.9 v1.74). Raises ValueError on a rebuilt cost or count that is
+    not its cell's or a tiered model."""
     config = full["config"]
     points, seeds, fraction = config["points"], config["seeds"], config["calibration_fraction"]
     table, order = {}, {}
     for r in rows:
-        if "call_input_tokens" in r or "call_output_tokens" in r:
-            raise ValueError("a row has per-call sizes, which this script does not rebuild")
         if (r["task"], r["item"]) not in table:
             order.setdefault(r["task"], []).append(r["item"])
         table.setdefault((r["task"], r["item"]), {})[r["model"]] = (
-            r["correct"], r["input_tokens"], r["output_tokens"])
+            r["correct"], r["input_tokens"], r["output_tokens"], _calls(r))
     for m in registry.models:
         if m.price_tiers:
             raise ValueError(f"model {m.id!r} has price tiers, which this script does not rebuild")
@@ -111,8 +160,8 @@ def tally(rows, registry, full):
         key = (task, index, parent, d)
         if key not in vectors:
             p, dm, point = registry.get(parent), registry.get(d), points[index]
-            ci = [_inline(p, point, *table[task, i][parent][1:]) for i in order[task]]
-            cd = [_delegate(p, dm, point, *table[task, i][d][1:]) for i in order[task]]
+            ci = [_inline_item(p, point, table[task, i][parent]) for i in order[task]]
+            cd = [_delegate_item(p, dm, point, table[task, i][d]) for i in order[task]]
             vectors[key] = (ci, cd, [min(a, b) for a, b in zip(ci, cd)],
                             _mask(a < b for a, b in zip(ci, cd)), _mask(a > b for a, b in zip(ci, cd)))
         ci, cd, low, lt, gt = vectors[key]
@@ -243,20 +292,21 @@ def _read_rows(path):
 
 
 def run(matrix, root=ROOT, dataset="llmrouterbench", registry=None) -> list:
-    """The 13.13 run on the matrix (or with `dataset="autobench"` the 13.10 base-grid run on it and
-    the `registry` pool file), checked against the committed summary, then `report`."""
+    """The 13.13 run on the matrix (with `dataset="autobench"` the 13.10 base-grid run on it and the
+    `registry` pool file; with `"tau2-bench"` or `"tau2-bench-pooled"` the 13.12 run on it and the
+    committed registry), checked against the committed summary, then `report`."""
     root = Path(root)
     if dataset not in DATASETS:
         raise ValueError(f"dataset must be one of {', '.join(DATASETS)}, got {dataset!r}")
     if dataset == "autobench" and registry is None:
         raise ValueError("--dataset autobench needs --registry")
-    if dataset == "llmrouterbench" and registry is not None:
+    if dataset != "autobench" and registry is not None:
         raise ValueError("--registry is only used with --dataset autobench")
-    folder = FOLDER if dataset == "llmrouterbench" else AUTOBENCH_FOLDER
-    script = _load(f"research_per_item_delegation_{dataset}", root / folder / "results.py")
+    folder, name = SOURCES[dataset]
+    script = _load(f"research_per_item_delegation_{dataset.replace('-', '_')}", root / folder / "results.py")
     try:
         pool = Registry.load(root / folder / "registry.json" if registry is None else registry)
-        committed = json.loads((root / folder / "results.json").read_text(encoding="utf-8"))
+        committed = json.loads((root / folder / name).read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         where = folder if registry is None else f"{folder} or {registry}"
         raise ValueError(f"{where}: cannot read ({exc})") from None
@@ -266,16 +316,18 @@ def run(matrix, root=ROOT, dataset="llmrouterbench", registry=None) -> list:
     full = evaluate_delegation(rows, pool, bars=list(script.BARS), points=script.points(),
                                seeds=range(script.SEEDS))
     if full["summary"] != committed.get("summary"):
-        raise ValueError(f"the run's summary is not the one in {folder}/results.json")
+        raise ValueError(f"the run's summary is not the one in {folder}/{name}")
     return report(rows, pool, full, name=NAMES[dataset])
 
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(prog="per_item_delegation.py", description=__doc__.splitlines()[0])
     parser.add_argument("--matrix", required=True,
-                        help="the converter's output (JSONL): LLMRouterBench, or AutoBench 2026 with --dataset autobench")
+                        help="the converter's output (JSONL): LLMRouterBench, AutoBench 2026 with --dataset autobench, "
+                             "tau2-bench --calls with --dataset tau2-bench or tau2-bench-pooled")
     parser.add_argument("--dataset", choices=DATASETS, default="llmrouterbench",
-                        help="the delegation evidence to rerun (default: llmrouterbench, DESIGN 13.13; autobench, 13.10)")
+                        help="the delegation evidence to rerun (default: llmrouterbench, DESIGN 13.13; autobench, 13.10; "
+                             "tau2-bench and tau2-bench-pooled, 13.12 results.json and pooled.json)")
     parser.add_argument("--registry", help="with --dataset autobench: the AutoBench converter's --registry output")
     parser.add_argument("--root", type=Path, default=ROOT, help="repository root (default: this checkout)")
     args = parser.parse_args(argv)

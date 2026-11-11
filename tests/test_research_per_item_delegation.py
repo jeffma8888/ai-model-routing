@@ -22,7 +22,9 @@ numerators; one-call rows tallied as the rows without the keys; both runs end to
 against a root whose committed 13.12 files are the hand matrix's; and the note's two tau2-bench
 blocks, compared byte for byte when the 12 pinned tau2-bench files are cached. v1.233 commits these
 ahead of the script change and the note, each a strict xfail but the one that reads the v1.233
-bullet, and drops the v1.227 refusal of per-call rows from `test_refusals`.
+bullet, and drops the v1.227 refusal of per-call rows from `test_refusals`; v1.234 lands both and
+removes the markers, and moves the one-call tie to a held-out item with a delegate record that
+differs from the parent's on both ties, so a tie taken on the wrong path changes the success.
 """
 
 import contextlib
@@ -375,7 +377,6 @@ def test_note_autobench_block_is_the_script_output(pid, tmp_path):
 
 
 # --- v1.233 (row R18c): the tau2-bench runs, rows with per-call sizes -------------------------
-TAU2 = pytest.mark.xfail(strict=True, reason="v1.234 lands the tau2-bench runs of research/per_item_delegation.py")
 T2_FOLDER = ROOT / "evidence" / "tau2-bench-delegation"
 T2_COMMAND = "$ python research/per_item_delegation.py --dataset tau2-bench --matrix tau2-calls.jsonl"
 T2_POOLED_COMMAND = "$ python research/per_item_delegation.py --dataset tau2-bench-pooled --matrix tau2-calls-all.jsonl"
@@ -393,30 +394,31 @@ def _call_row(task, item, model, correct, a, b):
 
 # The hand-built per-call matrix, at P, D and POINT above (C = 0, B = R = 10, T = 0, folded), by
 # 13.9 v1.74 for a model without tiers, x = j % 40:
-#   parent, j < 40, one call a = [10], b = [2x]: K = 1, Rd = 10, A = 10, O = 2x, so
+#   parent, j >= 40, one call a = [10], b = [2x]: K = 1, Rd = 10, A = 10, O = 2x, so
 #     inline(j) = p((1 - 1) * 0 + 10, 2x) + 0 * p(...)  = (10 + 4x) / 1e6
-#   parent, j >= 40, two calls a = [10, 0], b = [x, x]: K = 2, Rd = 2 * 10 + 0 + x = 20 + x, O = 2x,
+#   parent, j < 40, two calls a = [10, 0], b = [x, x]: K = 2, Rd = 2 * 10 + 0 + x = 20 + x, O = 2x,
 #     inline(j) = p((2 - 1) * 0 + 20 + x, 2x)           = (20 + 5x) / 1e6
 #   delegate v/d, two calls a = [5, 0], b = [5, 10]: K = 2, Rd = 2 * 5 + 0 + 5 = 15, O = 15,
 #     delegate(j) = p(0, 10) + d(2 * 10 + 15, 15) + 1 * p(20, 0) = (20 + 50 + 20) / 1e6 = 90 / 1e6
-# so the cost ties exactly at x = 20 with one call (j = 20) and at x = 14 with two (j = 54), both
-# exact in floating point (checked below). A cell whose delegate is the parent itself pays
+# so the cost ties exactly at x = 20 with one call (j = 60) and at x = 14 with two (j = 14), both
+# exact in floating point (checked below) and both held out on some seed of 0 to 2. A cell whose delegate is the parent itself pays
 #   p(0, 10) + p(10K + Rd, O) + p(20, 0) = (40 + 10K + Rd + 2O) / 1e6: (60 + 4x) / 1e6 or (80 + 5x) / 1e6,
-# so there inline is cheaper on every item. The parent is right on j % 4 != 0, the delegate on j % 5 != 0.
+# so there inline is cheaper on every item. The parent is right on j % 4 != 0, the delegate on j % 7 != 0,
+# so the two records differ on both ties (i14: right inline only, i60: right delegated only).
 def _call_rows(task=lambda j: "t"):
     rows = []
     for j in range(80):
         x = j % 40
-        a, b = ([10], [2 * x]) if j < 40 else ([10, 0], [x, x])
+        a, b = ([10, 0], [x, x]) if j < 40 else ([10], [2 * x])
         rows.append(_call_row(task(j), f"i{j:02d}", "v/p", j % 4 != 0, a, b))
-        rows.append(_call_row(task(j), f"i{j:02d}", "v/d", j % 5 != 0, [5, 0], [5, 10]))
+        rows.append(_call_row(task(j), f"i{j:02d}", "v/d", j % 7 != 0, [5, 0], [5, 10]))
     return rows
 
 
 def _numerators(j, delegate):
     """(inline, delegate) cost of item j in millionths of a USD, by the hand expressions above."""
     x = j % 40
-    if j < 40:
+    if j >= 40:
         return 10 + 4 * x, (90 if delegate == "v/d" else 60 + 4 * x)
     return 20 + 5 * x, (90 if delegate == "v/d" else 80 + 5 * x)
 
@@ -434,7 +436,6 @@ def test_design_bullet_v1233_states_the_tau2_runs():
         assert phrase in bullet[0], phrase
 
 
-@TAU2
 def test_per_call_hand_costs_and_the_ties(pid):
     assert pid._calls({"call_input_tokens": [1, 9], "call_output_tokens": [2, 2]}) == (2, 13, 10, 4)
     assert pid._calls({"input_tokens": 3, "output_tokens": 4}) is None
@@ -460,18 +461,17 @@ def tiny_calls():
     return rows, registry, full
 
 
-@TAU2
 def test_per_call_tally_is_the_brute_force_one(pid, tiny_calls):
     rows, registry, full = tiny_calls
     out, pairs = pid.tally(rows, registry, full)
     assert pairs == len({(c["task"], c["point"], c["parent"], c["delegate"], c["seed"])
-                         for c in full["cells"]}) == 4
-    # every cost_effective cell delegates by cost, so the two ties stay delegated there; on seed 2
-    # cost_blind keeps the parent inline as its own delegate
+                         for c in full["cells"]}) == 3
+    # every cell delegates to v/d, so the two ties stay delegated: by cost in cost_effective (13.5
+    # row 3, which `size rule` may change), by success in cost_blind (which it keeps)
     assert sorted((c["flavor"], c["seed"], c["delegate"], c["mode"], c["reason"]) for c in full["cells"]) == [
         ("cost_blind", 0, "v/d", "delegate", "delegate_better"),
         ("cost_blind", 1, "v/d", "delegate", "delegate_better"),
-        ("cost_blind", 2, "v/p", "inline", "inline_as_good"),
+        ("cost_blind", 2, "v/d", "delegate", "delegate_better"),
         ("cost_effective", 0, "v/d", "delegate", "delegate_cheaper"),
         ("cost_effective", 1, "v/d", "delegate", "delegate_cheaper"),
         ("cost_effective", 2, "v/d", "delegate", "delegate_cheaper")]
@@ -479,7 +479,7 @@ def test_per_call_tally_is_the_brute_force_one(pid, tiny_calls):
             for s in range(3)}
     ties = {item for c in full["cells"] if c["mode"] == "delegate" for item in held[c["seed"]]
             if _numerators(int(item[1:]), c["delegate"])[0] == _numerators(int(item[1:]), c["delegate"])[1]}
-    assert ties == {"i20", "i54"}
+    assert ties == {"i14", "i60"}
     want = {}
     for c in full["cells"]:
         right, costs, switched = 0, [], 0
@@ -488,7 +488,7 @@ def test_per_call_tally_is_the_brute_force_one(pid, tiny_calls):
             ci, cd = _numerators(j, c["delegate"])
             inline = ci < cd or (ci == cd and c["mode"] == "inline")
             switched += inline != (c["mode"] == "inline")
-            right += (j % 4 != 0) if inline or c["delegate"] == "v/p" else (j % 5 != 0)
+            right += (j % 4 != 0) if inline or c["delegate"] == "v/p" else (j % 7 != 0)
             costs.append(min(ci, cd) / 1e6)
         n = len(held[c["seed"]])
         pick = (right / n, sum(costs), switched, n)
@@ -507,7 +507,6 @@ def test_per_call_tally_is_the_brute_force_one(pid, tiny_calls):
     assert out[effective]["pick"]["cost_usd"] < out[effective]["decision"]["cost_usd"]
 
 
-@TAU2
 def test_one_call_rows_tally_as_the_rows_without_the_keys(pid, tiny):
     rows, registry, full = tiny
     calls = [dict(r, call_input_tokens=[r["input_tokens"]], call_output_tokens=[r["output_tokens"]])
@@ -536,7 +535,6 @@ def _tau2_root(tmp_path, registry):
     return td, root, runs
 
 
-@TAU2
 def test_tau2_runs_on_a_hand_root(pid, tmp_path):
     registry = Registry([P, D])
     td, root, runs = _tau2_root(tmp_path, registry)
@@ -560,7 +558,6 @@ def test_tau2_runs_on_a_hand_root(pid, tmp_path):
     assert err.getvalue() == "error: the run's summary is not the one in evidence/tau2-bench-delegation/pooled.json\n"
 
 
-@TAU2
 @pytest.mark.parametrize("dataset", ["tau2-bench", "tau2-bench-pooled"])
 def test_tau2_runs_refuse_a_registry(pid, dataset):
     err = io.StringIO()
@@ -569,7 +566,6 @@ def test_tau2_runs_refuse_a_registry(pid, dataset):
     assert err.getvalue() == "error: --registry is only used with --dataset autobench\n"
 
 
-@TAU2
 def test_note_has_the_tau2_blocks_regenerate_and_a_three_dataset_recommendation():
     note = NOTE.read_text(encoding="utf-8")
     for command in (T2_COMMAND, T2_POOLED_COMMAND):
@@ -598,7 +594,6 @@ def tau2_matrices():
     return {"tau2-bench": cv.convert(extracts)[0], "tau2-bench-pooled": cv.convert(extracts, task_by="all")[0]}
 
 
-@TAU2
 @pytest.mark.parametrize("dataset, command", [("tau2-bench", T2_COMMAND), ("tau2-bench-pooled", T2_POOLED_COMMAND)])
 def test_note_tau2_blocks_are_the_script_output(pid, tau2_matrices, tmp_path, dataset, command):
     matrix = tmp_path / "tau2.jsonl"
