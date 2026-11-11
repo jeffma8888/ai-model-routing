@@ -106,8 +106,6 @@ def read():
     return DESIGN.read_text(encoding="utf-8")
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError,
-                   reason="v1.247 spec: the v1.247 Status line still holds 114 clauses and no pointer")
 def test_the_status_line_names_the_last_changelog_version():
     assert status_problems(read()) == []
 
@@ -231,8 +229,6 @@ PARENTHESIS_BROKEN = {
 }
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError,
-                   reason="v1.247 spec: the v1.247 Status line still holds 114 clauses and no pointer")
 @pytest.mark.parametrize("name", sorted(PARENTHESIS_BROKEN))
 def test_a_broken_status_parenthesis_fails_the_check(name):
     text = read()
