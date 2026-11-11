@@ -615,13 +615,10 @@ def test_pinned_rows_filtered_to_the_pool(pinned_rows):
 
 
 @pytest.fixture(scope="module")
-def pinned_full(pinned_rows):
-    script = _load("llmrouterbench_delegation_results_pinned", SCRIPT)
-    registry = Registry.load(REGISTRY)
-    kept, dropped = script.select_rows(pinned_rows, [m.id for m in registry.models])
-    full = evaluate_delegation(kept, registry, bars=list(script.BARS), points=script.points(),
-                               seeds=range(script.SEEDS))
-    return kept, dropped, full
+def pinned_full(llmrouterbench_delegation_full):
+    # the session run of tests/conftest.py (DESIGN 13.8 v1.227): select_rows, then 13.9 at the
+    # script's BARS, points() and SEEDS on the committed registry, as this fixture ran it before
+    return llmrouterbench_delegation_full
 
 
 def test_pinned_results_are_the_committed_bytes(pinned_full):

@@ -131,3 +131,33 @@ def llmrouterbench_pinned(tmp_path_factory):
     with contextlib.redirect_stdout(buf):
         code = module.main(["--out", str(out)])
     return code, json.loads(buf.getvalue()) if code == 0 else None, out
+
+
+LLMROUTERBENCH_DELEGATION_SCRIPT = (Path(__file__).resolve().parents[1] / "evidence"
+                                    / "llmrouterbench-delegation" / "results.py")
+
+
+@pytest.fixture(scope="session")
+def llmrouterbench_delegation_full(llmrouterbench_pinned):
+    """The 13.13 evaluation on the pinned rows, run once per session: (kept rows, dropped items, run).
+
+    Shared by tests/test_evidence_llmrouterbench_delegation.py and
+    tests/test_research_per_item_delegation.py (DESIGN 13.8 v1.227), so a suite run pays the
+    evaluation once. Skips with ``llmrouterbench_pinned`` when the pinned file is not cached. The
+    run is shared: a test must not modify it.
+    """
+    from model_routing import evaluate_delegation
+
+    code, _report, path = llmrouterbench_pinned
+    assert code == 0
+    with open(path, encoding="utf-8") as fh:
+        rows = [json.loads(line) for line in fh if line.strip()]
+    spec = importlib.util.spec_from_file_location("lrb_delegation_results_session",
+                                                  LLMROUTERBENCH_DELEGATION_SCRIPT)
+    script = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(script)
+    registry = Registry.load(LLMROUTERBENCH_DELEGATION_SCRIPT.with_name("registry.json"))
+    kept, dropped = script.select_rows(rows, [m.id for m in registry.models])
+    full = evaluate_delegation(kept, registry, bars=list(script.BARS), points=script.points(),
+                               seeds=range(script.SEEDS))
+    return kept, dropped, full
