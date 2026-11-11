@@ -11,6 +11,10 @@ passed before and after: the 13.10 base points carry no ``work_calls``, the rese
 price, window and window kind the registry takes from it, and, when the pinned file is cached,
 the converter's rows filtered to the 8 models give the dropped items, kept counts and success
 span that 13.13 states.
+
+v1.239 (row E17f) adds a Reading it bullet that names, at the lowest bar and point 0, each parent
+whose `cost_effective` decision costs more than always inline, with both costs and both held-out
+successes; its test is committed ahead of the bullet as a strict xfail, and v1.240 lands the bullet.
 """
 
 import importlib.util
@@ -460,6 +464,57 @@ def test_results_md_reading_it_is_built_from_the_committed_file():
         assert bullet in bullets, bullet
 
 
+def dearer_than_inline(results):
+    """The 13.13 v1.239 bullet: at the lowest bar and point 0, each parent whose `cost_effective` decision
+    `cost_usd` exceeds its always-inline one, compared unrounded, in the config's parent order."""
+    index = summary_index(results)
+    bar, parents = results["config"]["bars"][0], results["config"]["parents"]
+    dearer = []
+    for parent in parents:
+        dec = index[(bar, "cost_effective", 0, parent, "decision")]
+        inl = index[(bar, "cost_effective", 0, parent, "inline")]
+        if dec["cost_usd"] > inl["cost_usd"]:
+            dearer.append(f"`{parent}` ({dec['cost_usd']:.4f} against {inl['cost_usd']:.4f} USD, held-out success "
+                          f"{dec['success']:.3f} against {inl['success']:.3f})")
+    start = f"At bar {bar} and point 0 the `cost_effective` decision costs more than always inline for "
+    if not dearer:
+        return start + "no parent."
+    return start + f"{len(dearer)} of the {len(parents)} parents: {join(dearer)}."
+
+
+def test_dearer_than_inline_bullet_cases():
+    """The builder on hand-made summaries: no parent, one, and two in config order; a tie is not dearer."""
+    def results(costs):
+        summary = []
+        for parent, (dec, inl) in costs.items():
+            summary.append({"bar": 0.1, "flavor": "cost_effective", "point": 0, "parent": parent,
+                            "strategy": "decision", "cost_usd": dec, "success": 0.5})
+            summary.append({"bar": 0.1, "flavor": "cost_effective", "point": 0, "parent": parent,
+                            "strategy": "inline", "cost_usd": inl, "success": 0.25})
+        return {"config": {"bars": [0.1, 0.8], "parents": list(costs)}, "summary": summary}
+
+    start = "At bar 0.1 and point 0 the `cost_effective` decision costs more than always inline for "
+    assert dearer_than_inline(results({"a/x": (1.0, 2.0), "b/y": (3.0, 3.0)})) == start + "no parent."
+    assert dearer_than_inline(results({"a/x": (2.0, 1.0), "b/y": (1.0, 2.0)})) == (
+        start + "1 of the 2 parents: `a/x` (2.0000 against 1.0000 USD, held-out success 0.500 against 0.250).")
+    assert dearer_than_inline(results({"b/y": (5.0, 1.0), "a/x": (2.0, 1.0), "c/z": (0.5, 1.0)})) == (
+        start + "2 of the 3 parents: `b/y` (5.0000 against 1.0000 USD, held-out success 0.500 against 0.250) and "
+        "`a/x` (2.0000 against 1.0000 USD, held-out success 0.500 against 0.250).")
+
+
+@pytest.mark.xfail(strict=True, raises=AssertionError, reason="v1.239: the bullet lands in v1.240")
+def test_results_md_reading_it_names_the_parents_dearer_than_inline():
+    results = committed_results()
+    bullet = dearer_than_inline(results)
+    reading = section(RESULTS_MD.read_text(encoding="utf-8"), "## Reading it")
+    bullets = [line[2:] for line in reading.split("\n") if line.startswith("- ")]
+    assert bullets.count(bullet) == 1, bullet
+    at = bullets.index(bullet)
+    high = results["config"]["bars"][-1]
+    assert bullets[at - 1].startswith(f"At bar {high} and point 0 it costs "), bullets[at - 1]
+    assert bullets[at + 1] == f"`results.json` is {len(RESULTS.read_bytes()):,} bytes.", bullets[at + 1]
+
+
 def test_results_md_regenerate_block():
     blocks = fenced(section(RESULTS_MD.read_text(encoding="utf-8"), "## Regenerate"), "bash")
     assert blocks and blocks[0].split("\n") == REGENERATE
@@ -533,10 +588,11 @@ def test_readme_subsection_shows_the_counts_tables_and_reading_it(dr):
     assert sum(task["items"] for task in results["tasks"].values()) == 12_056
     assert f"```text\n{TABLE_CMD}\n{dr.table(results)}\n```" in sub
     assert f"```text\n{PARENT_CMD}\n{dr.parent_table(results, results['config']['bars'][0], 0)}\n```" in sub
-    # the first three Reading it bullets, which the RESULTS.md test builds from the committed file
+    # the first three Reading it bullets, which the RESULTS.md test builds from the committed file; the
+    # v1.239 bullet on the parents dearer than inline and the size bullet, the last, stay in RESULTS.md
     reading = [line for line in section(RESULTS_MD.read_text(encoding="utf-8"), "## Reading it").split("\n")
                if line.startswith("- ")]
-    assert reading[3].startswith("- `results.json` is ")
+    assert reading[-1].startswith("- `results.json` is ")
     for line in reading[:3]:
         assert f"\n{line}\n" in sub, line
     assert "`results.json` is " not in sub
