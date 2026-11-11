@@ -5,8 +5,8 @@ LLMRouterBench delegation one on GitHub (from v1.215 running a repeated line onc
 fails when a committed results file changes (DESIGN 12.13, v1.30),
 and both workflows run on one pinned runner image with a dated comment (v1.49), and the job
 has a time limit of ten times its slowest run, rounded up to whole five minutes, with no download
-retry (v1.152; 25 minutes, restated as 30 at v1.170 and as 40 at v1.217, whose basis is the
-slowest run on the `Regenerate` lines in force).
+retry (v1.152; 25 minutes, restated as 30 at v1.170, as 40 at v1.217, whose basis is the
+slowest run on the `Regenerate` lines in force, and as 50 at v1.225).
 
 The workflow is read with a line parser for its own shape (no YAML library, so this runs in
 CI); the run itself is checked on GitHub, not here."""
@@ -42,8 +42,8 @@ STEP_NAMES = [None, None, "Install", "Regenerate", "Compare"]
 # The job's time limit, by the v1.152 rule: ten times the slowest run, rounded up to a whole
 # five minutes. The v1.225 value: the slowest run on the Regenerate lines in force, of the four
 # runs of the v1.215 lines among the 57 to 2026-11-10 (213, 219, 290 and 275 s from start to
-# last update), took 290 s (run 42904515973), so 50; its extra time was the LLMRouterBench
-# download. At v1.217, the one such run then, 213 s, so 40; the four runs of v1.200 to v1.214
+# last update), took 290 s (run 42904515973), so 50; its extra time most likely went to the
+# LLMRouterBench download. At v1.217, the one such run then, 213 s, so 40; the four runs of v1.200 to v1.214
 # (up to 278 s) also ran the converter line twice. At v1.170, 158 s over 45 runs, so 30; at
 # v1.152, 140 s over 40 runs, so 25.
 SLOWEST_RUN_SECONDS = 290
