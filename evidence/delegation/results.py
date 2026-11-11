@@ -257,16 +257,19 @@ def main(argv=None) -> int:
                 raise _UsageError("--matrix needs --registry and --out")
             if args.bar is not None or args.point is not None:
                 raise _UsageError("--bar and --point are only used with --table or --breakeven")
-            result = run(_read_rows(args.matrix), Registry.load(args.registry),
-                         grid=args.grid or "base")
-            text = json.dumps(result, indent=2) + "\n"
             out = Path(args.out)
             part = out.with_name(out.name + ".part")
             try:
+                result = run(_read_rows(args.matrix), Registry.load(args.registry),
+                             grid=args.grid or "base")
+                text = json.dumps(result, indent=2) + "\n"
                 part.write_text(text, encoding="utf-8")
                 part.replace(out)
             finally:
-                part.unlink(missing_ok=True)
+                try:
+                    part.unlink(missing_ok=True)
+                except OSError:
+                    pass
             return 0
         if args.registry is not None or args.out is not None:
             raise _UsageError("--registry and --out are only used with --matrix")

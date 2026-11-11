@@ -274,7 +274,6 @@ def _inputs(tmp_path):
     return rows, matrix, reg
 
 
-@pytest.mark.xfail(strict=True, raises=ValueError, reason="v1.249: the .part path is formed before the try")
 def test_main_out_with_an_empty_name_is_one_error_line_before_any_read(td, tmp_path, capsys, monkeypatch):
     _, matrix, reg = _inputs(tmp_path)
     monkeypatch.setattr(td, "_read_rows", _Unread.load)
@@ -285,7 +284,6 @@ def test_main_out_with_an_empty_name_is_one_error_line_before_any_read(td, tmp_p
         assert err.startswith("error: ") and err.count("\n") == 1, out
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="v1.249: a stale .part survives a failed read")
 def test_main_failure_removes_a_part_left_by_an_earlier_run(td, tmp_path, capsys):
     _, matrix, reg = _inputs(tmp_path)
     out, part = tmp_path / "out.json", tmp_path / "out.json.part"
@@ -300,7 +298,6 @@ def test_main_failure_removes_a_part_left_by_an_earlier_run(td, tmp_path, capsys
         assert not part.exists()
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="v1.249: an OSError from removing .part")
 def test_main_ignores_an_oserror_from_removing_the_part(td, tmp_path, capsys, monkeypatch):
     rows, matrix, reg = _inputs(tmp_path)
     want = json.dumps(td.run(rows, Registry.load(reg)), indent=2) + "\n"

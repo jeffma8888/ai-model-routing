@@ -62,19 +62,23 @@ def main(argv=None) -> int:
     parser.add_argument("--registry", required=True, help="registry of the matrix's agents")
     parser.add_argument("--out", required=True, help="results file to write")
     args = parser.parse_args(argv)
-    out = Path(args.out)
-    part = out.with_name(out.name + ".part")
+    part = None
     try:
+        out = Path(args.out)
+        part = out.with_name(out.name + ".part")
         text = json.dumps(run(_read_rows(args.matrix), Registry.load(args.registry)), indent=2) + "\n"
-        try:
-            part.write_text(text, encoding="utf-8")
-            part.replace(out)
-        finally:
-            part.unlink(missing_ok=True)
+        part.write_text(text, encoding="utf-8")
+        part.replace(out)
     except (ValueError, KeyError, TypeError, OSError) as exc:
         message = str(exc).replace("\r", "\\r").replace("\n", "\\n")
         print(f"error: {message}", file=sys.stderr)
         return 1
+    finally:
+        if part is not None:
+            try:
+                part.unlink(missing_ok=True)
+            except OSError:
+                pass
     return 0
 
 

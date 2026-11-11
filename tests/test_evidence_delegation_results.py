@@ -255,7 +255,6 @@ def matrix_inputs(tmp_path):
     return rows, registry, matrix, pool
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="v1.249: the run goes before the --out path")
 def test_cli_out_with_an_empty_name_is_one_error_line_before_any_read(dr, tmp_path, capsys, monkeypatch):
     _, _, matrix, pool = matrix_inputs(tmp_path)
     monkeypatch.setattr(dr, "_read_rows", _Unread.load)
@@ -266,7 +265,6 @@ def test_cli_out_with_an_empty_name_is_one_error_line_before_any_read(dr, tmp_pa
         assert err.startswith("error: ") and err.count("\n") == 1, out
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="v1.249: a stale .part survives a failed read")
 def test_cli_failure_removes_a_part_left_by_an_earlier_run(dr, tmp_path, capsys):
     _, _, matrix, pool = matrix_inputs(tmp_path)
     out, part = tmp_path / "results.json", tmp_path / "results.json.part"
@@ -281,7 +279,6 @@ def test_cli_failure_removes_a_part_left_by_an_earlier_run(dr, tmp_path, capsys)
         assert not part.exists()
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="v1.249: an OSError from removing .part")
 def test_cli_ignores_an_oserror_from_removing_the_part(dr, tmp_path, capsys, monkeypatch):
     rows, registry, matrix, pool = matrix_inputs(tmp_path)
     want = json.dumps(dr.run(rows, registry), indent=2) + "\n"
