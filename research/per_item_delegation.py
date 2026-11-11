@@ -291,10 +291,11 @@ def _read_rows(path):
     return rows
 
 
-def run(matrix, root=ROOT, dataset="llmrouterbench", registry=None) -> list:
+def rerun(matrix, root=ROOT, dataset="llmrouterbench", registry=None) -> tuple:
     """The 13.13 run on the matrix (with `dataset="autobench"` the 13.10 base-grid run on it and the
     `registry` pool file; with `"tau2-bench"` or `"tau2-bench-pooled"` the 13.12 run on it and the
-    committed registry), checked against the committed summary, then `report`."""
+    committed registry), checked against the committed summary: (rows, registry, run). Shared with
+    research/delegation_reasons.py (DESIGN 13.8 v1.253)."""
     root = Path(root)
     if dataset not in DATASETS:
         raise ValueError(f"dataset must be one of {', '.join(DATASETS)}, got {dataset!r}")
@@ -317,6 +318,12 @@ def run(matrix, root=ROOT, dataset="llmrouterbench", registry=None) -> list:
                                seeds=range(script.SEEDS))
     if full["summary"] != committed.get("summary"):
         raise ValueError(f"the run's summary is not the one in {folder}/{name}")
+    return rows, pool, full
+
+
+def run(matrix, root=ROOT, dataset="llmrouterbench", registry=None) -> list:
+    """`rerun`, then `report` on its rows, registry and run."""
+    rows, pool, full = rerun(matrix, root, dataset, registry)
     return report(rows, pool, full, name=NAMES[dataset])
 
 

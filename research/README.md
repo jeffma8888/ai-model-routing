@@ -36,7 +36,7 @@ How the files feed the library:
 - `research/llmrouterbench-seeds.md` reruns the LLMRouterBench evaluation and says, seed by seed, whether routing's gain over the best single model holds on each split or only in the mean
 - `research/check-fallback.md` replays the executor's fallback on a failed check over the LLMRouterBench records and says what it buys against the per-item oracle, and which task's score a caller could check at call time
 - `research/below-bar-fallback.md` replays a route that goes on below the bar after its clearing models fail on the same records, and says why the library should offer it only as an option on `Task`, off by default
-- `research/where-delegation-pays.md` reads the four committed delegation results files and says how often the per-task decision differs from always inline and from always delegating, and that where it differs it is never better than both
+- `research/where-delegation-pays.md` reads the four committed delegation results files and says how often the per-task decision differs from always inline and from always delegating, and that where it differs it is never better than both; its section on which `DESIGN.md` 13.5 row chose reruns the four delegation runs and states the condition on prices and sizes under which a separate inline call costs more than delegating, which every parent of the committed pools meets wherever inline work is a call of its own
 - `research/per-item-delegation.md` reruns the LLMRouterBench, AutoBench 2026 and tau2-bench delegation evidence and says how often a held-out item's cheaper path differs from the per-task decision, and how little a rule that takes it saves where the decision compared costs
 
 Caveats that apply to everything here:

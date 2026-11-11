@@ -8,15 +8,18 @@ call costs more than delegating at every size when `slack * p_in > B * p_out`, w
 `HAND_LINES` below), check the condition at hand-worked points and at its strict boundary, and on
 every `cost_effective` cell of that run, and compare the note's four results blocks with the
 script's output where the pinned files are cached. v1.253 commits them ahead of the script and the
-note, each a strict xfail but the one that reads the DESIGN bullet.
+note, each a strict xfail but the one that reads the DESIGN bullet; v1.254 lands both and removes
+the markers.
 """
 
 import collections
 import contextlib
 import dataclasses
+import decimal
 import importlib.util
 import io
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -36,8 +39,6 @@ COMMANDS = {
     "tau2-bench": "$ python research/delegation_reasons.py --dataset tau2-bench --matrix tau2-calls.jsonl",
     "tau2-bench-pooled": "$ python research/delegation_reasons.py --dataset tau2-bench-pooled --matrix tau2-calls-all.jsonl",
 }
-NOT_YET = pytest.mark.xfail(strict=True, raises=FileNotFoundError,
-                            reason="v1.253: research/delegation_reasons.py lands in v1.254")
 
 # Prices per 1M tokens. good and small answer every item of task t; on task u only small does; bad
 # answers none. small's window is 1,000 tokens, so it is full at point 1 (row 1) and, at point 2,
@@ -122,7 +123,6 @@ def test_design_bullet_states_the_condition_and_the_tests():
         assert phrase in bullets[0], phrase
 
 
-@NOT_YET
 def test_row_of_maps_every_reason():
     drs = _drs()
     rows = {"parent_excluded_family": 1, "parent_not_independent": 1, "parent_context_full": 1,
@@ -138,7 +138,6 @@ def test_row_of_maps_every_reason():
         drs.row_of("cheaper", "cost_effective")
 
 
-@NOT_YET
 def test_condition_at_hand_worked_points():
     drs = _drs()
     base = {"context_tokens": 8000, "brief_tokens": 500, "result_tokens": 500, "carry_turns": 1,
@@ -156,7 +155,6 @@ def test_condition_at_hand_worked_points():
     assert drs.meets(dict(base, context_tokens=2000), GOOD) is False   # slack -1,000
 
 
-@NOT_YET
 def test_hand_run_reaches_every_row_and_counts_by_brute_force():
     drs = _drs()
     _registry, full = _hand()
@@ -170,7 +168,6 @@ def test_hand_run_reaches_every_row_and_counts_by_brute_force():
     assert all(sum(c.values()) == 12 for c in counts.values())
 
 
-@NOT_YET
 def test_condition_holds_on_every_cell_of_the_hand_run():
     drs = _drs()
     registry, full = _hand()
@@ -180,14 +177,12 @@ def test_condition_holds_on_every_cell_of_the_hand_run():
     assert {c["reason"] for c in met} == {"parent_context_full", "parent_below_bar", "delegate_cheaper"}
 
 
-@NOT_YET
 def test_report_lines_on_the_hand_run():
     drs = _drs()
     registry, full = _hand()
     assert drs.report(full, registry, name="hand") == HAND_LINES
 
 
-@NOT_YET
 def test_refusals():
     drs = _drs()
     registry, full = _hand()
@@ -200,7 +195,6 @@ def test_refusals():
         drs.report(odd, registry, name="hand")
 
 
-@NOT_YET
 def test_main_exits_2_with_one_error_line(tmp_path):
     drs = _drs()
     err, out = io.StringIO(), io.StringIO()
@@ -210,8 +204,6 @@ def test_main_exits_2_with_one_error_line(tmp_path):
     assert err.getvalue().count("\n") == 1 and err.getvalue().startswith("error: ")
 
 
-@pytest.mark.xfail(strict=True, raises=(AssertionError, IndexError),
-                   reason="v1.253: the note's section lands in v1.254")
 def test_note_section_states_the_condition_before_the_blocks():
     note = NOTE.read_text(encoding="utf-8")
     assert note.count("\n" + SECTION + "\n") == 1
@@ -231,7 +223,6 @@ def _block(dataset):
     return note.split("```text\n" + COMMANDS[dataset] + "\n", 1)[1].split("\n```", 1)[0].split("\n")
 
 
-@NOT_YET
 def test_note_llmrouterbench_block_is_the_script_output(llmrouterbench_delegation_full):
     drs = _drs()
     _kept, _dropped, full = llmrouterbench_delegation_full
@@ -239,7 +230,6 @@ def test_note_llmrouterbench_block_is_the_script_output(llmrouterbench_delegatio
     assert drs.report(full, registry, name="LLMRouterBench") == _block("llmrouterbench")
 
 
-@NOT_YET
 def test_note_autobench_block_is_the_script_output(tmp_path):
     drs = _drs()
     cv = _load("research_drs_autobench_convert", ROOT / "evidence" / "autobench-2026" / "convert.py")
@@ -273,10 +263,64 @@ def tau2_matrices():
     return {"tau2-bench": cv.convert(extracts)[0], "tau2-bench-pooled": cv.convert(extracts, task_by="all")[0]}
 
 
-@NOT_YET
 @pytest.mark.parametrize("dataset", ["tau2-bench", "tau2-bench-pooled"])
 def test_note_tau2_blocks_are_the_script_output(tau2_matrices, tmp_path, dataset):
     drs = _drs()
     matrix = tmp_path / "tau2.jsonl"
     matrix.write_text("".join(json.dumps(r) + "\n" for r in tau2_matrices[dataset]), encoding="utf-8")
     assert drs.run(matrix, ROOT, dataset=dataset) == _block(dataset)
+
+
+# --- the section's prose (v1.254) --------------------------------------------------------------
+NUMBER = re.compile(r"(?<![\w.])\d+(?:,\d{3})*(?:\.\d+)?")
+SEPARATE_LINE = re.compile(r"^  cost_effective  point [012]  [\d,]+ cells: (.*)$")
+# DESIGN section numbers the prose cites
+CITED = {"13.2", "13.3", "13.5", "13.9", "5.3"}
+
+
+def _section():
+    return NOTE.read_text(encoding="utf-8").split("\n" + SECTION + "\n", 1)[1].split("\n## ", 1)[0]
+
+
+def _separate_totals():
+    """Per (row, reason, mode), the cost_effective cells at points 0 to 2 summed over the four blocks."""
+    totals = collections.Counter()
+    for dataset in COMMANDS:
+        for line in _block(dataset):
+            found = SEPARATE_LINE.match(line)
+            if found:
+                for part in found[1].split("; "):
+                    _row, row, reason, mode, n = part.split(" ")
+                    totals[int(row), reason, mode] += int(n.replace(",", ""))
+    return totals
+
+
+def _value(text):
+    return decimal.Decimal(text.replace(",", ""))
+
+
+def test_reading_totals_are_the_blocks_sums():
+    totals = _separate_totals()
+    assert {mode for _row, _reason, mode in totals} == {"delegate"}
+    reading = [b for b in _section().split("\n```\n")[-1].splitlines() if b.startswith("- `cost_effective`: ")]
+    assert len(reading) == 1
+    by_row = {row: n for (row, _reason, _mode), n in totals.items()}
+    assert f"those {sum(totals.values()):,} cells are row 3 `delegate_cheaper` on {by_row[3]:,}, row 7 `none_clear` on " \
+           f"{by_row[7]:,}, row 1 `parent_context_full` on {by_row[1]:,} and row 2 `parent_below_bar` on " \
+           f"{by_row[2]:,}" in reading[0]
+    assert 3 * by_row[3] < sum(totals.values())   # "under a third"
+    checks = [_block(d)[-1] for d in COMMANDS]
+    assert all(re.fullmatch(r"check, cost_effective: ([\d,]+) cells .*, \1 of them delegate", c) for c in checks)
+
+
+def test_section_prose_numbers_are_in_its_blocks():
+    section = _section()
+    prose = re.sub(r"^```text\n.*?^```$", "", section, flags=re.M | re.S)
+    prose = re.sub(r"`[^`\n]*`", "", prose)
+    # the recommended README sentence quotes its own sizes
+    prose = prose.split("Recommended for the README", 1)[0]
+    blocks = "\n".join(line for d in COMMANDS for line in _block(d))
+    known = {_value(n) for n in NUMBER.findall(blocks)} | {_value(f"{n:,}") for n in _separate_totals().values()}
+    known.add(_value(f"{sum(_separate_totals().values()):,}"))
+    stray = sorted({n for n in NUMBER.findall(prose) if n not in CITED and _value(n) not in known})
+    assert stray == []

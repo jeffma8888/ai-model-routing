@@ -22,8 +22,8 @@ NOTE = ROOT / "research" / "where-delegation-pays.md"
 INDEX = ROOT / "research" / "README.md"
 DESIGN = ROOT / "DESIGN.md"
 COMMAND = "$ python research/where_delegation_pays.py"
-SECTIONS = ["## Facts", "## Method", "## Results", "## Reading it", "## Recommendation", "## Limits",
-            "## Regenerate"]
+SECTIONS = ["## Facts", "## Method", "## Results", "## Reading it", "## Which 13.5 row chose", "## Recommendation",
+            "## Limits", "## Regenerate"]
 FILES = ["evidence/delegation/results.json", "evidence/tau2-bench-delegation/results.json",
          "evidence/tau2-bench-delegation/pooled.json", "evidence/llmrouterbench-delegation/results.json"]
 # DESIGN section numbers and the two delegate_rate values of the rule: the only numbers of the
@@ -92,7 +92,10 @@ def test_note_sections_in_order():
 
 
 def test_prose_numbers_are_in_the_output(output):
-    prose = re.sub(r"^```text\n.*?^```$", "", note(), flags=re.M | re.S)
+    # the `## Which 13.5 row chose` section (v1.254) reads other output, checked in
+    # tests/test_research_delegation_reasons.py
+    text = re.sub(r"^## Which 13\.5 row chose\n.*?(?=^## )", "", note(), flags=re.M | re.S)
+    prose = re.sub(r"^```text\n.*?^```$", "", text, flags=re.M | re.S)
     prose = re.sub(r"https?://\S+", "", prose)
     prose = re.sub(r"`[^`\n]*`", "", prose)
     stray = sorted(set(NUMBER.findall(prose)) - set(NUMBER.findall(output)) - ALLOWED)
