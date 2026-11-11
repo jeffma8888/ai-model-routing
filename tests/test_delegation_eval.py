@@ -16,6 +16,7 @@ import importlib
 import json
 import random
 import statistics
+import sys
 from math import fsum
 
 import pytest
@@ -831,3 +832,52 @@ def test_v1132_a_run_on_several_bars_and_flavors_is_the_runs_on_each_alone():
     cells = result["cells"]
     assert len({(c["bar"], c["delegate"]) for c in cells}) > len({c["delegate"] for c in cells})
     assert any(c["delegate"] == c["parent"] for c in cells)
+
+
+# --- v1.244: each item's cost once per (task, point, parent, path, model), across seeds ----
+
+ITEM_COST_FUNCTIONS = ("inline_cost", "delegate_cost")
+
+
+def count_item_costs(call):
+    """Run ``call()`` and count the calls of `_cell`'s two item-cost functions, by name."""
+    counts = {name: 0 for name in ITEM_COST_FUNCTIONS}
+
+    def hook(frame, event, arg):
+        code = frame.f_code
+        if (event == "call" and code.co_name in counts
+                and code.co_filename.endswith("delegation_eval.py")):
+            counts[code.co_name] += 1
+
+    previous = sys.getprofile()
+    sys.setprofile(hook)
+    try:
+        result = call()
+    finally:
+        sys.setprofile(previous)
+    return result, counts
+
+
+@pytest.mark.xfail(strict=True, raises=AssertionError,
+                   reason="v1.244 spec: v1.243 computes an item's cost once per held item and seed")
+def test_v1244_each_items_cost_is_computed_once_per_key_across_seeds():
+    result, counts = count_item_costs(run_once_bars)
+    held = {(t, s): split_items(ITEMS, s, 0.5)[1] for t in VARIED_TASKS for s in VARIED_SEEDS}
+    union, seeded = {}, {}
+    for c in result["cells"]:
+        for path, model in (("inline", c["parent"]), ("delegate", c["delegate"])):
+            key = (c["task"], c["point"], c["parent"], path, model)
+            union.setdefault(key, set()).update(held[c["task"], c["seed"]])
+            seeded[key + (c["seed"],)] = len(held[c["task"], c["seed"]])
+    paths = dict(zip(ITEM_COST_FUNCTIONS, ("inline", "delegate")))
+    once = {name: sum(len(v) for k, v in union.items() if k[3] == path)
+            for name, path in paths.items()}
+    per_seed = {name: sum(n for k, n in seeded.items() if k[3] == path)
+                for name, path in paths.items()}
+    # six seeds hold out overlapping halves of the 8 items, so the two counts differ
+    assert all(once[name] < per_seed[name] for name in ITEM_COST_FUNCTIONS)
+    # one cost per distinct (task, point, parent, path, model, item), not per held item and seed
+    assert counts == once
+    # and again on a second run, so no item's cost is kept from one call to the next
+    again, counts = count_item_costs(run_once_bars)
+    assert again["cells"] == result["cells"] and counts == once
