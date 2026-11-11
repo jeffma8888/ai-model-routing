@@ -924,3 +924,102 @@ def test_the_routed_registry_costs_each_mean_exactly():
     decision = Router(registry, {"t": task}, stats).select("t", "cost_effective")
     assert {c.model_id: c.list_cost for c in decision.candidates} == means
     assert decision.primary == "fiction/d"
+
+
+# v1.266 (row E1e, review iter-006 nits 1, 2 and 5): the summary's correct count of a cell is the
+# integer held-out count carried from the (task, seed) sums, never `round(success * n)` from the
+# cell's rate; `best_on_calibration` is ranked on the calibration count; and the parser checks
+# `--seeds`. Neither of the first two can be seen from the inputs (`round` gives the count back
+# for any realistic size, and |C| is one number per (task, seed)), so the tests that compare with
+# counts taken from the outcomes pass before v1.267 too; the probe below overwrites each cell's
+# rates as `_cell` returns them, which a summary that reads its counts from the rates shows.
+RED_E1E = pytest.mark.xfail(strict=True, reason="v1.267 implements v1.266 (row E1e)")
+SEEDS_MESSAGE = "error: argument --seeds: must be an integer >= 1, got {!r}"
+
+
+def held_counts(outcomes, seed):
+    """({(task, model or "oracle"): held-out correct count}, {task: held-out items}) at ``seed``."""
+    by_item = {}
+    for o in outcomes:
+        if not in_calibration(o.item, seed):
+            by_item.setdefault((o.task, o.item), []).append(o)
+    right, items = {}, {}
+    for (task, _), found in by_item.items():
+        items[task] = items.get(task, 0) + 1
+        right[task, "oracle"] = right.get((task, "oracle"), 0) + any(o.correct for o in found)
+        for o in found:
+            right[task, o.model] = right.get((task, o.model), 0) + int(o.correct)
+    return right, items
+
+
+def named(c, strategy):
+    if strategy == "oracle":
+        return "oracle"
+    return strategy[len("model:"):] if strategy.startswith("model:") else c["models"][strategy]
+
+
+def test_v1266_summary_success_is_the_held_out_counts_over_the_held_out_items():
+    outcomes = once_outcomes()
+    result = run_once(outcomes)
+    counts = {seed: held_counts(outcomes, seed) for seed in ONCE_SEEDS}
+    assert len(result["summary"]) == len(ONCE_BARS) * 2 * len(STRATEGIES)
+    for r in result["summary"]:
+        per_seed = []
+        for seed in ONCE_SEEDS:
+            right, items = counts[seed]
+            cs = [c for c in result["cells"]
+                  if (c["bar"], c["flavor"], c["seed"]) == (r["bar"], r["flavor"], seed)]
+            assert sorted(c["task"] for c in cs) == sorted(items)
+            per_seed.append(sum(right[c["task"], named(c, r["strategy"])] for c in cs)
+                            / sum(items.values()))
+        assert r["success"] == fsum(per_seed) / len(ONCE_SEEDS), r
+
+
+@RED_E1E
+def test_v1266_the_summary_never_reads_a_count_back_from_a_cell_rate(monkeypatch):
+    ev, outcomes = load_ev(), once_outcomes()
+    plain = run_once(outcomes)
+    real = ev._cell
+
+    def overwritten(*args, **kwargs):
+        c = real(*args, **kwargs)
+        c["success"] = {s: -1.0 for s in c["success"]}
+        return c
+    monkeypatch.setattr(ev, "_cell", overwritten)
+    probed = run_once(outcomes)
+    assert all(set(c["success"].values()) == {-1.0} for c in probed["cells"])
+    assert [r["success"] for r in probed["summary"]] == [r["success"] for r in plain["summary"]]
+
+
+def test_v1266_best_on_calibration_is_the_highest_calibration_count_then_cost_then_id():
+    outcomes = once_outcomes()
+    result = run_once(outcomes)
+    picks = set()
+    for c in result["cells"]:
+        cal = [o for o in outcomes if o.task == c["task"] and in_calibration(o.item, c["seed"])]
+        count = {m: sum(o.correct for o in cal if o.model == m) for m in MODELS}
+        mean = {m: fsum(o.cost_usd for o in cal if o.model == m) / c["calibration_items"]
+                for m in MODELS}
+        best = min(MODELS, key=lambda m: (-count[m], mean[m], m))
+        assert c["models"]["best_on_calibration"] == best, c
+        picks.add((c["task"], best))
+    # easy: all three tie on the count, so the cheapest; hard: mid and best tie, so mid
+    assert picks == {("easy", "fiction/cheap"), ("hard", "fiction/mid"), ("graded", "fiction/best")}
+
+
+@RED_E1E
+@pytest.mark.parametrize("value", ["0", "-3", "abc", "1.5"])
+def test_v1266_a_bad_seeds_value_is_a_usage_error_before_any_file_is_read(tmp_path, capsys, value):
+    code = main(["evaluate", "--outcomes", str(tmp_path / "absent.jsonl"), "--seeds", value])
+    captured = capsys.readouterr()
+    assert (code, captured.out) == (2, "")
+    assert captured.err.startswith("usage: model-routing evaluate ")
+    assert captured.err.endswith("\n" + SEEDS_MESSAGE.format(value) + "\n")
+    assert [line for line in captured.err.splitlines() if line.startswith("error: ")] == [
+        SEEDS_MESSAGE.format(value)]
+
+
+def test_v1266_a_good_seeds_value_still_gives_that_many_seeds(tmp_path, capsys):
+    good = write_jsonl(tmp_path / "good.jsonl", known_rows())
+    assert main(["evaluate", "--outcomes", str(good), "--seeds", "3", "--json"]) == 0
+    assert json.loads(capsys.readouterr().out)["config"]["seeds"] == [0, 1, 2]
