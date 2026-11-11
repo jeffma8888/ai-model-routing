@@ -910,6 +910,11 @@ def test_the_routed_registry_costs_each_mean_exactly():
     assert (LOW * 1_000_000) / 1_000_000 != LOW  # the old price was one ulp off this one
     registry = ev._routed_registry(list(means), means)
     assert [m.id for m in registry.models] == list(means)
+    # v1.265 (review iter-178 should-fix 1): base_cost is the mean too, not the inherited
+    # (n * price_in) / 1e6
+    for size in ((1, 0), (0, 0), (1000, 200)):
+        assert {m.id: m.base_cost(*size) for m in registry.models} == means
+        assert {m.id: m.cost(*size) for m in registry.models} == means
     stats = Stats()
     for m in means:
         stats.add("t", m, 10, 10)

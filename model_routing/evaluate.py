@@ -223,13 +223,16 @@ def _split_sums(table, models, task, cal, held) -> dict:
 @dataclass(frozen=True)
 class _CalibrationPriced(Model):
     """A model of the routed registry (DESIGN 12.3, v1.263): a call of any size costs its mean
-    calibration cost exactly. Its ``price_in``, the mean times 1e6 per million input tokens, prices a
-    one-token call at the mean, but ``Model.cost`` at it is ``(mean * 1e6) / 1e6``, which can merge
-    two means one ulp apart into one cost."""
+    calibration cost exactly, by ``cost`` and ``base_cost`` alike (v1.265). Its ``price_in``, the
+    mean times 1e6 per million input tokens, prices a one-token call at the mean, but ``Model.cost``
+    at it is ``(mean * 1e6) / 1e6``, which can merge two means one ulp apart into one cost."""
 
     mean_cost: float = 0.0
 
     def cost(self, input_tokens: int, output_tokens: int) -> float:
+        return self.mean_cost
+
+    def base_cost(self, input_tokens: int, output_tokens: int) -> float:
         return self.mean_cost
 
 
