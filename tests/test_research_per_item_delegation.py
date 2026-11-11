@@ -25,11 +25,17 @@ ahead of the script change and the note, each a strict xfail but the one that re
 bullet, and drops the v1.227 refusal of per-call rows from `test_refusals`; v1.234 lands both and
 removes the markers, and moves the one-call tie to a held-out item with a delegate record that
 differs from the parent's on both ties, so a tie taken on the wrong path changes the success.
+
+v1.236 (row DOC14) adds the README Limitations bullet that states the note's Recommendation: its
+figures are read from the note's four results blocks (the cached tests above compare those blocks
+with the script's output), so the README test runs where the pinned files are not cached. v1.236
+commits the README and note tests ahead of the line as strict xfails; v1.237 lands the line.
 """
 
 import contextlib
 import copy
 import dataclasses
+import decimal
 import importlib.util
 import io
 import json
@@ -602,3 +608,106 @@ def test_note_tau2_blocks_are_the_script_output(pid, tau2_matrices, tmp_path, da
     note = NOTE.read_text(encoding="utf-8")
     block = note.split(command + "\n", 1)[1].split("\n```", 1)[0]
     assert block.split("\n") == lines
+
+
+# --- README Limitations (DESIGN 13.8 v1.236, row DOC14) ----------------------------------------
+README = ROOT / "README.md"
+README_LINK = "([research/per-item-delegation.md](research/per-item-delegation.md))"
+PAYS_LINK = "([research/where-delegation-pays.md](research/where-delegation-pays.md))"
+BLOCK_ROW = re.compile(r"^  (cost_effective|cost_blind) +(\d\.\d) +(pick|size rule) +(\d+) +([\d,]+) / ([\d,]+) +"
+                       r"(-|\d\.\d{4}) +(\d\.\d{4}) +([+-]\d\.\d{4}) +(\d+)$")
+DATASETS = {"LLMRouterBench": (COMMAND,), "AutoBench 2026": (AB_COMMAND,),
+            "tau2-bench": (T2_COMMAND, T2_POOLED_COMMAND)}
+
+
+def test_design_specifies_the_per_item_readme_line():
+    text = DESIGN.read_text(encoding="utf-8")
+    section = text.split("\n### 13.8 ", 1)[1].split("\n### ", 1)[0]
+    bullets = [line for line in section.splitlines()
+               if line.startswith("- v1.236, per-item delegation paths in the README (row DOC14): ")]
+    assert len(bullets) == 1
+    for phrase in ("`research/per-item-delegation.md`", "four results blocks", "`cost_effective` lines only",
+                   "`pick` `share`", "`size rule` `cost / decision`", "13.5 row 3", "`success - decision`",
+                   "two significant figures", "strict xfails", "No library code"):
+        assert phrase in bullets[0], phrase
+
+
+def effective_rows(command):
+    """The `cost_effective` table lines of the note's block for `command`: (strategy, share, cost, success)."""
+    note = NOTE.read_text(encoding="utf-8")
+    block = note.split("```text\n" + command + "\n", 1)[1].split("\n```", 1)[0]
+    rows = []
+    for line in block.split("\n"):
+        if line.startswith("  cost_"):
+            found = BLOCK_ROW.match(line)
+            assert found, line
+            if found[1] == "cost_effective":
+                rows.append((found[3], found[7], found[8], found[9]))
+    assert {r[0] for r in rows} == {"pick", "size rule"}, command
+    return rows
+
+
+def percent(fraction):
+    """A fraction as a percent (or points) to two significant figures, trailing zeros dropped."""
+    value = decimal.Decimal(fraction) * 100
+    step = decimal.Decimal(1).scaleb(value.adjusted() - 1)
+    return format(value.quantize(step, decimal.ROUND_HALF_UP).normalize(), "f")
+
+
+def test_percent_rounds_to_two_significant_figures():
+    assert [percent(x) for x in ("0.4022", "0.0136", "0.0114", "0.0005", "0.4290", "0.1055", "0.0250")] == \
+        ["40", "1.4", "1.1", "0.05", "43", "11", "2.5"]
+
+
+def per_item_figures():
+    """(largest pick share, {dataset: largest size rule cut}, largest pick cut, largest pick loss), as percents."""
+    rows = {name: [r for c in commands for r in effective_rows(c)] for name, commands in DATASETS.items()}
+    every = [r for found in rows.values() for r in found]
+    pick = [r for r in every if r[0] == "pick"]
+    size = [r for r in every if r[0] == "size rule"]
+    one = decimal.Decimal(1)
+    # every cost_effective pick row has items, and the size rule never loses mean success
+    assert all(r[1] != "-" for r in pick) and all(r[3].startswith("+") for r in size)
+    cuts = {name: percent(one - min(decimal.Decimal(r[2]) for r in found if r[0] == "size rule"))
+            for name, found in rows.items()}
+    loss = min(decimal.Decimal(r[3]) for r in pick)
+    assert loss < 0
+    return (percent(max(decimal.Decimal(r[1]) for r in pick)), cuts,
+            percent(one - min(decimal.Decimal(r[2]) for r in pick)), percent(-loss))
+
+
+def per_item_bullet():
+    """The README Limitations bullet of v1.236, its figures from the note's results blocks."""
+    share, cuts, pick_cut, pick_loss = per_item_figures()
+    return ("- Choosing the path per item instead would add little on that evidence. In `cost_effective` a held-out "
+            "item's cheaper path, by list price at its own sizes, is not the one the per-task decision took on up to "
+            f"{share}% of the held-out items at a bar, but taking it only where the decision chose by cost "
+            "(`DESIGN.md` 13.5 row 3) cuts a bar's summed cost by at most "
+            f"{cuts['LLMRouterBench']}% on LLMRouterBench, {cuts['AutoBench 2026']}% on AutoBench 2026 and "
+            f"{cuts['tau2-bench']}% on tau2-bench, at no lower mean success, while taking it on every item cuts up "
+            f"to {pick_cut}% at a mean success up to {pick_loss} points lower. Each is the largest cut that a rule "
+            "choosing item by item could make on those items, since every item takes its cheaper path "
+            f"{README_LINK}")
+
+
+@pytest.mark.xfail(strict=True, raises=AssertionError, reason="v1.236: the README line lands in v1.237")
+def test_readme_limitations_say_what_choosing_per_item_adds():
+    readme = README.read_text(encoding="utf-8")
+    limits = readme.split("\n## Limitations and non-goals (v1)\n", 1)[1].split("\n## ", 1)[0]
+    bullets = [line for line in limits.splitlines() if line.startswith("- ")]
+    pays = [i for i, b in enumerate(bullets) if PAYS_LINK in b]
+    assert len(pays) == 1
+    assert bullets[pays[0] + 1] == per_item_bullet()
+    assert sum(README_LINK in b for b in bullets) == 1
+
+
+@pytest.mark.xfail(strict=True, raises=AssertionError, reason="v1.236: the note names the README line in v1.237")
+def test_note_recommendation_names_the_readme_line():
+    share, cuts, _pick_cut, _pick_loss = per_item_figures()
+    note = NOTE.read_text(encoding="utf-8")
+    assert "later backlog row" not in note
+    recommendation = note.split("\n## Recommendation\n", 1)[1].split("\n## ", 1)[0]
+    line = [b for b in recommendation.splitlines() if b.startswith("- A README Limitations line")]
+    assert len(line) == 1
+    largest = max(cuts.values(), key=decimal.Decimal)
+    assert f"on up to {share}% of the held-out items" in line[0] and f"at most {largest}%" in line[0]
