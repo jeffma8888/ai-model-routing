@@ -7,9 +7,13 @@ v1.65, which adds LiveCodeBench, seven since v1.80, which adds delegation on tau
 since v1.164, which adds LLMRouterBench, nine since v1.200, which adds delegation on LLMRouterBench), at the rounding of the subsection tables, and every word that depends on the data (no routed row
 reaches or beats, every seed, more, less) is asserted against those files, so the list cannot
 drift from them or keep a claim a regenerated file no longer supports.
+
+v1.258 (row DOC15): a second paragraph after the routing pointer links the two delegation notes, its
+figures read from their committed results blocks, so it runs in CI where the pinned files are not cached.
 """
 
 import copy
+import decimal
 import json
 import math
 import re
@@ -298,7 +302,8 @@ def evidence_section():
 def test_readme_opens_the_evidence_section_with_the_glance_list():
     intro = evidence_section().split("\n### ", 1)[0]
     paragraphs = intro.strip("\n").split("\n\n")
-    assert len(paragraphs) == 4, paragraphs[1:]
+    # v1.258: the paragraph count, now five, is checked with the delegation pointer below
+    assert len(paragraphs) >= 4, paragraphs[1:]
     assert not paragraphs[0].startswith(("- ", "Results at a glance"))
     assert "\n\n".join(paragraphs[1:3]) + "\n" == glance(committed())
     # v1.124: one paragraph after the bullets links the note on where routing pays
@@ -570,3 +575,182 @@ def test_a_file_that_breaks_a_claim_fails_the_builder(change, match):
     change(files)
     with pytest.raises(AssertionError, match=match):
         glance(files)
+
+
+# --- v1.258 (row DOC15): where delegation pays, at a glance -----------------------------------
+
+DESIGN = ROOT / "DESIGN.md"
+PAYS_NOTE = ROOT / "research" / "where-delegation-pays.md"
+PAYS_SCRIPT = ROOT / "research" / "where_delegation_pays.py"
+PER_ITEM_NOTE = ROOT / "research" / "per-item-delegation.md"
+PAYS_LINK = "[research/where-delegation-pays.md](research/where-delegation-pays.md)"
+PER_ITEM_LINK = "[research/per-item-delegation.md](research/per-item-delegation.md)"
+DELEGATION = ("Delegation on AutoBench", "Delegation on tau2-bench", "Delegation on LLMRouterBench")
+PER_ITEM_COMMAND = "$ python research/per_item_delegation.py "
+# the four runs of the per-item note: no --dataset is LLMRouterBench (DESIGN 13.8 v1.227 to v1.233)
+PER_ITEM_RUNS = [None, "autobench", "tau2-bench", "tau2-bench-pooled"]
+SIZE_RULE = re.compile(r"^  cost_effective +\d\.\d +size rule +\d+ +[\d,]+ / [\d,]+ +(?:-|\d\.\d{4}) +"
+                       r"(\d\.\d{4}) +([+-]\d\.\d{4}) +\d+$")
+
+
+def pays_totals(note):
+    """{flavor: {column: count}} from the `All four files` lines of the note's `## Results` block."""
+    section = note.split("\n## Results\n", 1)[1].split("\n## ", 1)[0]
+    blocks = re.findall(r"^```text\n(.*?)^```$", section, re.M | re.S)
+    assert len(blocks) == 1, "one text block in ## Results"
+    lines = blocks[0].split("\nAll four files\n", 1)[1].splitlines()
+    columns = re.split(r"  +", lines[0].strip())
+    assert columns[:2] == ["flavor", "bar"] and "= delegate" in columns and "better" in columns, columns
+    totals = {}
+    for line in lines[1:]:
+        flavor, *values = re.split(r"  +", line.strip())
+        assert values[0] == "all" and len(values) == len(columns) - 1, line
+        totals[flavor] = dict(zip(columns[2:], map(int, values[1:])))
+    assert sorted(totals) == ["cost_blind", "cost_effective"], totals
+    return totals
+
+
+def per_item_blocks(note):
+    """{--dataset value or None: block text} for the note's text blocks of the per-item script."""
+    blocks = {}
+    for block in re.findall(r"^```text\n(.*?)^```$", note, re.M | re.S):
+        command = block.split("\n", 1)[0]
+        if not command.startswith(PER_ITEM_COMMAND):
+            continue
+        found = re.search(r"--dataset (\S+)", command)
+        name = found[1] if found else None
+        assert name not in blocks, command
+        blocks[name] = block
+    return blocks
+
+
+def size_rule_cut(note):
+    """One minus the smallest `cost_effective` `size rule` `cost / decision` of the four blocks, as a percent to
+    two significant figures (DESIGN 13.8 v1.236 rounding), after checking that none loses mean success."""
+    blocks = per_item_blocks(note)
+    assert sorted(blocks, key=str) == sorted(PER_ITEM_RUNS, key=str), sorted(blocks, key=str)
+    rows = []
+    for name in PER_ITEM_RUNS:
+        found = [SIZE_RULE.match(line) for line in blocks[name].splitlines()
+                 if line.startswith("  cost_effective ") and " size rule " in line]
+        assert found and all(found), name
+        rows += [(decimal.Decimal(m[1]), m[2]) for m in found]
+    assert all(success.startswith("+") for _cost, success in rows), "a size rule row loses mean success"
+    value = (1 - min(cost for cost, _success in rows)) * 100
+    step = decimal.Decimal(1).scaleb(value.adjusted() - 1)
+    return format(value.quantize(step, decimal.ROUND_HALF_UP).normalize(), "f")
+
+
+def delegation_pointer(pays_note, per_item_note):
+    """The paragraph after the routing pointer (DESIGN 12.8 v1.258), its figures from the two notes."""
+    totals = pays_totals(pays_note)
+    effective = totals["cost_effective"]
+    assert totals["cost_effective"]["better"] == totals["cost_blind"]["better"] == 0, "a row is better than both"
+    return ("Whether choosing per task between inline work and a sub-agent beats a fixed policy, on the datasets of "
+            f"the last three bullets above: {PAYS_LINK} finds the `cost_effective` decision equal to always delegating "
+            f"on {effective['= delegate']:,} of their {effective['rows']:,} (bar, point, parent) rows and, in either "
+            f"flavor, better than both fixed policies on none, and {PER_ITEM_LINK} finds that taking each held-out "
+            "item's cheaper path only on the cells where the decision chose by cost cuts a bar's summed cost by at "
+            f"most {size_rule_cut(per_item_note)}%, at no lower mean success")
+
+
+def notes():
+    return PAYS_NOTE.read_text(encoding="utf-8"), PER_ITEM_NOTE.read_text(encoding="utf-8")
+
+
+def test_design_specifies_the_delegation_pointer():
+    text = DESIGN.read_text(encoding="utf-8")
+    section = text.split("\n### 12.8 ", 1)[1].split("\n### ", 1)[0]
+    bullets = [line for line in section.splitlines()
+               if line.startswith("- Where delegation pays at a glance (v1.258, row DOC15): ")]
+    assert len(bullets) == 1
+    for phrase in ("`research/where-delegation-pays.md`", "`research/per-item-delegation.md`", "`All four files`",
+                   "`= delegate`", "`better`", "`size rule` `cost / decision`", "13.5 row 3", "`success - decision`",
+                   "two significant figures", "fifth and last paragraph", "strict xfail", "No library code"):
+        assert phrase in bullets[0], phrase
+    assert "then (v1.258) a blank line and the one paragraph of the where-delegation-pays-at-a-glance bullet " \
+           "below, and by nothing else." in section
+
+
+@pytest.mark.xfail(strict=True, raises=AssertionError, reason="v1.258: the README paragraph lands in v1.259")
+def test_the_delegation_pointer_follows_the_routing_one():
+    intro = evidence_section().split("\n### ", 1)[0]
+    paragraphs = intro.strip("\n").split("\n\n")
+    assert len(paragraphs) == 5, paragraphs[3:]
+    assert paragraphs[3] == POINTER
+    assert paragraphs[4] == delegation_pointer(*notes())
+
+
+def test_the_delegation_pointer_figures_on_the_committed_notes():
+    """The figures the paragraph gives on the committed notes, beside the counts each note's prose states."""
+    pays, per_item = notes()
+    effective = pays_totals(pays)["cost_effective"]
+    facts = pays.split("\n## Facts\n", 1)[1].split("\n## ", 1)[0]
+    assert f"on {effective['= delegate']} of the {effective['rows']} rows" in facts
+    cut = size_rule_cut(per_item)
+    recommendation = per_item.split("\n## Recommendation\n", 1)[1].split("\n## ", 1)[0]
+    assert f"saves at most {cut}% of a bar's summed cost" in recommendation
+    text = delegation_pointer(pays, per_item)
+    # the second finding is the size rule's, not choosing the path on every item (DESIGN 12.8 v1.258)
+    assert "only on the cells where the decision chose by cost" in text
+
+
+def test_the_delegation_pointer_links_resolve_in_order():
+    text = delegation_pointer(*notes())
+    targets = re.findall(r"\]\(([^)]+)\)", text)
+    assert targets == ["research/where-delegation-pays.md", "research/per-item-delegation.md"]
+    assert all((README.parent / t).is_file() for t in targets)
+
+
+def test_the_last_three_bullets_are_the_delegation_subsections_the_notes_read():
+    assert tuple(FILES)[-3:] == DELEGATION
+    folders = {str(FILES[name].parent.relative_to(ROOT)) for name in DELEGATION}
+    text = PAYS_SCRIPT.read_text(encoding="utf-8")
+    block = text.split("DATASETS = (\n", 1)[1].split("\n)\n", 1)[0]
+    paths = re.findall(r'^    \("[^"]+", "([^"]+)"\),$', block, re.M)
+    assert len(paths) == 4, paths
+    assert {p.rsplit("/", 1)[0] for p in paths} == folders
+
+
+def _break_better(pays):
+    old = "  cost_effective  all    432         403         1       0"
+    assert pays.count(old) == 1
+    return pays.replace(old, "  cost_effective  all    432         403         1       1")
+
+
+def _break_size_rule(per_item):
+    old = "0.0609           0.9864             +0.0005"
+    assert per_item.count(old) == 1
+    return per_item.replace(old, "0.0609           0.9864             -0.0005")
+
+
+def _drop_a_block(per_item):
+    old = "$ python research/per_item_delegation.py --dataset tau2-bench-pooled "
+    assert per_item.count(old) == 1
+    return per_item.replace(old, "$ python research/other.py --dataset tau2-bench-pooled ")
+
+
+def _move_the_cut(per_item):
+    old = "0.0609           0.9864             +0.0005"
+    assert per_item.count(old) == 1
+    return per_item.replace(old, "0.0609           0.9764             +0.0005")
+
+
+@pytest.mark.parametrize("change, which, match", [
+    (_break_better, 0, "a row is better than both"),
+    (_break_size_rule, 1, "a size rule row loses mean success"),
+    (_drop_a_block, 1, r"\[None, 'autobench', 'tau2-bench'\]"),
+])
+def test_a_note_that_breaks_a_claim_fails_the_pointer(change, which, match):
+    texts = list(notes())
+    delegation_pointer(*texts)
+    texts[which] = change(texts[which])
+    with pytest.raises(AssertionError, match=match):
+        delegation_pointer(*texts)
+
+
+def test_a_moved_figure_moves_the_pointer():
+    pays, per_item = notes()
+    before = delegation_pointer(pays, per_item)
+    after = delegation_pointer(pays, _move_the_cut(per_item))
+    assert before != after and "at most 2.4%" in after
