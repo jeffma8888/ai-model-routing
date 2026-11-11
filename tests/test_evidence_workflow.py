@@ -512,7 +512,8 @@ def test_the_design_no_cache_bullet_names_the_converter_sha256_constant():
     assert len(bullets) == 1
     assert "the workflow keeps no cache, by choice" in bullets[0]
     assert "keyed on the LLMRouterBench converter's pinned `SHA256`" in bullets[0]
-    assert llmrouterbench_sha256() in MUTANTS["a cache step before Install"](workflow_text())
+    # v1.252 (review iter-173 nit 2): the committed workflow holds no key on the pinned file.
+    assert llmrouterbench_sha256() not in workflow_text()
 
 
 def test_the_time_limit_is_ten_times_the_slowest_run_in_whole_five_minutes():
