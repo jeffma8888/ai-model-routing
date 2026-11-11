@@ -302,7 +302,6 @@ README_LIMITATION = (
     "each of its calls is shorter")
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="v1.242 spec: the README Limitations wording lands in v1.243")
 def test_readme_limitation_names_the_one_cost_still_at_the_base_prices():
     """Moved here from tests/test_delegation_tiers.py in v1.223; from v1.242 (row P1d) one cost
     stays at the base prices and the parent's own output has a sentence of its own."""

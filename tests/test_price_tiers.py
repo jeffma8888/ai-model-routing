@@ -274,7 +274,6 @@ def section(text, heading):
     return lines[start + 1:end]
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="v1.242 spec: the README Limitations wording lands in v1.243")
 def test_readme_pricing_notes_and_limitation():
     text = (ROOT / "README.md").read_text(encoding="utf-8")
     lines = text.split("\n")
