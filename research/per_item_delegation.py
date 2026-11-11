@@ -1,11 +1,14 @@
-"""Whether held-out items' cheaper delegation paths differ from the per-task decision (DESIGN 13.8 v1.227)
+"""Whether held-out items' cheaper delegation paths differ from the per-task decision (DESIGN 13.8 v1.227, v1.230)
 
 Usage:
   python research/per_item_delegation.py --matrix llmrouterbench-matrix.jsonl [--root PATH]
+  python research/per_item_delegation.py --dataset autobench --matrix autobench-tokens.jsonl --registry autobench-pool.json [--root PATH]
 
 Runs `evaluate_delegation` (DESIGN 13.9) on the LLMRouterBench matrix that the converter writes, as
 evidence/llmrouterbench-delegation/results.py does (its `select_rows`, registry, bars, seeds and
-points), checks that the run's summary is the committed results.json one, and rebuilds, for every
+points), or with `--dataset autobench` on the AutoBench 2026 converter's `--task-by all --tokens`
+matrix and `--registry` pool, as evidence/delegation/results.py does on its base grid (v1.230),
+checks that the run's summary is the committed results.json one, and rebuilds, for every
 held-out item of every cell, the list-price cost 13.9 charges always inline (the parent at its own
 sizes on that item) and always delegating (the cell's delegate at its own sizes); each pair of
 rebuilt sums must equal its cell's costs and correct counts exactly. An item's cheaper path is the
@@ -16,7 +19,8 @@ Each item's success is the record of the path it takes, so on cost `pick` is a f
 that sees each item's sizes before the call. Standard library and the model_routing package. Read
 by research/per-item-delegation.md. Exit 0, or 2 with one `error: ...` line on a missing or
 unreadable file, a row the 13.13 script or 13.9 refuses, a summary that is not the committed one, a
-rebuilt cost or count that is not its cell's, or a tiered model or per-call rows (not rebuilt here).
+rebuilt cost or count that is not its cell's, a tiered model or per-call rows (not rebuilt here), or
+`--dataset autobench` without `--registry` or `--registry` without it.
 """
 
 import argparse
@@ -31,6 +35,9 @@ from model_routing import Registry, evaluate_delegation, split_items
 
 ROOT = Path(__file__).resolve().parents[1]
 FOLDER = "evidence/llmrouterbench-delegation"
+AUTOBENCH_FOLDER = "evidence/delegation"
+DATASETS = ("llmrouterbench", "autobench")
+NAMES = {"llmrouterbench": "LLMRouterBench", "autobench": "AutoBench 2026"}
 STRATEGIES = ("pick", "size rule")
 COMPARED = ("delegate_cheaper", "inline_cheaper")
 HEADER = "  flavor          bar  strategy    cells  switched / items     share  cost / decision  success - decision  better"
@@ -160,8 +167,9 @@ def _share(top, bottom):
     return f"{top / bottom:.4f}" if bottom else "-"
 
 
-def report(rows, registry, full) -> list:
-    """The lines the script prints, from the matrix rows, the registry and the 13.9 run on them."""
+def report(rows, registry, full, name="LLMRouterBench") -> list:
+    """The lines the script prints, from the matrix rows, the registry and the 13.9 run on them;
+    `name` is the dataset's in the title line."""
     rows = list(rows)
     out, pairs = tally(rows, registry, full)
     for (bar, flavor, index, parent), row in out.items():
@@ -173,7 +181,7 @@ def report(rows, registry, full) -> list:
     items = {(r["task"], r["item"]) for r in rows}
     config = full["config"]
     lines = [
-        "Per-item delegation paths on LLMRouterBench: each held-out item's cheaper path by list price at its own sizes, against the per-task decision",
+        f"Per-item delegation paths on {name}: each held-out item's cheaper path by list price at its own sizes, against the per-task decision",
         f"matrix: {len(rows):,} rows, {len(items):,} items, {_count(len(full['tasks']), 'task')}, "
         f"{_count(len(registry.models), 'model')}; {len(full['cells']):,} cells, {pairs:,} path pairs rebuilt, "
         "each equal to its cell's inline and delegate costs and correct counts",
@@ -234,30 +242,45 @@ def _read_rows(path):
     return rows
 
 
-def run(matrix, root=ROOT) -> list:
-    """The 13.13 run on the matrix, checked against the committed summary, then `report`."""
+def run(matrix, root=ROOT, dataset="llmrouterbench", registry=None) -> list:
+    """The 13.13 run on the matrix (or with `dataset="autobench"` the 13.10 base-grid run on it and
+    the `registry` pool file), checked against the committed summary, then `report`."""
     root = Path(root)
-    script = _load("research_per_item_delegation_lrb", root / FOLDER / "results.py")
+    if dataset not in DATASETS:
+        raise ValueError(f"dataset must be one of {', '.join(DATASETS)}, got {dataset!r}")
+    if dataset == "autobench" and registry is None:
+        raise ValueError("--dataset autobench needs --registry")
+    if dataset == "llmrouterbench" and registry is not None:
+        raise ValueError("--registry is only used with --dataset autobench")
+    folder = FOLDER if dataset == "llmrouterbench" else AUTOBENCH_FOLDER
+    script = _load(f"research_per_item_delegation_{dataset}", root / folder / "results.py")
     try:
-        registry = Registry.load(root / FOLDER / "registry.json")
-        committed = json.loads((root / FOLDER / "results.json").read_text(encoding="utf-8"))
+        pool = Registry.load(root / folder / "registry.json" if registry is None else registry)
+        committed = json.loads((root / folder / "results.json").read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise ValueError(f"{FOLDER}: cannot read ({exc})") from None
-    rows, _dropped = script.select_rows(_read_rows(matrix), [m.id for m in registry.models])
-    full = evaluate_delegation(rows, registry, bars=list(script.BARS), points=script.points(),
+        where = folder if registry is None else f"{folder} or {registry}"
+        raise ValueError(f"{where}: cannot read ({exc})") from None
+    rows = _read_rows(matrix)
+    if dataset == "llmrouterbench":
+        rows, _dropped = script.select_rows(rows, [m.id for m in pool.models])
+    full = evaluate_delegation(rows, pool, bars=list(script.BARS), points=script.points(),
                                seeds=range(script.SEEDS))
     if full["summary"] != committed.get("summary"):
-        raise ValueError(f"the run's summary is not the one in {FOLDER}/results.json")
-    return report(rows, registry, full)
+        raise ValueError(f"the run's summary is not the one in {folder}/results.json")
+    return report(rows, pool, full, name=NAMES[dataset])
 
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(prog="per_item_delegation.py", description=__doc__.splitlines()[0])
-    parser.add_argument("--matrix", required=True, help="the LLMRouterBench converter's output (JSONL)")
+    parser.add_argument("--matrix", required=True,
+                        help="the converter's output (JSONL): LLMRouterBench, or AutoBench 2026 with --dataset autobench")
+    parser.add_argument("--dataset", choices=DATASETS, default="llmrouterbench",
+                        help="the delegation evidence to rerun (default: llmrouterbench, DESIGN 13.13; autobench, 13.10)")
+    parser.add_argument("--registry", help="with --dataset autobench: the AutoBench converter's --registry output")
     parser.add_argument("--root", type=Path, default=ROOT, help="repository root (default: this checkout)")
     args = parser.parse_args(argv)
     try:
-        lines = run(args.matrix, args.root)
+        lines = run(args.matrix, args.root, args.dataset, args.registry)
     except (ValueError, KeyError, TypeError, OSError) as exc:
         message = str(exc).replace("\r", "\\r").replace("\n", "\\n")
         print(f"error: {message}", file=sys.stderr)

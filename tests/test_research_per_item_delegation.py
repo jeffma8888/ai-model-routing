@@ -11,8 +11,9 @@ strict xfail; v1.228 lands both and removes the markers.
 v1.230 (row R18b) adds the AutoBench 2026 run (`--dataset autobench --registry POOL`): a hand-built
 matrix run end to end through `main` against a root whose committed 13.10 summary is that matrix's,
 the usage errors, the title line, and the note's AutoBench block, compared byte for byte when the
-pinned AutoBench files are cached. v1.230 commits these ahead of the script change and the note,
-each a strict xfail but the one that reads the v1.230 bullet.
+pinned AutoBench files are cached. v1.230 committed these ahead of the script change and the
+note, each a strict xfail but the one that reads the v1.230 bullet; v1.231 lands both and
+removes the markers.
 """
 
 import contextlib
@@ -257,7 +258,6 @@ AB_COMMAND = ("$ python research/per_item_delegation.py --dataset autobench --ma
 AB_FOLDER = ROOT / "evidence" / "delegation"
 AB_CONVERT = ("python evidence/autobench-2026/convert.py --out autobench-tokens.jsonl --task-by all --tokens"
               " --registry autobench-pool.json")
-RED = pytest.mark.xfail(strict=True, reason="v1.230 red: the AutoBench run lands in v1.231")
 
 
 def test_design_bullet_v1230_states_the_autobench_run():
@@ -272,7 +272,6 @@ def test_design_bullet_v1230_states_the_autobench_run():
         assert phrase in bullet[0], phrase
 
 
-@RED
 def test_report_title_names_the_dataset(pid, tiny):
     rows, registry, full = tiny
     default = pid.report(rows, registry, full)
@@ -307,7 +306,6 @@ def _autobench_root(tmp_path, rows, registry):
     return dr, tmp_path / "root", matrix, _registry_file(tmp_path / "pool.json", registry.models), results
 
 
-@RED
 def test_autobench_run_on_a_hand_matrix(pid, tmp_path):
     rows, registry = _rows(), Registry([P, D])
     dr, root, matrix, pool, results = _autobench_root(tmp_path, rows, registry)
@@ -330,7 +328,6 @@ def test_autobench_run_on_a_hand_matrix(pid, tmp_path):
     assert err.getvalue() == "error: the run's summary is not the one in evidence/delegation/results.json\n"
 
 
-@RED
 @pytest.mark.parametrize("argv, message", [
     (["--dataset", "autobench", "--matrix", "m.jsonl"], "--dataset autobench needs --registry"),
     (["--matrix", "m.jsonl", "--registry", "r.json"], "--registry is only used with --dataset autobench"),
@@ -342,7 +339,6 @@ def test_dataset_usage_errors(pid, argv, message):
     assert err.getvalue() == f"error: {message}\n"
 
 
-@RED
 def test_note_has_both_blocks_and_the_autobench_regenerate():
     note = NOTE.read_text(encoding="utf-8")
     assert note.count("```text\n" + COMMAND + "\n") == 1
@@ -352,7 +348,6 @@ def test_note_has_both_blocks_and_the_autobench_regenerate():
     assert AB_CONVERT in regenerate and AB_COMMAND[2:] in regenerate
 
 
-@RED
 def test_note_autobench_block_is_the_script_output(pid, tmp_path):
     cv = _load("research_pid_autobench_convert", ROOT / "evidence" / "autobench-2026" / "convert.py")
     folder = cv.default_cache_dir()
