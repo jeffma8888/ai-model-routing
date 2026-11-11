@@ -256,6 +256,8 @@ Reading it:
 
 On public data, [Delegation on AutoBench](#delegation-on-autobench) scores this decision on held-out questions for each of 20 models as the parent.
 
+In numbers, with C, B, R and T the `--context-tokens`, `--brief-tokens`, `--result-tokens` and `--carry-turns` values and `p_out / p_in` the parent's output price over its input price: for work in a call of its own (no `--fold-inline`), in one work call (`--work-calls 1`) with full-price reads of the context (no `--cached-read-ratio`), from a parent with stats for the task that the router does not exclude as a delegate and with no `price_tiers` in `models.json`, `cost_effective` delegates whenever `C - B - (1 + T) * (B + R)` is above `B * p_out / p_in`, whatever the size of the work itself, since that call re-reads the parent's whole context; at a 500-token brief and result and `--carry-turns 1` that is any `C > 2,500 + 500 * p_out / p_in`, and on the four committed delegation runs (LLMRouterBench, AutoBench 2026, tau2-bench per domain and tau2-bench pooled) all 60,000 `cost_effective` cells at such a point delegate ([research/where-delegation-pays.md](research/where-delegation-pays.md)).
+
 ## Calibrate your own task
 
 1. **Define the task** in a tasks file. `model_routing/data/example_tasks.json` ships three judge tasks and four from other domains (`support_ticket_triage`, `invoice_field_extraction`, `unit_test_codegen`, `tool_calling_support_agent`):

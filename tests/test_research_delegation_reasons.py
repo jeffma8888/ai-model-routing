@@ -406,7 +406,6 @@ def test_note_recommends_the_same_form():
         in recommended[0]
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError)
 def test_readme_inline_subsection_states_when_a_separate_call_delegates():
     readme = README.read_text(encoding="utf-8")
     inline = readme.split("\n### Inline or sub-agent\n", 1)[1].split("\n## ", 1)[0]
