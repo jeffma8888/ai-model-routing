@@ -144,9 +144,8 @@ def test_decision_rows_are_the_summary_and_pick_is_a_cost_floor(pid, tiny):
     out, _ = pid.tally(rows, registry, full)
     summary = {(r["bar"], r["flavor"], r["point"], r["parent"], r["strategy"]): r for r in full["summary"]}
     for key, row in out.items():
-        for s in ("decision", "inline", "delegate")[:1]:
-            assert (row[s]["success"], row[s]["cost_usd"]) == (summary[key + (s,)]["success"],
-                                                               summary[key + (s,)]["cost_usd"])
+        assert (row["decision"]["success"], row["decision"]["cost_usd"]) == (
+            summary[key + ("decision",)]["success"], summary[key + ("decision",)]["cost_usd"])
         floor = min(summary[key + ("inline",)]["cost_usd"], summary[key + ("delegate",)]["cost_usd"])
         assert row["pick"]["cost_usd"] <= floor + 1e-15
         assert row["pick"]["cost_usd"] <= row["size rule"]["cost_usd"] <= row["decision"]["cost_usd"] + 1e-15
@@ -208,3 +207,39 @@ def test_note_results_block_is_the_script_output(pid, llmrouterbench_delegation_
     note = NOTE.read_text(encoding="utf-8")
     block = note.split(COMMAND + "\n", 1)[1].split("\n```", 1)[0]
     assert block.split("\n") == lines
+
+
+
+def test_pick_and_size_rule_success_and_cost_are_the_brute_force_ones(pid, tiny):
+    """Each row's strategies by hand: x = j % 40, inline (10 + 2x) / 1e6 against 80 / 1e6 to v/d or
+    (60 + 2x) / 1e6 to the parent itself, compared on the integer numerators, the mode on a tie;
+    success is the parent's record on inline and the delegate's on delegate, as 13.9 averages it."""
+    rows, registry, full = tiny
+    out, _ = pid.tally(rows, registry, full)
+    held = {s: split_items([f"i{j:02d}" for j in range(80)], s, 0.5)[1] for s in range(3)}
+    want = {}
+    for c in full["cells"]:
+        right, costs = 0, []
+        for item in held[c["seed"]]:
+            j = int(item[1:])
+            x = j % 40
+            ci = 10 + 2 * x
+            cd = 80 if c["delegate"] == "v/d" else 60 + 2 * x
+            inline = ci < cd or (ci == cd and c["mode"] == "inline")
+            ok = (j % 4 != 0) if inline or c["delegate"] == "v/p" else (j % 5 != 0)
+            right += ok
+            costs.append(min(ci, cd) / 1e6)
+        pick = (right / len(held[c["seed"]]), sum(costs))
+        decision = (c["success"]["decision"], c["cost_usd"]["decision"])
+        key = (c["bar"], c["flavor"], c["point"], c["parent"])
+        rule = pick if c["reason"] in ("delegate_cheaper", "inline_cheaper") else decision
+        for s, pair in (("pick", pick), ("size rule", rule)):
+            want.setdefault((key, s), []).append(pair)
+    for (key, s), pairs in want.items():
+        assert out[key][s]["success"] == pytest.approx(sum(p[0] for p in pairs) / 3, rel=1e-12)
+        assert out[key][s]["cost_usd"] == pytest.approx(sum(p[1] for p in pairs) / 3, rel=1e-12)
+    # the hand matrix moves both: pick differs from the decision in success and cost in each flavor
+    for (key, s), pairs in want.items():
+        if s == "pick":
+            assert out[key]["pick"]["success"] != out[key]["decision"]["success"]
+            assert out[key]["pick"]["cost_usd"] < out[key]["decision"]["cost_usd"]

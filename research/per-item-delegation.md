@@ -5,7 +5,7 @@
 - Question: on the LLMRouterBench delegation evidence (`DESIGN.md` 13.13), how often is a held-out item's cheaper path, inline or delegated, by list price at that item's own sizes, not the path the per-task `DESIGN.md` 13.5 decision took, and what would taking it give?
 - Rule, stated before any number: an item's cheaper path is the one whose `DESIGN.md` 13.9 list-price cost at its recorded sizes is lower, the decision's mode on an exact tie; `pick` takes it on every cell, `size rule` only on the cells where the decision compared the two paths' costs (see Method).
 - Reads the converter's matrix of the pinned LLMRouterBench file, the committed `evidence/llmrouterbench-delegation/registry.json`, and its `results.json`, whose summary the rerun must equal. No library code, harness or results file changes.
-- Short answer: often, but where a rule could fairly take it, it saves little. In `cost_effective` an item's cheaper path is not the decision's mode on 11% to 40% of the held-out items (bars 0.1 to 0.8), and `pick` cuts the summed cost by 20% to 43% at a mean success 0.7 to 7.8 points lower. On the cells where the decision compared costs, 6.1% to 6.8% of items switch, and `size rule` cuts the summed cost by at most 1.4%, at no lower mean success.
+- Short answer: often, but where a rule could fairly take it, it saves little. In `cost_effective` an item's cheaper path is not the decision's mode on 11% to 40% of the held-out items (bars 0.1 to 0.8), and `pick` cuts the summed cost by 20% to 43% at a mean success 0.7 to 7.8 points lower. On the cells where the decision compared costs, 6.1% to 6.8% of items switch, and `size rule` cuts the summed cost of a bar's 32 rows by at most 1.4% (8.1% on its best single row), at no lower mean success.
 - Recommendation: no spec row for a per-item size rule now; a README Limitations line, a later backlog row, after the AutoBench and tau2-bench matrices are measured the same way (a new row).
 
 ## Method
@@ -51,14 +51,14 @@ matrix: 96,448 rows, 12,056 items, 9 tasks, 8 models; 115,200 cells, 33,696 path
 ## Reading it
 
 - The cheaper path differs often. In `cost_effective` `pick` switches 0.1143 of the held-out items at bar 0.1 and 0.4022 at bar 0.8, and 0.5495 at point 3, where inline work folds into the parent's next call and so pays no separate call over C. In `cost_blind` it switches 0.5605, the same at every bar.
-- Taking it everywhere trades success for cost. `pick` costs 0.8043 to 0.5710 of the decision in `cost_effective` and 0.4542 in `cost_blind`, at a mean success 0.0069 to 0.0780 and 0.0827 below it; it is better on at most 8 of a flavor and bar's 32 rows. That success is the record of the path each item takes, so the cheaper path is often the one that fails more.
+- Taking it everywhere trades success for cost. `pick` costs 0.8043 to 0.5710 of the decision in `cost_effective` and 0.4542 in `cost_blind`, at a mean success 0.0069 to 0.0780 and 0.0827 below it; it is better on at most 8 of a flavor and bar's 32 rows. That success is the record of the path each item takes; the block gives only its net change, not how the switched items fare on each path.
 - Where a rule could fairly take it, it saves little. `size rule` changes only the row 3 cells, 9238 of the 14400 at bar 0.1 and 965 at bar 0.8; it switches 0.0609 to 0.0682 of their items, costs 0.9864 to 0.9993 of the decision, and its mean success is +0.0001 to +0.0005 against the decision's, better on 7 to 10 of the 32 rows.
 - Its largest cut at no less success is at bar 0.1, point 3, parent `openai/gpt-5`: 80.9463 USD against 88.0736 at success 0.4846 against 0.4496.
 
 ## Recommendation
 
-- No spec row for a per-item size rule now. On this matrix the decision's per-task choice is within 1.4% of the cost of a rule that sees each item's sizes before the call, at the same success, so the gain that the README Limitations bullet on where delegation pays names exists here but is small.
-- Measure the AutoBench (13.10) and tau2-bench (13.12) matrices the same way first (a new backlog row), since tau2-bench prices each conversation on its own calls, where sizes may vary more from item to item; then a README Limitations line with the numbers of all three.
+- No spec row for a per-item size rule now. On this matrix the decision's per-task choice is within 1.4% of the summed cost of a rule that sees each item's sizes before the call, at the same success, though its best single row gains 8.1% (the last Reading it bullet), so the gain that the README Limitations bullet on where delegation pays names exists here but is small.
+- Measure the AutoBench (13.10) and tau2-bench (13.12) matrices the same way first (a new backlog row), since tau2-bench prices each conversation on its own calls, where sizes may vary more from item to item (a guess this note does not test); then a README Limitations line with the numbers of all three.
 
 ## Regenerate
 
