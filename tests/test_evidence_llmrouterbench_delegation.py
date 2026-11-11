@@ -14,7 +14,8 @@ span that 13.13 states.
 
 v1.239 (row E17f) adds a Reading it bullet that names, at the lowest bar and point 0, each parent
 whose `cost_effective` decision costs more than always inline, with both costs and both held-out
-successes; its test is committed ahead of the bullet as a strict xfail, and v1.240 lands the bullet.
+successes; its test was committed ahead of the bullet as a strict xfail, and v1.240 lands the bullet
+and removes the marker.
 """
 
 import importlib.util
@@ -502,7 +503,6 @@ def test_dearer_than_inline_bullet_cases():
         "`a/x` (2.0000 against 1.0000 USD, held-out success 0.500 against 0.250).")
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="v1.239: the bullet lands in v1.240")
 def test_results_md_reading_it_names_the_parents_dearer_than_inline():
     results = committed_results()
     bullet = dearer_than_inline(results)

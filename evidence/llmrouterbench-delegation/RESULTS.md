@@ -96,6 +96,7 @@ cost_blind      z-ai/glm-4.6                     0.991      0.591        226.917
 - In `cost_effective` the decision delegates on every seed for every parent at points 0 to 2 at every bar (`delegate_rate` 1.0 on all 96 of their decision rows); at point 3, the work folded into the parent's next call, its rate averaged over the 8 parents is 0.718, 0.780, 0.814 and 0.910 at bars 0.1, 0.3, 0.5 and 0.8.
 - At bar 0.1 and point 0 (8,000 context tokens), averaged over the 8 parents, the `cost_effective` decision costs 69.5970 USD on a held-out half against 133.3194 for always inline (1.92 times as much), with held-out success 0.450 against 0.445.
 - At bar 0.8 and point 0 it costs 221.6676 USD against 133.3194 for always inline, with held-out success 0.582 against 0.445.
+- At bar 0.1 and point 0 the `cost_effective` decision costs more than always inline for 3 of the 8 parents: `deepseek/deepseek-v3-0324` (48.5201 against 19.1648 USD, held-out success 0.450 against 0.409), `deepseek/deepseek-v3.1-terminus` (49.1231 against 22.1792 USD, held-out success 0.450 against 0.432) and `internlm/intern-s1` (46.6510 against 38.3437 USD, held-out success 0.450 against 0.370).
 - `results.json` is 230,012 bytes.
 
 ## Regenerate
