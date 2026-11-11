@@ -7,6 +7,12 @@ LLMRouterBench matrix, compared byte for byte when the pinned file is cached (th
 `llmrouterbench_delegation_full` of tests/conftest.py, which CI never fills). v1.227 committed these
 tests ahead of the script and the note, every test but the one that reads the DESIGN bullet a
 strict xfail; v1.228 lands both and removes the markers.
+
+v1.230 (row R18b) adds the AutoBench 2026 run (`--dataset autobench --registry POOL`): a hand-built
+matrix run end to end through `main` against a root whose committed 13.10 summary is that matrix's,
+the usage errors, the title line, and the note's AutoBench block, compared byte for byte when the
+pinned AutoBench files are cached. v1.230 commits these ahead of the script change and the note,
+each a strict xfail but the one that reads the v1.230 bullet.
 """
 
 import contextlib
@@ -243,3 +249,126 @@ def test_pick_and_size_rule_success_and_cost_are_the_brute_force_ones(pid, tiny)
         if s == "pick":
             assert out[key]["pick"]["success"] != out[key]["decision"]["success"]
             assert out[key]["pick"]["cost_usd"] < out[key]["decision"]["cost_usd"]
+
+
+# --- v1.230 (row R18b): the AutoBench 2026 run ------------------------------------------------
+AB_COMMAND = ("$ python research/per_item_delegation.py --dataset autobench --matrix autobench-tokens.jsonl"
+              " --registry autobench-pool.json")
+AB_FOLDER = ROOT / "evidence" / "delegation"
+AB_CONVERT = ("python evidence/autobench-2026/convert.py --out autobench-tokens.jsonl --task-by all --tokens"
+              " --registry autobench-pool.json")
+RED = pytest.mark.xfail(strict=True, reason="v1.230 red: the AutoBench run lands in v1.231")
+
+
+def test_design_bullet_v1230_states_the_autobench_run():
+    text = DESIGN.read_text(encoding="utf-8")
+    section = text.split("### 13.8 ", 1)[1].split("### 13.9 ", 1)[0]
+    bullet = [line for line in section.splitlines()
+              if line.startswith("- v1.230, per-item delegation paths on AutoBench: ")]
+    assert len(bullet) == 1
+    for phrase in ("`--dataset NAME`", "`--registry POOL`", "`evidence/delegation/results.py`",
+                   "`evidence/delegation/results.json`", "refuses `--registry`", "`AutoBench 2026`",
+                   "LLMRouterBench's unchanged", "row R18b", "No library code"):
+        assert phrase in bullet[0], phrase
+
+
+@RED
+def test_report_title_names_the_dataset(pid, tiny):
+    rows, registry, full = tiny
+    default = pid.report(rows, registry, full)
+    assert default[0].startswith("Per-item delegation paths on LLMRouterBench: ")
+    lines = pid.report(rows, registry, full, name="AutoBench 2026")
+    assert lines[0] == ("Per-item delegation paths on AutoBench 2026: each held-out item's cheaper path by "
+                        "list price at its own sizes, against the per-task decision")
+    assert lines[1:] == default[1:]
+
+
+def _registry_file(path, models):
+    entries = [dict(dataclasses.asdict(m), source="https://example.org/prices") for m in models]
+    for e in entries:
+        if not e["price_tiers"]:
+            del e["price_tiers"]
+    path.write_text(json.dumps({"version": "1", "as_of": "2026-01-01", "currency": "USD",
+                                "models": entries}), encoding="utf-8")
+    return path
+
+
+def _autobench_root(tmp_path, rows, registry):
+    """A root holding the 13.10 script and the results.json it writes from the hand matrix."""
+    dr = _load("research_pid_autobench_results", AB_FOLDER / "results.py")
+    folder = tmp_path / "root" / "evidence" / "delegation"
+    folder.mkdir(parents=True)
+    (folder / "results.py").write_text((AB_FOLDER / "results.py").read_text(encoding="utf-8"),
+                                       encoding="utf-8")
+    results = folder / "results.json"
+    results.write_text(json.dumps(dr.run(rows, registry), indent=2) + "\n", encoding="utf-8")
+    matrix = tmp_path / "m.jsonl"
+    matrix.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    return dr, tmp_path / "root", matrix, _registry_file(tmp_path / "pool.json", registry.models), results
+
+
+@RED
+def test_autobench_run_on_a_hand_matrix(pid, tmp_path):
+    rows, registry = _rows(), Registry([P, D])
+    dr, root, matrix, pool, results = _autobench_root(tmp_path, rows, registry)
+    argv = ["--dataset", "autobench", "--matrix", str(matrix), "--registry", str(pool), "--root", str(root)]
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out):
+        assert pid.main(argv) == 0
+    full = evaluate_delegation(rows, registry, bars=list(dr.BARS), points=dr.points(), seeds=range(dr.SEEDS))
+    want = pid.report(rows, registry, full, name="AutoBench 2026")
+    assert out.getvalue() == "\n".join(want) + "\n"
+    assert want[0].startswith("Per-item delegation paths on AutoBench 2026: ")
+    assert want[1].startswith("matrix: 160 rows, 80 items, 1 task, 2 models; 1,600 cells, ")
+    # a committed summary that the run does not give stops it
+    moved = json.loads(results.read_text(encoding="utf-8"))
+    moved["summary"][0]["cost_usd"] += 1e-12
+    results.write_text(json.dumps(moved, indent=2) + "\n", encoding="utf-8")
+    err = io.StringIO()
+    with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
+        assert pid.main(argv) == 2
+    assert err.getvalue() == "error: the run's summary is not the one in evidence/delegation/results.json\n"
+
+
+@RED
+@pytest.mark.parametrize("argv, message", [
+    (["--dataset", "autobench", "--matrix", "m.jsonl"], "--dataset autobench needs --registry"),
+    (["--matrix", "m.jsonl", "--registry", "r.json"], "--registry is only used with --dataset autobench"),
+])
+def test_dataset_usage_errors(pid, argv, message):
+    err = io.StringIO()
+    with contextlib.redirect_stderr(err):
+        assert pid.main(argv) == 2
+    assert err.getvalue() == f"error: {message}\n"
+
+
+@RED
+def test_note_has_both_blocks_and_the_autobench_regenerate():
+    note = NOTE.read_text(encoding="utf-8")
+    assert note.count("```text\n" + COMMAND + "\n") == 1
+    assert note.count("```text\n" + AB_COMMAND + "\n") == 1
+    assert note.index(COMMAND) < note.index(AB_COMMAND) < note.index("## Reading it")
+    regenerate = note.split("## Regenerate", 1)[1]
+    assert AB_CONVERT in regenerate and AB_COMMAND[2:] in regenerate
+
+
+@RED
+def test_note_autobench_block_is_the_script_output(pid, tmp_path):
+    cv = _load("research_pid_autobench_convert", ROOT / "evidence" / "autobench-2026" / "convert.py")
+    folder = cv.default_cache_dir()
+    if not all((folder / n).is_file() for n in cv.FILES):
+        pytest.skip("pinned AutoBench files are not in the default cache")
+    for name, (size, sha) in cv.FILES.items():
+        cv.verify(folder / name, size, sha)
+    params = json.loads((folder / "frozen_params.json").read_text(encoding="utf-8"))
+    pool = json.loads((folder / "pool.json").read_text(encoding="utf-8"))
+    rows, _report = cv.convert(cv.read_csv(folder / "matrix.csv"), cv.read_csv(folder / "questions.csv"),
+                               pool, params["delta_signal"], params["top_k"], task_by="all", tokens=True)
+    matrix = tmp_path / "autobench-tokens.jsonl"
+    matrix.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    registry = tmp_path / "autobench-pool.json"
+    registry.write_text(json.dumps(cv.pool_registry(pool)), encoding="utf-8")
+    lines = pid.run(matrix, ROOT, dataset="autobench", registry=registry)
+    note = NOTE.read_text(encoding="utf-8")
+    block = note.split(AB_COMMAND + "\n", 1)[1].split("\n```", 1)[0]
+    assert block.split("\n") == lines
