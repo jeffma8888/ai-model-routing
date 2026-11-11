@@ -412,6 +412,8 @@ Results at a glance, each number from the committed results of the subsection it
 
 Why routing costs less than the best single model on some of the first six datasets in the list above, never reaches its held-out success on the first five and passes it on LLMRouterBench: [research/where-routing-pays.md](research/where-routing-pays.md) sets each dataset's tasks, calibration halves and picks beside the best single model, read from the same files
 
+Whether choosing per task between inline work and a sub-agent beats a fixed policy, on the datasets of the last three bullets above: [research/where-delegation-pays.md](research/where-delegation-pays.md) finds the `cost_effective` decision equal to always delegating on 403 of their 432 (bar, point, parent) rows and, in either flavor, better than both fixed policies on none, and [research/per-item-delegation.md](research/per-item-delegation.md) finds that taking each held-out item's cheaper path only on the cells where the decision chose by cost cuts a bar's summed cost by at most 1.4%, at no lower mean success
+
 ### RouterBench
 
 - Dataset: [withmartian/routerbench](https://huggingface.co/datasets/withmartian/routerbench) on Hugging Face, pinned at revision [`7840214`](https://huggingface.co/datasets/withmartian/routerbench/tree/784021482c3f320c6619ed4b3bb3b41a21424fcb), file `routerbench_0shot.pkl`, checked by size and sha256 before it is loaded

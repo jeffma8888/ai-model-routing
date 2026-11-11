@@ -302,8 +302,8 @@ def evidence_section():
 def test_readme_opens_the_evidence_section_with_the_glance_list():
     intro = evidence_section().split("\n### ", 1)[0]
     paragraphs = intro.strip("\n").split("\n\n")
-    # v1.258: the paragraph count, now five, is checked with the delegation pointer below
-    assert len(paragraphs) >= 4, paragraphs[1:]
+    # v1.258: a fifth paragraph, the delegation pointer, is checked below
+    assert len(paragraphs) == 5, paragraphs[1:]
     assert not paragraphs[0].startswith(("- ", "Results at a glance"))
     assert "\n\n".join(paragraphs[1:3]) + "\n" == glance(committed())
     # v1.124: one paragraph after the bullets links the note on where routing pays
@@ -672,7 +672,6 @@ def test_design_specifies_the_delegation_pointer():
            "below, and by nothing else." in section
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="v1.258: the README paragraph lands in v1.259")
 def test_the_delegation_pointer_follows_the_routing_one():
     intro = evidence_section().split("\n### ", 1)[0]
     paragraphs = intro.strip("\n").split("\n\n")
