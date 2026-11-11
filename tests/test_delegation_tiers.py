@@ -223,3 +223,21 @@ def test_design_specifies_per_call_tiers():
     ]:
         assert text.count(fragment) == 1, fragment
 
+
+def test_design_states_why_the_parents_own_output_stays_uncharged():
+    """DESIGN 13.2 v1.242 (row P1d): no input gives the parent's own output in a later shared
+    call a size, so the row closes with that reason and no cost changes."""
+    text = (ROOT / "DESIGN.md").read_text(encoding="utf-8")
+    for fragment in [
+        "  - v1.242 why that output stays uncharged (row P1d): no input gives it a size.",
+        "the decision turn reads C on both paths, A = 0, so it pays in(C) and out(C) on both",
+        "leaves out o * (out(C + A) - out(C + A')) of the difference between the paths",
+        "the 13.9 rows record only the work's calls, so no committed delegation result could set it",
+        "Not charged, as in 13.2 v1.219: the parent's own output in a shared call, which neither "
+        "the inputs nor a matrix row give a size (13.2 v1.242)",
+        "From v1.242 (row P1d) it names one cost still at the base prices, grok-4.7 over 200K "
+        "input tokens",
+        "- v1.242 (2026-11-10): spec and tests (row P1d).",
+    ]:
+        assert text.count(fragment) == 1, fragment
+

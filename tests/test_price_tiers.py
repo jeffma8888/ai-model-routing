@@ -264,7 +264,7 @@ README_NOTES = [
     "not state, so its `models.json` row has no tier and a longer call is costed at 2 / 6",
 ]
 README_LIMITATION = (
-    "- A long-prompt tier is costed per call where `models.json` gives its rates (`price_tiers`, `DESIGN.md` 4.1): a call whose input is over the tier's threshold pays the tier's prices on all of its input and output tokens, as the claude-haiku-5.5 and gpt-6-astra pages state, and the inline-or-delegate cost and the held-out costs of the delegation evidence price each work call and each later parent call at its own tier (`DESIGN.md` 13.2, 13.9). Two costs stay at the base prices, so a long-context call there is under-costed: grok-4.7 over 200K input tokens, whose page says the rates are higher without stating them, and the parent's own output in a later call that a path's additions take over a threshold. A task whose line is a whole conversation, such as `tool_calling_support_agent`, is costed as one call of the conversation's summed sizes, so a tiered model can be costed at its higher price although each of its calls is shorter")
+    "- A long-prompt tier is costed per call where `models.json` gives its rates (`price_tiers`, `DESIGN.md` 4.1): a call whose input is over the tier's threshold pays the tier's prices on all of its input and output tokens, as the claude-haiku-5.5 and gpt-6-astra pages state, and the inline-or-delegate cost and the held-out costs of the delegation evidence price each work call and each later parent call at its own tier (`DESIGN.md` 13.2, 13.9). Only grok-4.7 over 200K input tokens stays at the base prices, so a call there is under-costed: its page says the rates are higher without stating them. The parent's own output in a later call, its next step after the work, is charged on neither path, since no input gives it a size, so where a path's additions take that call over a threshold the higher price of that output is left out. A task whose line is a whole conversation, such as `tool_calling_support_agent`, is costed as one call of the conversation's summed sizes, so a tiered model can be costed at its higher price although each of its calls is shorter")
 
 
 def section(text, heading):
@@ -274,6 +274,7 @@ def section(text, heading):
     return lines[start + 1:end]
 
 
+@pytest.mark.xfail(strict=True, raises=AssertionError, reason="v1.242 spec: the README Limitations wording lands in v1.243")
 def test_readme_pricing_notes_and_limitation():
     text = (ROOT / "README.md").read_text(encoding="utf-8")
     lines = text.split("\n")
@@ -285,3 +286,5 @@ def test_readme_pricing_notes_and_limitation():
     assert limitations.count(README_LIMITATION) == 1
     assert not any("Cost is linear" in line or "is not modelled, so long-context" in line
                    for line in lines)
+    # v1.242 (row P1d): the parent's own output is uncharged, not at the base prices
+    assert not any("Two costs stay at the base prices" in line for line in lines)
