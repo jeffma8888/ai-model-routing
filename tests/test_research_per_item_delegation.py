@@ -4,9 +4,9 @@ The script's counts are checked against a brute-force count on a hand-built two-
 per-item costs are worked by hand below, including an exact cost tie, and its refusals on a moved
 cost, a tiered model and per-call rows. The note's results block is the script's output on the
 LLMRouterBench matrix, compared byte for byte when the pinned file is cached (the session fixture
-`llmrouterbench_delegation_full` of tests/conftest.py, which CI never fills). v1.227 commits these
-tests ahead of the script and the note: every test but the one that reads the DESIGN bullet is a
-strict xfail until v1.228.
+`llmrouterbench_delegation_full` of tests/conftest.py, which CI never fills). v1.227 committed these
+tests ahead of the script and the note, every test but the one that reads the DESIGN bullet a
+strict xfail; v1.228 lands both and removes the markers.
 """
 
 import contextlib
@@ -30,8 +30,6 @@ INDEX = ROOT / "research" / "README.md"
 DESIGN = ROOT / "DESIGN.md"
 REGISTRY = ROOT / "evidence" / "llmrouterbench-delegation" / "registry.json"
 COMMAND = "$ python research/per_item_delegation.py --matrix llmrouterbench-matrix.jsonl"
-RED = pytest.mark.xfail(strict=True, raises=(FileNotFoundError, AssertionError),
-                        reason="v1.227: the script and the note land in v1.228")
 
 # --- the hand-built matrix --------------------------------------------------------------------
 # Parent v/p at 1 and 2 USD per million input and output tokens, delegate v/d at 1 and 1. One
@@ -92,7 +90,6 @@ def test_design_bullet_states_the_rule():
         assert phrase in b, phrase
 
 
-@RED
 def test_hand_costs_and_the_tie(pid):
     assert [pid._inline(P, POINT, 10, x) for x in (34, 35, 36)] == [78 / 1e6, 80 / 1e6, 82 / 1e6]
     assert pid._delegate(P, D, POINT, 10, 20) == 80 / 1e6
@@ -118,7 +115,6 @@ def _brute(rows, full):
     return out
 
 
-@RED
 def test_switched_counts_are_the_brute_force_ones(pid, tiny):
     rows, registry, full = tiny
     out, pairs = pid.tally(rows, registry, full)
@@ -143,7 +139,6 @@ def test_switched_counts_are_the_brute_force_ones(pid, tiny):
     assert got["cost_blind", "size rule"] == [0, 0]
 
 
-@RED
 def test_decision_rows_are_the_summary_and_pick_is_a_cost_floor(pid, tiny):
     rows, registry, full = tiny
     out, _ = pid.tally(rows, registry, full)
@@ -157,7 +152,6 @@ def test_decision_rows_are_the_summary_and_pick_is_a_cost_floor(pid, tiny):
         assert row["pick"]["cost_usd"] <= row["size rule"]["cost_usd"] <= row["decision"]["cost_usd"] + 1e-15
 
 
-@RED
 def test_report_lines(pid, tiny):
     rows, registry, full = tiny
     lines = pid.report(rows, registry, full)
@@ -172,7 +166,6 @@ def test_report_lines(pid, tiny):
     assert lines[-1] == "  largest cost cut at no less success, size rule, cost_blind: no row"
 
 
-@RED
 def test_refusals(pid, tiny):
     rows, registry, full = tiny
     moved = copy.deepcopy(full)
@@ -192,7 +185,6 @@ def test_refusals(pid, tiny):
         pid.tally(calls, registry, full)
 
 
-@RED
 def test_main_exits_2_with_one_error_line(pid, tmp_path):
     err = io.StringIO()
     with contextlib.redirect_stderr(err):
@@ -200,7 +192,6 @@ def test_main_exits_2_with_one_error_line(pid, tmp_path):
     assert err.getvalue().startswith("error: ") and err.getvalue().count("\n") == 1
 
 
-@RED
 def test_note_states_the_rule_first_and_is_indexed():
     note = NOTE.read_text(encoding="utf-8")
     assert note.startswith("# ") and "\n## Facts\n" in note
@@ -211,7 +202,6 @@ def test_note_states_the_rule_first_and_is_indexed():
         "`research/per-item-delegation.md`" in INDEX.read_text(encoding="utf-8")
 
 
-@RED
 def test_note_results_block_is_the_script_output(pid, llmrouterbench_delegation_full):
     kept, _dropped, full = llmrouterbench_delegation_full
     lines = pid.report(kept, Registry.load(REGISTRY), full)
