@@ -220,12 +220,33 @@ def _split_sums(table, models, task, cal, held) -> dict:
             "best": min(models, key=lambda m: (-succ[m] / n_cal, mean_cost[m], m))}
 
 
+@dataclass(frozen=True)
+class _CalibrationPriced(Model):
+    """A model of the routed registry (DESIGN 12.3, v1.263): a call of any size costs its mean
+    calibration cost exactly. Its ``price_in``, the mean times 1e6 per million input tokens, prices a
+    one-token call at the mean, but ``Model.cost`` at it is ``(mean * 1e6) / 1e6``, which can merge
+    two means one ulp apart into one cost."""
+
+    mean_cost: float = 0.0
+
+    def cost(self, input_tokens: int, output_tokens: int) -> float:
+        return self.mean_cost
+
+
+def _routed_registry(models, mean_cost) -> Registry:
+    """The registry ``routed`` is chosen over (12.3): each model of ``models``, in that order, costing
+    ``mean_cost[model]`` a call, with a window no call reaches, so rules 1 to 5 of 5.2 exclude none.
+    research/check_fallback.py and research/below_bar_fallback.py rebuild a cell's router over it."""
+    return Registry([_CalibrationPriced(m, m, mean_cost[m] * 1_000_000, 0.0, 2 ** 62,
+                                        mean_cost=mean_cost[m]) for m in models])
+
+
 def _cell(split, models, strategies, task, bar, flavor, seed, min_samples, confidence) -> dict:
     n_cal, succ, mean_cost = split["n_cal"], split["succ"], split["mean_cost"]
     stats = Stats()
     for m in models:
         stats.add(task, m, succ[m], n_cal)
-    registry = Registry([Model(m, m, mean_cost[m] * 1_000_000, 0.0, 2 ** 62) for m in models])
+    registry = _routed_registry(models, mean_cost)
     t = Task(name=task, bar=bar, min_samples=min_samples, confidence=confidence,
              independent_of_generator=False, expected_input_tokens=1, expected_output_tokens=0,
              on_no_model="best_available", max_fallbacks=0)

@@ -22,7 +22,8 @@ import math
 import sys
 from pathlib import Path
 
-from model_routing import Model, Registry, Router, Stats, Task, evaluate, load_outcomes, split_items
+from model_routing import Router, Stats, Task, evaluate, load_outcomes, split_items
+from model_routing.evaluate import _routed_registry
 
 ROOT = Path(__file__).resolve().parents[1]
 RESULTS = "evidence/llmrouterbench/results.json"
@@ -41,7 +42,7 @@ def route(succ, mean_cost, n_cal, task, flavor, bar, min_samples, confidence, ma
     stats = Stats()
     for m in succ:
         stats.add(task, m, succ[m], n_cal)
-    registry = Registry([Model(m, m, mean_cost[m] * 1_000_000, 0.0, 2 ** 62) for m in succ])
+    registry = _routed_registry(succ, mean_cost)
     spec = Task(name=task, bar=bar, min_samples=min_samples, confidence=confidence,
                 independent_of_generator=False, expected_input_tokens=1, expected_output_tokens=0,
                 on_no_model="best_available", max_fallbacks=max_fallbacks)
