@@ -589,8 +589,10 @@ DELEGATION = ("Delegation on AutoBench", "Delegation on tau2-bench", "Delegation
 PER_ITEM_COMMAND = "$ python research/per_item_delegation.py "
 # the four runs of the per-item note: no --dataset is LLMRouterBench (DESIGN 13.8 v1.227 to v1.233)
 PER_ITEM_RUNS = [None, "autobench", "tau2-bench", "tau2-bench-pooled"]
-SIZE_RULE = re.compile(r"^  cost_effective +\d\.\d +size rule +\d+ +[\d,]+ / [\d,]+ +(?:-|\d\.\d{4}) +"
-                       r"(\d\.\d{4}) +([+-]\d\.\d{4}) +\d+$")
+# every line of a block's table, between its header and its first `pick, switched share by point` line
+TABLE_ROW = re.compile(r"^  (cost_effective|cost_blind) +(\d\.\d) +(pick|size rule) +\d+ +[\d,]+ / [\d,]+ +"
+                       r"(?:-|\d\.\d{4}) +(\d\.\d{4}) +([+-]\d\.\d{4}) +\d+$")
+TABLE_END = "  pick, switched share by point, "
 
 
 def pays_totals(note):
@@ -624,6 +626,28 @@ def per_item_blocks(note):
     return blocks
 
 
+def table_rows(block):
+    """(flavor, bar, strategy, cost / decision, success - decision) of every table line of a per-item block. Fails
+    closed (DESIGN 12.8 v1.260, review iter-176 must-fix 1): each line from the header to the first `pick, switched
+    share by point` line must be a table row, and both strategies of both flavors must give the same bars, each
+    once, so a malformed or missing row fails instead of being skipped."""
+    lines = block.splitlines()
+    heads = [k for k, line in enumerate(lines) if line.startswith("  flavor ")]
+    ends = [k for k, line in enumerate(lines) if line.startswith(TABLE_END)]
+    assert len(heads) == 1 and ends and ends[0] > heads[0], "no table between a header and its end"
+    rows = []
+    for line in lines[heads[0] + 1:ends[0]]:
+        found = TABLE_ROW.match(line)
+        assert found, f"not a table row: {line!r}"
+        rows.append(found.groups())
+    bars = {(f, k): [r[1] for r in rows if (r[0], r[2]) == (f, k)]
+            for f in ("cost_effective", "cost_blind") for k in ("pick", "size rule")}
+    first = bars[("cost_effective", "pick")]
+    assert first and len(set(first)) == len(first) and all(b == first for b in bars.values()), \
+        f"the strategies' bars differ: {bars}"
+    return rows
+
+
 def size_rule_cut(note):
     """One minus the smallest `cost_effective` `size rule` `cost / decision` of the four blocks, as a percent to
     two significant figures (DESIGN 13.8 v1.236 rounding), after checking that none loses mean success."""
@@ -631,10 +655,8 @@ def size_rule_cut(note):
     assert sorted(blocks, key=str) == sorted(PER_ITEM_RUNS, key=str), sorted(blocks, key=str)
     rows = []
     for name in PER_ITEM_RUNS:
-        found = [SIZE_RULE.match(line) for line in blocks[name].splitlines()
-                 if line.startswith("  cost_effective ") and " size rule " in line]
-        assert found and all(found), name
-        rows += [(decimal.Decimal(m[1]), m[2]) for m in found]
+        rows += [(decimal.Decimal(cost), success) for flavor, _bar, strategy, cost, success in table_rows(blocks[name])
+                 if (flavor, strategy) == ("cost_effective", "size rule")]
     assert all(success.startswith("+") for _cost, success in rows), "a size rule row loses mean success"
     value = (1 - min(cost for cost, _success in rows)) * 100
     step = decimal.Decimal(1).scaleb(value.adjusted() - 1)
@@ -729,6 +751,30 @@ def _drop_a_block(per_item):
     return per_item.replace(old, "$ python research/other.py --dataset tau2-bench-pooled ")
 
 
+# review iter-176 must-fix 1: a non-minimum LLMRouterBench row with a tab after `size rule` and a loss in mean
+# success was skipped by the old prefilter, leaving the paragraph unchanged
+TABBED = "  cost_effective  0.3  size rule    7150   259,159 / 3,991,675  0.0649           0.9975             +0.0005"
+
+
+def _tab_a_row(per_item):
+    assert per_item.count(TABBED) == 1
+    return per_item.replace(TABBED, TABBED.replace("size rule    ", "size rule\t").replace("+0.0005", "-0.0005"))
+
+
+def _drop_a_row(per_item):
+    assert per_item.count(TABBED + "       9\n") == 1
+    return per_item.replace(TABBED + "       9\n", "")
+
+
+def _end_the_table(per_item):
+    """The LLMRouterBench block, the first, loses both lines that end its table."""
+    for flavor in ("cost_effective", "cost_blind"):
+        old = f"  pick, switched share by point, {flavor}: "
+        assert per_item.count(old) == 4
+        per_item = per_item.replace(old, f"  pick switched share by point, {flavor}: ", 1)
+    return per_item
+
+
 def _move_the_cut(per_item):
     old = "0.0609           0.9864             +0.0005"
     assert per_item.count(old) == 1
@@ -739,6 +785,9 @@ def _move_the_cut(per_item):
     (_break_better, 0, "a row is better than both"),
     (_break_size_rule, 1, "a size rule row loses mean success"),
     (_drop_a_block, 1, r"\[None, 'autobench', 'tau2-bench'\]"),
+    (_tab_a_row, 1, r"not a table row: '  cost_effective  0\.3  size rule\\t"),
+    (_drop_a_row, 1, "the strategies' bars differ"),
+    (_end_the_table, 1, "no table between a header and its end"),
 ])
 def test_a_note_that_breaks_a_claim_fails_the_pointer(change, which, match):
     texts = list(notes())
