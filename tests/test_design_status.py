@@ -7,7 +7,14 @@ sections hold `- v1.N` sub-bullets (for example `- v1.114, packaging: ...`) that
 changelog entries, so only the lines after the heading count. After the heading, a bullet that
 looks like an entry in another form (`* v1.2 (...`, `-  v1.2 (...`, `- v1.x`) is a problem, not
 skipped, so a new entry in another bullet form cannot leave a stale Status line green (v1.160,
-review iter-132 nit 1)."""
+review iter-132 nit 1).
+
+DESIGN 15 v1.247 (row DOC13): the parenthesis holds one clause for each of the five highest
+changelog versions (each of them while there are fewer than five), highest first, and then ends
+with one pointer, `; earlier versions are in 15. Changelog`, before its closing parenthesis. A
+clause opens with its version and a space or a comma, and each clause after the first starts
+after a `; `, so a slice that adds a version drops the oldest clause; at v1.246 the line held 113
+clauses in 22,023 bytes."""
 
 import re
 from pathlib import Path
@@ -20,6 +27,14 @@ HEADING = "## 15. Changelog"
 ENTRY = re.compile(r"^- v(\d+)\.(\d+) \((\d{4}-\d{2}-\d{2})[,)]")
 STATUS = re.compile(r"^Status: v(\d+)\.(\d+), (\d{4}-\d{2}-\d{2}) \(v(\d+)\.(\d+)[ ,]")
 LOOKALIKE = re.compile(r"^\s*[-*+]\s+v\d")
+POINTER = "; earlier versions are in 15. Changelog"
+CLAUSES = 5
+CLAUSE_START = re.compile(r"; (?=v\d+\.\d+[ ,])")
+VERSION = re.compile(r"v(\d+)\.(\d+)")
+
+
+def shown(version):
+    return f"v{version[0]}.{version[1]}"
 
 
 def status_problems(text):
@@ -52,7 +67,6 @@ def status_problems(text):
     if found is None:
         return problems + ["the Status line is not in the `Status: vX.Y, YYYY-MM-DD (vX.Y ` form"]
     named = (int(found[1]), int(found[2]))
-    shown = lambda v: f"v{v[0]}.{v[1]}"
     if named != top:
         problems.append(
             f"Status names {shown(named)} but the highest changelog version is {shown(top)}")
@@ -62,6 +76,29 @@ def status_problems(text):
     opening = (int(found[4]), int(found[5]))
     if opening != named:
         problems.append(f"Status names {shown(named)} but its parenthesis opens with {shown(opening)}")
+    return problems + parenthesis_problems(lines[status[0]], sorted(latest, reverse=True))
+
+
+def clause_versions(line):
+    """The version each clause of the Status parenthesis opens with, in line order (v1.247)."""
+    start = line.index(" (") + 2
+    end = line.rfind(POINTER) if POINTER in line else len(line) - line.endswith(")")
+    return [tuple(int(n) for n in VERSION.match(clause).groups())
+            for clause in CLAUSE_START.split(line[start:end])]
+
+
+def parenthesis_problems(line, versions):
+    """v1.247: one clause per each of the five highest versions, highest first, then the pointer."""
+    problems = []
+    if line.count(POINTER) != 1:
+        problems.append(f"the Status line holds the changelog pointer {line.count(POINTER)} times, not once")
+    if not line.endswith(POINTER + ")"):
+        problems.append("the Status line does not end with the changelog pointer and a closing parenthesis")
+    named = clause_versions(line)
+    want = versions[:CLAUSES]
+    if named != want:
+        problems.append(f"the Status clauses name {', '.join(map(shown, named))} but the {len(want)} highest "
+                        f"changelog versions, highest first, are {', '.join(map(shown, want))}")
     return problems
 
 
@@ -69,6 +106,8 @@ def read():
     return DESIGN.read_text(encoding="utf-8")
 
 
+@pytest.mark.xfail(strict=True, raises=AssertionError,
+                   reason="v1.247 spec: the v1.247 Status line still holds 114 clauses and no pointer")
 def test_the_status_line_names_the_last_changelog_version():
     assert status_problems(read()) == []
 
@@ -162,11 +201,53 @@ def test_a_broken_design_fails_the_check(name):
     assert status_problems(mutant) != []
 
 
+def _versions(text):
+    changelog = text.split("\n" + HEADING + "\n", 1)[1]
+    return sorted({(int(m[1]), int(m[2])) for m in re.finditer(ENTRY.pattern, changelog, re.M)},
+                  reverse=True)
+
+
+def _sixth_clause(text):
+    line = _status_line(text)
+    sixth = _versions(text)[CLAUSES]
+    return _swap_status(text, line.replace(POINTER, f"; {shown(sixth)} an older clause kept{POINTER}", 1))
+
+
+def _clause_dropped(text):
+    line = _status_line(text)
+    end = line.rfind(POINTER)
+    last = max(m.start() for m in CLAUSE_START.finditer(line[:end]))
+    return _swap_status(text, line[:last] + line[end:])
+
+
+def _pointer_dropped(text):
+    return _swap_status(text, _status_line(text).replace(POINTER, "", 1))
+
+
+PARENTHESIS_BROKEN = {
+    "a sixth clause, an older one kept": _sixth_clause,
+    "the last clause dropped": _clause_dropped,
+    "the pointer dropped": _pointer_dropped,
+}
+
+
+@pytest.mark.xfail(strict=True, raises=AssertionError,
+                   reason="v1.247 spec: the v1.247 Status line still holds 114 clauses and no pointer")
+@pytest.mark.parametrize("name", sorted(PARENTHESIS_BROKEN))
+def test_a_broken_status_parenthesis_fails_the_check(name):
+    text = read()
+    assert status_problems(text) == []
+    mutant = PARENTHESIS_BROKEN[name](text)
+    assert mutant != text
+    assert status_problems(mutant) != []
+
+
 def test_sub_bullets_before_the_changelog_do_not_count():
     text = "\n".join([
         "# Design: x",
         "",
-        "Status: v1.2, 2026-01-02 (v1.2 does a thing; v1.1 did one)",
+        "Status: v1.2, 2026-01-02 (v1.2 does a thing; v1.1 did one; v1.0, first, began; "
+        "earlier versions are in 15. Changelog)",
         "",
         "## 4. Section",
         "- v1.9, a sub-bullet that is not a changelog entry",
@@ -188,7 +269,7 @@ def test_minor_versions_compare_as_numbers():
     doc = "\n".join([
         "# Design: x",
         "",
-        "Status: v1.10, 2026-01-03 (v1.10 is newer than v1.9)",
+        "Status: v1.10, 2026-01-03 (v1.10 is newer than v1.9; v1.9 is older; earlier versions are in 15. Changelog)",
         "",
         "## 1. Problem",
         "",
@@ -200,4 +281,63 @@ def test_minor_versions_compare_as_numbers():
     assert status_problems(doc) == []
     older = doc.replace("Status: v1.10, 2026-01-03 (v1.10", "Status: v1.9, 2026-01-02 (v1.9")
     assert status_problems(older) == ["Status names v1.9 but the highest changelog version is v1.10",
-                                      "Status is dated 2026-01-02 but the last v1.10 changelog line is dated 2026-01-03"]
+                                      "Status is dated 2026-01-02 but the last v1.10 changelog line is dated 2026-01-03",
+                                      "the Status clauses name v1.9, v1.9 but the 2 highest changelog versions, "
+                                      "highest first, are v1.10, v1.9"]
+
+
+def _seven_versions(status):
+    return "\n".join([
+        "# Design: x",
+        "",
+        status,
+        "",
+        "## 1. Problem",
+        "",
+        HEADING,
+        *(f"- v1.{n} (2026-01-0{n + 1}): entry {n}" for n in range(7)),
+        "",
+    ])
+
+
+GOOD = ("Status: v1.6, 2026-01-07 (v1.6 six; v1.5, spec: five; v1.4 implements v1.3: four; v1.3 three; "
+        "v1.2 two; earlier versions are in 15. Changelog)")
+
+BROKEN_PARENTHESIS = {
+    "a sixth clause": (GOOD.replace("; v1.2 two;", "; v1.2 two; v1.1 one;"),
+                       "the Status clauses name v1.6, v1.5, v1.4, v1.3, v1.2, v1.1 but the 5 highest changelog "
+                       "versions, highest first, are v1.6, v1.5, v1.4, v1.3, v1.2"),
+    "four clauses": (GOOD.replace("; v1.2 two", ""),
+                     "the Status clauses name v1.6, v1.5, v1.4, v1.3 but the 5 highest changelog versions, "
+                     "highest first, are v1.6, v1.5, v1.4, v1.3, v1.2"),
+    "a version skipped": (GOOD.replace("; v1.3 three", "").replace("v1.2 two;", "v1.2 two; v1.1 one;"),
+                          "the Status clauses name v1.6, v1.5, v1.4, v1.2, v1.1 but the 5 highest changelog "
+                          "versions, highest first, are v1.6, v1.5, v1.4, v1.3, v1.2"),
+    "two clauses swapped": (GOOD.replace("v1.4 implements v1.3: four; v1.3 three",
+                                         "v1.3 three; v1.4 implements v1.3: four"),
+                            "the Status clauses name v1.6, v1.5, v1.3, v1.4, v1.2 but the 5 highest changelog "
+                            "versions, highest first, are v1.6, v1.5, v1.4, v1.3, v1.2"),
+    "a `; ` and a version inside a clause": (GOOD.replace("v1.3 three;", "v1.3 three, after; v1.0 did it;"),
+                                             "the Status clauses name v1.6, v1.5, v1.4, v1.3, v1.0, v1.2 but the "
+                                             "5 highest changelog versions, highest first, are v1.6, v1.5, v1.4, "
+                                             "v1.3, v1.2"),
+    "the pointer dropped": (GOOD.replace("; earlier versions are in 15. Changelog", ""),
+                            "the Status line holds the changelog pointer 0 times, not once"),
+    "the pointer twice": (GOOD.replace(POINTER, POINTER + POINTER),
+                          "the Status line holds the changelog pointer 2 times, not once"),
+    "text after the pointer": (GOOD.replace(POINTER + ")", POINTER + "; v1.1 one)"),
+                               "the Status line does not end with the changelog pointer and a closing "
+                               "parenthesis"),
+}
+
+
+def test_a_good_parenthesis_passes():
+    assert status_problems(_seven_versions(GOOD)) == []
+
+
+@pytest.mark.parametrize("name", sorted(BROKEN_PARENTHESIS))
+def test_a_broken_parenthesis_is_named(name):
+    status, problem = BROKEN_PARENTHESIS[name]
+    assert status != GOOD
+    problems = status_problems(_seven_versions(status))
+    assert problem in problems
