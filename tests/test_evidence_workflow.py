@@ -23,6 +23,7 @@ WORKFLOW = ROOT / ".github" / "workflows" / "evidence.yml"
 CI = ROOT / ".github" / "workflows" / "ci.yml"
 README = ROOT / "README.md"
 DESIGN = ROOT / "DESIGN.md"
+LLMROUTERBENCH = ROOT / "evidence" / "llmrouterbench" / "convert.py"
 ROUTERBENCH_CONVERT = ROOT / "evidence" / "routerbench" / "convert.py"
 EVIDENCE = "## Evidence: held-out results on public data\n"
 SUBSECTIONS = ("AutoBench", "AutoBench judges", "tau2-bench", "LiveCodeBench", "LLMRouterBench",
@@ -387,6 +388,13 @@ def with_lines(text, change):
     return head + "        run: |\n" + "\n".join(change(lines)) + "\n      - name: Compare\n" + tail
 
 
+def llmrouterbench_sha256():
+    """The LLMRouterBench converter's pinned `SHA256`, read from its source (standard library only)."""
+    found = re.findall(r'^SHA256 = "([0-9a-f]{64})"$', LLMROUTERBENCH.read_text(encoding="utf-8"), re.M)
+    assert len(found) == 1
+    return found[0]
+
+
 def with_repeat(lines):
     """The Regenerate lines with the repeated converter line run again before the 13.13 script."""
     at = [k for k, line in enumerate(lines) if "llmrouterbench-delegation/results.py --matrix" in line]
@@ -447,6 +455,19 @@ MUTANTS = {
     "the repeated-line sentence dropped": lambda t: t.replace(
         "# A README line identical to one already run in the step is not run again when no line\n"
         "# between them names one of its files except to read it (DESIGN.md 12.13).\n", "", 1),
+    # v1.251: no cache between runs, so each run checks that the sources still serve the pinned files
+    "a cache step before Install": lambda t: t.replace(
+        "      - name: Install\n",
+        "      - uses: actions/cache@v5\n        with:\n"
+        "          path: ~/.cache/ai-model-routing-evidence/llmrouterbench\n"
+        f"          key: llmrouterbench-{llmrouterbench_sha256()}\n"
+        "      - name: Install\n", 1),
+    "a pip cache on setup-python": lambda t: t.replace(
+        '          python-version: "3.12"\n', '          python-version: "3.12"\n          cache: pip\n', 1),
+}
+CACHE_MUTANTS = {
+    "a cache step before Install": f"step names {[None, None, None] + STEP_NAMES[2:]}",
+    "a pip cache on setup-python": "setup-python is not one ci.yml Python",
 }
 REPEAT_MUTANTS = {
     "the repeated converter line kept": "Regenerate is not the README commands in order",
@@ -462,7 +483,8 @@ TIME_LIMIT_MUTANTS = {
 
 
 def test_the_mutant_count_is_the_one_design_states():
-    assert len(MUTANTS) == 26
+    assert len(MUTANTS) == 28
+    assert len(CACHE_MUTANTS) == 2 and set(CACHE_MUTANTS) <= set(MUTANTS)
     assert len(TIME_LIMIT_MUTANTS) == 5 and set(TIME_LIMIT_MUTANTS) <= set(MUTANTS)
     assert len(REPEAT_MUTANTS) == 2 and set(REPEAT_MUTANTS) <= set(MUTANTS)
 
@@ -473,6 +495,24 @@ def test_a_repeat_mutant_fails_on_the_one_check_it_names(name):
     mutant = MUTANTS[name](text)
     assert mutant != text, name
     assert problems(mutant, readme(), CI.read_text(encoding="utf-8")) == [REPEAT_MUTANTS[name]], name
+
+
+@pytest.mark.parametrize("name", sorted(CACHE_MUTANTS))
+def test_a_cache_mutant_fails_on_the_one_check_it_names(name):
+    # v1.251 (row CI9): the workflow keeps no cache between runs, and the step checks hold it.
+    text = workflow_text()
+    mutant = MUTANTS[name](text)
+    assert mutant != text, name
+    assert problems(mutant, readme(), CI.read_text(encoding="utf-8")) == [CACHE_MUTANTS[name]], name
+
+
+def test_the_design_no_cache_bullet_names_the_converter_sha256_constant():
+    bullets = [line for line in DESIGN.read_text(encoding="utf-8").split("\n")
+               if line.startswith("- No cache between runs (v1.251, row CI9): ")]
+    assert len(bullets) == 1
+    assert "the workflow keeps no cache, by choice" in bullets[0]
+    assert "keyed on the LLMRouterBench converter's pinned `SHA256`" in bullets[0]
+    assert llmrouterbench_sha256() in MUTANTS["a cache step before Install"](workflow_text())
 
 
 def test_the_time_limit_is_ten_times_the_slowest_run_in_whole_five_minutes():
