@@ -193,19 +193,21 @@ def evaluate(outcomes, bars, seeds=range(10), flavors=("cost_effective", "cost_b
                    "confidence": confidence},
         "tasks": {t: {"items": len(task_items[t]), "models": models} for t in tasks},
         "cells": cells,
-        "summary": _summary(cells, bars, flavors, seeds, tasks, strategies),
+        "summary": _summary(cells, sums, bars, flavors, seeds, tasks, strategies),
         "per_task": _per_task(cells, bars, flavors, seeds, tasks, strategies),
     }
 
 
 def _split_sums(table, models, task, cal, held) -> dict:
     """The sums of one (task, seed) that neither the bar nor the flavor enters (12.3, v1.135):
-    calibration counts and mean costs, each model's held-out success and cost, the oracle's
-    held-out pair, and the two baselines' picks."""
+    calibration counts and mean costs, each model's held-out success, correct count and cost, the
+    oracle's held-out pair and correct count, and the two baselines' picks; ``best`` is ranked on the
+    calibration count, since ``n_cal`` is one number per (task, seed) (v1.266)."""
     n_cal, n = len(cal), len(held)
     succ = {m: sum(table[task, i][m].correct for i in cal) for m in models}
     mean_cost = {m: fsum(table[task, i][m].cost_usd for i in cal) / n_cal for m in models}
-    held_success = {m: sum(table[task, i][m].correct for i in held) / n for m in models}
+    held_correct = {m: sum(table[task, i][m].correct for i in held) for m in models}
+    held_success = {m: held_correct[m] / n for m in models}
     held_cost = {m: fsum(table[task, i][m].cost_usd for i in held) for m in models}
     ok, spend = 0, []
     for i in held:
@@ -214,10 +216,10 @@ def _split_sums(table, models, task, cal, held) -> dict:
         ok += bool(right)
         spend.append(min(right) if right else min(row[m].cost_usd for m in models))
     return {"n_cal": n_cal, "n_held": n, "succ": succ, "mean_cost": mean_cost,
-            "held_success": held_success, "held_cost": held_cost,
-            "oracle": (ok / n, fsum(spend)),
+            "held_success": held_success, "held_cost": held_cost, "held_correct": held_correct,
+            "oracle": (ok / n, fsum(spend)), "oracle_correct": ok,
             "cheapest": min(models, key=lambda m: (mean_cost[m], m)),
-            "best": min(models, key=lambda m: (-succ[m] / n_cal, mean_cost[m], m))}
+            "best": min(models, key=lambda m: (-succ[m], mean_cost[m], m))}
 
 
 @dataclass(frozen=True)
@@ -279,7 +281,17 @@ def _rates(cells, strategy, bar):
     return below, len(cleared) / len(cells), violation
 
 
-def _summary(cells, bars, flavors, seeds, tasks, strategies):
+def _held_correct(split, cell, strategy) -> int:
+    """The held-out correct count of ``strategy`` in ``cell`` (12.3, v1.266): an integer from its
+    (task, seed) sums, for the model the strategy names or for the oracle, never read back from
+    the cell's rate."""
+    if strategy == "oracle":
+        return split["oracle_correct"]
+    m = cell["models"][strategy] if strategy in cell["models"] else strategy[len("model:"):]
+    return split["held_correct"][m]
+
+
+def _summary(cells, sums, bars, flavors, seeds, tasks, strategies):
     rows = []
     for bar in bars:
         for flavor in flavors:
@@ -288,7 +300,7 @@ def _summary(cells, bars, flavors, seeds, tasks, strategies):
                 per_seed_success, per_seed_cost = [], []
                 for seed in seeds:
                     cs = [c for c in group if c["seed"] == seed]
-                    correct = sum(round(c["success"][s] * c["held_out_items"]) for c in cs)
+                    correct = sum(_held_correct(sums[c["task"], c["seed"]], c, s) for c in cs)
                     total = sum(c["held_out_items"] for c in cs)
                     per_seed_success.append(correct / total)
                     per_seed_cost.append(fsum(c["cost_usd"][s] for c in cs))

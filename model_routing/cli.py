@@ -34,6 +34,17 @@ class _Parser(argparse.ArgumentParser):
         raise _BadInput(message)
 
 
+def _seed_count(text: str) -> int:
+    """``evaluate --seeds K`` (DESIGN 12.4, v1.266): an integer >= 1, else a usage error."""
+    try:
+        value = int(text)
+    except ValueError:
+        value = None
+    if value is None or value < 1:
+        raise argparse.ArgumentTypeError(f"must be an integer >= 1, got {text!r}")
+    return value
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = _Parser(prog="model-routing",
                      description="Route each repeated kind of model call to the cheapest "
@@ -70,7 +81,7 @@ def _build_parser() -> argparse.ArgumentParser:
     ev.add_argument("--outcomes", required=True)
     # default None, not [0.8]: "extend" would append the given bars to a list default
     ev.add_argument("--bar", type=float, nargs="+", action="extend", default=None)
-    ev.add_argument("--seeds", type=int, default=10)
+    ev.add_argument("--seeds", type=_seed_count, default=10)
     ev.add_argument("--flavor", nargs="+", action="extend", default=None,
                     help="flavors to run, in order (default cost_effective cost_blind)")
     ev.add_argument("--calibration-fraction", type=float, default=0.5)
@@ -247,8 +258,6 @@ def _cmd_demo(args) -> int:
 
 def _cmd_evaluate(args) -> int:
     from .evaluate import evaluate, load_outcomes
-    if args.seeds < 1:
-        raise ValueError("--seeds must be >= 1")
     registry = Registry.load(args.registry)
     result = evaluate(load_outcomes(args.outcomes, registry), bars=args.bar or [0.8],
                       seeds=range(args.seeds), flavors=args.flavor or FLAVORS,

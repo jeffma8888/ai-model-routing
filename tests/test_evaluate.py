@@ -933,7 +933,6 @@ def test_the_routed_registry_costs_each_mean_exactly():
 # for any realistic size, and |C| is one number per (task, seed)), so the tests that compare with
 # counts taken from the outcomes pass before v1.267 too; the probe below overwrites each cell's
 # rates as `_cell` returns them, which a summary that reads its counts from the rates shows.
-RED_E1E = pytest.mark.xfail(strict=True, reason="v1.267 implements v1.266 (row E1e)")
 SEEDS_MESSAGE = "error: argument --seeds: must be an integer >= 1, got {!r}"
 
 
@@ -975,7 +974,6 @@ def test_v1266_summary_success_is_the_held_out_counts_over_the_held_out_items():
         assert r["success"] == fsum(per_seed) / len(ONCE_SEEDS), r
 
 
-@RED_E1E
 def test_v1266_the_summary_never_reads_a_count_back_from_a_cell_rate(monkeypatch):
     ev, outcomes = load_ev(), once_outcomes()
     plain = run_once(outcomes)
@@ -1007,7 +1005,6 @@ def test_v1266_best_on_calibration_is_the_highest_calibration_count_then_cost_th
     assert picks == {("easy", "fiction/cheap"), ("hard", "fiction/mid"), ("graded", "fiction/best")}
 
 
-@RED_E1E
 @pytest.mark.parametrize("value", ["0", "-3", "abc", "1.5"])
 def test_v1266_a_bad_seeds_value_is_a_usage_error_before_any_file_is_read(tmp_path, capsys, value):
     code = main(["evaluate", "--outcomes", str(tmp_path / "absent.jsonl"), "--seeds", value])
