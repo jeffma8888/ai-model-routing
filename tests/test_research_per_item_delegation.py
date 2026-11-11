@@ -690,7 +690,6 @@ def per_item_bullet():
             f"{README_LINK}")
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="v1.236: the README line lands in v1.237")
 def test_readme_limitations_say_what_choosing_per_item_adds():
     readme = README.read_text(encoding="utf-8")
     limits = readme.split("\n## Limitations and non-goals (v1)\n", 1)[1].split("\n## ", 1)[0]
@@ -701,7 +700,6 @@ def test_readme_limitations_say_what_choosing_per_item_adds():
     assert sum(README_LINK in b for b in bullets) == 1
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="v1.236: the note names the README line in v1.237")
 def test_note_recommendation_names_the_readme_line():
     share, cuts, _pick_cut, _pick_loss = per_item_figures()
     note = NOTE.read_text(encoding="utf-8")
