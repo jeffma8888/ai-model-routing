@@ -444,3 +444,14 @@ def test_the_whole_below_bar_route_reaches_the_oracle(output):
     for x in whole:
         assert f"; below-bar route success {top}, " in x and x.endswith(" recovers 1.000 of the 5.3 route's gap "
                                                                        "to the oracle"), x
+
+
+# v1.263 (row E1d): the script rebuilds a cell's router over 12.3's registry, so of two means one ulp
+# apart, which the old price of mean * 1e6 per million input tokens merged into one cost, the
+# `cost_effective` route starts at the lower one, not at the lower model ID
+@pytest.mark.xfail(strict=True, reason="v1.264 implements v1.263 (row E1d)")
+def test_route_starts_at_the_lower_of_two_means_one_ulp_apart(bb):
+    low, high = float.fromhex("0x1.47ae147ae1488p-7"), float.fromhex("0x1.47ae147ae1489p-7")
+    succ, mean_cost = {"v/a": 32, "v/z": 32}, {"v/a": high, "v/z": low}
+    decision = bb.decide(succ, mean_cost, 32, "t", "cost_effective", 0.8, 30, 0.95)
+    assert (decision.primary, decision.fallbacks) == ("v/z", ("v/a",))

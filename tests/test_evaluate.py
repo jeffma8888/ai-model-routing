@@ -7,6 +7,7 @@ the implementing commit removed that marker (DESIGN 12.5).
 import hashlib
 import importlib
 import json
+import math
 import re
 from math import fsum
 
@@ -863,3 +864,61 @@ def test_a_repeated_outcome_given_directly_is_a_value_error(flip):
         ev.outcomes_from_rows(rows + [dict(rows[17], correct=rows[17]["correct"] != flip)])
     assert str(info.value) == str(from_rows.value)
     assert all(part in str(info.value) for part in (repr(o.task), repr(o.item), repr(o.model)))
+
+
+# v1.263 (row E1d, review iter-006 should-fix item 1): each model of the routed registry costs its
+# mean calibration cost exactly. Before v1.264 it was priced at mean * 1e6 per million input tokens
+# for a one-token task, so its list cost was (mean * 1e6) / 1e6, and LOW and HIGH below, one ulp
+# apart, both became HIGH: a tie that the 5.2 order gave to the lower model ID, the dearer model.
+RED_E1D = pytest.mark.xfail(strict=True, reason="v1.264 implements v1.263 (row E1d)")
+LOW = float.fromhex("0x1.47ae147ae1488p-7")  # about 0.01
+HIGH = float.fromhex("0x1.47ae147ae1489p-7")  # the next float up
+ULP_ITEMS = [f"q{i:02d}" for i in range(64)]
+ULP_SEED = 3  # puts 32 of the 64 items in calibration
+
+
+def ulp_result(ev):
+    """fiction/zeta costs LOW and fiction/alpha HIGH on every item, and both are right on every item."""
+    outcomes = [ev.Outcome("t", item, model, True, cost) for item in ULP_ITEMS
+                for model, cost in (("fiction/alpha", HIGH), ("fiction/zeta", LOW))]
+    return ev.evaluate(outcomes, bars=[0.8], seeds=[ULP_SEED])
+
+
+def test_the_one_ulp_pair_merged_under_the_old_price():
+    assert HIGH == math.nextafter(LOW, math.inf)
+    assert (LOW * 1_000_000) / 1_000_000 == (HIGH * 1_000_000) / 1_000_000 == HIGH
+    cal, held = load_ev().split_items(ULP_ITEMS, ULP_SEED)
+    # 32 is a power of two, so each model's mean calibration cost is its cost per item exactly
+    assert (len(cal), len(held)) == (32, 32)
+    assert fsum([LOW] * 32) / 32 == LOW and fsum([HIGH] * 32) / 32 == HIGH
+
+
+@RED_E1D
+def test_cost_effective_routes_to_the_lower_of_two_means_one_ulp_apart():
+    effective = cell(ulp_result(load_ev()), 0.8, "cost_effective", ULP_SEED, "t")
+    assert effective["cleared"] and effective["calibration_items"] == 32
+    assert effective["models"]["cheapest"] == "fiction/zeta"
+    assert effective["models"]["routed"] == "fiction/zeta"
+
+
+def test_cost_blind_still_gives_the_one_ulp_tie_to_the_lower_model_id():
+    blind = cell(ulp_result(load_ev()), 0.8, "cost_blind", ULP_SEED, "t")
+    assert blind["cleared"] and blind["models"]["routed"] == "fiction/alpha"
+
+
+@RED_E1D
+def test_the_routed_registry_costs_each_mean_exactly():
+    ev = load_ev()
+    means = {"fiction/a": HIGH, "fiction/b": LOW, "fiction/c": 0.1, "fiction/d": 0.0, "fiction/e": 3.3e-7}
+    assert (LOW * 1_000_000) / 1_000_000 != LOW  # the old price was one ulp off this one
+    registry = ev._routed_registry(list(means), means)
+    assert [m.id for m in registry.models] == list(means)
+    stats = Stats()
+    for m in means:
+        stats.add("t", m, 10, 10)
+    task = Task(name="t", bar=0.1, min_samples=1, confidence=0.95, independent_of_generator=False,
+                expected_input_tokens=1, expected_output_tokens=0, on_no_model="best_available",
+                max_fallbacks=0)
+    decision = Router(registry, {"t": task}, stats).select("t", "cost_effective")
+    assert {c.model_id: c.list_cost for c in decision.candidates} == means
+    assert decision.primary == "fiction/d"

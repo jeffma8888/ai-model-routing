@@ -464,3 +464,13 @@ def test_more_fallbacks_never_lower_success_or_cost(output):
         for i in (1, 2):
             assert float(got[i][1]) >= float(got[0][1]) and float(got[i][2]) >= float(got[0][2])
         assert lines[k + 1].endswith("gap to the oracle recovered 0.000")
+
+
+# v1.263 (row E1d): the script rebuilds a cell's router over 12.3's registry, so of two means one ulp
+# apart, which the old price of mean * 1e6 per million input tokens merged into one cost, the
+# `cost_effective` route starts at the lower one, not at the lower model ID
+@pytest.mark.xfail(strict=True, reason="v1.264 implements v1.263 (row E1d)")
+def test_route_starts_at_the_lower_of_two_means_one_ulp_apart(cf):
+    low, high = float.fromhex("0x1.47ae147ae1488p-7"), float.fromhex("0x1.47ae147ae1489p-7")
+    succ, mean_cost = {"v/a": 32, "v/z": 32}, {"v/a": high, "v/z": low}
+    assert cf.route(succ, mean_cost, 32, "t", "cost_effective", 0.8, 30, 0.95, 1) == ("v/z", "v/a")
