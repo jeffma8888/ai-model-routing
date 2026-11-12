@@ -21,8 +21,6 @@ import pytest
 
 from model_routing import evaluate, outcomes_from_rows
 
-pytestmark = pytest.mark.xfail(strict=True, raises=ModuleNotFoundError)
-
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "evidence" / "response-bank" / "convert.py"
 REVISION = "547beb31ecd8f12b116b87eb4f56feee73edda6c"
