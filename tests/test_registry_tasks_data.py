@@ -155,7 +155,8 @@ def test_packaged_data_dir_and_models_load_with_positive_prices_and_source_urls(
 
 JUDGE_TASKS = {"faithfulness_judge", "code_correctness_judge", "pairwise_preference_judge"}
 NON_JUDGE_TASKS = {"support_ticket_triage", "invoice_field_extraction", "unit_test_codegen",
-                   "tool_calling_support_agent"}  # the agent task from v1.90
+                   "tool_calling_support_agent",  # the agent task from v1.90
+                   "math_final_answer"}  # the exact-answer math task from v1.282
 
 
 def test_packaged_example_tasks_cover_judge_and_non_judge_domains():
@@ -283,10 +284,12 @@ def test_agent_task_values_are_the_design_9_ones():
     assert task.confidence == 0.95 and task.exclude_families == ()
     codegen = load_tasks(DATA_DIR / "example_tasks.json")["unit_test_codegen"]
     assert task.bar == codegen.bar and task.timeout_s == codegen.timeout_s
-    assert task.timeout_s == max(t.timeout_s for t in load_tasks(DATA_DIR / "example_tasks.json").values())
+    others = [t for t in load_tasks(DATA_DIR / "example_tasks.json").values() if t.name != MATH_TASK]
+    assert task.timeout_s == max(t.timeout_s for t in others)  # v1.282: the longest until the math task
+    assert "the longest of the packaged tasks until v1.282 gave `math_final_answer` 440.0:" in _agent_bullet()
     raw = json.loads((DATA_DIR / "example_tasks.json").read_text(encoding="utf-8"))["tasks"]
-    assert [row["name"] for row in raw][-1] == AGENT_TASK
-    assert "prior_category" not in raw[-1]
+    assert [row["name"] for row in raw][-2] == AGENT_TASK
+    assert "prior_category" not in raw[-2]
 
 
 def test_agent_task_min_samples_clause_is_the_wilson_threshold():
@@ -328,20 +331,25 @@ def test_agent_task_refuses_without_passing_stats():
 
 
 README_STEP_1 = ("1. **Define the task** in a tasks file. `model_routing/data/example_tasks.json` ships three judge "
-                 "tasks and four from other domains (`support_ticket_triage`, `invoice_field_extraction`, "
-                 "`unit_test_codegen`, `tool_calling_support_agent`):")
+                 "tasks and five from other domains (`support_ticket_triage`, `invoice_field_extraction`, "
+                 "`unit_test_codegen`, `tool_calling_support_agent`, `math_final_answer`):")
 README_STEP_2 = ("For `tool_calling_support_agent` a line is one whole conversation: `correct` means the checks on "
                  "its end state passed, and its token counts are the sums over the conversation's model calls.")
+README_STEP_2_MATH = ("For `math_final_answer` a line can give the final answer as `prediction` and the key's answer "
+                      "as `gold`, both in one form (for example an integer), so the `==` comparison is the "
+                      "exact-answer check.")
 
 
 def test_readme_calibrate_steps_name_the_agent_task():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     assert ("\n" + README_STEP_1 + "\n") in readme
     step_2 = ("   For `unit_test_codegen`, `correct` means the generated tests ran and passed; for an extraction "
-              "task it might mean every field matched exactly. " + README_STEP_2 + " The library only counts.")
+              "task it might mean every field matched exactly. " + README_STEP_2 + " " + README_STEP_2_MATH
+              + " The library only counts.")
     assert step_2 in readme
     assert '"' + README_STEP_2 + '"' in _agent_bullet()
-    names = ["support_ticket_triage", "invoice_field_extraction", "unit_test_codegen", AGENT_TASK]
+    assert '"' + README_STEP_2_MATH + '"' in _math_bullet()
+    names = ["support_ticket_triage", "invoice_field_extraction", "unit_test_codegen", AGENT_TASK, MATH_TASK]
     assert all(f"`{n}`" in README_STEP_1 for n in names) and set(names) == NON_JUDGE_TASKS
 
 
@@ -390,3 +398,146 @@ def test_agent_task_sizes_and_bar_from_tau2_bench_when_cached():
     clause = (f"below {words[len(above)]} of the four retail ones ("
               + " and ".join(f"{rate:g}" for rate in above) + ")")
     assert clause in _agent_bullet()
+
+
+# v1.282: the exact-answer math task (DESIGN 9)
+
+MATH_TASK = "math_final_answer"
+WORDS = {1: "one", 2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 7: "seven", 8: "eight",
+         9: "nine", 10: "ten", 11: "eleven", 12: "twelve"}
+
+
+def _math_bullet():
+    section = _design_section_9()
+    start = section.index("\n- v1.282 `math_final_answer`")
+    end = section.index("\n- ", start + 1) if "\n- " in section[start + 1:] else len(section)
+    return section[start:end]
+
+
+def _threshold(n, task):
+    from model_routing import wilson_lower_bound
+    return min(s for s in range(n + 1) if wilson_lower_bound(s, n, task.confidence) >= task.bar)
+
+
+def test_math_task_values_are_the_design_9_ones():
+    tasks = load_tasks(DATA_DIR / "example_tasks.json")
+    task = tasks[MATH_TASK]
+    assert task == Task(MATH_TASK, 0.8, min_samples=100, independent_of_generator=False,
+                        expected_input_tokens=160, expected_output_tokens=5500,
+                        on_no_model="best_available", max_fallbacks=2,
+                        prior_category="abstract_reasoning", timeout_s=440.0)
+    assert task.confidence == 0.95 and task.exclude_families == () and task.fallback_below_bar is False
+    assert task.bar == tasks["code_correctness_judge"].bar
+    assert task.min_samples == tasks["support_ticket_triage"].min_samples
+    raw = json.loads((DATA_DIR / "example_tasks.json").read_text(encoding="utf-8"))["tasks"]
+    assert [row["name"] for row in raw][-1] == MATH_TASK
+    assert raw[-1]["prior_category"] == "abstract_reasoning"
+    priors = json.loads((DATA_DIR / "priors.json").read_text(encoding="utf-8"))["categories"]
+    assert priors["abstract_reasoning"]["metric"].startswith("ARC-AGI-3 ")
+    bullet = _math_bullet()
+    assert f"`bar` {task.bar:g}, the bar of `code_correctness_judge`." in bullet
+    assert f"`min_samples` {task.min_samples}, as for `support_ticket_triage`:" in bullet
+    assert "  - `on_no_model` `best_available`: a final answer changes no record" in bullet
+    assert "  - `prior_category` `abstract_reasoning` (ARC-AGI-3, 4.4), the closest packaged category" in bullet
+
+
+def test_math_task_timeout_is_the_codegen_limit_scaled_by_its_output():
+    tasks = load_tasks(DATA_DIR / "example_tasks.json")
+    task, codegen = tasks[MATH_TASK], tasks["unit_test_codegen"]
+    assert task.timeout_s == codegen.timeout_s * task.expected_output_tokens / codegen.expected_output_tokens
+    assert task.timeout_s == max(t.timeout_s for t in tasks.values())
+    assert [t.name for t in tasks.values() if t.timeout_s == task.timeout_s] == [MATH_TASK]
+    built = (f"`timeout_s` {task.timeout_s:.1f}, the longest of the packaged tasks: the {codegen.timeout_s:g} s "
+             f"of `unit_test_codegen` scaled by the ratio of the two tasks' expected outputs, "
+             f"{task.expected_output_tokens:,} to {codegen.expected_output_tokens:,}, since")
+    assert built in _math_bullet()
+
+
+def test_math_task_min_samples_clause_is_the_wilson_threshold():
+    from model_routing import wilson_lower_bound
+    task = load_tasks(DATA_DIR / "example_tasks.json")[MATH_TASK]
+    n = task.min_samples
+    k = _threshold(n, task)
+    built = (f"At {n} a model clears {task.bar:g} only with {k} or more successes (Wilson lower bound "
+             f"{wilson_lower_bound(k, n, task.confidence):.4f} at {k} and "
+             f"{wilson_lower_bound(k - 1, n, task.confidence):.4f} at {k - 1}, 4.3), a rate of {k / n:g},")
+    assert built in _math_bullet()
+    k60 = _threshold(60, task)
+    assert f"at 60, the size of `aime`, it needs {k60} ({k60 / 60:.3f}), above all 13 rates" in _math_bullet()
+
+
+def test_math_task_routes_on_priors_without_stats_and_on_stats_with_them():
+    from model_routing import Router, Stats
+    registry = Registry.load(DATA_DIR / "models.json")
+    tasks = load_tasks(DATA_DIR / "example_tasks.json")
+    priors = Priors.load(DATA_DIR / "priors.json")
+    for flavor in ("cost_effective", "cost_blind"):
+        cold = Router(registry, tasks, Stats(), priors).select(MATH_TASK, flavor=flavor)
+        assert cold.basis == "prior" and cold.below_bar is True and len(cold.fallbacks) == 2
+        assert {c.reason for c in cold.candidates} == {"insufficient_samples"}
+        warm = Router(registry, tasks, _all_passing_stats(tasks, registry), priors).select(MATH_TASK, flavor=flavor)
+        assert [c.reason for c in warm.candidates] == ["passes"] * len(registry.models)
+        assert warm.basis == "measured" and warm.below_bar is False
+
+
+def test_select_runs_on_the_math_task_without_stats(capsys):
+    from model_routing.cli import main
+    assert main(["select", MATH_TASK]) == 0
+    out = capsys.readouterr().out
+    assert f"task:      {MATH_TASK}\n" in out
+    assert "basis:     prior\n" in out and "below_bar: true\n" in out
+    assert "`model-routing select math_final_answer` with no stats gives a route with `basis: prior`" in _math_bullet()
+
+
+def test_math_task_values_from_llmrouterbench_aime_when_cached(llmrouterbench_pinned):
+    """v1.282: the DESIGN 9 rates and token sizes, rebuilt from the pinned file's `aime` rows."""
+    import statistics
+    code, report, path = llmrouterbench_pinned
+    assert code == 0 and report["tasks"]["aime"]["half_scores"] == 0
+    with open(path, encoding="utf-8") as fh:
+        cells = [row for row in (json.loads(line) for line in fh if line.strip()) if row["task"] == "aime"]
+    models = sorted({c["model"] for c in cells})
+    items = report["tasks"]["aime"]["items"]
+    assert len(models) == 13 and items == 60 and len(cells) == items * len(models) == 780
+    task = load_tasks(DATA_DIR / "example_tasks.json")[MATH_TASK]
+    bullet = _math_bullet()
+    assert (f"come from the {len(cells)} `aime` cells of the pinned LLMRouterBench file "
+            f"({len(models)} models, {items} items, 12.18)") in bullet
+    rates = {m: round(sum(c["correct"] for c in cells if c["model"] == m) / items, 3) for m in models}
+    above = sorted((m for m in models if rates[m] > task.bar), key=lambda m: (-rates[m], m))
+    below = [m for m in models if rates[m] < task.bar]
+    assert len(above) + len(below) == len(models) and len(above) >= 2
+    built = (f"On the {items} items the {len(models)} models reach {min(rates.values()):g} to "
+             f"{max(rates.values()):g}, and {task.bar:g} is below {WORDS[len(above)]} of those rates ("
+             + ", ".join(f"`{m}` {rates[m]:g}" for m in above[:-1])
+             + f" and `{above[-1]}` {rates[above[-1]]:g}) and above the other {WORDS[len(below)]}")
+    assert built in bullet
+    k = _threshold(task.min_samples, task)
+    best = max(rates.values())
+    assert [m for m in models if rates[m] >= k / task.min_samples] == [above[0]]
+    assert f"which only the best `aime` rate ({best:g}) reaches" in bullet
+    assert _threshold(60, task) / 60 > best
+    paid = [c for c in cells if c["cost_usd"] > 0]
+    rest = [c for c in cells if c["cost_usd"] == 0]
+    assert rest and all(not c["correct"] and c["output_tokens"] == 0 for c in rest)
+    inputs = [c["input_tokens"] for c in paid]
+    outputs = [c["output_tokens"] for c in paid]
+    med_in, med_out = statistics.median(inputs), statistics.median(outputs)
+    assert task.expected_input_tokens == int(float(f"{med_in:.2g}"))
+    assert task.expected_output_tokens == int(float(f"{med_out:.2g}"))
+    per = {}
+    for c in paid:
+        per.setdefault(c["model"], []).append(c["output_tokens"])
+    medians = {m: statistics.median(v) for m, v in per.items()}
+    lo = min(medians, key=lambda m: (medians[m], m))
+    hi = max(medians, key=lambda m: (medians[m], m))
+    built = (f"`expected_input_tokens` {task.expected_input_tokens:,} and `expected_output_tokens` "
+             f"{task.expected_output_tokens:,}, to two significant figures the medians of the {len(paid):,} cells "
+             f"with a `cost_usd` above 0, each one call's `prompt_tokens` and `completion_tokens` (12.18): "
+             f"{_whole(med_in)} input and {_whole(med_out)} output tokens, against means of "
+             f"{statistics.fmean(inputs):,.1f} and {statistics.fmean(outputs):,.1f}, which outputs of up to "
+             f"{max(outputs):,} tokens pull up. The other {len(rest)} cells, all misses, record 0 output tokens "
+             f"and a cost of 0 ({sum(c['input_tokens'] == 0 for c in rest)} of them 0 input tokens too), so they "
+             f"give no size. Per model the median output runs from {_whole(medians[lo])} (`{lo}`) to "
+             f"{_whole(medians[hi])} tokens (`{hi}`), {medians[hi] / medians[lo]:.1f} times as many,")
+    assert built in bullet

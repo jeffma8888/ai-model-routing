@@ -79,7 +79,7 @@ def test_no_packaged_task_reaches_the_first_packaged_threshold():
     """Why every README transcript keeps its bytes: the lowest packaged threshold is 100,000."""
     raw = json.loads((DATA_DIR / "example_tasks.json").read_text(encoding="utf-8"))
     sizes = [row["expected_input_tokens"] for row in raw["tasks"]]
-    assert len(sizes) == 7 and max(sizes) < 100_000
+    assert len(sizes) == 8 and max(sizes) < 100_000  # v1.282: eight packaged tasks
 
 
 def test_price_tier_fields_and_float_prices():
