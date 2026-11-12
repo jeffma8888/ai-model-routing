@@ -405,9 +405,10 @@ REASON = "since that call re-reads the parent's whole context."
 
 def test_readme_paragraph_is_two_sentences():
     # v1.281: the general condition and its reason, then the point 0 form with the cell count and the link
+    b, t = readme_figures()[:2]
     first, second = SENTENCE_END.split(readme_paragraph())   # exactly two, or the unpacking fails
     assert (first + ".").endswith(REASON) and REASON not in second
-    assert second.startswith("At a 500-token brief and result and `--carry-turns 1`, the condition holds for any ")
+    assert second.startswith(f"At a {b:,}-token brief and result and `--carry-turns {t}`, the condition holds for any ")
     assert second.endswith(PAYS_LINK + ".") and PAYS_LINK not in first
 
 
