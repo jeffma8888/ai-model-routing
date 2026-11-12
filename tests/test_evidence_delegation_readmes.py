@@ -116,7 +116,7 @@ def test_links_the_converter_its_regenerate_block_runs(name):
     runs = [c for c in regenerate_commands(name) if c.startswith(f"python {converter} ")]
     assert runs, converter
     for option in spec["options"]:
-        assert f"`{option}`" in inputs or f"`{option} " in inputs, option
+        assert option in re.findall(r"`([^`]+)`", inputs), option
         assert option in runs[0], option
 
 
