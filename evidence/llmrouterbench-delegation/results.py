@@ -40,12 +40,17 @@ ROW_KEYS = ("item", "model", "input_tokens", "output_tokens")
 _DELEGATION_SCRIPT = Path(__file__).resolve().parents[1] / "delegation" / "results.py"
 
 
-def points() -> list:
-    """The four base points of DESIGN 13.10, read from evidence/delegation/results.py by file path."""
+def _delegation():
+    """evidence/delegation/results.py, loaded by file path."""
     spec = importlib.util.spec_from_file_location("_delegation_results_points", _DELEGATION_SCRIPT)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    return module.points()
+    return module
+
+
+def points() -> list:
+    """The four base points of DESIGN 13.10, read from evidence/delegation/results.py by file path."""
+    return _delegation().points()
 
 
 def select_rows(rows, models) -> tuple:
@@ -112,7 +117,12 @@ def main(argv=None) -> int:
     part = None
     try:
         out = Path(args.out)
-        part = out.with_name(out.name + ".part")
+        candidate = out.with_name(out.name + ".part")
+        clash = _delegation().clashing_input(out, [("--matrix", args.matrix), ("--registry", args.registry)])
+        if clash is not None:  # a usage error, before any file is read, written or removed (v1.269)
+            print(f"error: --out (or its .part file) names the same file as {clash}", file=sys.stderr)
+            return 2
+        part = candidate
         registry = Registry.load(args.registry)
         rows, _dropped = select_rows(_read_rows(args.matrix), [m.id for m in registry.models])
         text = json.dumps(run(rows, registry), indent=2) + "\n"

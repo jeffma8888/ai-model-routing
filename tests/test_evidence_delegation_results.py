@@ -926,8 +926,8 @@ def test_real_results_regenerate_byte_identical(dr, tmp_path):
 
 
 # --- v1.269 an empty config, a bad --table file, an --out that names an input (row D4h) ----------
-# Committed ahead of the code; each test the v1.268 script fails carries a strict xfail naming
-# what it raises, and the implementing commit removes the markers.
+# Committed ahead of the code; each test the v1.268 script fails carried a strict xfail naming
+# what it raised, and the implementing commit, v1.270, removed the markers.
 
 @pytest.mark.parametrize("key", ["bars", "flavors", "points"])
 def test_table_refuses_a_config_with_no_bar_flavor_or_point(dr, key):
@@ -937,7 +937,6 @@ def test_table_refuses_a_config_with_no_bar_flavor_or_point(dr, key):
         dr.table(results)
 
 
-@pytest.mark.xfail(strict=True, raises=ZeroDivisionError, reason="v1.268 divides by no parents")
 def test_table_refuses_a_config_with_no_parents_first(dr):
     results = handmade()
     results["config"]["parents"] = []
@@ -974,7 +973,6 @@ def test_cli_refuses_a_results_file_that_is_missing_not_json_or_not_an_object(
     assert str(path) in captured.err and match in captured.err
 
 
-@pytest.mark.xfail(strict=True, raises=AttributeError, reason="v1.268 has no clashing_input")
 def test_clashing_input_names_the_first_input_that_is_out_or_its_part(dr, tmp_path, monkeypatch):
     matrix, pool = tmp_path / "m.jsonl", tmp_path / "pool.json"
     matrix.write_text("matrix\n", encoding="utf-8")
@@ -1034,7 +1032,6 @@ def snapshot(folder):
     return {p.name: p.read_bytes() for p in sorted(folder.iterdir())}
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="v1.268 reads the inputs and writes over them")
 @pytest.mark.parametrize("case, option", CLASH_CASES)
 def test_cli_out_naming_an_input_is_a_usage_error_before_any_read(dr, tmp_path, capsys, monkeypatch,
                                                                   case, option):

@@ -26,6 +26,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 import sys
 from pathlib import Path
 
@@ -124,6 +125,8 @@ HEADERS = ["dec_success", "dec_cost", "inl_success", "inl_cost", "del_success", 
 def table(results: dict) -> str:
     rows = _index(results)
     config = results["config"]
+    if not config["parents"]:
+        raise ValueError("config has no parents")
     multi = any("work_calls" in point for point in config["points"])
     cached = any("cached_read_ratio" in point for point in config["points"])
     lines = []
@@ -211,6 +214,29 @@ class _Parser(argparse.ArgumentParser):
         raise _UsageError(message)
 
 
+def clashing_input(out, inputs):
+    """The option of the first ``(option, path)`` of ``inputs`` that names ``out`` or ``<out>.part``, else None.
+
+    Two paths name the same file when their ``os.path.realpath`` values are equal (another
+    spelling, or a symbolic link and the file it reaches), or when both exist and
+    ``os.path.samefile`` says so (a hard link); an ``OSError`` from ``samefile`` counts as not
+    the same. Opens, writes and removes no file (DESIGN 13.10 v1.269).
+    """
+    out = Path(out)
+    targets = (out, out.with_name(out.name + ".part"))
+    for option, path in inputs:
+        for target in targets:
+            if os.path.realpath(path) == os.path.realpath(target):
+                return option
+            if os.path.exists(path) and os.path.exists(target):
+                try:
+                    if os.path.samefile(path, target):
+                        return option
+                except OSError:
+                    pass
+    return None
+
+
 def _read_object(path: str) -> dict:
     with open(path, encoding="utf-8") as fh:
         try:
@@ -259,6 +285,9 @@ def main(argv=None) -> int:
                 raise _UsageError("--bar and --point are only used with --table or --breakeven")
             out = Path(args.out)
             part = out.with_name(out.name + ".part")
+            clash = clashing_input(out, [("--matrix", args.matrix), ("--registry", args.registry)])
+            if clash is not None:
+                raise _UsageError(f"--out (or its .part file) names the same file as {clash}")
             try:
                 result = run(_read_rows(args.matrix), Registry.load(args.registry),
                              grid=args.grid or "base")

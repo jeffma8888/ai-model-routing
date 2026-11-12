@@ -1016,9 +1016,8 @@ def test_readme_limitations_say_the_cached_point_moves_no_decision(dr):
 
 
 # --- v1.269 an --out that names an input (row D4h, DESIGN 13.12) ---------------------------------
-# Committed as strict xfail ahead of the code; the implementing commit removes the marker.
+# Committed as strict xfail ahead of the code; the implementing commit, v1.270, removed the marker.
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="v1.268 reads the inputs and writes over them")
 @pytest.mark.parametrize("case, option", [
     ("out is the matrix", "--matrix"), ("out is the registry", "--registry"),
     ("part is the matrix", "--matrix"), ("part is the registry", "--registry")])

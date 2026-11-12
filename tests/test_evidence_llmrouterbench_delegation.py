@@ -730,7 +730,7 @@ def test_pinned_method_sentences(pinned_full):
 
 
 # --- v1.269 an --out that names an input (row D4h, DESIGN 13.13) ---------------------------------
-# Committed as strict xfail ahead of the code; the implementing commit removes the marker.
+# Committed as strict xfail ahead of the code; the implementing commit, v1.270, removed the marker.
 
 class _Unread:
     """A stand-in for both reads: a call means a file was read before the --out check."""
@@ -740,7 +740,6 @@ class _Unread:
         raise AssertionError(f"{path} read before the --out check")
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="v1.268 reads the inputs and writes over them")
 @pytest.mark.parametrize("case, option", [
     ("out is the matrix", "--matrix"), ("out is the registry", "--registry"),
     ("part is the matrix", "--matrix"), ("part is the registry", "--registry")])
