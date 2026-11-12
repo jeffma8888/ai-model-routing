@@ -81,6 +81,18 @@
       "on_no_model": "refuse",
       "max_fallbacks": 2,
       "timeout_s": 120.0
+    },
+    {
+      "name": "math_final_answer",
+      "bar": 0.8,
+      "min_samples": 100,
+      "independent_of_generator": false,
+      "expected_input_tokens": 160,
+      "expected_output_tokens": 5500,
+      "on_no_model": "best_available",
+      "max_fallbacks": 2,
+      "prior_category": "abstract_reasoning",
+      "timeout_s": 440.0
     }
   ]
 }

@@ -260,7 +260,7 @@ In numbers, with C, B, R and T the `--context-tokens`, `--brief-tokens`, `--resu
 
 ## Calibrate your own task
 
-1. **Define the task** in a tasks file. `model_routing/data/example_tasks.json` ships three judge tasks and four from other domains (`support_ticket_triage`, `invoice_field_extraction`, `unit_test_codegen`, `tool_calling_support_agent`):
+1. **Define the task** in a tasks file. `model_routing/data/example_tasks.json` ships three judge tasks and five from other domains (`support_ticket_triage`, `invoice_field_extraction`, `unit_test_codegen`, `tool_calling_support_agent`, `math_final_answer`):
 
    ```json
    {"tasks": [{
@@ -284,7 +284,7 @@ In numbers, with C, B, R and T the `--context-tokens`, `--brief-tokens`, `--resu
    {"task": "support_ticket_triage", "model": "openai/gpt-6-luna", "correct": true, "input_tokens": 1240, "output_tokens": 35}
    ```
 
-   For `unit_test_codegen`, `correct` means the generated tests ran and passed; for an extraction task it might mean every field matched exactly. For `tool_calling_support_agent` a line is one whole conversation: `correct` means the checks on its end state passed, and its token counts are the sums over the conversation's model calls. The library only counts. A line may also record what the call read and wrote as `input_tokens` and `output_tokens` (both or neither); once a model has them on a task, the router prices it there at its own mean tokens per call instead of the task's expected tokens.
+   For `unit_test_codegen`, `correct` means the generated tests ran and passed; for an extraction task it might mean every field matched exactly. For `tool_calling_support_agent` a line is one whole conversation: `correct` means the checks on its end state passed, and its token counts are the sums over the conversation's model calls. For `math_final_answer` a line can give the final answer as `prediction` and the key's answer as `gold`, both in one form (for example an integer), so the `==` comparison is the exact-answer check. The library only counts. A line may also record what the call read and wrote as `input_tokens` and `output_tokens` (both or neither); once a model has them on a task, the router prices it there at its own mean tokens per call instead of the task's expected tokens.
 
 3. **Fold the results into the stats file** (counts and token totals accumulate across runs; a row with token counts also gets `input_tokens`, `output_tokens` and `token_trials`, the number of calls they were summed over):
 
