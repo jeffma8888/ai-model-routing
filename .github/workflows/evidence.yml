@@ -2,10 +2,10 @@ name: evidence
 
 # Reruns the regenerate commands of the README subsections AutoBench, AutoBench judges,
 # tau2-bench, LiveCodeBench, LLMRouterBench, Delegation on AutoBench, Delegation on
-# tau2-bench and Delegation on LLMRouterBench, which download the pinned dataset files and check their sha256, then fails if a
-# committed results file changed (DESIGN.md 12.13). RouterBench is left out of it, since its
-# source is a 99,567,659-byte pickle that needs pandas and its evaluate step takes
-# about 70 seconds.
+# tau2-bench and Delegation on LLMRouterBench, which download the pinned dataset files and
+# check their sha256, then fails if a committed results file changed (DESIGN.md 12.13).
+# RouterBench is left out of it, since its source is a 99,567,659-byte pickle that needs
+# pandas and its evaluate step takes about 70 seconds.
 # A README line identical to one already run in the step is not run again when no line
 # between them names one of its files except to read it (DESIGN.md 12.13).
 
