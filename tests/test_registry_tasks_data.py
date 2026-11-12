@@ -490,7 +490,7 @@ def test_select_runs_on_the_math_task_without_stats(capsys):
 
 
 def test_math_task_values_from_llmrouterbench_aime_when_cached(llmrouterbench_pinned):
-    """v1.282: the DESIGN 9 rates and token sizes, rebuilt from the pinned file's `aime` rows."""
+    """v1.282: the DESIGN 9 rates and token sizes, rebuilt from the converter's `aime` rows of the pinned file."""
     import statistics
     code, report, path = llmrouterbench_pinned
     assert code == 0 and report["tasks"]["aime"]["half_scores"] == 0
@@ -519,6 +519,7 @@ def test_math_task_values_from_llmrouterbench_aime_when_cached(llmrouterbench_pi
     assert _threshold(60, task) / 60 > best
     paid = [c for c in cells if c["cost_usd"] > 0]
     rest = [c for c in cells if c["cost_usd"] == 0]
+    assert len(paid) + len(rest) == len(cells)  # review iter-191: the two sets hold every cell
     assert rest and all(not c["correct"] and c["output_tokens"] == 0 for c in rest)
     inputs = [c["input_tokens"] for c in paid]
     outputs = [c["output_tokens"] for c in paid]
