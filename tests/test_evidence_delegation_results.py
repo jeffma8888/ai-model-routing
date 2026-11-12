@@ -15,6 +15,7 @@ fourth grid point with the work folded into the parent's next call, on which the
 import importlib.util
 import json
 import math
+import os
 import re
 from pathlib import Path
 
@@ -922,3 +923,129 @@ def test_real_results_regenerate_byte_identical(dr, tmp_path):
     for r in result["summary"]:
         if r["parent"] in small and r["point"] == 2 and r["strategy"] == "decision":
             assert r["delegate_rate"] == 1.0, r
+
+
+# --- v1.269 an empty config, a bad --table file, an --out that names an input (row D4h) ----------
+# Committed ahead of the code; each test the v1.268 script fails carries a strict xfail naming
+# what it raises, and the implementing commit removes the markers.
+
+@pytest.mark.parametrize("key", ["bars", "flavors", "points"])
+def test_table_refuses_a_config_with_no_bar_flavor_or_point(dr, key):
+    results = handmade()
+    results["config"][key] = []
+    with pytest.raises(ValueError, match=re.escape("config has no (bar, flavor, point)")):
+        dr.table(results)
+
+
+@pytest.mark.xfail(strict=True, raises=ZeroDivisionError, reason="v1.268 divides by no parents")
+def test_table_refuses_a_config_with_no_parents_first(dr):
+    results = handmade()
+    results["config"]["parents"] = []
+    with pytest.raises(ValueError, match="config has no parents"):
+        dr.table(results)
+    results["config"]["bars"] = []
+    with pytest.raises(ValueError, match="config has no parents"):
+        dr.table(results)
+
+
+def test_parent_and_breakeven_tables_of_no_parents_are_the_header_alone(dr):
+    for key in ("parents", "flavors"):
+        results = handmade()
+        results["config"][key] = []
+        for got, headers in ((dr.parent_table(results, 0.5, 0), ["flavor", "parent", "delegated"] + dr.HEADERS),
+                             (dr.breakeven_table(results, 0.5, 0), dr.BREAKEVEN_HEADERS)):
+            assert got == "  ".join(headers) + "\n" + "  ".join("-" * len(h) for h in headers), key
+
+
+@pytest.mark.parametrize("mode", ["--table", "--breakeven"])
+@pytest.mark.parametrize("content, match", [
+    (None, "No such file"), ("{not json", "invalid JSON"),
+    ("[1, 2]", "expected a JSON object, got list")])
+def test_cli_refuses_a_results_file_that_is_missing_not_json_or_not_an_object(
+        dr, tmp_path, capsys, mode, content, match):
+    path = tmp_path / "results.json"
+    if content is not None:
+        path.write_text(content, encoding="utf-8")
+    argv = [mode, str(path)] + (["--bar", "0.5", "--point", "0"] if mode == "--breakeven" else [])
+    assert dr.main(argv) == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err.startswith("error: ") and captured.err.count("\n") == 1
+    assert str(path) in captured.err and match in captured.err
+
+
+@pytest.mark.xfail(strict=True, raises=AttributeError, reason="v1.268 has no clashing_input")
+def test_clashing_input_names_the_first_input_that_is_out_or_its_part(dr, tmp_path, monkeypatch):
+    matrix, pool = tmp_path / "m.jsonl", tmp_path / "pool.json"
+    matrix.write_text("matrix\n", encoding="utf-8")
+    pool.write_text("registry\n", encoding="utf-8")
+    (tmp_path / "sub").mkdir()
+    inputs = [("--matrix", str(matrix)), ("--registry", str(pool))]
+    clash = dr.clashing_input
+    assert clash(tmp_path / "results.json", inputs) is None
+    assert clash(tmp_path / "m.json", inputs) is None
+    assert clash(matrix, inputs) == "--matrix"
+    assert clash(pool, inputs) == "--registry"
+    assert clash(tmp_path / "sub" / ".." / "m.jsonl", inputs) == "--matrix"
+    assert clash(tmp_path / "m", [("--matrix", str(tmp_path / "m.part"))]) == "--matrix"
+    both = [("--registry", str(matrix) + ".part"), ("--matrix", str(matrix))]
+    assert clash(matrix, both) == "--registry"
+    assert clash(matrix, both[::-1]) == "--matrix"
+    link = tmp_path / "link.json"
+    link.symlink_to(matrix)
+    assert clash(link, inputs) == "--matrix"
+    assert clash(tmp_path / "pool.json", [("--registry", str(tmp_path / "sub" / ".." / "link.json"))]) is None
+    assert clash(matrix, [("--registry", str(link))]) == "--registry"
+    hard, hard_part = tmp_path / "hard.json", tmp_path / "other.json.part"
+    os.link(matrix, hard)
+    os.link(pool, hard_part)
+    assert clash(hard, inputs) == "--matrix"
+    assert clash(tmp_path / "other.json", inputs) == "--registry"
+
+    def refuse(a, b):
+        raise PermissionError(13, "refused", str(a))
+
+    monkeypatch.setattr(os.path, "samefile", refuse)
+    assert clash(hard, inputs) is None
+    assert clash(matrix, inputs) == "--matrix"
+
+
+def _named_files(tmp_path, case):
+    """Matrix, registry and --out paths for one way an --out can name an input."""
+    matrix, pool, out = tmp_path / "m.jsonl", tmp_path / "pool.json", tmp_path / "results.json"
+    if case == "out is the matrix":
+        out = matrix
+    elif case == "out is the registry":
+        out = pool
+    elif case == "part is the matrix":
+        matrix = tmp_path / "results.json.part"
+    elif case == "part is the registry":
+        pool = tmp_path / "results.json.part"
+    matrix.write_text("matrix bytes\n", encoding="utf-8")
+    pool.write_text("registry bytes\n", encoding="utf-8")
+    return matrix, pool, out
+
+
+CLASH_CASES = [("out is the matrix", "--matrix"), ("out is the registry", "--registry"),
+               ("part is the matrix", "--matrix"), ("part is the registry", "--registry")]
+
+
+def snapshot(folder):
+    return {p.name: p.read_bytes() for p in sorted(folder.iterdir())}
+
+
+@pytest.mark.xfail(strict=True, raises=AssertionError, reason="v1.268 reads the inputs and writes over them")
+@pytest.mark.parametrize("case, option", CLASH_CASES)
+def test_cli_out_naming_an_input_is_a_usage_error_before_any_read(dr, tmp_path, capsys, monkeypatch,
+                                                                  case, option):
+    matrix, pool, out = _named_files(tmp_path, case)
+    before = snapshot(tmp_path)
+    monkeypatch.setattr(dr, "_read_rows", _Unread.load)
+    monkeypatch.setattr(dr, "Registry", _Unread)
+    for grid in ([], ["--grid", "variants"]):
+        argv = ["--matrix", str(matrix), "--registry", str(pool), "--out", str(out)] + grid
+        assert dr.main(argv) == 2, case
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert captured.err == f"error: --out (or its .part file) names the same file as {option}\n"
+        assert snapshot(tmp_path) == before

@@ -727,3 +727,40 @@ def test_pinned_method_sentences(pinned_full):
     method = section(RESULTS_MD.read_text(encoding="utf-8"), "## Method")
     assert drop in method
     assert reasons + " " + NONE_CLEAR in method
+
+
+# --- v1.269 an --out that names an input (row D4h, DESIGN 13.13) ---------------------------------
+# Committed as strict xfail ahead of the code; the implementing commit removes the marker.
+
+class _Unread:
+    """A stand-in for both reads: a call means a file was read before the --out check."""
+
+    @staticmethod
+    def load(path):
+        raise AssertionError(f"{path} read before the --out check")
+
+
+@pytest.mark.xfail(strict=True, raises=AssertionError, reason="v1.268 reads the inputs and writes over them")
+@pytest.mark.parametrize("case, option", [
+    ("out is the matrix", "--matrix"), ("out is the registry", "--registry"),
+    ("part is the matrix", "--matrix"), ("part is the registry", "--registry")])
+def test_cli_out_naming_an_input_is_exit_2_before_any_read(ld, tmp_path, capsys, monkeypatch, case, option):
+    matrix, reg, out = tmp_path / "m.jsonl", tmp_path / "registry.json", tmp_path / "results.json"
+    if case == "out is the matrix":
+        out = matrix
+    elif case == "out is the registry":
+        out = reg
+    elif case == "part is the matrix":
+        matrix = tmp_path / "results.json.part"
+    else:
+        reg = tmp_path / "results.json.part"
+    matrix.write_text("matrix bytes\n", encoding="utf-8")
+    reg.write_text("registry bytes\n", encoding="utf-8")
+    before = {p.name: p.read_bytes() for p in sorted(tmp_path.iterdir())}
+    monkeypatch.setattr(ld, "_read_rows", _Unread.load)
+    monkeypatch.setattr(ld, "Registry", _Unread)
+    assert ld.main(["--matrix", str(matrix), "--registry", str(reg), "--out", str(out)]) == 2, case
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == f"error: --out (or its .part file) names the same file as {option}\n"
+    assert {p.name: p.read_bytes() for p in sorted(tmp_path.iterdir())} == before

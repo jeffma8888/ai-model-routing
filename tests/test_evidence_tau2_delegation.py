@@ -1013,3 +1013,32 @@ def test_readme_limitations_say_the_cached_point_moves_no_decision(dr):
                    ": no cell moves from `delegate_cheaper` to `inline_cheaper`."):
         assert phrase in line, phrase
     assert RESULTS_MD.read_text(encoding="utf-8").splitlines().count("## Reading it") == 1
+
+
+# --- v1.269 an --out that names an input (row D4h, DESIGN 13.12) ---------------------------------
+# Committed as strict xfail ahead of the code; the implementing commit removes the marker.
+
+@pytest.mark.xfail(strict=True, raises=AssertionError, reason="v1.268 reads the inputs and writes over them")
+@pytest.mark.parametrize("case, option", [
+    ("out is the matrix", "--matrix"), ("out is the registry", "--registry"),
+    ("part is the matrix", "--matrix"), ("part is the registry", "--registry")])
+def test_main_out_naming_an_input_is_exit_2_before_any_read(td, tmp_path, capsys, monkeypatch, case, option):
+    matrix, reg, out = tmp_path / "m.jsonl", tmp_path / "r.json", tmp_path / "out.json"
+    if case == "out is the matrix":
+        out = matrix
+    elif case == "out is the registry":
+        out = reg
+    elif case == "part is the matrix":
+        matrix = tmp_path / "out.json.part"
+    else:
+        reg = tmp_path / "out.json.part"
+    matrix.write_text("matrix bytes\n", encoding="utf-8")
+    reg.write_text("registry bytes\n", encoding="utf-8")
+    before = {p.name: p.read_bytes() for p in sorted(tmp_path.iterdir())}
+    monkeypatch.setattr(td, "_read_rows", _Unread.load)
+    monkeypatch.setattr(td, "Registry", _Unread)
+    assert td.main(["--matrix", str(matrix), "--registry", str(reg), "--out", str(out)]) == 2, case
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == f"error: --out (or its .part file) names the same file as {option}\n"
+    assert {p.name: p.read_bytes() for p in sorted(tmp_path.iterdir())} == before
