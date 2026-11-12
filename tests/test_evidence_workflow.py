@@ -6,7 +6,9 @@ fails when a committed results file changes (DESIGN 12.13, v1.30),
 and both workflows run on one pinned runner image with a dated comment (v1.49), and the job
 has a time limit of ten times its slowest run, rounded up to whole five minutes, with no download
 retry (v1.152; 25 minutes, restated as 30 at v1.170, as 40 at v1.217, whose basis is the
-slowest run on the `Regenerate` lines in force, as 50 at v1.225 and as 55 at v1.268).
+slowest run on the `Regenerate` lines in force, as 50 at v1.225 and as 55 at v1.268). From v1.278
+the top comment names the eight rerun subsections in README heading order, on lines under 100
+columns.
 
 The workflow is read with a line parser for its own shape (no YAML library, so this runs in
 CI); the run itself is checked on GitHub, not here."""
@@ -105,6 +107,13 @@ REPEATED = "python evidence/llmrouterbench/convert.py --out llmrouterbench-matri
 REPEAT_SENTENCE = ("A README line identical to one already run in the step is not run again when no line "
                    "between them names one of its files except to read it (DESIGN.md 12.13).")
 REPEAT_PROBLEM = "the top comment does not give the repeated-line rule"
+# v1.278 (row T4): the top comment names the rerun subsections in README heading order, and every
+# line above `on:` is under 100 columns; the comment checks join its lines, so a reflow is safe.
+SUBSECTION_LIST = ("Reruns the regenerate commands of the README subsections "
+                   + ", ".join(SUBSECTIONS[:-1]) + f" and {SUBSECTIONS[-1]}, which")
+SUBSECTION_PROBLEM = "the top comment does not name the rerun subsections in README heading order"
+WIDTH = 100
+WIDTH_PROBLEM = f"a line above on: is {WIDTH} columns or wider"
 
 
 def data_files(line):
@@ -237,6 +246,10 @@ def problems(text, readme_text, ci_text):
         found.append("the top comment does not give the README's RouterBench reason")
     if REPEAT_SENTENCE not in comment:
         found.append(REPEAT_PROBLEM)
+    if SUBSECTION_LIST not in comment:
+        found.append(SUBSECTION_PROBLEM)
+    if any(len(line) >= WIDTH for line in head):
+        found.append(WIDTH_PROBLEM)
     blocks = top_blocks(text)
     keys = [k for k, _ in blocks]
     if keys != ["name", "on", "permissions", "defaults", "jobs"]:
@@ -365,6 +378,13 @@ def test_regenerate_leaves_out_the_one_repeated_converter_line():
     assert run == commands[:second] + commands[second + 1:]
 
 
+def test_the_rerun_subsections_are_in_readme_heading_order():
+    # v1.278: SUBSECTIONS, which the top comment check and readme_blocks read, is the README order.
+    section = readme().split(EVIDENCE, 1)[1].split("\n## ", 1)[0]
+    headings = re.findall(r"^### (.+)$", section, re.M)
+    assert [h for h in headings if h in SUBSECTIONS] == list(SUBSECTIONS)
+
+
 def test_readme_evidence_intro_names_the_workflow():
     text = readme()
     intro = text.split(EVIDENCE, 1)[1].strip("\n").split("\n\n", 1)[0]
@@ -466,6 +486,11 @@ MUTANTS = {
         "      - name: Install\n", 1),
     "a pip cache on setup-python": lambda t: t.replace(
         '          python-version: "3.12"\n', '          python-version: "3.12"\n          cache: pip\n', 1),
+    # v1.278: the top comment's list of the rerun subsections, and its width
+    "a subsection dropped from the top comment": lambda t: t.replace(
+        "# tau2-bench, LiveCodeBench, LLMRouterBench,", "# tau2-bench, LLMRouterBench,", 1),
+    "two top comment lines joined": lambda t: t.replace(
+        "AutoBench judges,\n# tau2-bench,", "AutoBench judges, tau2-bench,", 1),
 }
 CACHE_MUTANTS = {
     "a cache step before Install": f"step names {[None, None, None] + STEP_NAMES[2:]}",
@@ -474,6 +499,10 @@ CACHE_MUTANTS = {
 REPEAT_MUTANTS = {
     "the repeated converter line kept": "Regenerate is not the README commands in order",
     "the repeated-line sentence dropped": REPEAT_PROBLEM,
+}
+COMMENT_MUTANTS = {
+    "a subsection dropped from the top comment": SUBSECTION_PROBLEM,
+    "two top comment lines joined": WIDTH_PROBLEM,
 }
 TIME_LIMIT_MUTANTS = {
     "the time limit dropped": LIMIT_PROBLEM,
@@ -485,10 +514,11 @@ TIME_LIMIT_MUTANTS = {
 
 
 def test_the_mutant_count_is_the_one_design_states():
-    assert len(MUTANTS) == 28
+    assert len(MUTANTS) == 30
     assert len(CACHE_MUTANTS) == 2 and set(CACHE_MUTANTS) <= set(MUTANTS)
     assert len(TIME_LIMIT_MUTANTS) == 5 and set(TIME_LIMIT_MUTANTS) <= set(MUTANTS)
     assert len(REPEAT_MUTANTS) == 2 and set(REPEAT_MUTANTS) <= set(MUTANTS)
+    assert len(COMMENT_MUTANTS) == 2 and set(COMMENT_MUTANTS) <= set(MUTANTS)
 
 
 @pytest.mark.parametrize("name", sorted(REPEAT_MUTANTS))
@@ -497,6 +527,15 @@ def test_a_repeat_mutant_fails_on_the_one_check_it_names(name):
     mutant = MUTANTS[name](text)
     assert mutant != text, name
     assert problems(mutant, readme(), CI.read_text(encoding="utf-8")) == [REPEAT_MUTANTS[name]], name
+
+
+@pytest.mark.parametrize("name", sorted(COMMENT_MUTANTS))
+def test_a_comment_mutant_fails_on_the_one_check_it_names(name):
+    # v1.278 (row T4): the joined lines leave the joined comment as it was, so width alone fails.
+    text = workflow_text()
+    mutant = MUTANTS[name](text)
+    assert mutant != text, name
+    assert problems(mutant, readme(), CI.read_text(encoding="utf-8")) == [COMMENT_MUTANTS[name]], name
 
 
 @pytest.mark.parametrize("name", sorted(CACHE_MUTANTS))
