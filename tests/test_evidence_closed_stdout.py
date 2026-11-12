@@ -1,4 +1,4 @@
-"""A closed stdout at interpreter exit (DESIGN 12.6, 12.9, 12.11, 12.14, 12.16 and 13.11, v1.150).
+"""A closed stdout at interpreter exit (DESIGN 12.6, 12.9, 12.11, 12.14, 12.16 and 13.11, v1.150; 12.20, v1.289).
 
 Each evidence CLI prints its report with ``flush=True`` before it renames ``<out>.part``, and turns a
 ``BrokenPipeError`` from that print into one ``error:`` line and exit 2. A failed flush leaves the
@@ -23,6 +23,11 @@ ROOT = Path(__file__).resolve().parents[1]
 
 # per script: the lines run after the module `m` is loaded, with `tmp` (a folder) and `SIZE` set
 STUBS = {
+    "evidence/response-bank/convert.py": """
+        m.fetch = lambda cache: dict.fromkeys(m.FILES, tmp)
+        m.read_jsonl = lambda path, parse: []
+        m.convert = lambda scores, responses: ([], {"report": "x" * SIZE})
+    """,
     "evidence/routerbench/convert.py": """
         m.fetch = lambda cache: None
         m.load_frame = lambda path: None

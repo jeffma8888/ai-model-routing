@@ -189,6 +189,7 @@ def test_score_record_keeps_a_missing_reason(cv):
     lambda r: r.update(evaluator="parser"),
     lambda r: r.update(evaluator={"missing": ""}),
     lambda r: r.update(evaluator={"missing": 3}),
+    lambda r: r.update(evaluator={"missing": None}),
     lambda r: r.update(evaluator={"missing": "filter"}),
     lambda r: r.update(dataset="gpqa_diamond"),
     lambda r: r.update(task_id="mmlu_pro:"),
@@ -254,6 +255,7 @@ def test_response_record_ignores_the_other_usage_fields(cv):
     lambda r: r.update(official_usd=True),
     lambda r: r.update(official_usd=None),
     lambda r: r.update(official_usd="0.1"),
+    lambda r: r.update(official_usd=10**400),
     lambda r: r.update(usage=None),
     lambda r: r["usage"].update(input=-1),
     lambda r: r["usage"].update(output=True),
@@ -450,8 +452,18 @@ def test_convert_models_are_every_scored_model(cv):
     assert [r["model"] for r in rows] == sorted(MODEL_IDS.values())
 
 
-@pytest.mark.parametrize("case", ["no scores", "no responses", "scores not a list", "repeated score",
-                                  "repeated response", "response without a score", "no row kept"])
+REFUSALS = {
+    "no scores": r"^scores must be a non-empty list or tuple",
+    "no responses": r"^responses must be a non-empty list or tuple",
+    "scores not a list": r"^scores must be a non-empty list or tuple",
+    "repeated score": r"^repeated score ",
+    "repeated response": r"^repeated response ",
+    "response without a score": r"^response without a score",
+    "no row kept": r"^no row kept$",
+}
+
+
+@pytest.mark.parametrize("case", list(REFUSALS))
 def test_convert_refuses(cv, case):
     scores, responses = matrix(cv, ["aime:a:1"])
     if case == "no scores":
@@ -468,7 +480,7 @@ def test_convert_refuses(cv, case):
         responses = responses + [cv.response_record(response("aime:a:9"))]
     elif case == "no row kept":
         responses = responses[:1]
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=REFUSALS[case]):
         cv.convert(scores, responses)
 
 
