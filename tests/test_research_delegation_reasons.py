@@ -15,7 +15,7 @@ v1.256 (row DOC16) adds the README `Inline or sub-agent` paragraph that states t
 `delegate` flags' names, built here from the note's results blocks (the point 0 line the four
 blocks share, their title lines and their check lines), so the README test runs where the pinned
 files are not cached. v1.256 commits it ahead of the paragraph as a strict xfail; v1.257 lands the
-paragraph.
+paragraph. v1.281 (row DOC17) splits that 157-word sentence in two after the general condition.
 """
 
 import collections
@@ -351,7 +351,10 @@ def test_design_specifies_the_readme_paragraph():
                    "no `--fold-inline`", "`--work-calls 1`", "no `--cached-read-ratio`",
                    "`C - B - (1 + T) * (B + R)` is above `B * p_out / p_in`", "`C > X + B * p_out / p_in`",
                    "`separate, K 1, rho 1`", "X = B + (1 + T) * (B + R)", "N cells of which N delegate",
-                   "strict xfail", "No library code"):
+                   "strict xfail", "No library code", "v1.281 (row DOC17", "two sentences",
+                   "`since that call re-reads the parent's whole context.`",
+                   "\"At a B-token brief and result and `--carry-turns T`, the condition holds for any\"",
+                   "recommended sentence stays one sentence"):
         assert phrase in bullets[0], phrase
 
 
@@ -381,7 +384,7 @@ def readme_figures():
 
 
 def readme_paragraph():
-    """The README paragraph of v1.256."""
+    """The README paragraph of v1.256, in the two sentences of v1.281."""
     b, t, x, names, cells = readme_figures()
     runs = ", ".join(names[:-1]) + " and " + names[-1]
     return ("In numbers, with C, B, R and T the `--context-tokens`, `--brief-tokens`, `--result-tokens` and "
@@ -390,9 +393,22 @@ def readme_paragraph():
             "context (no `--cached-read-ratio`), from a parent with stats for the task that the router does not "
             "exclude as a delegate and with no `price_tiers` in `models.json`, `cost_effective` delegates whenever "
             "`C - B - (1 + T) * (B + R)` is above `B * p_out / p_in`, whatever the size of the work itself, since "
-            f"that call re-reads the parent's whole context; at a {b:,}-token brief and result and `--carry-turns {t}` "
-            f"that is any `C > {x:,} + {b:,} * p_out / p_in`, and on the four committed delegation runs ({runs}) all "
+            f"that call re-reads the parent's whole context. At a {b:,}-token brief and result and `--carry-turns {t}`, "
+            f"the condition holds for any `C > {x:,} + {b:,} * p_out / p_in`, and on the four committed delegation runs "
+            f"({runs}) all "
             f"{cells:,} `cost_effective` cells at such a point delegate {PAYS_LINK}.")
+
+
+SENTENCE_END = re.compile(r"\. (?=[A-Z])")
+REASON = "since that call re-reads the parent's whole context."
+
+
+def test_readme_paragraph_is_two_sentences():
+    # v1.281: the general condition and its reason, then the point 0 form with the cell count and the link
+    first, second = SENTENCE_END.split(readme_paragraph())   # exactly two, or the unpacking fails
+    assert (first + ".").endswith(REASON) and REASON not in second
+    assert second.startswith("At a 500-token brief and result and `--carry-turns 1`, the condition holds for any ")
+    assert second.endswith(PAYS_LINK + ".") and PAYS_LINK not in first
 
 
 def test_note_recommends_the_same_form():
