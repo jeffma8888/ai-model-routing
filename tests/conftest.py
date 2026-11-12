@@ -1,5 +1,6 @@
 """Small fictional fixtures shared by contract tests, and one session-scoped run of the
-LLMRouterBench converter on its pinned file (DESIGN 12.19, v1.156)."""
+LLMRouterBench converter on its pinned file (DESIGN 12.19, v1.156) and of the response-bank
+converter on its four pinned files (DESIGN 12.21, v1.291)."""
 
 import contextlib
 import importlib.util
@@ -161,3 +162,29 @@ def llmrouterbench_delegation_full(llmrouterbench_pinned):
     full = evaluate_delegation(kept, registry, bars=list(script.BARS), points=script.points(),
                                seeds=range(script.SEEDS))
     return kept, dropped, full
+
+
+# --- the four pinned response-bank files, read once per session (DESIGN 12.21, v1.291) ------
+
+RESPONSE_BANK_CONVERTER = Path(__file__).resolve().parents[1] / "evidence" / "response-bank" / "convert.py"
+
+
+@pytest.fixture(scope="session")
+def response_bank_pinned(tmp_path_factory):
+    """The converter's CLI run on the four pinned files: (exit code, stdout, stderr, rows path).
+
+    Shared by tests/test_evidence_response_bank.py and tests/test_evidence_response_bank_results.py,
+    so a suite run reads the 1,018,191,580 bytes at most once. Skips when any of the four is not in
+    the default cache (CI never downloads them).
+    """
+    spec = importlib.util.spec_from_file_location("response_bank_convert_pinned", RESPONSE_BANK_CONVERTER)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    cache = module.default_cache_dir()
+    if not all((cache / name).is_file() for name in module.FILES):
+        pytest.skip("the four pinned response-bank files are not in the default cache")
+    out = tmp_path_factory.mktemp("response-bank") / "matrix.jsonl"
+    stdout, stderr = io.StringIO(), io.StringIO()
+    with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+        code = module.main(["--out", str(out)])
+    return code, stdout.getvalue(), stderr.getvalue(), out

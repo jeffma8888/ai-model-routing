@@ -298,6 +298,15 @@ def test_read_jsonl_refuses_invalid_utf8(cv, tmp_path):
         cv.read_jsonl(path, cv.response_record)
 
 
+def test_read_jsonl_names_the_line_nested_past_the_recursion_limit(cv, tmp_path):
+    """DESIGN 12.21 v1.291, review iter-196 nit 1: the RecursionError of a deep line is a ValueError."""
+    path = tmp_path / "scores_eval.jsonl"
+    deep = "[" * 100_000 + "]" * 100_000
+    path.write_text(json.dumps(score("aime:x:1")) + "\n" + deep + "\n", encoding="utf-8")
+    with pytest.raises(ValueError, match=r"^scores_eval\.jsonl:2: "):
+        cv.read_jsonl(path, cv.score_record)
+
+
 # --- convert ---------------------------------------------------------------------------------------------
 
 def test_convert_rows_and_report(cv):
@@ -404,6 +413,19 @@ def test_convert_drop_order_incomplete_then_unbilled_then_prompt(cv):
     _, report = cv.convert(scores, responses)
     t = report["tasks"]["aime"]
     assert (t["dropped_incomplete"], t["dropped_unbilled"], t["dropped_prompt_differs"]) == (1, 0, 0)
+
+
+def test_convert_drop_order_unbilled_before_prompt_differs(cv):
+    """DESIGN 12.21 v1.291, review iter-196 nit 2: an item both unbilled and with two prompts counts once."""
+    models = ("deepseek-v4-pro", "kimi-k2.7-code", "glm-5.3")
+    scores, responses = matrix(cv, ["aime:a:1", "aime:a:2"], models)
+    responses = [r for r in responses if (r["task_id"], r["model"]) != ("aime:a:2", "deepseek/deepseek-v4-pro")]
+    index = next(i for i, r in enumerate(responses) if (r["task_id"], r["model"]) == ("aime:a:2", "z-ai/glm-5.3"))
+    responses[index] = cv.response_record(response("aime:a:2", "glm-5.3", prompt="c" * 64))
+    rows, report = cv.convert(scores, responses)
+    assert {r["item"] for r in rows} == {"aime:a:1"}
+    t = report["tasks"]["aime"]
+    assert (t["items"], t["dropped_incomplete"], t["dropped_unbilled"], t["dropped_prompt_differs"]) == (1, 0, 1, 0)
 
 
 def test_convert_ignores_a_response_at_another_sample_index(cv):
@@ -642,14 +664,9 @@ DEFAULT_TASKS = {
 
 
 @pytest.fixture(scope="module")
-def pinned_run(tmp_path_factory):
-    cv = load_cv()
-    cache = cv.default_cache_dir()
-    if not all((cache / name).is_file() for name in FILES):
-        pytest.skip("the four pinned files are not in the default cache")
-    target = tmp_path_factory.mktemp("response-bank") / "matrix.jsonl"
-    code, out, err = run(cv, ["--out", str(target)])
-    return code, out, err, target
+def pinned_run(response_bank_pinned):
+    """The session run of tests/conftest.py (DESIGN 12.21 v1.291), shared with the results tests."""
+    return response_bank_pinned
 
 
 def test_pinned_files_default_output(pinned_run):
