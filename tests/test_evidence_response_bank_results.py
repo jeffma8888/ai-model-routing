@@ -33,8 +33,6 @@ CONFIG = {"bars": BARS, "seeds": list(range(50)), "flavors": FLAVORS,
           "calibration_fraction": 0.5, "min_samples": 30, "confidence": 0.95}
 ITEMS = {"aime": 30, "gpqa_diamond": 198, "livecodebench": 1055, "mmlu_pro": 12032}
 STRATEGIES = ["routed", "oracle", "best_on_calibration", "cheapest"]
-NOT_YET = pytest.mark.xfail(strict=True, raises=FileNotFoundError,
-                            reason="evidence/response-bank/results.json lands in v1.292")
 
 
 def load(name, path):
@@ -66,14 +64,12 @@ def committed():
 
 # --- the committed file -----------------------------------------------------------------------
 
-@NOT_YET
 def test_committed_results_are_small_and_reduced(rs):
     assert RESULTS.stat().st_size < 300_000
     text = RESULTS.read_text(encoding="utf-8")
     assert text == json.dumps(rs.reduce(json.loads(text)), indent=2) + "\n"
 
 
-@NOT_YET
 def test_committed_results_have_the_config_tasks_and_models(cv):
     results = committed()
     assert results["config"] == CONFIG
@@ -83,7 +79,6 @@ def test_committed_results_have_the_config_tasks_and_models(cv):
     assert list(results["tasks"]) == sorted(ITEMS)
 
 
-@NOT_YET
 def test_committed_results_rows_are_unique_routed_and_costed(cv):
     results = committed()
     models = model_ids(cv)
@@ -100,7 +95,6 @@ def test_committed_results_rows_are_unique_routed_and_costed(cv):
     assert all(r["cost_usd"] > 0 for r in results["summary"] + results["per_task"])
 
 
-@NOT_YET
 def test_committed_aime_never_clears():
     rows = [r for r in committed()["per_task"] if r["task"] == "aime"]
     assert len(rows) == len(BARS) * len(FLAVORS) and all(r["cleared_rate"] == 0 for r in rows)
@@ -120,7 +114,6 @@ def without_cells(result):
     return {k: v for k, v in result.items() if k != "cells"}
 
 
-@NOT_YET
 def test_real_results_regenerate_byte_identical(rs, real_rows):
     result = evaluate(outcomes_from_rows(real_rows), bars=BARS, seeds=range(50))
     assert json.dumps(rs.reduce(without_cells(result)), indent=2) + "\n" == RESULTS.read_text(
