@@ -12,7 +12,8 @@ The 13.1 inputs named below are those of `Router.decide_delegation`: the context
 - TRAIL comes closest: MIT, real hand-offs from a manager agent to a search sub-agent, and per-call token counts (1,507 model-call spans with prompt and completion counts in its GAIA traces). Its 60 sub-agent runs make 3 to 31 model calls each (median 15), so real delegated work is far more calls than the one or two the committed grid assumes. But its files hold no success label, and the manager and the sub-agent are the same model
 - Who&When records 689 hand-off messages in 57 of its 58 hand-crafted multi-agent logs, but without token counts, and every log was picked because it failed
 - MAD (CC-BY-4.0) has the most traces, 1,642 over 7 multi-agent frameworks, but each trace is free text, with no structured success label or token counts
-- So the delegation evidence keeps its stated grid. The last section says what the smallest dataset that could test the assumption would have to record
+- A fifth candidate, read on 2026-11-12 ([its own section](#agentssci-protocol-routing-2026-11-12)): AgentsSci's protocol-routing data (CC-BY-4.0) pairs one direct answer with three multi-agent protocols of the same model on 15,088 (setting, problem) rows, which measures escalation, not a hand-off: no brief or result is recorded, and per-item tokens cover one of its ten settings
+- So the delegation evidence keeps its stated grid. The section after the four candidates says what the smallest dataset that could test the assumption would have to record
 
 ## Candidates
 
@@ -72,3 +73,85 @@ The 13.1 inputs named below are those of `Router.decide_delegation`: the context
 - Keep the stated grid and the lossless-brief caveat in the README and `DESIGN.md` 13.9: no candidate measures the brief's loss
 - TRAIL is the one candidate worth a converter, and only to report real sub-agent sizes beside the grid: its 60 runs make 3 to 31 model calls (median 15) against the grid's one or two, and read 5,508 to 357,993 prompt tokens per run. That would set observed sub-agent usage beside the sizes the grid assumes (as usage, not as the 13.1 inputs, for the reason given under TRAIL), not measure the brief's loss or the decision's outcome
 - Look again when a public agent benchmark publishes paired inline and delegated runs with per-call usage, or adds a sub-agent mode to a test-checked benchmark whose per-item results are already public, as tau2-bench publishes its paper runs
+
+## AgentsSci protocol routing (2026-11-12)
+
+Question: the 2026-11-11 survey of [datasets.md](datasets.md) names AgentsSci/EMNLP_Cost-Aware-Protocol-Routing as a lead for the delegation evidence, since it runs each problem both as one direct answer and under three multi-agent protocols. Does a protocol record a hand-off in the `DESIGN.md` 13 sense, a parent passing a brief to a sub-agent and reading back its result, and could the delegation evidence use the data?
+
+### Source
+
+- URL: https://huggingface.co/datasets/AgentsSci/EMNLP_Cost-Aware-Protocol-Routing; the paper is https://arxiv.org/abs/2608.14927 (v1 submitted 2026-08-14; the card says Findings of EMNLP 2026)
+- Revision: 8d0aff6cbccf280235374fe635f9f4c212237e39 (last modified 2026-10-30), the revision the 2026-11-11 survey read, re-read from the Hugging Face API on 2026-11-12; not gated
+- Licence: CC-BY-4.0 (the card data and the API tag `license:cc-by-4.0`). The card says that project-authored content, "all derived measurements" among it, is CC-BY-4.0, and that no upstream problem text or gold answers are included, so each benchmark's own licence (Apache-2.0, MIT, MIT and CC-BY-SA-4.0) governs only its own content
+- Files: 46, 20,677,913 bytes by the API's file tree at that revision, 28 of them CSV. All 46 were fetched from `https://huggingface.co/datasets/AgentsSci/EMNLP_Cost-Aware-Protocol-Routing/resolve/<revision>/<path>` into a folder outside the repo, and `shasum -a 256 -c registry/checksums.sha256` in that folder reports OK for all 44 files the release's own manifest lists. The counts below read two of them: `data/matched_labels.csv` (2,814,373 bytes, sha256 e2080688cad5bf5b2b5de70ac461949add14fcefd76e4fde3cee93bf5fb08579) and `data/costs/omnimath_per_protocol_costs.csv` (395,362 bytes, sha256 4c239eaeee7543c5b7b57158ebdbaf40046926b7281a72038f93037435332ae6). Nothing from them is committed
+
+### What a row records
+
+- The default config, `matched_labels`, holds 15,088 rows of 15 columns, one per (setting, problem): `baseline_correct`, `single_correct`, `per_correct` and `broadcast_correct`, each 0 or 1 ("judged correct", `docs/schema.md` says, without saying how; `registry/models.csv` gives `openai/gpt-oss-120b` the role `actor_and_evaluator`), and `oracle_label`, the first protocol in the order Baseline, Single, PER, Broadcast that succeeded
+- A setting is one benchmark condition with one solver: 5 conditions (OmniMath competition math, 4,181 problems; LAB-Bench text with no tools, 1,542; LAB-Bench strict in-prompt evidence, 741; SciBench text only, 565; JEEBench text only, 515) by 2 open-weight solvers, `openai/gpt-oss-120b` and `google/gemma-4-31B-it`: 10 settings over 6,803 distinct problems. Neither solver is in `model_routing/data/models.json`
+- The protocols, as `registry/protocols.csv` describes them: Baseline, "A single direct one-shot solver call followed by evaluation. No revision, no second agent."; Single, "One solver iterates on its own answer with evaluator feedback (iterative self-correction)."; PER, "Hierarchical planner-executor-reviewer: a planner decomposes, an executor solves, a reviewer checks."; Broadcast, "Multi-agent deliberation in which peers exchange proposals over a shared broadcast channel."
+- The paper's abstract runs every problem under the four protocols "while holding the solver fixed within each setting", so every role of every protocol is the setting's one model
+- Not released, as the card says: problem text, gold answers, raw generations (so no message between agents), and per-problem cost for nine of the ten settings
+
+### Is a protocol a hand-off in the DESIGN 13 sense
+
+- No. `DESIGN.md` 13 decides, for a parent that already holds a context of C tokens, whether to do one piece of work itself or to write a brief of B tokens to a delegate the router picks and read back R tokens. Here the work is the whole problem, no parent holds a context before it, and the model doing the work never changes
+- Single is one agent revising its own answer, and Broadcast several agents on one problem. PER comes closest: a planner's decomposition goes to an executor, whose solution a reviewer checks, so a brief and a result pass inside one protocol run. But neither the plan, the solution nor the review is released as text or as a token count, and the planner and the executor are the same model, so no brief can be measured and no cheaper delegate is tried
+- So each row pairs the same model's direct answer with three paths that spend more calls on the same problem: a paired outcome of escalation, not of delegation
+
+### Where the direct answer and each protocol differ
+
+Per setting, the problems each protocol solves, and for each protocol the problems Baseline solves and it fails (lost) and the problems it solves and Baseline fails (gained), from the command below:
+
+| benchmark condition | solver | n | Baseline | Single | PER | Broadcast | Single lost, gained | PER lost, gained | Broadcast lost, gained |
+|---|---|---|---|---|---|---|---|---|---|
+| JEEBench text only | gemma-4-31B-it | 515 | 363 | 419 | 494 | 506 | 1, 57 | 1, 132 | 2, 145 |
+| JEEBench text only | gpt-oss-120b | 515 | 214 | 285 | 471 | 489 | 7, 78 | 1, 258 | 2, 277 |
+| LAB-Bench strict in-prompt evidence | gemma-4-31B-it | 741 | 329 | 431 | 514 | 662 | 16, 118 | 5, 190 | 1, 334 |
+| LAB-Bench strict in-prompt evidence | gpt-oss-120b | 741 | 141 | 224 | 353 | 550 | 24, 107 | 15, 227 | 3, 412 |
+| LAB-Bench text, no tools | gemma-4-31B-it | 1,542 | 647 | 1,153 | 1,311 | 1,404 | 19, 525 | 10, 674 | 11, 768 |
+| LAB-Bench text, no tools | gpt-oss-120b | 1,542 | 471 | 858 | 914 | 1,253 | 33, 420 | 28, 471 | 13, 795 |
+| OmniMath competition math | gemma-4-31B-it | 4,181 | 2,901 | 3,593 | 3,790 | 3,888 | 19, 711 | 26, 915 | 9, 996 |
+| OmniMath competition math | gpt-oss-120b | 4,181 | 2,376 | 3,294 | 3,561 | 3,730 | 40, 958 | 26, 1,211 | 11, 1,365 |
+| SciBench text only | gemma-4-31B-it | 565 | 397 | 448 | 516 | 501 | 2, 53 | 0, 119 | 0, 104 |
+| SciBench text only | gpt-oss-120b | 565 | 351 | 408 | 494 | 507 | 10, 67 | 0, 143 | 0, 156 |
+| all | | 15,088 | 8,190 | 11,113 | 12,418 | 13,490 | 171, 3,094 | 112, 4,340 | 52, 5,352 |
+
+### Tokens and cost
+
+- Only the `costs_omnimath` config (`data/costs/omnimath_per_protocol_costs.csv`) has per-item numbers, and for one setting, OmniMath with `openai/gpt-oss-120b`: 4,155 of its 4,181 problems (the card says 26 were dropped as 13 duplicate-text pairs), each with every protocol's total tokens and model calls, and all 4,155 join `matched_labels` on `problem_id`. The totals are summed over every call of the protocol, with no split into input and output tokens, and the file holds no price or cost, so no list price can be applied to them
+- In that setting, per item: Baseline takes a mean of 18,432.0 total tokens (median 17,236, 1,112 to 52,656) in a mean of 9.67 model calls (median 9, 1 to 42; 152 items in one call), so the recorded direct path is itself several calls; Single a mean of 48,309.2 (median 40,399) in 18.04 calls (median 17, 2 to 66); PER a mean of 402,241.5 (median 337,815) in 99.91 calls (median 64, 6 to 31,662); Broadcast a mean of 619,645.2 (median 412,918) in 135.14 calls (median 106, 8 to 806). PER takes more tokens than Baseline on all 4,155 items, Broadcast on 4,154 and Single on 3,710
+- The other nine settings carry tokens only in aggregate tables: `avg_tokens_k` in `data/aggregate/main_routing_heldout.csv` and `avg_tokens` in `data/router/six_setting_text_metadata_verification.csv`
+
+The command, Python's standard library on the two files above, with that download folder as its one argument:
+
+```python
+import csv, os, statistics as st, sys
+D = sys.argv[1]
+rows = list(csv.DictReader(open(os.path.join(D, "data/matched_labels.csv"))))
+P = ["single", "per", "broadcast"]
+print(len(rows), "rows,", len({r["setting_id"] for r in rows}), "settings,", len({r["problem_id"] for r in rows}), "problems")
+for s in sorted({r["setting_id"] for r in rows}) + ["all"]:
+    g = [r for r in rows if s in ("all", r["setting_id"])]
+    ok = [sum(int(r[k + "_correct"]) for r in g) for k in ["baseline"] + P]
+    diff = [(sum(r["baseline_correct"] == "1" and r[k + "_correct"] == "0" for r in g),
+             sum(r["baseline_correct"] == "0" and r[k + "_correct"] == "1" for r in g)) for k in P]
+    print(s, len(g), *ok, "|", *diff)
+c = list(csv.DictReader(open(os.path.join(D, "data/costs/omnimath_per_protocol_costs.csv"))))
+print(len(c), "cost rows,", {r["setting_id"] for r in c})
+for k in ["baseline"] + P:
+    t = [int(r[k + "_total_tokens"]) for r in c]; m = [int(r[k + "_model_calls"]) for r in c]
+    print(k, "tokens mean %.1f median %s min %d max %d" % (st.mean(t), st.median(t), min(t), max(t)),
+          "| calls mean %.2f median %s min %d max %d" % (st.mean(m), st.median(m), min(m), max(m)),
+          "| one-call items", sum(x == 1 for x in m))
+lab = {r["problem_id"] for r in rows if r["setting_id"] == "omnimath2__competition_math_4181__gpt_oss_120b"}
+print("cost rows joined to labels:", sum(r["problem_id"] in lab for r in c))
+for k in P:
+    print(k, "items with more tokens than baseline:", sum(int(r[k + "_total_tokens"]) > int(r["baseline_total_tokens"]) for r in c))
+```
+
+### Recommendation (2026-11-12)
+
+- No converter. The `DESIGN.md` 13.9 harness picks a delegate from a pool of models by its answers and prices both paths at list price; this release has two open-weight models, one per setting, neither priced in the registry, the same model in every role, no parent context, brief or result, and per-item tokens, with no input and output split, for one setting only. A per-item comparison of the two paths would compare a direct answer with more calls of the same model on the whole problem, a choice `Router.decide_delegation` does not make
+- What it shows beside TRAIL: spending more calls of the same model on a problem solves many problems the direct answer fails (3,094 to 5,352 of the 15,088 rows, by protocol) and loses few (52 to 171), and on the one setting with per-item tokens it takes a median of 64 (PER) and 106 (Broadcast) model calls per problem, counted over the whole protocol, against 9 for the direct answer. That is the value of escalation, which the committed delegation evidence does not model, not a measured hand-off
+- The Summary's finding stands: no dataset found so far runs the same work inline and through a sub-agent with a brief, so the delegation evidence keeps its stated grid and the lossless-brief caveat
