@@ -15,6 +15,7 @@ figures read from their committed results blocks, so it runs in CI where the pin
 
 import copy
 import decimal
+import importlib.util
 import json
 import math
 import re
@@ -759,7 +760,10 @@ PAYS_SCRIPT = ROOT / "research" / "where_delegation_pays.py"
 PER_ITEM_NOTE = ROOT / "research" / "per-item-delegation.md"
 PAYS_LINK = "[research/where-delegation-pays.md](research/where-delegation-pays.md)"
 PER_ITEM_LINK = "[research/per-item-delegation.md](research/per-item-delegation.md)"
-DELEGATION = ("Delegation on AutoBench", "Delegation on tau2-bench", "Delegation on LLMRouterBench")
+# v1.323 (row R28): the first note reads all four delegation subsections' files, the second the first three's
+DELEGATION = ("Delegation on AutoBench", "Delegation on tau2-bench", "Delegation on LLMRouterBench",
+              "Delegation on the LLM Routing Response Bank")
+RED_R28 = pytest.mark.xfail(strict=True, reason="v1.323: the where-delegation-pays note reads the fifth file (row R28)")
 PER_ITEM_COMMAND = "$ python research/per_item_delegation.py "
 # the four runs of the per-item note: no --dataset is LLMRouterBench (DESIGN 13.8 v1.227 to v1.233)
 PER_ITEM_RUNS = [None, "autobench", "tau2-bench", "tau2-bench-pooled"]
@@ -770,11 +774,12 @@ TABLE_END = "  pick, switched share by point, "
 
 
 def pays_totals(note):
-    """{flavor: {column: count}} from the `All four files` lines of the note's `## Results` block."""
+    """{flavor: {column: count}} from the `All five files` lines (`All four files` to v1.322) of the note's
+    `## Results` block."""
     section = note.split("\n## Results\n", 1)[1].split("\n## ", 1)[0]
     blocks = re.findall(r"^```text\n(.*?)^```$", section, re.M | re.S)
     assert len(blocks) == 1, "one text block in ## Results"
-    lines = blocks[0].split("\nAll four files\n", 1)[1].splitlines()
+    lines = blocks[0].split("\nAll five files\n", 1)[1].splitlines()
     columns = re.split(r"  +", lines[0].strip())
     assert columns[:2] == ["flavor", "bar"] and "= delegate" in columns and "better" in columns, columns
     totals = {}
@@ -837,17 +842,38 @@ def size_rule_cut(note):
     return format(value.quantize(step, decimal.ROUND_HALF_UP).normalize(), "f")
 
 
+def better_rows():
+    """(flavor, decision, inline, delegate) (success, cost) pairs of every `better` row of the committed files the
+    first note's script reads (DESIGN 12.8 v1.323)."""
+    spec = importlib.util.spec_from_file_location("where_delegation_pays_for_glance", PAYS_SCRIPT)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    rows = []
+    for _, rel in module.DATASETS:
+        for key, group in module.rows_of(json.loads((ROOT / rel).read_text(encoding="utf-8")), rel).items():
+            if module.classify(group["decision"], group["inline"], group["delegate"]) == "better":
+                rows.append((key[1],) + tuple(module.pair(group[s]) for s in module.STRATEGIES))
+    return rows
+
+
 def delegation_pointer(pays_note, per_item_note):
-    """The paragraph after the routing pointer (DESIGN 12.8 v1.258), its figures from the two notes."""
+    """The paragraph after the routing pointer (DESIGN 12.8 v1.258, v1.323), its figures from the two notes."""
     totals = pays_totals(pays_note)
     effective = totals["cost_effective"]
-    assert totals["cost_effective"]["better"] == totals["cost_blind"]["better"] == 0, "a row is better than both"
+    assert totals["cost_blind"]["better"] == 0, "a `cost_blind` row is better than both"
+    better = better_rows()
+    assert len(better) == effective["better"], (better, effective)
+    for flavor, decision, inline, delegate in better:
+        assert flavor == "cost_effective" and decision[0] == delegate[0], "a `better` row is not at delegating's success"
+        assert decision[1] < min(inline[1], delegate[1]), "a `better` row costs no less than a fixed policy"
     return ("Whether choosing per task between inline work and a sub-agent beats a fixed policy, on the datasets of "
-            f"the first three delegation bullets above: {PAYS_LINK} finds the `cost_effective` decision equal to always delegating "
-            f"on {effective['= delegate']:,} of their {effective['rows']:,} (bar, point, parent) rows and, in either "
-            f"flavor, better than both fixed policies on none, and {PER_ITEM_LINK} finds that taking each held-out "
-            "item's cheaper path only on the cells where the decision chose by cost cuts a bar's summed cost by at "
-            f"most {size_rule_cut(per_item_note)}%, at no lower mean success")
+            f"the four delegation bullets above: {PAYS_LINK} finds the `cost_effective` decision equal to always "
+            f"delegating on {effective['= delegate']:,} of their {effective['rows']:,} (bar, point, parent) rows and "
+            f"better than both fixed policies on {effective['better']:,}, each a `cost_effective` row at always "
+            "delegating's held-out success for less cost than either, and, on the datasets of the first three, "
+            f"{PER_ITEM_LINK} finds that taking each held-out item's cheaper path only on the cells where the "
+            f"decision chose by cost cuts a bar's summed cost by at most {size_rule_cut(per_item_note)}%, at no lower "
+            "mean success")
 
 
 def notes():
@@ -860,7 +886,7 @@ def test_design_specifies_the_delegation_pointer():
     bullets = [line for line in section.splitlines()
                if line.startswith("- Where delegation pays at a glance (v1.258, row DOC15): ")]
     assert len(bullets) == 1
-    for phrase in ("`research/where-delegation-pays.md`", "`research/per-item-delegation.md`", "`All four files`",
+    for phrase in ("`research/where-delegation-pays.md`", "`research/per-item-delegation.md`", "`All five files`",
                    "`= delegate`", "`better`", "`size rule` `cost / decision`", "13.5 row 3", "`success - decision`",
                    "two significant figures", "fifth and last paragraph", "strict xfail", "No library code"):
         assert phrase in bullets[0], phrase
@@ -868,6 +894,7 @@ def test_design_specifies_the_delegation_pointer():
            "below, and by nothing else." in section
 
 
+@RED_R28
 def test_the_delegation_pointer_follows_the_routing_one():
     intro = evidence_section().split("\n### ", 1)[0]
     paragraphs = intro.strip("\n").split("\n\n")
@@ -876,6 +903,7 @@ def test_the_delegation_pointer_follows_the_routing_one():
     assert paragraphs[4] == delegation_pointer(*notes())
 
 
+@RED_R28
 def test_the_delegation_pointer_figures_on_the_committed_notes():
     """The figures the paragraph gives on the committed notes, beside the counts each note's prose states."""
     pays, per_item = notes()
@@ -890,6 +918,7 @@ def test_the_delegation_pointer_figures_on_the_committed_notes():
     assert "only on the cells where the decision chose by cost" in text
 
 
+@RED_R28
 def test_the_delegation_pointer_links_resolve_in_order():
     text = delegation_pointer(*notes())
     targets = re.findall(r"\]\(([^)]+)\)", text)
@@ -897,22 +926,25 @@ def test_the_delegation_pointer_links_resolve_in_order():
     assert all((README.parent / t).is_file() for t in targets)
 
 
-def test_the_first_three_delegation_bullets_are_the_subsections_the_notes_read():
-    # v1.316: the response bank's, the last bullet, is not read by the notes yet (rows R28 and R29)
-    assert tuple(FILES)[-4:-1] == DELEGATION
-    assert tuple(FILES)[-1] == "Delegation on the LLM Routing Response Bank"
+@RED_R28
+def test_the_delegation_bullets_are_the_subsections_the_notes_read():
+    # v1.323: the first note reads the four delegation subsections' files; the second note's four blocks rerun the
+    # first three's datasets (the response bank's waits for row R29)
+    assert tuple(FILES)[-4:] == DELEGATION
     folders = {str(FILES[name].parent.relative_to(ROOT)) for name in DELEGATION}
     text = PAYS_SCRIPT.read_text(encoding="utf-8")
     block = text.split("DATASETS = (\n", 1)[1].split("\n)\n", 1)[0]
     paths = re.findall(r'^    \("[^"]+", "([^"]+)"\),$', block, re.M)
-    assert len(paths) == 4, paths
+    assert len(paths) == 5, paths
     assert {p.rsplit("/", 1)[0] for p in paths} == folders
+    assert sorted(per_item_blocks(PER_ITEM_NOTE.read_text(encoding="utf-8")), key=str) == \
+        sorted(PER_ITEM_RUNS, key=str)
 
 
 def _break_better(pays):
-    old = "  cost_effective  all    432         403         1       0"
+    old = "  cost_blind      all    472         216         0       0"
     assert pays.count(old) == 1
-    return pays.replace(old, "  cost_effective  all    432         403         1       1")
+    return pays.replace(old, "  cost_blind      all    472         216         0       1")
 
 
 def _break_size_rule(per_item):
@@ -958,13 +990,14 @@ def _move_the_cut(per_item):
 
 
 @pytest.mark.parametrize("change, which, match", [
-    (_break_better, 0, "a row is better than both"),
+    (_break_better, 0, "a `cost_blind` row is better than both"),
     (_break_size_rule, 1, "a size rule row loses mean success"),
     (_drop_a_block, 1, r"\[None, 'autobench', 'tau2-bench'\]"),
     (_tab_a_row, 1, r"not a table row: '  cost_effective  0\.3  size rule\\t"),
     (_drop_a_row, 1, "the strategies' bars differ"),
     (_end_the_table, 1, "no table between a header and its end"),
 ])
+@RED_R28
 def test_a_note_that_breaks_a_claim_fails_the_pointer(change, which, match):
     texts = list(notes())
     delegation_pointer(*texts)
@@ -973,6 +1006,7 @@ def test_a_note_that_breaks_a_claim_fails_the_pointer(change, which, match):
         delegation_pointer(*texts)
 
 
+@RED_R28
 def test_a_moved_figure_moves_the_pointer():
     pays, per_item = notes()
     before = delegation_pointer(pays, per_item)
@@ -1038,7 +1072,9 @@ def test_the_glance_list_ends_with_the_response_bank_delegation_bullet():
     assert lines[at + 1] == ""
 
 
-def test_the_delegation_pointer_names_the_first_three_delegation_bullets():
+@RED_R28
+def test_the_delegation_pointer_names_the_four_delegation_bullets():
     intro = evidence_section().split("\n### ", 1)[0]
     assert ("Whether choosing per task between inline work and a sub-agent beats a fixed policy, on the datasets of "
-            "the first three delegation bullets above: ") in intro
+            "the four delegation bullets above: ") in intro
+    assert ", and, on the datasets of the first three, " + PER_ITEM_LINK in intro
