@@ -7,7 +7,8 @@ fails when a committed results file changes (DESIGN 12.13, v1.30),
 and both workflows run on one pinned runner image with a dated comment (v1.49), and the job
 has a time limit of ten times its slowest run, rounded up to whole five minutes, with no download
 retry (v1.152; 25 minutes, restated as 30 at v1.170, as 40 at v1.217, whose basis is the
-slowest run on the `Regenerate` lines in force, as 50 at v1.225 and as 55 at v1.268). From v1.278
+slowest run on the `Regenerate` lines in force, as 50 at v1.225, as 55 at v1.268 and as 40 at
+v1.301, on the first run of the v1.299 lines). From v1.278
 the top comment names the rerun subsections (eight, nine from v1.299) in README heading order, on
 lines under 100 columns.
 
@@ -45,17 +46,19 @@ ON = (
     "      - \".github/workflows/evidence.yml\"\n")
 STEP_NAMES = [None, None, "Install", "Regenerate", "Compare"]
 # The job's time limit, by the v1.152 rule: ten times the slowest run, rounded up to a whole
-# five minutes. The v1.268 value: the slowest run on the Regenerate lines in force, of the 11
-# runs of the v1.215 lines among the 64 to 2026-11-11 (121 to 312 s from start to last update),
-# took 312 s (run 43054947572), so 55; its converter line took 178.7 s by the log, most likely
-# the LLMRouterBench download again. At v1.225, the slowest of the four such runs then (213,
-# 219, 290 and 275 s), 290 s (run 42904515973), so 50, its extra time most likely the same
-# download. At v1.217, the one such run then, 213 s, so 40; the four runs of v1.200 to v1.214
-# (up to 278 s) also ran the converter line twice. At v1.170, 158 s over 45 runs, so 30; at
-# v1.152, 140 s over 40 runs, so 25.
-SLOWEST_RUN_SECONDS = 312
-SLOWEST_RUN_ID = 43054947572
-TIMEOUT_MINUTES = 55
+# five minutes. The v1.301 value: the slowest run on the Regenerate lines in force, from v1.299
+# those with the four response-bank lines, is the one such run among the 73 to 2026-11-12, run
+# 43357001972, 213 s from start to last update, so 40, the first value the rule lowers (a change
+# of the lines starts the basis again, v1.218). At v1.268, the slowest of the 11 runs of the
+# v1.215 lines (121 to 312 s), 312 s (run 43054947572), so 55; its converter line took 178.7 s
+# by the log, most likely the LLMRouterBench download again. At v1.225, the slowest of the four
+# such runs then (213, 219, 290 and 275 s), 290 s (run 42904515973), so 50, its extra time most
+# likely the same download. At v1.217, the one such run then, 213 s, so 40; the four runs of
+# v1.200 to v1.214 (up to 278 s) also ran the converter line twice. At v1.170, 158 s over 45
+# runs, so 30; at v1.152, 140 s over 40 runs, so 25.
+SLOWEST_RUN_SECONDS = 213
+SLOWEST_RUN_ID = 43357001972
+TIMEOUT_MINUTES = 40
 LIMIT_LINE = f"    timeout-minutes: {TIMEOUT_MINUTES}"
 LIMIT_SENTENCE = (f"The job's time limit of {TIMEOUT_MINUTES} minutes is about ten times its slowest run, "
                   "and a failed download is retried by rerunning the job (DESIGN.md 12.13).")
@@ -579,12 +582,14 @@ def test_the_design_time_limit_bullet_gives_the_value_and_its_basis_run():
     assert len(bullets) == 1
     bullet = bullets[0]
     assert f"sets `timeout-minutes: {TIMEOUT_MINUTES}`" in bullet
-    _, marker, rest = bullet.partition("Basis (v1.217, row E17h; restated v1.225, row E17i, and v1.268, row CI10): ")
+    _, marker, rest = bullet.partition(
+        "Basis (v1.217, row E17h; restated v1.225, row E17i, v1.268, row CI10, and v1.301, row CI11): ")
     assert marker
-    # v1.268: the basis ends before the first history sentence, now the v1.225 one.
-    assert " The v1.225 basis" in rest
-    basis, _, history = rest.partition(" The v1.225 basis")
-    assert history.index(" The v1.217 basis") < history.index(" The v1.170 basis")
+    # v1.301: the basis ends before the first history sentence, now the v1.268 one.
+    assert " The v1.268 basis" in rest
+    basis, _, history = rest.partition(" The v1.268 basis")
+    assert (history.index(" The v1.225 basis") < history.index(" The v1.217 basis")
+            < history.index(" The v1.170 basis"))
     assert re.search(rf"run {SLOWEST_RUN_ID} on `[0-9a-f]{{7}}`, which took {SLOWEST_RUN_SECONDS} seconds "
                      "from its start to its last update", basis)
     tenfold = 10 * SLOWEST_RUN_SECONDS
