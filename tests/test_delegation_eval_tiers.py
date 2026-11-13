@@ -275,7 +275,8 @@ def test_without_tiers_a_per_call_row_keeps_its_v1_221_cost():
 
 
 def test_design_specifies_held_out_tiers():
-    text = (ROOT / "DESIGN.md").read_text(encoding="utf-8")
+    text = ((ROOT / "DESIGN.md").read_text(encoding="utf-8")
+            + (ROOT / "CHANGELOG.md").read_text(encoding="utf-8"))  # DESIGN 15 v1.326: the changelog
     for fragment in [
         "- v1.222 per-call tiers in the held-out costs (row P1c): on a model with `price_tiers` (4.1)",
         "call j reading X + a_1 + ... + a_j + b_1 + ... + b_{j-1} and writing b_j",

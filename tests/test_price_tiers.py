@@ -59,7 +59,8 @@ def router(registry, the_task):
 
 
 def test_design_specifies_price_tiers():
-    text = (ROOT / "DESIGN.md").read_text(encoding="utf-8")
+    text = ((ROOT / "DESIGN.md").read_text(encoding="utf-8")
+            + (ROOT / "CHANGELOG.md").read_text(encoding="utf-8"))  # DESIGN 15 v1.326: the changelog
     for fragment in [
         "- v1.212 `@dataclass(frozen=True) class PriceTier`: `above_input_tokens: int`",
         "- v1.212 `Model.price_tiers: tuple[PriceTier, ...]`, default `()`, the last field",

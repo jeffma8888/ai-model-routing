@@ -213,7 +213,8 @@ def test_no_committed_delegation_registry_has_a_tier():
 
 
 def test_design_specifies_per_call_tiers():
-    text = (ROOT / "DESIGN.md").read_text(encoding="utf-8")
+    text = ((ROOT / "DESIGN.md").read_text(encoding="utf-8")
+            + (ROOT / "CHANGELOG.md").read_text(encoding="utf-8"))  # DESIGN 15 v1.326: the changelog
     for fragment in [
         "- v1.219 per-call tiers (row P1b): on a model with `price_tiers` (4.1)",
         "`A * in(C + A) + rho * C * (in(C + A) - in(C))`",
@@ -227,7 +228,8 @@ def test_design_specifies_per_call_tiers():
 def test_design_states_why_the_parents_own_output_stays_uncharged():
     """DESIGN 13.2 v1.242 (row P1d): no input gives the parent's own output in a later shared
     call a size, so the row closes with that reason and no cost changes."""
-    text = (ROOT / "DESIGN.md").read_text(encoding="utf-8")
+    text = ((ROOT / "DESIGN.md").read_text(encoding="utf-8")
+            + (ROOT / "CHANGELOG.md").read_text(encoding="utf-8"))  # DESIGN 15 v1.326: the changelog
     for fragment in [
         "  - v1.242 why that output stays uncharged (row P1d): no input gives it a size.",
         "the decision turn reads C on both paths, A = 0, so it pays in(C) and out(C) on both",

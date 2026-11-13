@@ -416,7 +416,8 @@ def test_design_specifies_the_note():
                   "`(-quality_lb, routing_cost, model_id)`", "`## Recommendation`",
                   "`tests/test_research_below_bar_fallback.py`", "No change under `model_routing/`"):
         assert words in bullets[0], words
-    assert re.search(r"^- v1\.191 \(\d{4}-\d{2}-\d{2}\): spec and tests \(row R16\)\. ", design, flags=re.M)
+    changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")  # DESIGN 15 v1.326
+    assert re.search(r"^- v1\.191 \(\d{4}-\d{2}-\d{2}\): spec and tests \(row R16\)\. ", changelog, flags=re.M)
 
 
 # --- the pinned file, only when already cached (one session read, tests/conftest.py) ----------

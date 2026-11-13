@@ -27,7 +27,6 @@ HEADER = [
     "",
 ]
 ENTRY = re.compile(r"^- v(\d+)\.(\d+) \((\d{4}-\d{2}-\d{2})[,)]")
-RED = pytest.mark.xfail(strict=True, reason="v1.326 red: CHANGELOG.md and the pointer line land in v1.327")
 
 
 def shown(version):
@@ -72,12 +71,10 @@ def read(path):
     return path.read_text(encoding="utf-8")
 
 
-@RED
 def test_the_changelog_file_has_its_header_and_ascending_versions():
     assert changelog_problems(read(CHANGELOG)) == []
 
 
-@RED
 def test_design_15_is_the_one_pointer_line():
     assert section_problems(read(DESIGN)) == []
 
@@ -92,7 +89,7 @@ def _swapped(text):
     rows = _entries(text)
     last = rows[-1]
     top = ENTRY.match(lines[last])
-    before = next(k for k in reversed(rows) if ENTRY.match(lines[k])[1:3] != top[1:3])
+    before = next(k for k in reversed(rows) if ENTRY.match(lines[k]).group(1, 2) != top.group(1, 2))
     lines[before], lines[last] = lines[last], lines[before]
     return "\n".join(lines)
 
@@ -116,7 +113,6 @@ CHANGELOG_BROKEN = {
 }
 
 
-@RED
 @pytest.mark.parametrize("name", sorted(CHANGELOG_BROKEN))
 def test_a_broken_changelog_file_fails_the_check(name):
     text = read(CHANGELOG)
@@ -135,7 +131,6 @@ SECTION_BROKEN = {
 }
 
 
-@RED
 @pytest.mark.parametrize("name", sorted(SECTION_BROKEN))
 def test_a_broken_section_15_fails_the_check(name):
     text = read(DESIGN)

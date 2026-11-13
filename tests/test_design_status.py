@@ -11,10 +11,17 @@ review iter-132 nit 1).
 
 DESIGN 15 v1.247 (row DOC13): the parenthesis holds one clause for each of the five highest
 changelog versions (each of them while there are fewer than five), highest first, and then ends
-with one pointer, `; earlier versions are in 15. Changelog`, before its closing parenthesis. A
+with one pointer, `; earlier versions are in 15. Changelog` (v1.327: `; earlier versions are
+in CHANGELOG.md`), before its closing parenthesis. A
 clause opens with its version and a space or a comma, and each clause after the first starts
 after a `; `, so a slice that adds a version drops the oldest clause; at v1.246 the line held 113
-clauses in 22,023 bytes."""
+clauses in 22,023 bytes.
+
+DESIGN 15 v1.326 (row DOC18): from v1.327 the changelog lines are in CHANGELOG.md and
+`## 15. Changelog` holds one pointer line (tests/test_changelog_file.py), so the text checked
+here is DESIGN.md followed by CHANGELOG.md: the lines after the heading are the pointer, the
+file's header and its changelog lines, and the pointer that ends the parenthesis is
+`; earlier versions are in CHANGELOG.md`."""
 
 import re
 from pathlib import Path
@@ -23,11 +30,12 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 DESIGN = ROOT / "DESIGN.md"
+CHANGELOG = ROOT / "CHANGELOG.md"
 HEADING = "## 15. Changelog"
 ENTRY = re.compile(r"^- v(\d+)\.(\d+) \((\d{4}-\d{2}-\d{2})[,)]")
 STATUS = re.compile(r"^Status: v(\d+)\.(\d+), (\d{4}-\d{2}-\d{2}) \(v(\d+)\.(\d+)[ ,]")
 LOOKALIKE = re.compile(r"^\s*[-*+]\s+v\d")
-POINTER = "; earlier versions are in 15. Changelog"
+POINTER = "; earlier versions are in CHANGELOG.md"
 CLAUSES = 5
 CLAUSE_START = re.compile(r"; (?=v\d+\.\d+[ ,])")
 VERSION = re.compile(r"v(\d+)\.(\d+)")
@@ -103,7 +111,8 @@ def parenthesis_problems(line, versions):
 
 
 def read():
-    return DESIGN.read_text(encoding="utf-8")
+    """DESIGN.md followed by CHANGELOG.md (v1.326), so the changelog lines are the file's."""
+    return DESIGN.read_text(encoding="utf-8") + CHANGELOG.read_text(encoding="utf-8")
 
 
 def test_the_status_line_names_the_last_changelog_version():
@@ -243,7 +252,7 @@ def test_sub_bullets_before_the_changelog_do_not_count():
         "# Design: x",
         "",
         "Status: v1.2, 2026-01-02 (v1.2 does a thing; v1.1 did one; v1.0, first, began; "
-        "earlier versions are in 15. Changelog)",
+        "earlier versions are in CHANGELOG.md)",
         "",
         "## 4. Section",
         "- v1.9, a sub-bullet that is not a changelog entry",
@@ -265,7 +274,7 @@ def test_minor_versions_compare_as_numbers():
     doc = "\n".join([
         "# Design: x",
         "",
-        "Status: v1.10, 2026-01-03 (v1.10 is newer than v1.9; v1.9 is older; earlier versions are in 15. Changelog)",
+        "Status: v1.10, 2026-01-03 (v1.10 is newer than v1.9; v1.9 is older; earlier versions are in CHANGELOG.md)",
         "",
         "## 1. Problem",
         "",
@@ -297,7 +306,7 @@ def _seven_versions(status):
 
 
 GOOD = ("Status: v1.6, 2026-01-07 (v1.6 six; v1.5, spec: five; v1.4 implements v1.3: four; v1.3 three; "
-        "v1.2 two; earlier versions are in 15. Changelog)")
+        "v1.2 two; earlier versions are in CHANGELOG.md)")
 
 BROKEN_PARENTHESIS = {
     "a sixth clause": (GOOD.replace("; v1.2 two;", "; v1.2 two; v1.1 one;"),
@@ -317,7 +326,7 @@ BROKEN_PARENTHESIS = {
                                              "the Status clauses name v1.6, v1.5, v1.4, v1.3, v1.0, v1.2 but the "
                                              "5 highest changelog versions, highest first, are v1.6, v1.5, v1.4, "
                                              "v1.3, v1.2"),
-    "the pointer dropped": (GOOD.replace("; earlier versions are in 15. Changelog", ""),
+    "the pointer dropped": (GOOD.replace("; earlier versions are in CHANGELOG.md", ""),
                             "the Status line holds the changelog pointer 0 times, not once"),
     "the pointer twice": (GOOD.replace(POINTER, POINTER + POINTER),
                           "the Status line holds the changelog pointer 2 times, not once"),
