@@ -18,6 +18,10 @@ v1.88 runs the 13.10 cached point (variant point 1) in process on both matrices,
 imply; its tests came before the RESULTS.md bullets and two of them failed until v1.89.
 v1.92 puts the first cached-point bullet in the README subsection and one sentence on the point
 in README Limitations (12.8); its tests came before the README lines.
+v1.337 (row DOC19a) trims the README subsection to the 12.8 v1.334 size budget, as v1.336 specifies:
+the whole table, the third Reading it bullet, seven of the eight RESULTS.md bullets, the pooled-run
+bullets and the cached-point bullet leave it, and the tests that required them there now require
+each in RESULTS.md and none of them in the subsection.
 """
 
 import importlib.util
@@ -468,15 +472,21 @@ README_LINKS = (
     "[RESULTS.md](evidence/tau2-bench-delegation/RESULTS.md)",
     "[results.json](evidence/tau2-bench-delegation/results.json)",
     "[registry.json](evidence/tau2-bench-delegation/registry.json)",
-    "[pooled.json](evidence/tau2-bench-delegation/pooled.json)",
     "](evidence/tau2-bench/README.md)",
     "](research/delegation-datasets.md)",
     "[inline or sub-agent](#inline-or-sub-agent)",
     "8,000, 64,000 and 200,000",
     "list-price estimate",
 )
-# Each is the start of one RESULTS.md bullet that the README repeats verbatim (12.8 v1.80):
-# three from Method, the rest from Assumed.
+# Each is the start of one RESULTS.md bullet that the README repeated verbatim (12.8 v1.80): three
+# from Method, the rest from Assumed. From v1.337 (12.8 v1.336) the README keeps only the first in
+# README_KEPT_LINES, then the link line; every one stays a RESULTS.md line.
+README_KEPT_LINES = ("The lossless brief",)
+LINK_LINE = ("The other limits are in [RESULTS.md](evidence/tau2-bench-delegation/RESULTS.md#assumed) `## Assumed`, "
+             "and the means over the parents at every bar and point, the reason counts, the pooled run and the cached "
+             "point in the rest of that file.")
+PARENT_INTRO = ("One row per (flavor, parent) at bar 0.3 and point 0, columns as in "
+                "[Delegation on AutoBench](#delegation-on-autobench):")
 RESULTS_MD_LINES = (
     "Of the ",
     "Airline has 50 conversations",
@@ -519,23 +529,50 @@ def test_readme_subsection_links_the_sources_and_licence():
 
 
 def test_readme_subsection_shows_the_counts_tables_and_reading_it(dr):
+    # v1.337 (12.8 v1.336): the per-parent block and the first two Reading it bullets; the whole
+    # table, which RESULTS.md `## Results` holds, and the third bullet are left to RESULTS.md.
     sub = readme_subsection()
     results = committed_results()
     assert counts_sentence(results) in sub
-    assert f"```text\n{TABLE_CMD}\n{dr.table(results)}\n```" in sub
-    assert f"```text\n{PARENT_CMD}\n{dr.parent_table(results, results['config']['bars'][0], 0)}\n```" in sub
-    for sentence in reading_it(results)[:3]:
-        assert f"- {sentence}\n" in sub, sentence
+    assert f"```text\n{TABLE_CMD}\n" not in sub
+    assert "Means over the 3 parents" not in sub
+    parent = dr.parent_table(results, results['config']['bars'][0], 0)
+    assert sub.count(f"\n{PARENT_INTRO}\n\n```text\n{PARENT_CMD}\n{parent}\n```\n") == 1
+    reading = reading_it(results)
+    for sentence in reading[:2]:
+        assert sub.count(f"\n- {sentence}\n") == 1, sentence
+    assert reading[2] not in sub
     assert "`results.json` is " not in sub
 
 
+def test_readme_subsection_keeps_two_bullets_one_limit_and_a_link_line():
+    """v1.337 (12.8 v1.336): the subsection's only bullets are the first two Reading it ones and the
+    lossless-brief limit, in that order after the per-parent block, then the link line and the
+    regenerate paragraph."""
+    sub = readme_subsection()
+    reading = reading_it(committed_results())
+    lines = RESULTS_MD.read_text(encoding="utf-8").splitlines()
+    lossless = [line for line in lines if line.startswith("- The lossless brief")]
+    assert len(lossless) == 1 and "## Assumed" in lines
+    assert [line for line in sub.splitlines() if line.startswith("- ")] == [
+        f"- {reading[0]}", f"- {reading[1]}", lossless[0]]
+    tail = (f"\n- {reading[1]}\n\nLimits, as RESULTS.md states them:\n\n{lossless[0]}\n\n{LINK_LINE}\n\n"
+            f"Regenerate (a few seconds after the download):\n\n```bash\n")
+    assert sub.count(tail) == 1
+    assert sub.index(PARENT_CMD) < sub.index(tail)
+
+
 def test_readme_subsection_repeats_the_results_md_lines():
+    # v1.337 (12.8 v1.336): each is a RESULTS.md line; the subsection keeps only README_KEPT_LINES.
     sub = readme_subsection()
     lines = RESULTS_MD.read_text(encoding="utf-8").splitlines()
     for start in RESULTS_MD_LINES:
         found = [line for line in lines if line.startswith(f"- {start}")]
         assert len(found) == 1, start
-        assert f"\n{found[0]}\n" in sub, start
+        if start in README_KEPT_LINES:
+            assert sub.count(f"\n{found[0]}\n") == 1, start
+        else:
+            assert f"\n- {start}" not in sub, start
 
 
 def test_readme_subsection_regenerate_blocks_are_the_results_md_ones():
@@ -641,32 +678,30 @@ def test_results_md_reading_it_states_the_pooled_run():
         assert f"- {sentence}\n" in text, sentence
 
 
-# --- the pooled run in the README subsection (DESIGN 12.8 v1.84) -------------------------------
+# --- the pooled run in the README subsection (DESIGN 12.8 v1.84, trimmed by v1.336) ------------
 
-def pooled_readme_lines():
-    """The three RESULTS.md bullets the README repeats, the Method one with its pooled.json link
-    from the repo root."""
+POOLED_STARTS = ("- A second run pools the three domains", "- Pooled, the ", "- The cost comparison (")
+
+
+def pooled_results_md_lines():
+    """The three RESULTS.md bullets on the pooled run, which the README repeated until v1.337: the
+    Method one, with its folder-relative pooled.json link, then two Reading it ones."""
     text = RESULTS_MD.read_text(encoding="utf-8")
-    method = [line for line in section(text, "## Method").splitlines()
-              if line.startswith("- A second run pools the three domains")]
-    reading = [line for line in section(text, "## Reading it").splitlines()
-               if line.startswith(("- Pooled, the ", "- The cost comparison ("))]
+    method = [line for line in section(text, "## Method").splitlines() if line.startswith(POOLED_STARTS[0])]
+    reading = [line for line in section(text, "## Reading it").splitlines() if line.startswith(POOLED_STARTS[1:])]
     assert len(method) == 1 and len(reading) == 2
-    link = "[pooled.json](pooled.json)"
-    assert method[0].count(link) == 1
-    return [method[0].replace(link, "[pooled.json](evidence/tau2-bench-delegation/pooled.json)"), *reading]
+    assert method[0].count("[pooled.json](pooled.json)") == 1
+    return [method[0], *reading]
 
 
-def test_readme_subsection_states_the_pooled_run():
+def test_readme_subsection_leaves_the_pooled_run_to_results_md():
+    # v1.337 (12.8 v1.336): the subsection keeps the pooled regenerate block only.
     sub = readme_subsection()
-    lines = pooled_readme_lines()
+    lines = pooled_results_md_lines()
     assert lines[1] == f"- {pooled_reading(committed_results(), committed_pooled())[0]}"
-    for line in lines:
-        assert sub.count(f"\n{line}\n") == 1, line
-    assert "\n" + "\n".join(lines) + "\n" in sub
-    at = [sub.index(f"\n{line}\n") for line in lines]
-    assert sub.index("\n- At point 2, C = 200,000") < at[0] < at[1] < at[2]
-    assert at[2] < sub.index("\nLimits, as RESULTS.md states them:\n")
+    for start in POOLED_STARTS:
+        assert f"\n{start}" not in sub, start
+    assert "[pooled.json](" not in sub
     assert "`pooled.json` is " not in sub
     assert POOLED_CMD not in sub
 
@@ -781,7 +816,8 @@ def test_results_md_reason_table_and_cost_comparison_are_built_from_the_runs(run
     assert table in results
     assert results.index(table) > results.index(POOLED_CMD)
     assert f"- {cost_comparison_sentence(runs)}\n" in section(text, "## Reading it")
-    assert f"\n- {cost_comparison_sentence(runs)}\n" in readme_subsection()
+    # v1.337 (12.8 v1.336): RESULTS.md only.
+    assert cost_comparison_sentence(runs) not in readme_subsection()
 
 
 # --- the cached point on per-call rows (DESIGN 13.12 v1.88) ------------------------------------
@@ -956,12 +992,14 @@ def test_results_md_states_the_cached_point(cached_runs):
     block = "\n".join(f"- {sentence}" for sentence in cached_reading(cached_runs))
     assert f"\n{block}\n" in f"\n{reading}"
     assert reading.index(block) > reading.index("- `pooled.json` is ")
-    # v1.92: the README repeats the first bullet, its AutoBench link from the repo root (12.8).
+    # v1.92 put the first bullet in the README, its AutoBench link from the repo root (12.8); from
+    # v1.337 (12.8 v1.336) it is a RESULTS.md line only.
     first = cached_reading(cached_runs)[0].replace(AUTOBENCH_LINK, AUTOBENCH_LINK_FROM_ROOT)
-    assert f"\n- {first}\n" in readme_subsection()
+    assert first not in readme_subsection()
+    assert "\n- At the cached point of " not in readme_subsection()
 
 
-# --- the cached point in the README (DESIGN 12.8 v1.92) ----------------------------------------
+# --- the cached point in the README (DESIGN 12.8 v1.92, trimmed by v1.336) ---------------------
 
 AUTOBENCH_LINK = "[the AutoBench delegation results](../delegation/RESULTS.md)"
 AUTOBENCH_LINK_FROM_ROOT = "[the AutoBench delegation results](evidence/delegation/RESULTS.md)"
@@ -969,7 +1007,7 @@ AUTOBENCH_LINK_FROM_ROOT = "[the AutoBench delegation results](evidence/delegati
 
 def cached_readme_line():
     """The first v1.88 cached-point Reading it bullet of RESULTS.md, its AutoBench link from the
-    repo root, as the README repeats it."""
+    repo root, as the README repeated it until v1.337."""
     reading = section(RESULTS_MD.read_text(encoding="utf-8"), "## Reading it")
     found = [line for line in reading.splitlines() if line.startswith("- At the cached point of ")]
     assert len(found) == 1
@@ -977,14 +1015,14 @@ def cached_readme_line():
     return found[0].replace(AUTOBENCH_LINK, AUTOBENCH_LINK_FROM_ROOT)
 
 
-def test_readme_subsection_states_the_cached_point():
+def test_readme_subsection_leaves_the_cached_point_to_results_md():
+    # v1.337 (12.8 v1.336): none of the cached-point bullets is in the subsection.
     sub = readme_subsection()
     line = cached_readme_line()
-    assert sub.count(f"\n{line}\n") == 1
-    # After the last pooled-run bullet, before the limits.
-    assert f"\n{pooled_readme_lines()[-1]}\n{line}\n\nLimits, as RESULTS.md states them:\n" in sub
+    assert line not in sub
     assert "../" not in sub
-    for start in ("- There, of the ", "- At bar 0.3 the ratio of ", "- The cached point's ratio of "):
+    for start in ("- At the cached point of ", "- There, of the ", "- At bar 0.3 the ratio of ",
+                  "- The cached point's ratio of "):
         assert f"\n{start}" not in sub, start
 
 

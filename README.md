@@ -871,63 +871,9 @@ python evidence/delegation/results.py --table evidence/delegation/variants.json
 
 ### Delegation on tau2-bench
 
-The [tau2-bench](https://github.com/sierra-research/tau2-bench) paper results at revision [033bf08](https://github.com/sierra-research/tau2-bench/tree/033bf082f48e4a3c6a1256208e93cf2ce9c3bb6f) (licence MIT, "Copyright (c) 2025 Sierra Research"), the runs the [tau2-bench](#tau2-bench) routing results above read, score the [inline or sub-agent](#inline-or-sub-agent) decision on held-out conversations, next to always working inline and always delegating ([RESULTS.md](evidence/tau2-bench-delegation/RESULTS.md), [results.json](evidence/tau2-bench-delegation/results.json), `DESIGN.md` 13.9 and 13.12). Each item is one agent conversation at trial 0, one task per domain (airline 50, retail 114 and telecom 114 conversations), with each of the 3 agents (`anthropic/claude-3-7-sonnet-20250219`, `openai/gpt-4.1-2025-04-14` and `openai/gpt-4.1-mini-2025-04-14`) as the parent, over 50 seeds. The rows come from the tau2-bench converter run with `--calls` ([evidence/tau2-bench/README.md](evidence/tau2-bench/README.md)): one row per agent and conversation, with its success label and each of its agent calls' new input and output tokens, so each path is priced on the calls of the model doing the work. The agents' list prices and context windows are in [registry.json](evidence/tau2-bench-delegation/registry.json), with the vendor pages and checks behind them in [research/delegation-datasets.md](research/delegation-datasets.md), so every cost is a list-price estimate, never a billed cost. The grid is the four base points of [Delegation on AutoBench](#delegation-on-autobench): 8,000, 64,000 and 200,000 context tokens with inline work in parent calls of its own, and 8,000 with the work folded into the parent's next call, each with a brief of 500 tokens, a 500-token result and one later parent call. Means over the 3 parents, columns as in [Delegation on AutoBench](#delegation-on-autobench):
+The [tau2-bench](https://github.com/sierra-research/tau2-bench) paper results at revision [033bf08](https://github.com/sierra-research/tau2-bench/tree/033bf082f48e4a3c6a1256208e93cf2ce9c3bb6f) (licence MIT, "Copyright (c) 2025 Sierra Research"), the runs the [tau2-bench](#tau2-bench) routing results above read, score the [inline or sub-agent](#inline-or-sub-agent) decision on held-out conversations, next to always working inline and always delegating ([RESULTS.md](evidence/tau2-bench-delegation/RESULTS.md), [results.json](evidence/tau2-bench-delegation/results.json), `DESIGN.md` 13.9 and 13.12). Each item is one agent conversation at trial 0, one task per domain (airline 50, retail 114 and telecom 114 conversations), with each of the 3 agents (`anthropic/claude-3-7-sonnet-20250219`, `openai/gpt-4.1-2025-04-14` and `openai/gpt-4.1-mini-2025-04-14`) as the parent, over 50 seeds. The rows come from the tau2-bench converter run with `--calls` ([evidence/tau2-bench/README.md](evidence/tau2-bench/README.md)): one row per agent and conversation, with its success label and each of its agent calls' new input and output tokens, so each path is priced on the calls of the model doing the work. The agents' list prices and context windows are in [registry.json](evidence/tau2-bench-delegation/registry.json), with the vendor pages and checks behind them in [research/delegation-datasets.md](research/delegation-datasets.md), so every cost is a list-price estimate, never a billed cost. The grid is the four base points of [Delegation on AutoBench](#delegation-on-autobench): 8,000, 64,000 and 200,000 context tokens with inline work in parent calls of its own, and 8,000 with the work folded into the parent's next call, each with a brief of 500 tokens, a 500-token result and one later parent call.
 
-```text
-$ python evidence/delegation/results.py --table evidence/tau2-bench-delegation/results.json
-bar  flavor          context  separate  dec_success  dec_cost  inl_success  inl_cost  del_success  del_cost  delegated
----  --------------  -------  --------  -----------  --------  -----------  --------  -----------  --------  ---------
-0.3  cost_effective  8000     True      0.550        19.8422   0.574        67.1856   0.550        19.8422   1.000
-0.3  cost_effective  64000    True      0.550        19.8422   0.574        276.8994  0.550        19.8422   1.000
-0.3  cost_effective  200000   True      0.550        19.8422   0.574        786.2041  0.550        19.8422   1.000
-0.3  cost_effective  8000     False     0.550        19.8422   0.574        62.8021   0.550        19.8422   1.000
-0.3  cost_blind      8000     True      0.589        62.3515   0.574        67.1856   0.591        48.9710   0.616
-0.3  cost_blind      64000    True      0.589        161.3417  0.574        276.8994  0.591        48.9710   0.616
-0.3  cost_blind      200000   True      0.589        114.3397  0.574        786.2041  0.591        48.9710   0.822
-0.3  cost_blind      8000     False     0.589        60.2068   0.574        62.8021   0.591        48.9710   0.616
-0.4  cost_effective  8000     True      0.548        26.9990   0.574        67.1856   0.548        26.9990   1.000
-0.4  cost_effective  64000    True      0.548        26.9990   0.574        276.8994  0.548        26.9990   1.000
-0.4  cost_effective  200000   True      0.548        26.9990   0.574        786.2041  0.548        26.9990   1.000
-0.4  cost_effective  8000     False     0.548        26.9990   0.574        62.8021   0.548        26.9990   1.000
-0.4  cost_blind      8000     True      0.589        62.3515   0.574        67.1856   0.591        48.9710   0.616
-0.4  cost_blind      64000    True      0.589        161.3417  0.574        276.8994  0.591        48.9710   0.616
-0.4  cost_blind      200000   True      0.589        114.3397  0.574        786.2041  0.591        48.9710   0.822
-0.4  cost_blind      8000     False     0.589        60.2068   0.574        62.8021   0.591        48.9710   0.616
-0.5  cost_effective  8000     True      0.550        28.2685   0.574        67.1856   0.550        28.2685   1.000
-0.5  cost_effective  64000    True      0.550        28.2685   0.574        276.8994  0.550        28.2685   1.000
-0.5  cost_effective  200000   True      0.550        28.2685   0.574        786.2041  0.550        28.2685   1.000
-0.5  cost_effective  8000     False     0.550        28.2685   0.574        62.8021   0.550        28.2685   1.000
-0.5  cost_blind      8000     True      0.589        62.3515   0.574        67.1856   0.591        48.9710   0.616
-0.5  cost_blind      64000    True      0.589        161.3417  0.574        276.8994  0.591        48.9710   0.616
-0.5  cost_blind      200000   True      0.589        114.3397  0.574        786.2041  0.591        48.9710   0.822
-0.5  cost_blind      8000     False     0.589        60.2068   0.574        62.8021   0.591        48.9710   0.616
-0.6  cost_effective  8000     True      0.570        38.1436   0.574        67.1856   0.570        38.1436   1.000
-0.6  cost_effective  64000    True      0.570        38.1436   0.574        276.8994  0.570        38.1436   1.000
-0.6  cost_effective  200000   True      0.570        38.1436   0.574        786.2041  0.570        38.1436   1.000
-0.6  cost_effective  8000     False     0.570        38.1436   0.574        62.8021   0.570        38.1436   1.000
-0.6  cost_blind      8000     True      0.589        62.3515   0.574        67.1856   0.591        48.9710   0.616
-0.6  cost_blind      64000    True      0.589        161.3417  0.574        276.8994  0.591        48.9710   0.616
-0.6  cost_blind      200000   True      0.589        114.3397  0.574        786.2041  0.591        48.9710   0.822
-0.6  cost_blind      8000     False     0.589        60.2068   0.574        62.8021   0.591        48.9710   0.616
-0.7  cost_effective  8000     True      0.586        43.4666   0.574        67.1856   0.586        43.4666   1.000
-0.7  cost_effective  64000    True      0.586        43.4666   0.574        276.8994  0.586        43.4666   1.000
-0.7  cost_effective  200000   True      0.586        43.4666   0.574        786.2041  0.586        43.4666   1.000
-0.7  cost_effective  8000     False     0.586        43.4666   0.574        62.8021   0.586        43.4666   1.000
-0.7  cost_blind      8000     True      0.589        62.3515   0.574        67.1856   0.591        48.9710   0.616
-0.7  cost_blind      64000    True      0.589        161.3417  0.574        276.8994  0.591        48.9710   0.616
-0.7  cost_blind      200000   True      0.589        114.3397  0.574        786.2041  0.591        48.9710   0.822
-0.7  cost_blind      8000     False     0.589        60.2068   0.574        62.8021   0.591        48.9710   0.616
-0.8  cost_effective  8000     True      0.586        43.7120   0.574        67.1856   0.586        43.7120   1.000
-0.8  cost_effective  64000    True      0.586        43.7120   0.574        276.8994  0.586        43.7120   1.000
-0.8  cost_effective  200000   True      0.586        43.7120   0.574        786.2041  0.586        43.7120   1.000
-0.8  cost_effective  8000     False     0.586        43.7120   0.574        62.8021   0.586        43.7120   1.000
-0.8  cost_blind      8000     True      0.589        62.3515   0.574        67.1856   0.591        48.9710   0.616
-0.8  cost_blind      64000    True      0.589        161.3417  0.574        276.8994  0.591        48.9710   0.616
-0.8  cost_blind      200000   True      0.589        114.3397  0.574        786.2041  0.591        48.9710   0.822
-0.8  cost_blind      8000     False     0.589        60.2068   0.574        62.8021   0.591        48.9710   0.616
-```
-
-One row per (flavor, parent) at bar 0.3 and point 0:
+One row per (flavor, parent) at bar 0.3 and point 0, columns as in [Delegation on AutoBench](#delegation-on-autobench):
 
 ```text
 $ python evidence/delegation/results.py --table evidence/tau2-bench-delegation/results.json --bar 0.3 --point 0
@@ -943,22 +889,12 @@ cost_blind      openai/gpt-4.1-mini-2025-04-14        0.793      0.590        49
 
 - In `cost_effective` the decision delegates on every seed for every parent at every bar and point (`delegate_rate` 1.0 on all 72 decision rows).
 - At bar 0.3 and point 0 (8,000 context tokens), averaged over the 3 parents, the `cost_effective` decision costs 19.8422 USD on a held-out half against 67.1856 for always inline (3.39 times as much), with held-out success 0.550 against 0.574.
-- At that bar and point the `cost_effective` decision costs more than always inline for `openai/gpt-4.1-mini-2025-04-14` (18.9993 against 17.5937).
-- Of the 10,800 `cost_effective` cells, 6,941 `none_clear`, 2,301 `delegate_cheaper`, 900 `parent_context_full` and 658 `parent_below_bar`. `none_clear` is 13.5 row 7: no agent clears the bar, so the calibration bounds decide, not cost. No cell is `inline_cheaper`
-- Airline has 50 conversations, so at the default `min_samples` of 30 its calibration half is under 30 on 40 of the 50 seeds: no agent clears a bar there on those seeds, and every airline cell of them is 13.5 row 7 (`none_clear`) unless 13.4 blocks inline
-- At point 2, C = 200,000 alone fills the assumed 200,000-token window of `anthropic/claude-3-7-sonnet-20250219`, so inline is blocked (`parent_context_full`) on all 1,800 of that parent's point 2 cells and on no other cell. The block follows from the assumed window
-- A second run pools the three domains into one task (the converter's `--task-by all`: the same 834 rows as one task of 278 conversations) and writes [pooled.json](evidence/tau2-bench-delegation/pooled.json) with the same script, registry, bars, points and seeds. Its calibration half holds 114 to 158 conversations over the 50 seeds, over `min_samples` on every seed, but a pooled bound mixes three kinds of job that the per-domain tasks keep apart, so the pooled run is a sensitivity of this reading, not its main result
-- Pooled, the `cost_effective` decision again delegates on every seed for every parent at every bar and point; at bar 0.3 and point 0, averaged over the 3 parents, it costs 10.0668 USD on a held-out half against 19.8422 per domain, with held-out success 0.548 against 0.550. Always inline has the same held-out success and cost in both runs, since the split reads only the seed and the item ID (`DESIGN.md` 12.2).
-- The cost comparison (`DESIGN.md` 13.5 row 3: both paths clear the bar, so their costs are compared) is reached on 2,301 of the 10,800 `cost_effective` cells per domain (21.3%) and on 1,232 of the 3,600 pooled (34.2%); no cell of either run is `inline_cheaper`.
-- At the cached point of [the AutoBench delegation results](evidence/delegation/RESULTS.md) (variant point 1: point 2 with the parent's reads of C at `cached_read_ratio` 0.1 of its list input price, an assumed ratio), the decision has the mode, model and reason it has at point 2 on all 5,400 cells per domain and all 1,800 pooled, in both flavors, and so it has with the ratio at 0.25 or 0: no cell moves from `delegate_cheaper` to `inline_cheaper`.
 
 Limits, as RESULTS.md states them:
 
 - The lossless brief of `DESIGN.md` 13.9: the delegate is credited with its own whole conversation, as if a brief of B tokens carried what it needs, and the parent with its own as if C more tokens of context did not change it
-- List price over-states the recorded costs of `openai/gpt-4.1-2025-04-14` 2.25 times and of `openai/gpt-4.1-mini-2025-04-14` 2.35 times (prompt caching, inferred from those costs in the research note) and those of `anthropic/claude-3-7-sonnet-20250219` 1.0 times, so every cost is a list-price estimate, and the gap between the two vendors' agents is about a factor of two wider than recorded
-- Each conversation is read at trial 0 only. At trials 1 and 2 the converter also leaves out `openai/gpt-4.1-mini-2025-04-14`, so a trial sensitivity would compare 2 agents there; it is not run
-- The agents are 2025 snapshots: the model pages list the two GPT-4.1 snapshots as Deprecated and o4-mini as Shut down, and Claude 3.7 Sonnet was retired on the Claude API on February 19, 2026. These prices only reprice their recorded runs
-- The limits of `DESIGN.md` 13.8: each conversation's success is its one recorded reward, and the bar is held per call, not for a conversation's calls together
+
+The other limits are in [RESULTS.md](evidence/tau2-bench-delegation/RESULTS.md#assumed) `## Assumed`, and the means over the parents at every bar and point, the reason counts, the pooled run and the cached point in the rest of that file.
 
 Regenerate (a few seconds after the download):
 
