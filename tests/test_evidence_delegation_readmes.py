@@ -4,8 +4,8 @@ the options its RESULTS.md `## Regenerate` block passes, links that dataset's ev
 and points to the `## Regenerate` block instead of repeating its commands.
 
 DESIGN 13.10 and 13.14 v1.319 (row E21f): the fourth delegation folder, response-bank-delegation,
-is checked the same way; its six per-folder cases are held as strict xfail, raising
-FileNotFoundError, until its README lands."""
+is checked the same way; its README lands in v1.320, which removes the strict xfail that held
+its six per-folder cases until then."""
 
 import re
 from pathlib import Path
@@ -50,12 +50,7 @@ FOLDERS = {
     },
 }
 LINK = re.compile(r"\]\(([^)\s]+)\)")
-PENDING = {"response-bank-delegation"}
-NAMES = [
-    pytest.param(name, marks=pytest.mark.xfail(strict=True, raises=FileNotFoundError))
-    if name in PENDING else name
-    for name in sorted(FOLDERS)
-]
+NAMES = sorted(FOLDERS)
 
 
 def readme(name):
