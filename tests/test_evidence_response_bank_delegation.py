@@ -15,6 +15,11 @@ v1.311 (review iter-207 must-fix 1 and should-fix 1) adds four strict-xfail case
 an ``--out`` that names an input, adapted from 13.13's, and more ``notes`` phrases in the registry test.
 
 v1.312 (row E21c) commits the script, ``registry.json`` and ``results.json`` and removes the markers.
+
+v1.313 (row E21e) adds the tests of ``RESULTS.md``, 13.13's five adapted to the sentences 13.14 states and a
+cached-file one on its Method sentences, each under a strict xfail marker naming ``FileNotFoundError``
+until the file lands. They import 13.13's ``dearer_than_inline``, ``section``, ``fenced`` and ``join``,
+and the cached-file tests share one module-scoped run of the pinned rows.
 """
 
 import importlib.util
@@ -26,12 +31,14 @@ from pathlib import Path
 import pytest
 
 from model_routing import Model, Registry, evaluate_delegation
+from test_evidence_llmrouterbench_delegation import dearer_than_inline, fenced, join, section
 
 ROOT = Path(__file__).resolve().parents[1]
 FOLDER = ROOT / "evidence" / "response-bank-delegation"
 SCRIPT = FOLDER / "results.py"
 REGISTRY = FOLDER / "registry.json"
 RESULTS = FOLDER / "results.json"
+RESULTS_MD = FOLDER / "RESULTS.md"
 DELEGATION_SCRIPT = ROOT / "evidence" / "delegation" / "results.py"
 LRB_SCRIPT = ROOT / "evidence" / "llmrouterbench-delegation" / "results.py"
 RESEARCH = ROOT / "research" / "delegation-datasets.md"
@@ -78,6 +85,28 @@ REASONS = {
     "cost_blind": {"none_clear": 5040, "delegate_better": 1492, "parent_below_bar": 848, "inline_as_good": 620},
 }
 POINT0 = {0.8: (20.7429, 101.6277, 0.847, 0.861), 0.9: (75.1256, 101.6277, 0.874, 0.861)}
+TABLE_CMD = "$ python evidence/delegation/results.py --table evidence/response-bank-delegation/results.json"
+PARENT_CMD = TABLE_CMD + " --bar 0.8 --point 0"
+REGENERATE = [
+    "python -m pip install -e .",
+    "python evidence/response-bank/convert.py --out response-bank-matrix.jsonl",
+    "python evidence/response-bank-delegation/results.py --matrix response-bank-matrix.jsonl --registry "
+    "evidence/response-bank-delegation/registry.json --out evidence/response-bank-delegation/results.json",
+    TABLE_CMD[2:],
+    PARENT_CMD[2:],
+]
+POOL_SENTENCE = ("The pool is all five models of [the response-bank routing results](../response-bank/RESULTS.md), "
+                 "each priced at the input and output pair its bills give on its responses with no cache read, so "
+                 "no model of those results is left out.")
+NONE_CLEAR = "`none_clear` is 13.5 row 7: no model clears the bar, so the calibration bounds decide, not cost."
+ASSUMED_PHRASES = ("lossless", "list price", "never a bill", "0.9999", "0.9995", "0.9901", "0.9855", "0.9824",
+                   "0.0028", "0.003625", "0.19", "0.26", "0.03", "1e-09", "which the registry does not hold",
+                   "other prices", "usage.input", "25,478", "60,154", "980", "1,281", "10, 3, 1 and 16",
+                   "10, 3, 1 and 14", "1M", "1,000,000", "262,144", "The 4 dropped items", "retired",
+                   "DeepSeek-V4.1-Flash-1017", "new users", "October 31, 2026", "end of December 2026",
+                   "a reader may no longer be able to call", "13.8")
+missing_md = pytest.mark.xfail(strict=True, raises=FileNotFoundError,
+                               reason="RESULTS.md lands in row E21e (DESIGN 13.14 v1.313)")
 
 def _load(name, path):
     spec = importlib.util.spec_from_file_location(name, path)
@@ -107,6 +136,20 @@ def pinned_rows(response_bank_pinned):
     assert code == 0, err
     with open(path, encoding="utf-8") as f:
         return [json.loads(line) for line in f if line.strip()]
+
+
+@pytest.fixture(scope="module")
+def pinned_full(pinned_rows):
+    """The 13.14 run on the pinned rows, once per module: (kept rows, dropped items, full run with its cells).
+
+    The script is loaded here, not through the function-scoped ``ld``, so the run is shared; a test must
+    not modify it."""
+    script = _load("response_bank_delegation_results_pinned", SCRIPT)
+    kept, dropped = script.select_rows(pinned_rows, list(POOL))
+    registry = Registry.load(REGISTRY)
+    full = evaluate_delegation(kept, registry, bars=list(script.BARS), points=script.points(),
+                               seeds=range(script.SEEDS))
+    return kept, dropped, full
 
 
 def g(x):
@@ -374,11 +417,10 @@ def test_results_file_shape(dr):
     assert len(keys) == len(results["summary"]) == len(BARS) * 2 * 4 * len(POOL) * 3 == 240
 
 
-def test_pinned_run_rebuilds_the_committed_file_and_the_prototype_numbers(ld, pinned_rows):
-    kept, dropped = ld.select_rows(pinned_rows, list(POOL))
+def test_pinned_run_rebuilds_the_committed_file_and_the_prototype_numbers(ld, pinned_full):
+    kept, dropped, full = pinned_full
     assert dropped == DROPPED
     registry = Registry.load(REGISTRY)
-    full = evaluate_delegation(kept, registry, bars=list(BARS), points=ld.points(), seeds=range(SEEDS))
     built = {key: full[key] for key in KEYS}
     assert json.dumps(built, indent=2) + "\n" == RESULTS.read_text(encoding="utf-8")
     assert built == ld.run(kept, registry)
@@ -430,3 +472,176 @@ def test_cli_out_naming_an_input_is_exit_2_before_any_read(ld, tmp_path, capsys,
     assert captured.out == ""
     assert captured.err == f"error: --out (or its .part file) names the same file as {option}\n"
     assert {p.name: p.read_bytes() for p in sorted(tmp_path.iterdir())} == before
+
+
+# ---- v1.313 RESULTS.md (row E21e): committed red, strict xfail until the file lands ----
+
+def summary_index(results):
+    return {(r["bar"], r["flavor"], r["point"], r["parent"], r["strategy"]): r for r in results["summary"]}
+
+
+def reading_bullets(results):
+    """13.13's five Reading it bullets, in its order, built from a results file."""
+    index = summary_index(results)
+    parents, bars, points = results["config"]["parents"], results["config"]["bars"], results["config"]["points"]
+    rates = [index[(b, "cost_effective", p, q, "decision")]["delegate_rate"]
+             for b in bars for p in (0, 1, 2) for q in parents]
+    assert all(rate == 1.0 for rate in rates)
+    folded = [f"{mean(index[(b, 'cost_effective', 3, q, 'decision')]['delegate_rate'] for q in parents):.3f}"
+              for b in bars]
+    first = ("In `cost_effective` the decision delegates on every seed for every parent at points 0 to 2 at every "
+             f"bar (`delegate_rate` 1.0 on all {len(rates)} of their decision rows); at point 3, the work folded into "
+             f"the parent's next call, its rate averaged over the {len(parents)} parents is {join(folded)} at bars "
+             f"{join(str(b) for b in bars)}.")
+
+    def means(bar, strategy):
+        rows = [index[(bar, "cost_effective", 0, q, strategy)] for q in parents]
+        return mean(r["success"] for r in rows), mean(r["cost_usd"] for r in rows)
+
+    low, high = bars[0], bars[-1]
+    dec_s, dec_c = means(low, "decision")
+    inl_s, inl_c = means(low, "inline")
+    second = (f"At bar {low} and point 0 ({points[0]['context_tokens']:,} context tokens), averaged over the "
+              f"{len(parents)} parents, the `cost_effective` decision costs {dec_c:.4f} USD on a held-out half "
+              f"against {inl_c:.4f} for always inline ({inl_c / dec_c:.2f} times as much), with held-out success "
+              f"{dec_s:.3f} against {inl_s:.3f}.")
+    hdec_s, hdec_c = means(high, "decision")
+    hinl_s, hinl_c = means(high, "inline")
+    third = (f"At bar {high} and point 0 it costs {hdec_c:.4f} USD against {hinl_c:.4f} for always inline, with "
+             f"held-out success {hdec_s:.3f} against {hinl_s:.3f}.")
+    return [first, second, third, dearer_than_inline(results), f"`results.json` is {len(RESULTS.read_bytes()):,} bytes."]
+
+
+def test_reading_bullets_on_the_committed_numbers():
+    """Plain: the builder gives the numbers 13.14 v1.313 states for the committed file."""
+    bullets = reading_bullets(json.loads(RESULTS.read_text(encoding="utf-8")))
+    assert "all 30 of their decision rows" in bullets[0] and "0.950 and 0.954 at bars 0.8 and 0.9." in bullets[0]
+    assert bullets[1] == ("At bar 0.8 and point 0 (8,000 context tokens), averaged over the 5 parents, the "
+                          "`cost_effective` decision costs 20.7429 USD on a held-out half against 101.6277 for always "
+                          "inline (4.90 times as much), with held-out success 0.847 against 0.861.")
+    assert bullets[2] == ("At bar 0.9 and point 0 it costs 75.1256 USD against 101.6277 for always inline, with "
+                          "held-out success 0.874 against 0.861.")
+    assert bullets[3] == "At bar 0.8 and point 0 the `cost_effective` decision costs more than always inline for no parent."
+    assert bullets[4] == "`results.json` is 69,970 bytes."
+
+
+@missing_md
+def test_results_md_structure():
+    text = RESULTS_MD.read_text(encoding="utf-8")
+    assert text.split("\n")[0] == ("# Delegation on the LLM Routing Response Bank: inline or sub-agent on held-out "
+                                   "single calls")
+    text.encode("ascii")
+    assert "\u2013" not in text and "\u2014" not in text
+    for needle in ("https://huggingface.co/datasets/Lurume/llm-routing-response-bank", REVISION, "2026-09-17",
+                   "ODC-BY-4.0", "planned", "To be added.", "(registry.json)", "(results.json)",
+                   "(../response-bank/README.md)", "(../response-bank/RESULTS.md)",
+                   "(../../research/delegation-datasets.md)"):
+        assert needle in text, needle
+    headings = [line for line in text.split("\n") if line.startswith("## ")]
+    assert headings == ["## Method", "## Assumed", "## Results", "## Reading it", "## Regenerate"]
+    method = section(text, "## Method")
+    assert POOL_SENTENCE in method
+    assert NONE_CLEAR in method
+    for model in POOL:
+        assert f"`{model}`" in method, model
+    rows = len(POOL) * sum(KEPT_ITEMS.values())
+    assert f"That leaves {rows:,} rows: " + join(f"`{t}` {n:,}" for t, n in KEPT_ITEMS.items()) + " items" in method
+    assumed = section(text, "## Assumed")
+    for phrase in ASSUMED_PHRASES:
+        assert phrase in assumed, phrase
+
+
+@missing_md
+def test_results_md_tables_are_the_committed_file(dr):
+    results = json.loads(RESULTS.read_text(encoding="utf-8"))
+    blocks = fenced(section(RESULTS_MD.read_text(encoding="utf-8"), "## Results"), "text")
+    assert len(blocks) == 2
+    assert blocks[0] == TABLE_CMD + "\n" + dr.table(results).rstrip("\n")
+    assert blocks[1] == PARENT_CMD + "\n" + dr.parent_table(results, 0.8, 0).rstrip("\n")
+
+
+@missing_md
+def test_results_md_reading_it_is_built_from_the_committed_file():
+    want = reading_bullets(json.loads(RESULTS.read_text(encoding="utf-8")))
+    reading = section(RESULTS_MD.read_text(encoding="utf-8"), "## Reading it")
+    bullets = [line[2:] for line in reading.split("\n") if line.startswith("- ")]
+    assert bullets == want
+
+
+@missing_md
+def test_results_md_regenerate_block():
+    regenerate = section(RESULTS_MD.read_text(encoding="utf-8"), "## Regenerate")
+    blocks = fenced(regenerate, "bash")
+    assert len(blocks) == 1 and blocks[0].split("\n") == REGENERATE
+    before = regenerate[:regenerate.index("```bash")]
+    for needle in ("1,018,191,580", "`~/.cache/ai-model-routing-evidence/response-bank/`", "sha256", "not committed"):
+        assert needle in before, needle
+
+
+def method_sentences(full, registry):
+    """The Method sentences 13.14 v1.313 builds from the cells of the pinned run, in its order."""
+    _kept, dropped, run = full
+    cells = run["cells"]
+    seeds, bars = len(run["config"]["seeds"]), run["config"]["bars"]
+    per_task = Counter(item.split(":")[0] for item in dropped)
+    left = sum(run["tasks"][t]["items"] for t in run["tasks"])
+    drop = (f"{len(dropped)} items are dropped for a null token count ("
+            + join(f"{n} in `{t}`" for t, n in sorted(per_task.items())) + f"), so {left:,} items remain.")
+    sizes = [c["expected_input_tokens"] + c["expected_output_tokens"] for c in cells]
+    size = f"which sum to {min(sizes):,} to {max(sizes):,} tokens over the cells"
+    aime = [c for c in cells if c["task"] == "aime"]
+    cal = sorted({c["calibration_items"] for c in aime})
+    assert cal[-1] < 30
+    per_flavor = Counter(c["flavor"] for c in aime)
+    assert len(set(per_flavor.values())) == 1 and all(c["reason"] == "none_clear" for c in aime)
+    aime_line = (f"`aime` has {run['tasks']['aime']['items']} items, so its calibration half holds {cal[0]} to {cal[-1]} "
+                 f"over the seeds, under the default `min_samples` of 30 on all {seeds}: no model clears a bar there, "
+                 f"and all {per_flavor['cost_effective']:,} `aime` cells of each flavor are 13.5 row 7 (`none_clear`).")
+    outside = [c for c in cells if c["task"] != "aime"]
+    counts = {}
+    for flavor in FLAVORS:
+        for bar in bars:
+            here = [c for c in outside if c["flavor"] == flavor and c["bar"] == bar]
+            counts[flavor, bar] = (sum(c["reason"] == "none_clear" for c in here), len(here))
+    assert counts["cost_effective", bars[0]] == counts["cost_blind", bars[0]]
+    assert counts["cost_effective", bars[-1]] == counts["cost_blind", bars[-1]]
+    (a, m), (b, m2) = counts["cost_effective", bars[0]], counts["cost_effective", bars[-1]]
+    assert m == m2
+    high = [c for c in outside if c["bar"] == bars[-1]]
+    never = sorted({c["task"] for c in high} - {c["task"] for c in high if c["reason"] != "none_clear"})
+    cleared = sorted({c["task"] for c in high if c["reason"] != "none_clear"})
+    assert len(cleared) == 1
+    cleared_seeds = {c["seed"] for c in high if c["task"] == cleared[0] and c["reason"] != "none_clear"}
+    outside_line = (f"Outside `aime`, {a:,} of each flavor's {m:,} cells at bar {bars[0]} and {b:,} of its {m:,} at bar "
+                    f"{bars[-1]} are `none_clear`: at bar {bars[-1]} no model clears "
+                    + " or ".join(f"`{t}`" for t in never)
+                    + f" on any seed, and a model clears `{cleared[0]}` on {len(cleared_seeds)} of the {seeds} seeds.")
+    assert all(c["inline_allowed"] for c in cells)
+    windows = {m.id: m.context_window for m in registry.models}
+    smallest = min(windows, key=windows.get)
+    others = {w for model, w in windows.items() if model != smallest}
+    assert len(others) == 1 and windows[smallest] < min(others)
+    c2 = run["config"]["points"][2]["context_tokens"]
+    assert c2 < windows[smallest]
+    blocked = (f"Inline is blocked on no cell: at point 2, C = {c2:,} is under every parent's window, "
+               f"{windows[smallest]:,} for `{smallest}` and {min(others):,} for the other four.")
+    reasons = Counter(c["reason"] for c in cells if c["flavor"] == "cost_effective")
+    ordered = sorted(reasons.items(), key=lambda kv: (-kv[1], kv[0]))
+    reason_line = (f"Of the {sum(reasons.values()):,} `cost_effective` cells, " + join(f"{n:,} `{r}`" for r, n in ordered)
+                   + ". " + NONE_CLEAR)
+    return [drop, size, aime_line, outside_line, blocked, reason_line]
+
+
+@missing_md
+def test_pinned_method_sentences(pinned_full):
+    sentences = method_sentences(pinned_full, Registry.load(REGISTRY))
+    assert sentences[0] == "4 items are dropped for a null token count (4 in `mmlu_pro`), so 13,311 items remain."
+    assert sentences[1] == "which sum to 1,265 to 11,045 tokens over the cells"
+    assert "holds 10 to 21 over the seeds" in sentences[2] and "all 2,000 `aime` cells" in sentences[2]
+    assert sentences[3] == ("Outside `aime`, 60 of each flavor's 3,000 cells at bar 0.8 and 2,980 of its 3,000 at bar "
+                            "0.9 are `none_clear`: at bar 0.9 no model clears `livecodebench` or `mmlu_pro` on any "
+                            "seed, and a model clears `gpqa_diamond` on 1 of the 50 seeds.")
+    assert "262,144 for `moonshotai/kimi-k2.7-code` and 1,000,000 for the other four." in sentences[4]
+    method = section(RESULTS_MD.read_text(encoding="utf-8"), "## Method")
+    for sentence in sentences:
+        assert sentence in method, sentence
