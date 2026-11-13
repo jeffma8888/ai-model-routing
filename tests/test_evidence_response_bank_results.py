@@ -21,6 +21,14 @@ evidence README against the converter's constants and the 12.20 counts; and, whe
 pinned files are cached, check both against the converter's report and the calibration scores
 file. The tests that read the two files were committed before them under strict xfail
 (``FileNotFoundError``), removed by the commit that adds them (v1.294).
+
+
+v1.296 (DESIGN 12.8, row E20e): the README `### LLM Routing Response Bank` subsection. The tests
+build its source lines, counts sentence and two tables from the converter and the committed file,
+take its Reading it and Limits lines from RESULTS.md under one rewrite, and check its regenerate
+line and block, the opening-paragraph label and the Layout line. The tests that read the README
+were committed before it under strict xfail (``AssertionError``), removed by the commit that adds
+the subsection (v1.297).
 """
 
 import importlib.util
@@ -491,3 +499,205 @@ def test_real_report_matches_the_evidence_readme_and_results_md(cv, response_ban
     assert (f"holds {min(halves)} to {max(halves)} of its {len(items['aime'])} items over the 50 "
             f"seeds and is under `min_samples` {CONFIG['min_samples']} on "
             f"{sum(n < CONFIG['min_samples'] for n in halves)} of them") in text
+
+
+# --- the README subsection (DESIGN 12.8, v1.296) --------------------------------------------
+
+README = ROOT / "README.md"
+EVIDENCE_HEADING = "\n## Evidence: held-out results on public data\n"
+HEADING = "LLM Routing Response Bank"
+HEADINGS = ["RouterBench", "AutoBench", "AutoBench judges", "tau2-bench", "LiveCodeBench",
+            "LLMRouterBench", "LLM Routing Response Bank", "Delegation on AutoBench",
+            "Delegation on tau2-bench", "Delegation on LLMRouterBench"]
+INDENT = " " * 16
+LRB_LAYOUT = INDENT + "(LLMRouterBench: evidence/llmrouterbench/RESULTS.md)\n"
+LAYOUT = INDENT + "(LLM Routing Response Bank: evidence/response-bank/RESULTS.md)\n"
+EVIDENCE_LINK = "[evidence/response-bank/README.md](evidence/response-bank/README.md)"
+RESULTS_LINK = "[RESULTS.md](evidence/response-bank/RESULTS.md)"
+ATTRIBUTION = ("the data behind these results is the LLM Routing Response Bank, from the dataset "
+               "repository https://huggingface.co/datasets/Lurume/llm-routing-response-bank")
+LABEL = ("whether the record scored 1 on LLMRouterBench, and whether the response scored 1 on the "
+         "LLM Routing Response Bank)")
+NUMBER = {4: "four"}
+DESIGN_REF = re.compile(r"DESIGN (?=\d)")
+README_PENDING = pytest.mark.xfail(strict=True, raises=AssertionError,
+                                   reason="v1.296: the README subsection lands in v1.297")
+
+
+def readme_text():
+    return README.read_text(encoding="utf-8")
+
+
+def readme_subsection():
+    text = readme_text()
+    assert text.count(EVIDENCE_HEADING) == 1
+    section = text.split(EVIDENCE_HEADING, 1)[1].split("\n## ", 1)[0]
+    assert re.findall(r"^### (.*)$", section, re.M) == HEADINGS
+    return section.split(f"\n### {HEADING}\n", 1)[1].split("\n### ", 1)[0]
+
+
+def to_readme(line):
+    """The v1.296 rewrite of a RESULTS.md line for the top-level README (DESIGN 12.8)."""
+    return DESIGN_REF.sub("`DESIGN.md` ", line)
+
+
+def results_md_bullets():
+    """The five Reading it bullets and the five limits of RESULTS.md, before the size bullet."""
+    body = results_md().split("\n## Reading it\n", 1)[1].split("\n## ", 1)[0]
+    bullets = [line for line in body.splitlines() if line.startswith("- ")]
+    assert len(bullets) == 11 and bullets[-1].startswith("- Size: "), bullets
+    assert bullets[0].startswith("- `cost_effective`: ") and bullets[4].startswith("- The per-item oracle")
+    assert bullets[5].startswith("- Each cost is ") and bullets[9].startswith("- Both splits: ")
+    return bullets[:5], bullets[5:10]
+
+
+def download_bytes(cv):
+    return sum(size for size, _ in cv.FILES.values())
+
+
+def readme_source_lines(cv, results):
+    models = len({tuple(v["models"]) for v in results["tasks"].values()}.pop())
+    return [
+        f"- Dataset: [Lurume/llm-routing-response-bank]({DATASET_URL}) on Hugging Face, pinned at "
+        f"revision [`{cv.REVISION[:7]}`]({DATASET_URL}/tree/{cv.REVISION}), {NUMBER[len(cv.FILES)]} "
+        f"JSON Lines files of {download_bytes(cv):,} bytes in all, each checked by size and sha256, "
+        "then read one line at a time",
+        "- Licence: the dataset card names no standard licence and points to the dataset's LICENSE "
+        f"file, which says: \"{TERMS}\" Its per-family terms are quoted in {RESULTS_LINK}. This repo "
+        "commits no part of the dataset, only numbers derived from it",
+        f"- Attribution, as those terms ask: {ATTRIBUTION}",
+        f"- Full results, with every one of the {models} single models and the routed rows that beat each "
+        f"on both counts: {RESULTS_LINK} and [results.json](evidence/response-bank/results.json); "
+        f"source, the models, the tasks, the finishes and missing cells and what a row keeps: {EVIDENCE_LINK}"]
+
+
+def readme_counts(results):
+    config, tasks = results["config"], results["tasks"]
+    models = {tuple(v["models"]) for v in tasks.values()}
+    assert len(models) == 1 and config["flavors"] == ["cost_effective", "cost_blind"]
+    parts = [f"`{t}` {v['items']:,}" + (" items" if i == 0 else "")
+             for i, (t, v) in enumerate(tasks.items())]
+    return (f"- What was run: {len(models.pop())} models, {len(tasks)} benchmark families, each one "
+            f"routing task ({join(parts)}, {sum(v['items'] for v in tasks.values()):,} in all), "
+            f"{len(config['seeds'])} seeds; each task is split in half per seed and routed at bars "
+            f"{join([str(b) for b in config['bars']])} in both flavors. A success is a response whose "
+            "`quality` is 1, the label of an exact-answer parser or, for code, of LiveCodeBench's tests, "
+            "and the cost is the response's billed `official_usd`")
+
+
+def readme_columns(results):
+    cells = len(results["config"]["seeds"]) * len(results["tasks"])
+    return ("Held-out success is the share of held-out items whose response scored 1, pooled over the "
+            f"{len(results['tasks'])} tasks, and cost is the billed cost of answering them, both averaged "
+            "over the seeds; the ratio divides that cost by the cost of the best single model. The cleared "
+            f"rate is the share of the {cells} (task, seed) cells where some model cleared the bar on the "
+            "calibration half, and the bar-violation rate is the share of cleared cells whose held-out "
+            "success fell below the bar.")
+
+
+def readme_tables(results):
+    """The two tables of the README `### LLM Routing Response Bank` subsection (DESIGN 12.8, v1.296)."""
+    config = results["config"]
+    first = (config["bars"][0], config["flavors"][0])
+    models, best, cheapest = single_models(results)
+    lines = ["| Bar | Flavor | Held-out success | Cost (USD) | Cost / best single model | Cleared rate "
+             "| Bar-violation rate |", "|---|---|---|---|---|---|---|"]
+    for bar in config["bars"]:
+        for flavor in config["flavors"]:
+            r = summary_row(results, bar, flavor, "routed")
+            v = r["bar_violation_rate"]
+            lines.append(f"| {bar} | `{flavor}` | {r['success']:.3f} | {r['cost_usd']:.4f} | "
+                         f"{r['cost_usd'] / best['cost_usd']:.3f} | {r['cleared_rate']:.3f} | "
+                         f"{'-' if v is None else format(v, '.3f')} |")
+    rows = [("Per-item oracle: on each item, the cheapest model that scored 1, or the cheapest model, "
+             "counted wrong, when none did", summary_row(results, *first, "oracle"))]
+    for m in models:
+        mark = (", the best single model" if m is best else "") + \
+               (", the cheapest single model" if m is cheapest else "")
+        rows.append((f"Always `{name(m)}`{mark}", m))
+    rows += [("Best model on the calibration half, per task",
+              summary_row(results, *first, "best_on_calibration")),
+             ("Cheapest model on the calibration half, per task", summary_row(results, *first, "cheapest"))]
+    lines += ["", "| Baseline | Held-out success | Cost (USD) |", "|---|---|---|"]
+    lines += [f"| {label} | {r['success']:.3f} | {r['cost_usd']:.4f} |" for label, r in rows]
+    return "\n".join(lines) + "\n"
+
+
+def regenerate_line(cv):
+    return ("Regenerate (the converter downloads the four pinned files, about "
+            f"{download_bytes(cv) / 1e9:.2f} GB, into a cache folder outside the repo, and verifying, "
+            "reading and converting them takes about 3 seconds once they are cached; the `evidence` "
+            "workflow does not rerun these commands yet, while the test suite rebuilds `results.json` "
+            "from them only where the four pinned files are cached):")
+
+
+@README_PENDING
+def test_readme_response_bank_source_counts_and_tables_are_the_committed_results(cv):
+    results, section = committed(), readme_subsection()
+    lines = readme_source_lines(cv, results)
+    assert "\n".join(lines[:3] + [readme_counts(results), lines[3]]) + "\n" in section
+    assert readme_columns(results) + "\n\n" + readme_tables(results) in section
+
+
+@README_PENDING
+def test_readme_response_bank_reading_and_limits_are_results_md_lines():
+    section = readme_subsection()
+    reading, limits = results_md_bullets()
+    block = ("Reading it:\n\n" + "\n".join(to_readme(b) for b in reading) + "\n\nLimits:\n\n"
+             + "\n".join(to_readme(b) for b in limits) + "\n")
+    assert block in section
+    phrases = [p for p in reading_phrases(committed()) if not p.startswith("the committed file,")]
+    assert len(phrases) == len(reading_phrases(committed())) - 1
+    for phrase in phrases:
+        assert to_readme(phrase) in section, phrase
+    assert "per family, not per prompt" in section and "DESIGN 1" not in section and "DESIGN 5" not in section
+    assert "](README.md)" not in section and "](results.json)" not in section and "../" not in section
+
+
+@README_PENDING
+def test_readme_response_bank_regenerate_label_and_layout(cv):
+    section, text = readme_subsection(), readme_text()
+    assert section.rstrip("\n").endswith(regenerate_line(cv) + "\n\n" + REGENERATE.rstrip("\n"))
+    assert section.count("```bash\n") == 1 and "\n$ " not in section
+    intro = text.split(EVIDENCE_HEADING, 1)[1].split("\n### ", 1)[0]
+    assert LABEL in intro.split("\n\n", 1)[0]
+    layout = text.split("\n## Layout\n", 1)[1].split("\n## ", 1)[0]
+    assert layout.count(LAYOUT) == 1
+    assert layout.index(LRB_LAYOUT) + len(LRB_LAYOUT) == layout.index(LAYOUT)
+    assert section.isascii() and "\u2013" not in section and "\u2014" not in section
+    assert not HOME.search(section)
+
+
+def test_readme_response_bank_builders_follow_the_file(cv):
+    results = committed()
+    before = (readme_tables(results), readme_counts(results), readme_source_lines(cv, results),
+              regenerate_line(cv))
+    assert "| 0.8 | `cost_blind` | 0.874 | 57.4404 | 2.104 | 0.735 | 0.000 |" in before[0]
+    assert "| Always `deepseek/deepseek-v4-pro`, the best single model | 0.872 | 27.2956 |" in before[0]
+    assert "| Always `z-ai/glm-5.3-flash`, the cheapest single model | 0.845 | 6.2289 |" in before[0]
+    assert "| Always `moonshotai/kimi-k2.7-code` | 0.871 | 71.0675 |" in before[0]
+    assert "`aime` 30 items, `gpqa_diamond` 198," in before[1] and "13,315 in all), 50 seeds;" in before[1]
+    assert "routed at bars 0.8 and 0.9 in both flavors" in before[1]
+    assert "four JSON Lines files of 1,018,191,580 bytes in all" in before[2][0]
+    assert "[`547beb3`](" in before[2][0] and "every one of the 5 single models" in before[2][3]
+    assert "about 1.02 GB" in before[3]
+    fake = json.loads(json.dumps(results))
+    summary_row(fake, 0.8, "cost_blind", "routed")["success"] = 0.9
+    _, best, _ = single_models(fake)
+    best["cost_usd"] = 30.0
+    after = readme_tables(fake)
+    assert after != before[0]
+    assert "| 0.8 | `cost_blind` | 0.900 | 57.4404 | 1.915 |" in after
+    assert "| Always `deepseek/deepseek-v4-pro`, the best single model | 0.872 | 30.0000 |" in after
+
+
+def test_to_readme_rewrites_only_the_design_references():
+    line = "- a (DESIGN 12.3), b (`x`, DESIGN 5.3), DESIGN.md, the DESIGN, [README.md](README.md)"
+    assert to_readme(line) == ("- a (`DESIGN.md` 12.3), b (`x`, `DESIGN.md` 5.3), DESIGN.md, the DESIGN, "
+                               "[README.md](README.md)")
+
+
+def test_results_md_reading_and_limits_hold_no_link():
+    reading, limits = results_md_bullets()
+    for bullet in reading + limits:
+        assert "](" not in bullet, bullet

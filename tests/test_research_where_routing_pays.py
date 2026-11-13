@@ -331,13 +331,46 @@ def limitations_bullet(wrp):
             passing.append(name)
     assert passing == ["LLMRouterBench"], passing
     n = len(wrp.DATASETS)
+    gap, ratio = response_bank_gap(wrp, committed("evidence/response-bank/results.json"))
     return ("- Routing per task pays in held-out success only where tasks differ in their best model and "
-            "each task's calibration half can tell the models apart. Of the "
+            "each task's calibration half can tell the models apart. Of the first "
             f"{WORDS[n]} routing datasets above, {passing[0]} alone has a routed row above the best single "
             f"model's held-out success; on the other {WORDS[n - 1]}, routing pays at most in cost, at a bar "
-            "below that success ([research/where-routing-pays.md](research/where-routing-pays.md))")
+            "below that success ([research/where-routing-pays.md](research/where-routing-pays.md)). The "
+            f"{ORDINAL[n + 1]}, the LLM Routing Response Bank, which that note does not read yet, has one too: "
+            f"`cost_blind` routing, {gap:.4f} above that model's held-out success at {ratio:.3f} times its cost")
 
 
+ORDINAL = {7: "seventh"}
+
+
+def response_bank_gap(wrp, results):
+    """v1.296 (DESIGN 12.8): `cost_blind`'s one success and cost at every bar against the best
+    single model of 12.7, as the gap in success and the ratio of cost."""
+    config = results["config"]
+    best = wrp.best_single(results, config["bars"][0], config["flavors"][0])
+    blind = [wrp.summary_row(results, bar, "cost_blind", "routed") for bar in config["bars"]]
+    assert all((r["success"], r["cost_usd"]) == (blind[0]["success"], blind[0]["cost_usd"]) for r in blind), \
+        "the cost_blind rows differ between bars"
+    assert blind[0]["success"] > best["success"], "cost_blind is not above the best single model"
+    return blind[0]["success"] - best["success"], blind[0]["cost_usd"] / best["cost_usd"]
+
+
+def test_response_bank_gap_is_the_committed_file(wrp):
+    results = committed("evidence/response-bank/results.json")
+    gap, ratio = response_bank_gap(wrp, results)
+    assert (f"{gap:.4f}", f"{ratio:.3f}") == ("0.0022", "2.104")
+    fake = json.loads(json.dumps(results))
+    wrp.summary_row(fake, 0.9, "cost_blind", "routed")["success"] = 0.5
+    with pytest.raises(AssertionError, match="differ between bars"):
+        response_bank_gap(wrp, fake)
+    for bar in (0.8, 0.9):
+        wrp.summary_row(fake, bar, "cost_blind", "routed")["success"] = 0.5
+    with pytest.raises(AssertionError, match="not above"):
+        response_bank_gap(wrp, fake)
+
+
+@pytest.mark.xfail(strict=True, raises=AssertionError, reason="v1.296: the bullet changes in v1.297")
 def test_readme_limitations_and_the_index_say_where_routing_passes(wrp):
     readme = README.read_text(encoding="utf-8")
     limits = readme.split("\n## Limitations and non-goals (v1)\n", 1)[1].split("\n## ", 1)[0]

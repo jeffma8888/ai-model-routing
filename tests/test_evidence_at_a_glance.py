@@ -577,6 +577,96 @@ def test_a_file_that_breaks_a_claim_fails_the_builder(change, match):
         glance(files)
 
 
+
+# --- v1.296 (row E20e): the response-bank bullet, held as strict xfail until v1.297 -----------
+
+RESPONSE_BANK = ROOT / "evidence" / "response-bank" / "results.json"
+
+
+def response_bank_bullet(results):
+    """v1.296 (DESIGN 12.8): at the lowest bar cost_effective reaches a held-out success at a share of
+    the best single model's cost (12.7) and costs less than the cheapest single model (12.15) for more
+    success at 3 decimals; cost_blind passes the best model's success at 3 decimals at every bar, at
+    more than twice its cost."""
+    config = results["config"]
+    first = (config["bars"][0], config["flavors"][0])
+    models = [r for r in results["summary"]
+              if (r["bar"], r["flavor"]) == first and r["strategy"].startswith("model:")]
+    best = min(models, key=lambda r: (-r["success"], r["cost_usd"], r["strategy"]))
+    cheapest = min(models, key=lambda r: (r["cost_usd"], -r["success"], r["strategy"]))
+    low = summary_row(results, config["bars"][0], "cost_effective", "routed")
+    assert low["cost_usd"] < cheapest["cost_usd"], "the lowest bar costs no less than the cheapest model"
+    assert float(f"{low['success']:.3f}") > float(f"{cheapest['success']:.3f}"), \
+        "the lowest bar has no more success than the cheapest model"
+    blind = [summary_row(results, bar, "cost_blind", "routed") for bar in config["bars"]]
+    assert all(float(f"{r['success']:.3f}") > float(f"{best['success']:.3f}") for r in blind), \
+        "cost_blind is not above the best model"
+    assert all(r["cost_usd"] > 2 * best["cost_usd"] for r in blind), "cost_blind costs twice the best model or less"
+    return (link("LLM Routing Response Bank") + f"at bar {config['bars'][0]}, `cost_effective` routing "
+            f"reaches held-out success {low['success']:.3f} at {low['cost_usd'] / best['cost_usd']:.3f} of "
+            f"the cost of the best single model, `{best['strategy'][len('model:'):]}`, and costs less than "
+            f"always calling the cheapest model, `{cheapest['strategy'][len('model:'):]}`, for more held-out "
+            "success; `cost_blind` routing passes the best single model's held-out success at every bar, "
+            "but at more than twice its cost")
+
+
+def response_bank():
+    return json.loads(RESPONSE_BANK.read_text(encoding="utf-8"))
+
+
+def rbank_rows(results, flavor):
+    return [r for r in results["summary"] if (r["flavor"], r["strategy"]) == (flavor, "routed")]
+
+
+def rbank_low_dearer(results):
+    cheapest = summary_row(results, 0.8, "cost_effective", "model:z-ai/glm-5.3-flash")
+    rbank_rows(results, "cost_effective")[0]["cost_usd"] = cheapest["cost_usd"]
+
+
+def rbank_low_no_more(results):
+    rbank_rows(results, "cost_effective")[0]["success"] = 0.8454
+
+
+def rbank_blind_not_above(results):
+    rbank_rows(results, "cost_blind")[-1]["success"] = 0.8724
+
+
+def rbank_blind_cheap(results):
+    rbank_rows(results, "cost_blind")[0]["cost_usd"] = 54.5
+
+
+def test_the_response_bank_bullet_is_built_from_the_committed_file():
+    bullet = response_bank_bullet(response_bank())
+    assert bullet == ("- [LLM Routing Response Bank](#llm-routing-response-bank): at bar 0.8, `cost_effective` "
+                      "routing reaches held-out success 0.847 at 0.201 of the cost of the best single model, "
+                      "`deepseek/deepseek-v4-pro`, and costs less than always calling the cheapest model, "
+                      "`z-ai/glm-5.3-flash`, for more held-out success; `cost_blind` routing passes the best "
+                      "single model's held-out success at every bar, but at more than twice its cost")
+    assert len(RESULT_VALUE.findall(bullet)) == 2
+
+
+@pytest.mark.parametrize("change, match", [
+    (rbank_low_dearer, "the lowest bar costs no less than the cheapest model"),
+    (rbank_low_no_more, "the lowest bar has no more success than the cheapest model"),
+    (rbank_blind_not_above, "cost_blind is not above the best model"),
+    (rbank_blind_cheap, "cost_blind costs twice the best model or less"),
+])
+def test_a_file_that_breaks_a_response_bank_claim_fails_its_bullet(change, match):
+    results = response_bank()
+    response_bank_bullet(results)
+    change(results)
+    with pytest.raises(AssertionError, match=match):
+        response_bank_bullet(results)
+
+
+@pytest.mark.xfail(strict=True, raises=AssertionError, reason="v1.296: the bullet lands in v1.297")
+def test_the_glance_list_holds_the_response_bank_bullet_after_llmrouterbench():
+    lines = evidence_section().split("\n### ", 1)[0].splitlines()
+    bullet = response_bank_bullet(response_bank())
+    assert bullet in lines
+    assert lines[lines.index(bullet) - 1].startswith(link("LLMRouterBench"))
+    assert anchor("LLM Routing Response Bank") == "#llm-routing-response-bank"
+
 # --- v1.258 (row DOC15): where delegation pays, at a glance -----------------------------------
 
 DESIGN = ROOT / "DESIGN.md"
