@@ -4,6 +4,11 @@ The note's numbers are the script's output on the three committed delegation run
 for byte when the pinned AutoBench and tau2-bench files are already in the default cache (CI never
 downloads them). The script's tables and its rebuild of a 13.5 row 7 decision are checked on small
 matrices, one with per-call rows (13.9 v1.74) and one without.
+
+DESIGN 13.8 v1.338 (row R30): the script also reruns the LLMRouterBench (13.13) and response-bank
+(13.14) delegation runs, each checked against its committed results.json, and prints one line per
+bar in each flavor's block; the note gains a dated section on the two runs, and the cached-file
+tests also need their pinned files.
 """
 
 import contextlib
@@ -23,13 +28,16 @@ NOTE = ROOT / "research" / "no-path-clears.md"
 INDEX = ROOT / "research" / "README.md"
 README = ROOT / "README.md"
 COMMAND = ("$ python research/no_path_clears.py --autobench autobench-tokens.jsonl "
-           "--autobench-registry autobench-pool.json --tau2 tau2-calls.jsonl --tau2-pooled tau2-calls-all.jsonl")
+           "--autobench-registry autobench-pool.json --tau2 tau2-calls.jsonl --tau2-pooled tau2-calls-all.jsonl "
+           "--llmrouterbench llmrouterbench-matrix.jsonl --response-bank response-bank-matrix.jsonl")
 REGENERATE = [
     "python -m pip install -e .",
     "python evidence/autobench-2026/convert.py --out autobench-tokens.jsonl --task-by all --tokens "
     "--registry autobench-pool.json",
     "python evidence/tau2-bench/convert.py --out tau2-calls.jsonl --calls",
     "python evidence/tau2-bench/convert.py --out tau2-calls-all.jsonl --calls --task-by all",
+    "python evidence/llmrouterbench/convert.py --out llmrouterbench-matrix.jsonl",
+    "python evidence/response-bank/convert.py --out response-bank-matrix.jsonl",
     COMMAND[2:],
 ]
 LIMITATION = (
@@ -37,11 +45,20 @@ LIMITATION = (
     "(`DESIGN.md` 13.5 row 7, reason `none_clear`, `below_bar` true), by the calibration bounds and not by "
     "cost, while the default, `refuse`, raises `NoModelClearsBar`. On the committed tau2-bench delegation "
     "runs row 7 decides most `cost_effective` cells, and the path it takes has a held-out success below the "
-    "bar on most of them; [research/no-path-clears.md](research/no-path-clears.md) measures it on both "
-    "delegation datasets and recommends keeping the rule")
+    "bar on most of them; [research/no-path-clears.md](research/no-path-clears.md) measures it on the five "
+    "committed delegation runs of four datasets, AutoBench, tau2-bench, LLMRouterBench and the LLM Routing "
+    "Response Bank, and recommends keeping the rule")
+LABELS = ("AutoBench (13.10 results.json)", "tau2-bench per domain (13.12 results.json)",
+          "tau2-bench pooled (13.12 pooled.json)", "LLMRouterBench (13.13 results.json)",
+          "LLM Routing Response Bank (13.14 results.json)")
+SECTION = "LLMRouterBench and the response bank (2026-11-13)"
+DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
+# v1.338: the response bank's registry, for a small matrix its script's select_rows keeps
+BANK_REGISTRY = ROOT / "evidence" / "response-bank-delegation" / "registry.json"
+RED = pytest.mark.xfail(strict=True, reason="v1.338 (row R30): implemented by v1.339")
 # Section and row numbers of DESIGN.md, and the runs' 50 seeds: the only numbers of the note's
 # prose that are not in the script's output
-ALLOWED = {"13.5", "13.9", "13.10", "13.12", "3", "4", "6", "7", "50"}
+ALLOWED = {"13.5", "13.9", "13.10", "13.12", "13.13", "13.14", "3", "4", "6", "7", "50"}
 NUMBER = re.compile(r"(?<![\w.])\d+(?:,\d{3})*(?:\.\d+)?%?")
 POINT = {"context_tokens": 8000, "brief_tokens": 500, "result_tokens": 500, "carry_turns": 1,
          "inline_separate_call": True}
@@ -84,6 +101,17 @@ def tiny(per_call=False):
     return rows
 
 
+def bar_line(cells, bar, total):
+    """The v1.338 per-bar line of one flavor's cells."""
+    hit = [c for c in cells if c["bar"] == bar and c["reason"] == "none_clear"]
+    line = f"    bar {bar}: none_clear on {len(hit):,} of {total:,} cells"
+    if hit:
+        met = sum(c["success"]["decision"] >= bar for c in hit)
+        line += f", the decision's held-out success at the bar or above on {met:,} ({met / len(hit):.1%})"
+    return line
+
+
+@RED
 @pytest.mark.parametrize("per_call", [False, True])
 def test_report_scores_each_path_on_the_row_7_cells(npc, per_call):
     rows, reg = tiny(per_call), registry()
@@ -99,7 +127,8 @@ def test_report_scores_each_path_on_the_row_7_cells(npc, per_call):
     for flavor, block in (("cost_effective", effective), ("cost_blind", rest)):
         mine = [c for c in cells if c["flavor"] == flavor]
         delegated = sum(c["mode"] == "delegate" for c in mine)
-        assert block[0] == (f"    decision delegates on {delegated:,} and works inline on {8 - delegated:,}; "
+        assert block[0] == bar_line(mine, 0.8, 8)
+        assert block[1] == (f"    decision delegates on {delegated:,} and works inline on {8 - delegated:,}; "
                             f"{held:,} held-out items")
         for strategy in ("decision", "inline", "delegate"):
             line = next(x for x in block if x.startswith(f"    {strategy:<8}  success "))
@@ -109,6 +138,23 @@ def test_report_scores_each_path_on_the_row_7_cells(npc, per_call):
     assert any(x.startswith("    cheaper against decision: success ") for x in effective)
     assert not any("cheaper" in x for x in rest)
     assert effective[-1].startswith("    decision's held-out success at least the better path's on ")
+
+
+@RED
+def test_report_gives_one_line_per_bar_after_the_share(npc):
+    rows, reg = tiny(), registry()
+    result = evaluate_delegation(rows, reg, bars=[0.5, 0.8], points=[POINT], seeds=range(4))
+    lines = npc.report("t", rows, reg, result)
+    for flavor in ("cost_effective", "cost_blind"):
+        mine = [c for c in result["cells"] if c["flavor"] == flavor]
+        row7 = [c for c in mine if c["reason"] == "none_clear"]
+        assert 0 < len(row7) < len(mine)
+        k = lines.index(f"  {flavor}: none_clear on {len(row7):,} of {len(mine):,} cells "
+                        f"({len(row7) / len(mine):.1%})")
+        per_bar = [bar_line(mine, bar, sum(c["bar"] == bar for c in mine)) for bar in (0.5, 0.8)]
+        assert lines[k + 1:k + 3] == per_bar
+        assert per_bar[0] == f"    bar 0.5: none_clear on 0 of {len(mine) // 2:,} cells"
+        assert lines[k + 3].startswith("    decision delegates on ")
 
 
 def test_report_prints_only_the_share_when_no_cell_is_row_7(npc):
@@ -134,6 +180,47 @@ def test_rebuild_is_the_cells_decision_and_refuses_a_changed_cell(npc, per_call)
         npc.rebuild(rows, reg, result, cell, cache)
 
 
+def bank_rows(items=40):
+    """A small single-call matrix of the five registry models of 13.14, one task."""
+    rows = []
+    for k, model in enumerate(m.id for m in Registry.load(BANK_REGISTRY).models):
+        for i in range(items):
+            rows.append({"task": "gpqa_diamond", "item": f"q{i}", "model": model, "correct": (i + k) % 4 != 0,
+                         "input_tokens": 300 + i, "output_tokens": 900 + 7 * k})
+    return rows
+
+
+@RED
+def test_rerun_selected_refuses_a_run_that_is_not_the_committed_file(npc, tmp_path):
+    path = tmp_path / "bank.jsonl"
+    path.write_text("".join(json.dumps(r) + "\n" for r in bank_rows()), encoding="utf-8")
+    with pytest.raises(ValueError, match=r"^the rerun is not evidence/response-bank-delegation/results\.json$"):
+        npc.rerun_selected(str(path), "response-bank-delegation", "r30_bank_small")
+
+
+@RED
+def test_main_prints_nothing_to_stdout_when_a_rerun_is_refused(npc, monkeypatch, capsys):
+    monkeypatch.setattr(npc, "read_rows", lambda path: [])
+    monkeypatch.setattr(npc.Registry, "load", staticmethod(lambda path: None))
+    monkeypatch.setattr(npc, "evaluate_delegation", lambda *a, **k: {})
+    monkeypatch.setattr(npc, "report", lambda label, *a: [label])
+    seen = []
+
+    def refuse(path, folder, name):
+        seen.append(folder)
+        if folder == "response-bank-delegation":
+            raise ValueError(f"the rerun is not evidence/{folder}/results.json")
+        return [], None, {}
+
+    monkeypatch.setattr(npc, "rerun_selected", refuse)
+    code = npc.main(["--autobench", "a", "--autobench-registry", "b", "--tau2", "c", "--tau2-pooled", "d",
+                     "--llmrouterbench", "e", "--response-bank", "f"])
+    out, err = capsys.readouterr()
+    assert code == 1 and out == ""
+    assert err == "error: the rerun is not evidence/response-bank-delegation/results.json\n"
+    assert seen == ["llmrouterbench-delegation", "response-bank-delegation"]
+
+
 def test_script_is_standard_library_and_model_routing(npc):
     text = SCRIPT.read_text(encoding="utf-8")
     imports = {m.split(".")[0] for m in re.findall(r"^(?:from|import) ([\w.]+)", text, flags=re.M)}
@@ -150,29 +237,32 @@ def _blocks(text, lang):
     return re.findall(rf"^```{lang}\n(.*?)^```$", text, flags=re.M | re.S)
 
 
+@RED
 def test_note_quotes_its_commands():
     note = NOTE.read_text(encoding="utf-8")
     assert note.startswith("# When neither path clears the bar\n")
-    assert _sections(note) == ["Facts", "Method", "Results", "Reading it", "Recommendation", "Limits",
+    assert _sections(note) == ["Facts", "Method", "Results", "Reading it", SECTION, "Recommendation", "Limits",
                                "Regenerate"]
     assert _blocks(note, "bash") == ["\n".join(REGENERATE) + "\n"]
     [text] = _blocks(note, "text")
     assert text.startswith(COMMAND + "\n")
     assert note.isascii() and "\u2013" not in note and "\u2014" not in note
     for link in ("../DESIGN.md", "../evidence/delegation/RESULTS.md",
-                 "../evidence/tau2-bench-delegation/RESULTS.md", "no_path_clears.py"):
+                 "../evidence/tau2-bench-delegation/RESULTS.md", "../evidence/llmrouterbench-delegation/RESULTS.md",
+                 "../evidence/response-bank-delegation/RESULTS.md", "no_path_clears.py"):
         assert f"]({link})" in note
 
 
 def test_every_number_of_the_prose_is_in_the_output_or_allowed():
     note = NOTE.read_text(encoding="utf-8")
     [text] = _blocks(note, "text")
-    prose = re.sub(r"^```\w*\n.*?^```$", "", note, flags=re.M | re.S)
+    prose = DATE.sub("", re.sub(r"^```\w*\n.*?^```$", "", note, flags=re.M | re.S))
     printed = set(NUMBER.findall(text))
     missing = sorted({n for n in NUMBER.findall(prose) if n not in printed and n not in ALLOWED})
     assert missing == []
 
 
+@RED
 def test_readme_limitations_and_research_index_link_the_note():
     readme = README.read_text(encoding="utf-8")
     limits = readme[readme.index("## Limitations and non-goals (v1)\n"):readme.index("\n## Layout\n")]
@@ -186,8 +276,9 @@ def test_readme_limitations_and_research_index_link_the_note():
 # --- the pinned files, only when already cached ------------------------------------------------
 
 @pytest.fixture(scope="module")
-def output(tmp_path_factory):
-    """The script's stdout on the three runs' matrices, rebuilt in process from the cached files."""
+def output(tmp_path_factory, llmrouterbench_pinned, response_bank_pinned):
+    """The script's stdout on the five runs' matrices, rebuilt in process from the cached files (the
+    LLMRouterBench and response-bank matrices are the session fixtures' converter output, v1.338)."""
     ab = _load("r5_autobench_convert", ROOT / "evidence" / "autobench-2026" / "convert.py")
     t2 = _load("r5_tau2_convert", ROOT / "evidence" / "tau2-bench" / "convert.py")
     a_dir, t_dir = ab.default_cache_dir(), t2.default_cache_dir()
@@ -208,25 +299,54 @@ def output(tmp_path_factory):
     for key, rows in files.items():
         (out / f"{key}.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
     (out / "pool.json").write_text(json.dumps(ab.pool_registry(pool)), encoding="utf-8")
+    lrb_code, _report, lrb_path = llmrouterbench_pinned
+    bank_code, _out, bank_err, bank_path = response_bank_pinned
+    assert lrb_code == 0 and bank_code == 0, bank_err
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
         code = _load("r5_script", SCRIPT).main([
             "--autobench", str(out / "autobench.jsonl"), "--autobench-registry", str(out / "pool.json"),
-            "--tau2", str(out / "tau2.jsonl"), "--tau2-pooled", str(out / "tau2-pooled.jsonl")])
+            "--tau2", str(out / "tau2.jsonl"), "--tau2-pooled", str(out / "tau2-pooled.jsonl"),
+            "--llmrouterbench", str(lrb_path), "--response-bank", str(bank_path)])
     assert code == 0
     return buf.getvalue()
 
 
+def runs(output):
+    """The output split into its five runs, by label (v1.338)."""
+    starts = [output.index(label + ": ") for label in LABELS]
+    assert starts == sorted(starts) and starts[0] == 0
+    return {label: output[a:b] for label, a, b in zip(LABELS, starts, starts[1:] + [len(output)])}
+
+
+@RED
 def test_note_results_block_is_the_script_output(output):
     [text] = _blocks(NOTE.read_text(encoding="utf-8"), "text")
     assert text == COMMAND + "\n" + output
 
 
+@RED
 def test_output_backs_the_readme_bullet(output):
-    runs = output.split("\ntau2-bench ")
-    assert len(runs) == 3 and runs[0].startswith("AutoBench (13.10 results.json): 16,000 cells")
-    for run in runs[1:]:
+    by_label = runs(output)
+    assert by_label[LABELS[0]].startswith("AutoBench (13.10 results.json): 16,000 cells")
+    for run in (by_label[LABELS[1]], by_label[LABELS[2]]):
         effective = run[run.index("  cost_effective: "):run.index("  cost_blind: ")]
         share = float(re.search(r"cells \((\d+\.\d)%\)", effective).group(1))
         met = float(re.search(r"    decision  success .* on [\d,]+ \((\d+\.\d)%\)", effective).group(1))
         assert share > 50 and met < 50
+
+
+@RED
+@pytest.mark.parametrize("label, folder", [(LABELS[3], "llmrouterbench-delegation"),
+                                           (LABELS[4], "response-bank-delegation")])
+def test_new_runs_row_7_counts_are_the_results_md_ones(output, label, folder):
+    run = runs(output)[label]
+    effective = run[run.index("  cost_effective: "):run.index("  cost_blind: ")]
+    got = re.search(r"none_clear on ([\d,]+) of ([\d,]+) cells", effective).groups()
+    results = (ROOT / "evidence" / folder / "RESULTS.md").read_text(encoding="utf-8")
+    total = re.search(r"^- Of the ([\d,]+) `cost_effective` cells, (.*)$", results, flags=re.M)
+    assert total.group(1) == got[1]
+    assert re.search(rf"\b{got[0]} `none_clear`", total.group(2))
+    bars = re.findall(r"^    bar [\d.]+: none_clear on ([\d,]+) of ([\d,]+) cells", effective, flags=re.M)
+    assert sum(int(n.replace(",", "")) for n, _ in bars) == int(got[0].replace(",", ""))
+    assert sum(int(m.replace(",", "")) for _, m in bars) == int(got[1].replace(",", ""))
