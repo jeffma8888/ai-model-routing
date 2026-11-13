@@ -55,7 +55,6 @@ SECTION = "LLMRouterBench and the response bank (2026-11-13)"
 DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
 # v1.338: the response bank's registry, for a small matrix its script's select_rows keeps
 BANK_REGISTRY = ROOT / "evidence" / "response-bank-delegation" / "registry.json"
-RED = pytest.mark.xfail(strict=True, reason="v1.338 (row R30): implemented by v1.339")
 # Section and row numbers of DESIGN.md, and the runs' 50 seeds: the only numbers of the note's
 # prose that are not in the script's output
 ALLOWED = {"13.5", "13.9", "13.10", "13.12", "13.13", "13.14", "3", "4", "6", "7", "50"}
@@ -111,7 +110,6 @@ def bar_line(cells, bar, total):
     return line
 
 
-@RED
 @pytest.mark.parametrize("per_call", [False, True])
 def test_report_scores_each_path_on_the_row_7_cells(npc, per_call):
     rows, reg = tiny(per_call), registry()
@@ -140,7 +138,6 @@ def test_report_scores_each_path_on_the_row_7_cells(npc, per_call):
     assert effective[-1].startswith("    decision's held-out success at least the better path's on ")
 
 
-@RED
 def test_report_gives_one_line_per_bar_after_the_share(npc):
     rows, reg = tiny(), registry()
     result = evaluate_delegation(rows, reg, bars=[0.5, 0.8], points=[POINT], seeds=range(4))
@@ -190,7 +187,6 @@ def bank_rows(items=40):
     return rows
 
 
-@RED
 def test_rerun_selected_refuses_a_run_that_is_not_the_committed_file(npc, tmp_path):
     path = tmp_path / "bank.jsonl"
     path.write_text("".join(json.dumps(r) + "\n" for r in bank_rows()), encoding="utf-8")
@@ -198,7 +194,6 @@ def test_rerun_selected_refuses_a_run_that_is_not_the_committed_file(npc, tmp_pa
         npc.rerun_selected(str(path), "response-bank-delegation", "r30_bank_small")
 
 
-@RED
 def test_main_prints_nothing_to_stdout_when_a_rerun_is_refused(npc, monkeypatch, capsys):
     monkeypatch.setattr(npc, "read_rows", lambda path: [])
     monkeypatch.setattr(npc.Registry, "load", staticmethod(lambda path: None))
@@ -237,7 +232,6 @@ def _blocks(text, lang):
     return re.findall(rf"^```{lang}\n(.*?)^```$", text, flags=re.M | re.S)
 
 
-@RED
 def test_note_quotes_its_commands():
     note = NOTE.read_text(encoding="utf-8")
     assert note.startswith("# When neither path clears the bar\n")
@@ -262,7 +256,6 @@ def test_every_number_of_the_prose_is_in_the_output_or_allowed():
     assert missing == []
 
 
-@RED
 def test_readme_limitations_and_research_index_link_the_note():
     readme = README.read_text(encoding="utf-8")
     limits = readme[readme.index("## Limitations and non-goals (v1)\n"):readme.index("\n## Layout\n")]
@@ -319,13 +312,11 @@ def runs(output):
     return {label: output[a:b] for label, a, b in zip(LABELS, starts, starts[1:] + [len(output)])}
 
 
-@RED
 def test_note_results_block_is_the_script_output(output):
     [text] = _blocks(NOTE.read_text(encoding="utf-8"), "text")
     assert text == COMMAND + "\n" + output
 
 
-@RED
 def test_output_backs_the_readme_bullet(output):
     by_label = runs(output)
     assert by_label[LABELS[0]].startswith("AutoBench (13.10 results.json): 16,000 cells")
@@ -336,7 +327,6 @@ def test_output_backs_the_readme_bullet(output):
         assert share > 50 and met < 50
 
 
-@RED
 @pytest.mark.parametrize("label, folder", [(LABELS[3], "llmrouterbench-delegation"),
                                            (LABELS[4], "response-bank-delegation")])
 def test_new_runs_row_7_counts_are_the_results_md_ones(output, label, folder):

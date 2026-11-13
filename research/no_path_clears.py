@@ -2,11 +2,15 @@
 
 Usage:
   python research/no_path_clears.py --autobench MATRIX.jsonl --autobench-registry POOL.json \
-      --tau2 CALLS.jsonl --tau2-pooled CALLS_ALL.jsonl
+      --tau2 CALLS.jsonl --tau2-pooled CALLS_ALL.jsonl \
+      --llmrouterbench LRB_MATRIX.jsonl --response-bank BANK_MATRIX.jsonl
 
-Reruns the three committed delegation runs in process, keeping the cells that their results
+Reruns the five committed delegation runs in process, keeping the cells that their results
 files drop (evidence/delegation/results.json, evidence/tau2-bench-delegation/results.json and
-pooled.json), and prints, per run and flavor, how many cells 13.5 row 7 (`none_clear`) decides
+pooled.json, evidence/llmrouterbench-delegation/results.json and
+evidence/response-bank-delegation/results.json; the last two on the rows their scripts'
+`select_rows` keeps, each run's config, tasks and summary checked against its committed file),
+and prints, per run and flavor, how many cells 13.5 row 7 (`none_clear`) decides
 and, on those cells, the held-out success and cost of its choice beside always inline, always
 delegating and taking the path whose forecast cost is lower. The forecast costs are not kept
 in a cell, so each row 7 cell's decision is rebuilt from its calibration half as DESIGN 13.9
@@ -29,6 +33,10 @@ from model_routing import Registry, Router, Stats, Task, evaluate_delegation, sp
 
 _ROOT = Path(__file__).resolve().parents[1]
 TAU2_REGISTRY = _ROOT / "evidence" / "tau2-bench-delegation" / "registry.json"
+# the runs read on the rows their script's select_rows keeps: (option, label, folder, module name)
+SELECTED = (("llmrouterbench", "LLMRouterBench (13.13 results.json)", "llmrouterbench-delegation", "_r30_lrb"),
+            ("response_bank", "LLM Routing Response Bank (13.14 results.json)", "response-bank-delegation",
+             "_r30_rb"))
 
 
 def _load(path: Path, name: str):
@@ -99,6 +107,24 @@ def rebuild(rows, registry, result, cell, cache):
     return decision
 
 
+def rerun_selected(path, folder, name):
+    """The 13.13 or 13.14 run in process: (kept rows, registry, result with its cells).
+
+    Reads the matrix at ``path``, keeps the rows the folder's ``select_rows`` keeps for the
+    models of its committed registry and runs 13.9 at that script's bars, base points and seeds.
+    Raises ValueError unless the run's config, tasks and summary are the committed file's.
+    """
+    script = _load(_ROOT / "evidence" / folder / "results.py", name)
+    registry = Registry.load(_ROOT / "evidence" / folder / "registry.json")
+    rows, _dropped = script.select_rows(read_rows(path), [m.id for m in registry.models])
+    result = evaluate_delegation(rows, registry, bars=list(script.BARS), points=script.points(),
+                                 seeds=range(script.SEEDS))
+    committed = json.loads((_ROOT / "evidence" / folder / "results.json").read_text(encoding="utf-8"))
+    if {key: result[key] for key in script.KEYS} != committed:
+        raise ValueError(f"the rerun is not evidence/{folder}/results.json")
+    return rows, registry, result
+
+
 def report(label, rows, registry, result) -> list:
     """The printed lines for one run: per flavor, the row 7 share and what each path gives on those cells."""
     cells = result["cells"]
@@ -110,6 +136,14 @@ def report(label, rows, registry, result) -> list:
         lines.append(f"  {flavor}: none_clear on {len(row7):,} of {len(mine):,} cells ({len(row7) / len(mine):.1%})")
         if not row7:
             continue
+        for bar in result["config"]["bars"]:  # per bar (v1.338): the row 7 cells and how many met the bar
+            at = [c for c in mine if c["bar"] == bar]
+            hit = [c for c in row7 if c["bar"] == bar]
+            line = f"    bar {bar}: none_clear on {len(hit):,} of {len(at):,} cells"
+            if hit:
+                met = sum(c["success"]["decision"] >= bar for c in hit)
+                line += f", the decision's held-out success at the bar or above on {met:,} ({met / len(hit):.1%})"
+            lines.append(line)
         modes = Counter(c["mode"] for c in row7)
         held = sum(c["held_out_items"] for c in row7)
         lines.append(f"    decision delegates on {modes['delegate']:,} and works inline on {modes['inline']:,}; "
@@ -147,16 +181,27 @@ def main(argv=None) -> int:
     parser.add_argument("--autobench-registry", required=True)
     parser.add_argument("--tau2", required=True)
     parser.add_argument("--tau2-pooled", required=True)
+    parser.add_argument("--llmrouterbench", required=True)
+    parser.add_argument("--response-bank", required=True)
     args = parser.parse_args(argv)
     ab = _load(_ROOT / "evidence" / "delegation" / "results.py", "_r5_ab")
     t2 = _load(_ROOT / "evidence" / "tau2-bench-delegation" / "results.py", "_r5_t2")
     runs = [("AutoBench (13.10 results.json)", args.autobench, Registry.load(args.autobench_registry), ab.BARS, ab.points()),
             ("tau2-bench per domain (13.12 results.json)", args.tau2, Registry.load(TAU2_REGISTRY), t2.BARS, t2.points()),
             ("tau2-bench pooled (13.12 pooled.json)", args.tau2_pooled, Registry.load(TAU2_REGISTRY), t2.BARS, t2.points())]
+    lines = []
     for label, path, registry, bars, points in runs:
         rows = read_rows(path)
         result = evaluate_delegation(rows, registry, bars=list(bars), points=points, seeds=range(50))
-        print("\n".join(report(label, rows, registry, result)))
+        lines += report(label, rows, registry, result)
+    for option, label, folder, name in SELECTED:
+        try:
+            rows, registry, result = rerun_selected(getattr(args, option), folder, name)
+        except ValueError as exc:  # nothing is printed to stdout (v1.338)
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+        lines += report(label, rows, registry, result)
+    print("\n".join(lines))
     return 0
 
 
