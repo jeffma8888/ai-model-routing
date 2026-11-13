@@ -313,6 +313,39 @@ def llmrouterbench_delegation_bullet(results):
             f"inline for {len(more)} of the {len(parents)} parents")
 
 
+def response_bank_delegation_bullet(results):
+    """Delegation on the LLM Routing Response Bank (v1.316): at the lowest bar and point 0 every
+    `cost_effective` decision row delegates on every seed and costs less than its parent's always inline row,
+    and the decision's mean held-out success over the parents is below always inline's at 3 decimals, the
+    unfavourable result that the bullet states with both values."""
+    name = "Delegation on the LLM Routing Response Bank"
+    config = results["config"]
+    bar, parents, flavor = config["bars"][0], config["parents"], "cost_effective"
+    point = config["points"][0]
+    assert point["inline_separate_call"] is True, "response-bank delegation: point 0 folds inline work"
+    rows = {(r["bar"], r["flavor"], r["point"], r["parent"], r["strategy"]): r
+            for r in results["summary"]}
+    decision = [rows[(bar, flavor, 0, p, "decision")] for p in parents]
+    assert all(r["delegate_rate"] == 1.0 for r in decision), \
+        "response-bank delegation: not every seed delegates at the lowest bar and point 0"
+    dearer = [p for p in parents
+              if rows[(bar, flavor, 0, p, "decision")]["cost_usd"] >= rows[(bar, flavor, 0, p, "inline")]["cost_usd"]]
+    assert not dearer, f"response-bank delegation: the decision costs no less than inline for {dearer}"
+
+    def mean(strategy, key):
+        return math.fsum(rows[(bar, flavor, 0, p, strategy)][key] for p in parents) / len(parents)
+
+    dec_cost, inl_cost = mean("decision", "cost_usd"), mean("inline", "cost_usd")
+    dec_success, inl_success = f"{mean('decision', 'success'):.3f}", f"{mean('inline', 'success'):.3f}"
+    assert float(dec_success) < float(inl_success), \
+        "response-bank delegation: the decision has no less held-out success"
+    return (link(name) + f"at bar {bar} and {point['context_tokens']:,} context tokens, with inline work in a "
+            f"parent call of its own, the `{flavor}` decision delegates on every seed for each of the "
+            f"{len(parents)} parents and costs less than always inline for each; its mean cost over the parents "
+            f"is {dec_cost:.4f} USD against {inl_cost:.4f} for always inline, for less held-out success, "
+            f"{dec_success} against {inl_success}")
+
+
 BULLETS = {"RouterBench": routerbench_bullet, "AutoBench": autobench_bullet,
            "AutoBench judges": judges_bullet, "tau2-bench": tau2_bullet,
            "LiveCodeBench": livecodebench_bullet, "LLMRouterBench": llmrouterbench_bullet,
@@ -941,3 +974,72 @@ def test_a_moved_figure_moves_the_pointer():
     before = delegation_pointer(pays, per_item)
     after = delegation_pointer(pays, _move_the_cut(per_item))
     assert before != after and "at most 2.4%" in after
+
+
+# --- v1.316 (row E21d): the response-bank delegation bullet -----------------------------------
+
+RB_DELEGATION = ROOT / "evidence" / "response-bank-delegation" / "results.json"
+GLANCE_RED = pytest.mark.xfail(strict=True, raises=AssertionError,
+                               reason="the README subsection lands with row E21d (DESIGN 12.8 v1.316)")
+
+
+def rb_delegation():
+    return json.loads(RB_DELEGATION.read_text(encoding="utf-8"))
+
+
+def rbd_rows(results, strategy):
+    return [r for r in results["summary"]
+            if (r["bar"], r["flavor"], r["point"], r["strategy"]) == (0.8, "cost_effective", 0, strategy)]
+
+
+def rbd_one_seed_inline(results):
+    rbd_rows(results, "decision")[-1]["delegate_rate"] = 0.98
+
+
+def rbd_one_parent_dearer(results):
+    rbd_rows(results, "decision")[0]["cost_usd"] = 1000.0
+
+
+def rbd_no_less_success(results):
+    for r in rbd_rows(results, "decision"):
+        r["success"] = 0.9
+
+
+def test_the_response_bank_delegation_bullet_is_built_from_the_committed_file():
+    assert response_bank_delegation_bullet(rb_delegation()) == (
+        "- [Delegation on the LLM Routing Response Bank](#delegation-on-the-llm-routing-response-bank): at bar "
+        "0.8 and 8,000 context tokens, with inline work in a parent call of its own, the `cost_effective` decision "
+        "delegates on every seed for each of the 5 parents and costs less than always inline for each; its mean "
+        "cost over the parents is 20.7429 USD against 101.6277 for always inline, for less held-out success, "
+        "0.847 against 0.861")
+
+
+@pytest.mark.parametrize("change, match", [
+    (rbd_one_seed_inline, "response-bank delegation: not every seed delegates"),
+    (rbd_one_parent_dearer, r"response-bank delegation: the decision costs no less than inline for \['deepseek/"),
+    (rbd_no_less_success, "response-bank delegation: the decision has no less held-out success"),
+])
+def test_a_file_that_breaks_a_response_bank_delegation_claim_fails_its_bullet(change, match):
+    results = rb_delegation()
+    response_bank_delegation_bullet(results)
+    change(results)
+    with pytest.raises(AssertionError, match=match):
+        response_bank_delegation_bullet(results)
+
+
+@GLANCE_RED
+def test_the_glance_list_ends_with_the_response_bank_delegation_bullet():
+    assert anchor("Delegation on the LLM Routing Response Bank") == "#delegation-on-the-llm-routing-response-bank"
+    lines = evidence_section().split("\n### ", 1)[0].split("\n")
+    bullet = response_bank_delegation_bullet(rb_delegation())
+    assert bullet in lines
+    at = lines.index(bullet)
+    assert lines[at - 1].startswith(link("Delegation on LLMRouterBench"))
+    assert lines[at + 1] == ""
+
+
+@GLANCE_RED
+def test_the_delegation_pointer_names_the_first_three_delegation_bullets():
+    intro = evidence_section().split("\n### ", 1)[0]
+    assert ("Whether choosing per task between inline work and a sub-agent beats a fixed policy, on the datasets of "
+            "the first three delegation bullets above: ") in intro

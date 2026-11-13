@@ -706,3 +706,29 @@ def test_a_runner_left_unpinned_or_undated_fails_the_check(name):
     mutant = dict(texts, **{which: change(texts[which])})
     assert mutant[which] != texts[which], name
     assert runner_problems(mutant["ci"], mutant["evidence"]), name
+
+
+# v1.316 (row E21d): the response-bank delegation block is rerun after the LLMRouterBench delegation one
+RB_DELEGATION_LINE = ("python evidence/response-bank-delegation/results.py --matrix response-bank-matrix.jsonl "
+                      "--registry evidence/response-bank-delegation/registry.json "
+                      "--out evidence/response-bank-delegation/results.json")
+RB_TABLES = ["python evidence/delegation/results.py --table evidence/response-bank-delegation/results.json",
+             "python evidence/delegation/results.py --table evidence/response-bank-delegation/results.json "
+             "--bar 0.8 --point 0"]
+
+
+@pytest.mark.xfail(strict=True, raises=AssertionError,
+                   reason="the workflow line lands with the README subsection, row E21d (DESIGN 12.13 v1.316)")
+def test_the_workflow_reruns_the_response_bank_delegation_block():
+    assert SUBSECTIONS[-1] == "Delegation on the LLM Routing Response Bank"
+    text = workflow_text()
+    run = [line.strip() for line in regenerate_lines(text)[1]]
+    assert RB_DELEGATION_LINE in run
+    at = run.index(RB_DELEGATION_LINE)
+    assert run[at - 1] == ("python evidence/delegation/results.py --table "
+                           "evidence/llmrouterbench-delegation/results.json --bar 0.1 --point 0")
+    assert run[at + 1:] == RB_TABLES
+    assert run.count("python evidence/response-bank/convert.py --out response-bank-matrix.jsonl") == 1
+    compare = text.split("      - name: Compare\n", 1)[1].split("\n", 1)[0]
+    assert compare.endswith(" evidence/llmrouterbench-delegation/results.json "
+                            "evidence/response-bank-delegation/results.json")

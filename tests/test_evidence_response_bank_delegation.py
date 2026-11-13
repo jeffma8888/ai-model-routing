@@ -27,6 +27,7 @@ v1.314 (row E21e) commits ``RESULTS.md`` and removes the markers.
 import importlib.util
 import json
 import math
+import re
 from collections import Counter, defaultdict
 from pathlib import Path
 
@@ -640,3 +641,152 @@ def test_pinned_method_sentences(pinned_full):
     method = section(RESULTS_MD.read_text(encoding="utf-8"), "## Method")
     for sentence in sentences:
         assert sentence in method, sentence
+
+
+# ---- the README subsection (DESIGN 12.8 v1.316, row E21d) ----
+
+README = ROOT / "README.md"
+README_HEADING = "Delegation on the LLM Routing Response Bank"
+EVIDENCE_HEADINGS = ["RouterBench", "AutoBench", "AutoBench judges", "tau2-bench", "LiveCodeBench",
+                     "LLMRouterBench", "LLM Routing Response Bank", "Delegation on AutoBench", "Delegation on tau2-bench",
+                     "Delegation on LLMRouterBench", README_HEADING]
+README_LINKS = (
+    "[LLM Routing Response Bank](https://huggingface.co/datasets/Lurume/llm-routing-response-bank)",
+    f"[`{REVISION[:7]}`]({DATASET_TREE})",
+    "ODC-BY-4.0",
+    "planned licence",
+    '"with attribution to this dataset repository"',
+    "from the dataset repository https://huggingface.co/datasets/Lurume/llm-routing-response-bank",
+    "[RESULTS.md](evidence/response-bank-delegation/RESULTS.md)",
+    "[results.json](evidence/response-bank-delegation/results.json)",
+    "[registry.json](evidence/response-bank-delegation/registry.json)",
+    "[evidence/response-bank/README.md](evidence/response-bank/README.md)",
+    "[research/delegation-datasets.md](research/delegation-datasets.md)",
+    "[inline or sub-agent](#inline-or-sub-agent)",
+    "[LLM Routing Response Bank](#llm-routing-response-bank)",
+    "[Delegation on AutoBench](#delegation-on-autobench)",
+    f"without the {len(DROPPED)} `mmlu_pro` items",
+    "8,000, 64,000 and 200,000",
+    "list-price estimate",
+)
+# Each is the start of one RESULTS.md bullet that the README repeats verbatim (12.8 v1.316).
+README_METHOD = ("`aime` has 30 items", "Outside `aime`, ", "Inline is blocked on no cell", "Of the ")
+README_ASSUMED = ("The lossless brief", "Every cost is a list price", "A row's input tokens are `usage.input`",
+                  "The windows are the vendor pages'", "The vendor pages, opened 2026-11-12",
+                  "The limits of `DESIGN.md` 13.8")
+README_RED = pytest.mark.xfail(strict=True, raises=AssertionError,
+                               reason="the README subsection lands with row E21d (DESIGN 12.8 v1.316)")
+
+
+def readme_subsection():
+    text = README.read_text(encoding="utf-8")
+    heading = "\n## Evidence: held-out results on public data\n"
+    assert text.count(heading) == 1
+    evidence = text.split(heading, 1)[1].split("\n## ", 1)[0]
+    assert re.findall(r"^### (.*)$", evidence, re.M) == EVIDENCE_HEADINGS
+    return evidence.split(f"\n### {README_HEADING}\n", 1)[1].split("\n### ", 1)[0]
+
+
+def readme_counts_sentence(results):
+    config, tasks = results["config"], results["tasks"]
+    families = join([f"`{name}` {task['items']:,}" for name, task in tasks.items()])
+    parents = join([f"`{p}`" for p in config["parents"]])
+    total = sum(task["items"] for task in tasks.values())
+    return (f"Each item is one benchmark question, which each model answered in one recorded call, one task per "
+            f"benchmark family ({families} items, {total:,} in all), with each of the {len(config['parents'])} "
+            f"models ({parents}) as the parent, over {len(config['seeds'])} seeds.")
+
+
+def results_md_line(start, heading):
+    found = [line for line in section(RESULTS_MD.read_text(encoding="utf-8"), heading).split("\n")
+             if line.startswith(f"- {start}")]
+    assert len(found) == 1, start
+    return found[0]
+
+
+def root_pool_line():
+    line = results_md_line("The pool is all five", "## Method")
+    assert line.startswith("- " + POOL_SENTENCE)
+    assert line.count("](../response-bank/RESULTS.md)") == 1 and line.count("](") == 1
+    return line.replace("](../response-bank/RESULTS.md)", "](evidence/response-bank/RESULTS.md)")
+
+
+@README_RED
+def test_readme_subsection_links_the_sources_and_licence():
+    sub = readme_subsection()
+    for needle in README_LINKS:
+        assert needle in sub, needle
+    assert sub.isascii() and "\u2013" not in sub and "\u2014" not in sub
+    assert "](../" not in sub
+
+
+@README_RED
+def test_readme_subsection_shows_the_counts_tables_and_reading_it(dr):
+    sub = readme_subsection()
+    results = json.loads(RESULTS.read_text(encoding="utf-8"))
+    assert readme_counts_sentence(results) in sub
+    assert sum(task["items"] for task in results["tasks"].values()) == 13_311
+    bar = results["config"]["bars"][0]
+    assert PARENT_CMD == f"{TABLE_CMD} --bar {bar} --point 0"
+    assert f"```text\n{TABLE_CMD}\n{dr.table(results)}\n```" in sub
+    assert f"```text\n{PARENT_CMD}\n{dr.parent_table(results, bar, 0)}\n```" in sub
+    # the first three Reading it bullets, which the RESULTS.md test builds from the committed file; the
+    # v1.239 bullet on the parents dearer than inline and the size bullet, the last, stay in RESULTS.md
+    reading = [line for line in section(RESULTS_MD.read_text(encoding="utf-8"), "## Reading it").split("\n")
+               if line.startswith("- ")]
+    assert len(reading) == 5 and reading[-1].startswith("- `results.json` is ")
+    for line in reading[:3]:
+        assert f"\n{line}\n" in sub, line
+    for line in reading[3:]:
+        assert line[2:] not in sub, line
+    assert "`results.json` is " not in sub
+
+
+@README_RED
+def test_readme_subsection_repeats_the_results_md_lines():
+    sub = readme_subsection()
+    for start in README_METHOD:
+        assert f"\n{results_md_line(start, '## Method')}\n" in sub, start
+    for start in README_ASSUMED:
+        assert f"\n{results_md_line(start, '## Assumed')}\n" in sub, start
+    # the one repeated line with a link targets the routing RESULTS.md from the repo root
+    pool = root_pool_line()
+    assert f"\n{pool}\n" in sub
+    limits = sub.index("\nLimits, as RESULTS.md states them:\n")
+    assert sub.index(pool) < limits
+    assert sub.index(results_md_line(README_METHOD[-1], "## Method")) < limits
+    assert limits < sub.index(results_md_line(README_ASSUMED[0], "## Assumed"))
+
+
+@README_RED
+def test_readme_subsection_regenerate_block_is_the_results_md_one():
+    sub = readme_subsection()
+    assert re.findall(r"```bash\n.*?```\n", sub, re.S) == ["```bash\n" + "\n".join(REGENERATE) + "\n```\n"]
+    blocks = fenced(section(RESULTS_MD.read_text(encoding="utf-8"), "## Regenerate"), "bash")
+    assert blocks and blocks[0].split("\n") == REGENERATE
+
+
+@README_RED
+def test_readme_layout_names_the_results_md():
+    text = README.read_text(encoding="utf-8")
+    layout = text.split("\n## Layout\n", 1)[1].split("\n## ", 1)[0]
+    lrbd = "(delegation on LLMRouterBench: evidence/llmrouterbench-delegation/RESULTS.md)\n"
+    assert lrbd + ("                (delegation on the LLM Routing Response Bank: "
+                   "evidence/response-bank-delegation/RESULTS.md)\n") in layout
+
+
+@README_RED
+def test_readme_limitations_name_the_fourth_dataset():
+    text = README.read_text(encoding="utf-8")
+    limits = text.split("\n## Limitations and non-goals (v1)\n", 1)[1].split("\n## ", 1)[0]
+    bullets = [line for line in limits.splitlines() if line.startswith("- The delegation evidence reads")]
+    assert len(bullets) == 1
+    assert bullets[0].startswith("- The delegation evidence reads four datasets: the AutoBench 2026 matrix, "
+                                 "LLMRouterBench on the ")
+    assert (", which leaves out its best single model, `google/gemini-2.5-pro`, the LLM Routing Response Bank on "
+            f"all {len(POOL)} of its models ([evidence/response-bank-delegation/RESULTS.md]"
+            "(evidence/response-bank-delegation/RESULTS.md)), and tau2-bench ") in bullets[0]
+    pays = [line for line in limits.splitlines() if line.startswith("- On the four delegation results files of ")]
+    assert len(pays) == 1
+    assert pays[0].startswith("- On the four delegation results files of AutoBench 2026, tau2-bench and "
+                              "LLMRouterBench the per-task decision is close to a fixed policy.")
