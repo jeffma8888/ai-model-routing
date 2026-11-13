@@ -30,6 +30,15 @@ v1.236 (row DOC14) adds the README Limitations bullet that states the note's Rec
 figures are read from the note's four results blocks (the cached tests above compare those blocks
 with the script's output), so the README test runs where the pinned files are not cached. v1.236
 commits the README and note tests ahead of the line as strict xfails; v1.237 lands the line.
+
+v1.328 (row R29) adds the response-bank run (`--dataset response-bank`): a hand-built matrix with one
+item of a null token count, run end to end through `main` against a root whose committed 13.14
+summary is that of the rows `select_rows` keeps; its refusal of `--registry`; the note's fifth block,
+compared byte for byte when the four pinned response-bank files are cached (the session fixture
+`response_bank_pinned`); and the README bullet's fourth cut, with a first sentence that counts the
+datasets whose cut is under 2%. v1.328 commits these ahead of the script change and the note, each
+a strict xfail but the ones that read the v1.328 bullet and the counting rule; v1.329 lands both and
+removes the markers.
 """
 
 import contextlib
@@ -610,6 +619,112 @@ def test_note_tau2_blocks_are_the_script_output(pid, tau2_matrices, tmp_path, da
     assert block.split("\n") == lines
 
 
+# --- the LLM Routing Response Bank (DESIGN 13.8 v1.328, row R29) ------------------------------
+RED = pytest.mark.xfail(strict=True, reason="DESIGN 13.8 v1.328: the script change and the note land in v1.329")
+RB_COMMAND = "$ python research/per_item_delegation.py --dataset response-bank --matrix response-bank-matrix.jsonl"
+RB_CONVERT = "python evidence/response-bank/convert.py --out response-bank-matrix.jsonl"
+RB_FOLDER = ROOT / "evidence" / "response-bank-delegation"
+RB_TITLE = "the LLM Routing Response Bank"
+RB_HEADING = "### LLM Routing Response Bank (`DESIGN.md` 13.14)"
+
+
+def test_design_bullet_v1328_states_the_response_bank_run():
+    text = DESIGN.read_text(encoding="utf-8")
+    section = text.split("\n### 13.8 ", 1)[1].split("\n### ", 1)[0]
+    bullets = [line for line in section.splitlines()
+               if line.startswith("- v1.328, per-item delegation paths on the response bank (row R29): ")]
+    assert len(bullets) == 1
+    for phrase in ("`--dataset` value, `response-bank`", "default output (12.20)",
+                   "`evidence/response-bank-delegation/results.py`", "`select_rows`",
+                   "`evidence/response-bank-delegation/registry.json`", "`results.json` one", "v1.230 message",
+                   "`the LLM Routing Response Bank`", "keeps its four `--dataset` choices",
+                   "`### LLM Routing Response Bank`", RB_CONVERT, "five blocks", "`on the LLM Routing Response Bank`",
+                   "under 2%", "N of the four datasets", "12.8 v1.258", "strict xfails", "`response_bank_pinned`",
+                   "No library code"):
+        assert phrase in bullets[0], phrase
+
+
+def _response_bank_root(tmp_path, registry):
+    """A root holding the 13.14 script and the 13.13 and 13.10 scripts it loads, a registry, and the
+    results.json that the 13.14 script writes from the hand matrix less its item with a null token count."""
+    rb = _load("research_pid_rb_results", RB_FOLDER / "results.py")
+    root = tmp_path / "root"
+    for folder in ("response-bank-delegation", "llmrouterbench-delegation", "delegation"):
+        (root / "evidence" / folder).mkdir(parents=True)
+        (root / "evidence" / folder / "results.py").write_text(
+            (ROOT / "evidence" / folder / "results.py").read_text(encoding="utf-8"), encoding="utf-8")
+    folder = root / "evidence" / "response-bank-delegation"
+    _registry_file(folder / "registry.json", registry.models)
+    rows = _rows() + [
+        {"task": "t", "item": "i80", "model": "v/p", "correct": True, "input_tokens": 10, "output_tokens": 5},
+        {"task": "t", "item": "i80", "model": "v/d", "correct": True, "input_tokens": 10, "output_tokens": None}]
+    kept, dropped = rb.select_rows(rows, [m.id for m in registry.models])
+    assert dropped == ["i80"] and kept == _rows()
+    (folder / "results.json").write_text(json.dumps(rb.run(kept, registry), indent=2) + "\n", encoding="utf-8")
+    matrix = tmp_path / "rb.jsonl"
+    matrix.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    return rb, root, kept, matrix
+
+
+@RED
+def test_response_bank_run_on_a_hand_root(pid, tmp_path):
+    registry = Registry([P, D])
+    rb, root, kept, matrix = _response_bank_root(tmp_path, registry)
+    argv = ["--dataset", "response-bank", "--matrix", str(matrix), "--root", str(root)]
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out):
+        assert pid.main(argv) == 0
+    full = evaluate_delegation(kept, registry, bars=list(rb.BARS), points=rb.points(), seeds=range(rb.SEEDS))
+    want = pid.report(kept, registry, full, name=RB_TITLE)
+    assert out.getvalue() == "\n".join(want) + "\n"
+    assert want[0].startswith(f"Per-item delegation paths on {RB_TITLE}: ")
+    assert want[1].startswith("matrix: 160 rows, 80 items, 1 task, 2 models; 1,600 cells, ")
+    # rerun hands on the rows select_rows keeps, not the matrix's 162
+    rows, _pool, run = pid.rerun(matrix, root, dataset="response-bank")
+    assert rows == kept and run["summary"] == full["summary"]
+    # a committed summary that the run does not give stops it
+    results = root / "evidence" / "response-bank-delegation" / "results.json"
+    moved = json.loads(results.read_text(encoding="utf-8"))
+    moved["summary"][0]["cost_usd"] += 1e-12
+    results.write_text(json.dumps(moved, indent=2) + "\n", encoding="utf-8")
+    err = io.StringIO()
+    with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
+        assert pid.main(argv) == 2
+    assert err.getvalue() == ("error: the run's summary is not the one in "
+                              "evidence/response-bank-delegation/results.json\n")
+
+
+@RED
+def test_response_bank_run_refuses_a_registry(pid):
+    err = io.StringIO()
+    with contextlib.redirect_stderr(err):
+        assert pid.main(["--dataset", "response-bank", "--matrix", "m.jsonl", "--registry", "r.json"]) == 2
+    assert err.getvalue() == "error: --registry is only used with --dataset autobench\n"
+
+
+@RED
+def test_note_has_the_response_bank_block_regenerate_and_a_four_dataset_recommendation():
+    note = NOTE.read_text(encoding="utf-8")
+    assert note.count("```text\n" + RB_COMMAND + "\n") == 1 and note.count("\n" + RB_HEADING + "\n") == 1
+    assert note.index(T2_POOLED_COMMAND) < note.index(RB_HEADING) < note.index(RB_COMMAND) < note.index("## Reading it")
+    regenerate = note.split("## Regenerate", 1)[1]
+    assert RB_CONVERT in regenerate and RB_COMMAND[2:] in regenerate
+    for name in ("Facts", "Reading it", "Recommendation"):
+        body = note.split(f"\n## {name}\n", 1)[1].split("\n## ", 1)[0]
+        assert "LLM Routing Response Bank" in body, name
+
+
+@RED
+def test_note_response_bank_block_is_the_script_output(pid, response_bank_pinned):
+    code, _out, err, matrix = response_bank_pinned
+    assert code == 0, err
+    lines = pid.run(matrix, ROOT, dataset="response-bank")
+    assert lines[1].startswith("matrix: 66,555 rows, 13,311 items, 4 tasks, 5 models; 16,000 cells, ")
+    note = NOTE.read_text(encoding="utf-8")
+    block = note.split(RB_COMMAND + "\n", 1)[1].split("\n```", 1)[0]
+    assert block.split("\n") == lines
+
+
 # --- README Limitations (DESIGN 13.8 v1.236, row DOC14) ----------------------------------------
 README = ROOT / "README.md"
 README_LINK = "([research/per-item-delegation.md](research/per-item-delegation.md))"
@@ -618,7 +733,23 @@ NOTE_PLACE = "the bullet after the one on where delegation pays"
 BLOCK_ROW = re.compile(r"^  (cost_effective|cost_blind) +(\d\.\d) +(pick|size rule) +(\d+) +([\d,]+) / ([\d,]+) +"
                        r"(-|\d\.\d{4}) +(\d\.\d{4}) +([+-]\d\.\d{4}) +(\d+)$")
 DATASETS = {"LLMRouterBench": (COMMAND,), "AutoBench 2026": (AB_COMMAND,),
-            "tau2-bench": (T2_COMMAND, T2_POOLED_COMMAND)}
+            "tau2-bench": (T2_COMMAND, T2_POOLED_COMMAND), "LLM Routing Response Bank": (RB_COMMAND,)}
+WORDS = ("none", "one", "two", "three")
+
+
+def little(cuts):
+    """v1.328: where the bullet says choosing per item adds little, from the per-dataset size rule cuts (percents):
+    `on that evidence` while every one is under 2%, else on how many of the four datasets it is."""
+    assert len(cuts) == 4, cuts
+    under = sum(decimal.Decimal(c) < 2 for c in cuts.values())
+    return "on that evidence" if under == len(cuts) else f"on {WORDS[under]} of the four datasets"
+
+
+def test_little_counts_the_cuts_under_two_percent():
+    assert little({"a": "1.4", "b": "1.1", "c": "0.05", "d": "1.9"}) == "on that evidence"
+    assert little({"a": "1.4", "b": "1.1", "c": "0.05", "d": "5.7"}) == "on three of the four datasets"
+    assert little({"a": "1.4", "b": "1.1", "c": "0.05", "d": "2"}) == "on three of the four datasets"
+    assert little({"a": "2.5", "b": "11", "c": "0.05", "d": "5.7"}) == "on one of the four datasets"
 
 
 def test_design_specifies_the_per_item_readme_line():
@@ -680,18 +811,20 @@ def per_item_figures():
 def per_item_bullet():
     """The README Limitations bullet of v1.236, its figures from the note's results blocks."""
     share, cuts, pick_cut, pick_loss = per_item_figures()
-    return ("- Choosing the path per item instead would add little on that evidence. In `cost_effective` a held-out "
+    return (f"- Choosing the path per item instead would add little {little(cuts)}. In `cost_effective` a held-out "
             "item's cheaper path, by list price at its own sizes, is not the one the per-task decision took on up to "
             f"{share}% of the held-out items at a bar, but taking it only where the decision chose by cost "
             "(`DESIGN.md` 13.5 row 3) cuts a bar's summed cost by at most "
-            f"{cuts['LLMRouterBench']}% on LLMRouterBench, {cuts['AutoBench 2026']}% on AutoBench 2026 and "
-            f"{cuts['tau2-bench']}% on tau2-bench, at no lower mean success, while taking it on every item cuts up "
+            f"{cuts['LLMRouterBench']}% on LLMRouterBench, {cuts['AutoBench 2026']}% on AutoBench 2026, "
+            f"{cuts['tau2-bench']}% on tau2-bench and {cuts['LLM Routing Response Bank']}% on the LLM Routing Response "
+            "Bank, at no lower mean success, while taking it on every item cuts up "
             f"to {pick_cut}% at a mean success up to {pick_loss} points lower. Each is the largest cut that a rule "
             "choosing between the two paths item by item could make on those items, since every item takes its "
             "cheaper path "
             f"{README_LINK}")
 
 
+@RED
 def test_readme_limitations_say_what_choosing_per_item_adds():
     readme = README.read_text(encoding="utf-8")
     limits = readme.split("\n## Limitations and non-goals (v1)\n", 1)[1].split("\n## ", 1)[0]
@@ -702,6 +835,7 @@ def test_readme_limitations_say_what_choosing_per_item_adds():
     assert sum(README_LINK in b for b in bullets) == 1
 
 
+@RED
 def test_note_recommendation_names_the_readme_line():
     share, cuts, _pick_cut, _pick_loss = per_item_figures()
     note = NOTE.read_text(encoding="utf-8")
