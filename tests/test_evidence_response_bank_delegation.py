@@ -1,0 +1,404 @@
+"""Delegation results on the LLM Routing Response Bank (DESIGN 13.14; specified in v1.310, row E21b).
+
+The 13.9 harness on the response-bank converter's default rows (12.20), all five models as the
+pool, with the 4 `mmlu_pro` items that hold the six `missing` cells dropped by 13.13's
+``select_rows``, a committed registry that prices each model at the pair its bills give on its
+responses with no cache read, the 13.10 base points and the 12.21 bars. v1.310 holds every test
+that loads ``evidence/response-bank-delegation/results.py`` or reads one of its committed files
+(``registry.json``, ``results.json``) under a strict xfail marker naming ``FileNotFoundError``;
+row E21c commits them and removes the markers. The other tests pass before and after: the
+research note states each price, cache-read price, window and source the registry takes from it,
+and, when the four pinned files are cached, 13.13's ``select_rows`` on the converter's rows gives
+the dropped items, kept counts, success span and list-cost-to-bill ratios that 13.14 states.
+"""
+
+import importlib.util
+import json
+import math
+from collections import Counter, defaultdict
+from pathlib import Path
+
+import pytest
+
+from model_routing import Model, Registry, evaluate_delegation
+
+ROOT = Path(__file__).resolve().parents[1]
+FOLDER = ROOT / "evidence" / "response-bank-delegation"
+SCRIPT = FOLDER / "results.py"
+REGISTRY = FOLDER / "registry.json"
+RESULTS = FOLDER / "results.json"
+DELEGATION_SCRIPT = ROOT / "evidence" / "delegation" / "results.py"
+LRB_SCRIPT = ROOT / "evidence" / "llmrouterbench-delegation" / "results.py"
+RESEARCH = ROOT / "research" / "delegation-datasets.md"
+
+REVISION = "547beb31ecd8f12b116b87eb4f56feee73edda6c"
+DATASET_TREE = f"https://huggingface.co/datasets/Lurume/llm-routing-response-bank/tree/{REVISION}"
+DEEPSEEK_PAGE = "https://api-docs.deepseek.com/quick_start/pricing"
+KIMI_PAGE = "https://platform.moonshot.ai/docs/pricing/chat"
+KIMI_NOW = "https://platform.kimi.ai/docs/pricing/chat"
+ZAI_PAGE = "https://docs.z.ai/guides/overview/pricing"
+FLASH = "deepseek/deepseek-v4-flash"
+PRO = "deepseek/deepseek-v4-pro"
+KIMI = "moonshotai/kimi-k2.7-code"
+GLM = "z-ai/glm-5.3"
+GLM_FLASH = "z-ai/glm-5.3-flash"
+POOL = (FLASH, PRO, KIMI, GLM, GLM_FLASH)
+PAGE_PRICED = (KIMI, GLM, GLM_FLASH)
+CACHE_PRICE = {FLASH: 0.0028, PRO: 0.003625, KIMI: 0.19, GLM: 0.26, GLM_FLASH: 0.03}
+BARS = (0.8, 0.9)
+SEEDS = 50
+KEYS = ("config", "tasks", "summary")
+FLAVORS = ["cost_effective", "cost_blind"]
+DROPPED = ["mmlu_pro:10969", "mmlu_pro:10990", "mmlu_pro:11007", "mmlu_pro:7872"]
+KEPT_ITEMS = {"aime": 30, "gpqa_diamond": 198, "livecodebench": 1055, "mmlu_pro": 12028}
+LIST_TO_BILL = {FLASH: 0.9999, PRO: 0.9995, KIMI: 0.9901, GLM: 0.9855, GLM_FLASH: 0.9824}
+REGISTRY_MODEL_KEYS = ["id", "family", "price_in", "price_out", "context_window", "source", "notes"]
+STATED_MODELS = [
+    {"id": FLASH, "family": "deepseek", "price_in": 0.14, "price_out": 0.28, "context_window": 1_000_000,
+     "source": DATASET_TREE},
+    {"id": PRO, "family": "deepseek", "price_in": 0.435, "price_out": 0.87, "context_window": 1_000_000,
+     "source": DATASET_TREE},
+    {"id": KIMI, "family": "moonshotai", "price_in": 0.95, "price_out": 4, "context_window": 262_144,
+     "source": KIMI_PAGE},
+    {"id": GLM, "family": "z-ai", "price_in": 1.4, "price_out": 4.4, "context_window": 1_000_000,
+     "source": ZAI_PAGE},
+    {"id": GLM_FLASH, "family": "z-ai", "price_in": 0.15, "price_out": 0.5, "context_window": 1_000_000,
+     "source": ZAI_PAGE},
+]
+WINDOW_PAGE = {FLASH: DEEPSEEK_PAGE, PRO: DEEPSEEK_PAGE, KIMI: KIMI_NOW,
+               GLM: "https://docs.z.ai/guides/llm/glm-5.3", GLM_FLASH: "https://docs.z.ai/guides/llm/glm-5.3-flash"}
+CELLS = 16_000
+REASONS = {
+    "cost_effective": {"none_clear": 5040, "delegate_cheaper": 2062, "parent_below_bar": 848, "inline_cheaper": 50},
+    "cost_blind": {"none_clear": 5040, "delegate_better": 1492, "parent_below_bar": 848, "inline_as_good": 620},
+}
+POINT0 = {0.8: (20.7429, 101.6277, 0.847, 0.861), 0.9: (75.1256, 101.6277, 0.874, 0.861)}
+
+NEEDS_SCRIPT = pytest.mark.xfail(strict=True, raises=FileNotFoundError,
+                                 reason="row E21c adds evidence/response-bank-delegation/ (DESIGN 13.14)")
+
+
+def _load(name, path):
+    spec = importlib.util.spec_from_file_location(name, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+@pytest.fixture
+def ld():
+    return _load("response_bank_delegation_results", SCRIPT)
+
+
+@pytest.fixture(scope="module")
+def dr():
+    return _load("delegation_results_for_response_bank", DELEGATION_SCRIPT)
+
+
+@pytest.fixture(scope="module")
+def lrb():
+    return _load("llmrouterbench_delegation_for_response_bank", LRB_SCRIPT)
+
+
+@pytest.fixture(scope="module")
+def pinned_rows(response_bank_pinned):
+    code, _, err, path = response_bank_pinned
+    assert code == 0, err
+    with open(path, encoding="utf-8") as f:
+        return [json.loads(line) for line in f if line.strip()]
+
+
+def g(x):
+    return format(x, "g")
+
+
+def mean(values):
+    values = list(values)
+    return math.fsum(values) / len(values)
+
+
+def table_rows(text, heading):
+    """The `| ... |` rows of the first Markdown table after `heading`, cells stripped, header and rule skipped."""
+    body = text[text.index(heading):]
+    rows = []
+    for line in body.split("\n")[1:]:
+        if line.startswith("|"):
+            rows.append([cell.strip() for cell in line.strip().strip("|").split("|")])
+        elif rows:
+            break
+    return rows[2:]
+
+
+def note_section():
+    text = RESEARCH.read_text(encoding="utf-8")
+    return text[text.index("## LLM Routing Response Bank (2026-11-12)"):]
+
+
+def row(task, item, model, correct, i, o):
+    return {"task": task, "item": item, "model": model, "correct": correct, "cost_usd": 0.001,
+            "input_tokens": i, "output_tokens": o}
+
+
+def synthetic(items=40):
+    rows = []
+    for n in range(items):
+        for model, every in (("vendor/a", 3), ("vendor/b", 2)):
+            rows.append(row("t", f"t:{n}", model, n % every != 0, 300 + 7 * n, 40 + n))
+    registry = Registry([Model(id="vendor/a", family="vendor", price_in=3.0, price_out=15.0, context_window=1_000_000),
+                         Model(id="vendor/b", family="vendor", price_in=0.4, price_out=1.6, context_window=1_000_000)])
+    return rows, registry
+
+
+def registry_json(registry):
+    return {"models": [{"id": m.id, "family": m.family, "price_in": m.price_in, "price_out": m.price_out,
+                        "context_window": m.context_window, "source": "fake"} for m in registry.models]}
+
+
+def write_jsonl(path, rows):
+    path.write_text("".join(json.dumps(r) + "\n" for r in rows) + "\n", encoding="utf-8")
+
+
+def stated_registry():
+    return Registry([Model(id=s["id"], family=s["family"], price_in=float(s["price_in"]),
+                           price_out=float(s["price_out"]), context_window=s["context_window"])
+                     for s in STATED_MODELS])
+
+
+# ---- plain tests: pass before and after row E21c ----
+
+def test_research_note_states_each_registry_value():
+    text = note_section()
+    prices = {r[0].strip("`"): r for r in table_rows(text, "### List prices")}
+    windows = {r[0].strip("`"): r for r in table_rows(text, "### Context windows (2026-11-12)")}
+    assert sorted(prices) == sorted(windows) == sorted(POOL)
+    cache = ", ".join(g(CACHE_PRICE[m]) for m in POOL[:-1]) + " and " + g(CACHE_PRICE[POOL[-1]])
+    assert f"({cache}, in the same order)" in text
+    for stated in STATED_MODELS:
+        mid = stated["id"]
+        assert f"`{mid}` ({g(stated['price_in'])} and {g(stated['price_out'])}" in text, mid
+        if mid in PAGE_PRICED:
+            assert prices[mid][1] == stated["source"], mid
+            assert prices[mid][3] == f"{g(stated['price_in'])}, {g(CACHE_PRICE[mid])}, {g(stated['price_out'])}", mid
+        else:
+            assert prices[mid][1] == DEEPSEEK_PAGE, mid
+        assert windows[mid][3] == f"{stated['context_window']:,}", mid
+        assert windows[mid][4].startswith("vendor page"), mid
+        assert WINDOW_PAGE[mid] in windows[mid][1], mid
+    assert prices[FLASH][3].startswith("none for this model; `deepseek-flash` 0.15, 0.003, 0.6 off-peak and 0.3, 0.006, 1.2 at peak")
+    assert prices[PRO][3] == "0.66, 0.022, 1.98 off-peak and 1.32, 0.044, 3.96 at peak, neither the recorded 0.435, 0.003625, 0.87"
+    assert "Each 1M is read here as 1,000,000" in text
+
+
+def test_pinned_rows_drop_the_missing_items_and_keep_the_span(pinned_rows, lrb):
+    kept, dropped = lrb.select_rows(pinned_rows, POOL)
+    assert dropped == DROPPED
+    assert len(pinned_rows) - len(kept) == 20 and len(kept) == 66_555
+    items = defaultdict(set)
+    for r in kept:
+        items[r["task"]].add(r["item"])
+    assert {t: len(v) for t, v in sorted(items.items())} == KEPT_ITEMS
+    assert sum(KEPT_ITEMS.values()) == 13_311
+    tally = defaultdict(lambda: [0, 0])
+    for r in kept:
+        t = tally[r["task"], r["model"]]
+        t[0] += bool(r["correct"])
+        t[1] += 1
+    rates = sorted((a / n, a, n, key) for key, (a, n) in tally.items())
+    assert rates[0][1:] == (23, 30, ("aime", GLM))
+    assert rates[-1][1:] == (29, 30, ("aime", PRO))
+    assert round(rates[0][0], 4) == 0.7667 and round(rates[-1][0], 4) == 0.9667
+    assert tuple(k / 10 for k in range(1, 10) if rates[0][0] < k / 10 < rates[-1][0]) == BARS
+
+
+def test_pinned_list_cost_is_just_under_the_bill(pinned_rows, lrb):
+    kept, _ = lrb.select_rows(pinned_rows, POOL)
+    registry = stated_registry()
+    listed, billed = defaultdict(list), defaultdict(list)
+    for r in kept:
+        listed[r["model"]].append(registry.get(r["model"]).base_cost(r["input_tokens"], r["output_tokens"]))
+        billed[r["model"]].append(r["cost_usd"])
+    ratios = {m: round(math.fsum(listed[m]) / math.fsum(billed[m]), 4) for m in POOL}
+    assert ratios == LIST_TO_BILL
+    for stated in STATED_MODELS:
+        assert CACHE_PRICE[stated["id"]] < stated["price_in"] / 2, stated["id"]
+
+
+# ---- the script and its files (row E21c) ----
+
+@NEEDS_SCRIPT
+def test_constants(ld):
+    assert ld.POOL == POOL
+    assert ld.BARS == BARS
+    assert ld.SEEDS == SEEDS
+    assert ld.KEYS == KEYS
+
+
+@NEEDS_SCRIPT
+def test_points_are_the_13_10_base_points(ld, dr):
+    assert ld.points() == dr.points()
+
+
+@NEEDS_SCRIPT
+def test_select_rows_is_the_13_13_function(ld, lrb):
+    assert Path(ld.select_rows.__code__.co_filename).resolve() == LRB_SCRIPT.resolve()
+    rows = [row("t", "t:1", "vendor/a", True, 10, 5), row("t", "t:1", "vendor/b", False, None, None),
+            row("t", "t:2", "vendor/b", False, 14, 8), row("t", "t:2", "vendor/a", True, 15, 9)]
+    assert ld.select_rows(rows, ["vendor/a", "vendor/b"]) == lrb.select_rows(rows, ["vendor/a", "vendor/b"])
+    assert ld.select_rows(rows, ["vendor/a", "vendor/b"]) == ([rows[2], rows[3]], ["t:1"])
+
+
+@NEEDS_SCRIPT
+def test_run_is_evaluate_delegation_keeping_keys(ld):
+    rows, registry = synthetic()
+    result = ld.run(rows, registry)
+    full = evaluate_delegation(rows, registry, bars=list(BARS), points=ld.points(), seeds=range(SEEDS))
+    assert list(result) == list(KEYS)
+    assert result == {key: full[key] for key in KEYS}
+
+
+@NEEDS_SCRIPT
+def test_cli_writes_the_run_on_the_rows_left(ld, tmp_path):
+    rows, registry = synthetic()
+    rows.append(row("t", "t:0", "vendor/a", False, None, None))
+    rows = [r for r in rows if not (r["item"] == "t:0" and r["model"] == "vendor/a" and r["input_tokens"] is not None)]
+    matrix = tmp_path / "m.jsonl"
+    write_jsonl(matrix, rows)
+    reg = tmp_path / "registry.json"
+    reg.write_text(json.dumps(registry_json(registry)), encoding="utf-8")
+    out = tmp_path / "results.json"
+    assert ld.main(["--matrix", str(matrix), "--registry", str(reg), "--out", str(out)]) == 0
+    kept, dropped = ld.select_rows(rows, ["vendor/a", "vendor/b"])
+    assert dropped == ["t:0"]
+    assert out.read_text(encoding="utf-8") == json.dumps(ld.run(kept, registry), indent=2) + "\n"
+    assert not (tmp_path / "results.json.part").exists()
+
+
+@NEEDS_SCRIPT
+def test_cli_errors(ld, tmp_path, capsys):
+    rows, registry = synthetic()
+    matrix = tmp_path / "m.jsonl"
+    write_jsonl(matrix, rows)
+    reg = tmp_path / "registry.json"
+    payload = registry_json(registry)
+    payload["models"].append({"id": "vendor/zz", "family": "vendor", "price_in": 1.0, "price_out": 1.0,
+                              "context_window": 1000, "source": "fake"})
+    reg.write_text(json.dumps(payload), encoding="utf-8")
+    out = tmp_path / "results.json"
+    out.write_text("keep\n", encoding="utf-8")
+    for argv in (["--matrix", str(tmp_path / "absent.jsonl"), "--registry", str(reg), "--out", str(out)],
+                 ["--matrix", str(matrix), "--registry", str(reg), "--out", str(out)]):
+        assert ld.main(argv) == 1
+        err = capsys.readouterr().err
+        assert err.startswith("error: ") and err.count("\n") == 1
+        assert out.read_text(encoding="utf-8") == "keep\n"
+        assert not (tmp_path / "results.json.part").exists()
+    with pytest.raises(SystemExit) as exc:
+        ld.main(["--matrix", str(matrix), "--out", str(out)])
+    assert exc.value.code == 2
+
+
+@NEEDS_SCRIPT
+def test_cli_out_with_an_empty_name_is_one_error_line(ld, tmp_path, capsys):
+    rows, registry = synthetic()
+    matrix = tmp_path / "m.jsonl"
+    write_jsonl(matrix, rows)
+    reg = tmp_path / "registry.json"
+    reg.write_text(json.dumps(registry_json(registry)), encoding="utf-8")
+    for out in ("/", "."):
+        assert ld.main(["--matrix", str(matrix), "--registry", str(reg), "--out", out]) == 1, out
+        err = capsys.readouterr().err
+        assert err.startswith("error: ") and err.count("\n") == 1, out
+
+
+@NEEDS_SCRIPT
+def test_cli_failure_removes_a_part_left_by_an_earlier_run(ld, tmp_path, capsys):
+    rows, registry = synthetic()
+    matrix = tmp_path / "m.jsonl"
+    write_jsonl(matrix, rows)
+    reg = tmp_path / "registry.json"
+    reg.write_text(json.dumps(registry_json(registry)), encoding="utf-8")
+    out = tmp_path / "results.json"
+    part = tmp_path / "results.json.part"
+    for argv in (["--matrix", str(tmp_path / "absent.jsonl"), "--registry", str(reg), "--out", str(out)],
+                 ["--matrix", str(matrix), "--registry", str(tmp_path / "absent.json"), "--out", str(out)]):
+        out.write_text("keep\n", encoding="utf-8")
+        part.write_text("stale\n", encoding="utf-8")
+        assert ld.main(argv) == 1
+        assert capsys.readouterr().err.startswith("error: ")
+        assert out.read_text(encoding="utf-8") == "keep\n"
+        assert not part.exists()
+
+
+@NEEDS_SCRIPT
+def test_registry_file():
+    text = REGISTRY.read_text(encoding="utf-8")
+    content = json.loads(text)
+    assert text == json.dumps(content, indent=2) + "\n"
+    assert list(content) == ["as_of", "note", "models"]
+    assert content["as_of"] == "2026-11-12"
+    assert "research/delegation-datasets.md" in content["note"]
+    models = content["models"]
+    assert [m["id"] for m in models] == list(POOL)
+    for got, stated in zip(models, STATED_MODELS):
+        assert list(got) == REGISTRY_MODEL_KEYS
+        assert {k: got[k] for k in REGISTRY_MODEL_KEYS[:-1]} == stated
+        assert got["family"] == got["id"].split("/")[0]
+        notes = got["notes"]
+        for phrase in (g(CACHE_PRICE[got["id"]]), "not in the registry", WINDOW_PAGE[got["id"]],
+                       f"{stated['context_window']:,}"):
+            assert phrase in notes, (got["id"], phrase)
+        if got["id"] != KIMI:
+            assert "1M" in notes and "1,000,000" in notes, got["id"]
+        if got["id"] in (FLASH, PRO):
+            for phrase in ("cache_read", DEEPSEEK_PAGE, "1048576"):
+                assert phrase in notes, (got["id"], phrase)
+    by_id = {m["id"]: m["notes"] for m in models}
+    for phrase in ("retired", "DeepSeek-V4.1-Flash-1017", "0.15 and 0.6", "0.3 and 1.2"):
+        assert phrase in by_id[FLASH], phrase
+    for phrase in ("0.66 and 1.98", "1.32 and 3.96"):
+        assert phrase in by_id[PRO], phrase
+    for phrase in ("October 31, 2026", "end of December 2026"):
+        assert phrase in by_id[KIMI], phrase
+    Registry.load(REGISTRY)
+
+
+@NEEDS_SCRIPT
+def test_results_file_shape(dr):
+    text = RESULTS.read_text(encoding="utf-8")
+    assert len(text.encode("utf-8")) < 300_000
+    results = json.loads(text)
+    assert text == json.dumps(results, indent=2) + "\n"
+    assert list(results) == list(KEYS)
+    config = results["config"]
+    assert config["bars"] == list(BARS)
+    assert config["seeds"] == list(range(SEEDS))
+    assert config["flavors"] == FLAVORS
+    assert config["points"] == dr.points()
+    assert config["parents"] == list(POOL)
+    assert results["tasks"] == {task: {"items": n, "models": list(POOL)} for task, n in KEPT_ITEMS.items()}
+    keys = {(r["bar"], r["flavor"], r["point"], r["parent"], r["strategy"]) for r in results["summary"]}
+    assert len(keys) == len(results["summary"]) == len(BARS) * 2 * 4 * len(POOL) * 3 == 240
+
+
+@NEEDS_SCRIPT
+def test_pinned_run_rebuilds_the_committed_file_and_the_prototype_numbers(ld, pinned_rows):
+    kept, dropped = ld.select_rows(pinned_rows, list(POOL))
+    assert dropped == DROPPED
+    registry = Registry.load(REGISTRY)
+    full = evaluate_delegation(kept, registry, bars=list(BARS), points=ld.points(), seeds=range(SEEDS))
+    built = {key: full[key] for key in KEYS}
+    assert json.dumps(built, indent=2) + "\n" == RESULTS.read_text(encoding="utf-8")
+    assert built == ld.run(kept, registry)
+    cells = full["cells"]
+    assert len(cells) == CELLS
+    assert all(c["inline_allowed"] for c in cells)
+    for flavor, want in REASONS.items():
+        assert Counter(c["reason"] for c in cells if c["flavor"] == flavor) == Counter(want), flavor
+    index = {(r["bar"], r["flavor"], r["point"], r["parent"], r["strategy"]): r for r in built["summary"]}
+    for bar, (dec_cost, inl_cost, dec_success, inl_success) in POINT0.items():
+        dec = [index[bar, "cost_effective", 0, p, "decision"] for p in POOL]
+        inl = [index[bar, "cost_effective", 0, p, "inline"] for p in POOL]
+        assert round(mean(r["cost_usd"] for r in dec), 4) == dec_cost, bar
+        assert round(mean(r["cost_usd"] for r in inl), 4) == inl_cost, bar
+        assert round(mean(r["success"] for r in dec), 3) == dec_success, bar
+        assert round(mean(r["success"] for r in inl), 3) == inl_success, bar
