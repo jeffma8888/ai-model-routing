@@ -20,6 +20,8 @@ v1.313 (row E21e) adds the tests of ``RESULTS.md``, 13.13's five adapted to the 
 cached-file one on its Method sentences, each under a strict xfail marker naming ``FileNotFoundError``
 until the file lands. They import 13.13's ``dearer_than_inline``, ``section``, ``fenced`` and ``join``,
 and the cached-file tests share one module-scoped run of the pinned rows.
+
+v1.314 (row E21e) commits ``RESULTS.md`` and removes the markers.
 """
 
 import importlib.util
@@ -105,8 +107,6 @@ ASSUMED_PHRASES = ("lossless", "list price", "never a bill", "0.9999", "0.9995",
                    "10, 3, 1 and 14", "1M", "1,000,000", "262,144", "The 4 dropped items", "retired",
                    "DeepSeek-V4.1-Flash-1017", "new users", "October 31, 2026", "end of December 2026",
                    "a reader may no longer be able to call", "13.8")
-missing_md = pytest.mark.xfail(strict=True, raises=FileNotFoundError,
-                               reason="RESULTS.md lands in row E21e (DESIGN 13.14 v1.313)")
 
 def _load(name, path):
     spec = importlib.util.spec_from_file_location(name, path)
@@ -474,7 +474,7 @@ def test_cli_out_naming_an_input_is_exit_2_before_any_read(ld, tmp_path, capsys,
     assert {p.name: p.read_bytes() for p in sorted(tmp_path.iterdir())} == before
 
 
-# ---- v1.313 RESULTS.md (row E21e): committed red, strict xfail until the file lands ----
+# ---- v1.313 RESULTS.md (row E21e): committed red as strict xfail; v1.314 lands the file ----
 
 def summary_index(results):
     return {(r["bar"], r["flavor"], r["point"], r["parent"], r["strategy"]): r for r in results["summary"]}
@@ -525,7 +525,6 @@ def test_reading_bullets_on_the_committed_numbers():
     assert bullets[4] == "`results.json` is 69,970 bytes."
 
 
-@missing_md
 def test_results_md_structure():
     text = RESULTS_MD.read_text(encoding="utf-8")
     assert text.split("\n")[0] == ("# Delegation on the LLM Routing Response Bank: inline or sub-agent on held-out "
@@ -551,7 +550,6 @@ def test_results_md_structure():
         assert phrase in assumed, phrase
 
 
-@missing_md
 def test_results_md_tables_are_the_committed_file(dr):
     results = json.loads(RESULTS.read_text(encoding="utf-8"))
     blocks = fenced(section(RESULTS_MD.read_text(encoding="utf-8"), "## Results"), "text")
@@ -560,7 +558,6 @@ def test_results_md_tables_are_the_committed_file(dr):
     assert blocks[1] == PARENT_CMD + "\n" + dr.parent_table(results, 0.8, 0).rstrip("\n")
 
 
-@missing_md
 def test_results_md_reading_it_is_built_from_the_committed_file():
     want = reading_bullets(json.loads(RESULTS.read_text(encoding="utf-8")))
     reading = section(RESULTS_MD.read_text(encoding="utf-8"), "## Reading it")
@@ -568,7 +565,6 @@ def test_results_md_reading_it_is_built_from_the_committed_file():
     assert bullets == want
 
 
-@missing_md
 def test_results_md_regenerate_block():
     regenerate = section(RESULTS_MD.read_text(encoding="utf-8"), "## Regenerate")
     blocks = fenced(regenerate, "bash")
@@ -632,7 +628,6 @@ def method_sentences(full, registry):
     return [drop, size, aime_line, outside_line, blocked, reason_line]
 
 
-@missing_md
 def test_pinned_method_sentences(pinned_full):
     sentences = method_sentences(pinned_full, Registry.load(REGISTRY))
     assert sentences[0] == "4 items are dropped for a null token count (4 in `mmlu_pro`), so 13,311 items remain."
