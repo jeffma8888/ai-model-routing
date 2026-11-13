@@ -1,13 +1,13 @@
-"""Where the per-task delegation decision pays on the committed evidence (DESIGN 13.8 v1.206).
+"""Where the per-task delegation decision pays on the committed evidence (DESIGN 13.8 v1.206, v1.323).
 
-Reads only the four committed delegation results files under evidence/ and compares, in each
+Reads only the five committed delegation results files under evidence/ and compares, in each
 summary row (bar, flavor, point, parent), the `decision` strategy with the two fixed policies,
 always `inline` and always `delegate`, on held-out success and list-price cost. Prints, per file,
 flavor and bar, how many rows the decision equals a fixed policy in both, is better than both,
 is beaten by one on success or on cost alone, or trades one for the other, then per flavor the
 rows where the decision changed something by point, how many of them cost less than always
 delegate and at no less success, and the largest success gain over the better fixed policy, and
-the counts over all four files. Standard library only. Exit 0, or 2 with one
+the counts over all five files. Standard library only. Exit 0, or 2 with one
 `error: ...` line when a file is missing, is not JSON, lacks a key the report reads, a row lacks
 a strategy or has one twice, a success or a cost is not a number, or a row's decision equals a
 fixed policy while its `delegate_rate` says the decision did not take that path on every cell (or
@@ -28,6 +28,7 @@ DATASETS = (
     ("tau2-bench", "evidence/tau2-bench-delegation/results.json"),
     ("tau2-bench pooled", "evidence/tau2-bench-delegation/pooled.json"),
     ("LLMRouterBench", "evidence/llmrouterbench-delegation/results.json"),
+    ("LLM Routing Response Bank", "evidence/response-bank-delegation/results.json"),
 )
 STRATEGIES = ("decision", "inline", "delegate")
 # The outcome classes, in column order; each row gets exactly one (see `classify`)
@@ -114,7 +115,7 @@ def gain(group):
 
 def report(root):
     lines = ["Where the per-task delegation decision pays: each summary row (bar, flavor, point, parent) of "
-             "the four committed delegation files, the decision against always inline and always delegate"]
+             "the five committed delegation files, the decision against always inline and always delegate"]
     totals = {}
     for name, rel in DATASETS:
         results = load(root, rel)
@@ -155,7 +156,7 @@ def report(root):
             lines.append(f"  largest gain, {flavor}: bar {key[0]}, point {key[2]}, parent {key[3]}: decision "
                          f"{d[0]:.4f} at {d[1]:.4f} USD, inline {i[0]:.4f} at {i[1]:.4f}, delegate {e[0]:.4f} "
                          f"at {e[1]:.4f}, gain {gain(g):+.4f}")
-    lines += ["All four files", HEADER]
+    lines += ["All five files", HEADER]
     for flavor, (counts, top) in totals.items():
         lines.append(table_line(flavor, "all", counts, top))
     return "\n".join(lines) + "\n"

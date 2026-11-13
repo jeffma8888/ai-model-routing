@@ -778,7 +778,8 @@ def test_readme_limitations_name_the_fourth_dataset():
     assert (", which leaves out its best single model, `google/gemini-2.5-pro`, the LLM Routing Response Bank on "
             f"all {len(POOL)} of its models ([evidence/response-bank-delegation/RESULTS.md]"
             "(evidence/response-bank-delegation/RESULTS.md)), and tau2-bench ") in bullets[0]
-    pays = [line for line in limits.splitlines() if line.startswith("- On the four delegation results files of ")]
+    # v1.324 (row R28): the where-delegation-pays note reads the fourth dataset, so its bullet names five files
+    pays = [line for line in limits.splitlines() if line.startswith("- On the five delegation results files of ")]
     assert len(pays) == 1
-    assert pays[0].startswith("- On the four delegation results files of AutoBench 2026, tau2-bench and "
-                              "LLMRouterBench the per-task decision is close to a fixed policy.")
+    assert pays[0].startswith("- On the five delegation results files of AutoBench 2026, tau2-bench, LLMRouterBench "
+                              "and the LLM Routing Response Bank the per-task decision is close to a fixed policy.")

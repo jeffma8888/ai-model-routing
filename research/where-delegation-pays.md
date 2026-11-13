@@ -3,8 +3,8 @@
 ## Facts
 
 - Question: does the per-task `DESIGN.md` 13.5 decision, inline or delegate, beat a fixed policy, always inline or always delegate, on the committed delegation evidence?
-- Reads only the summary rows of the four committed delegation files: `evidence/delegation/results.json` (AutoBench), `evidence/tau2-bench-delegation/results.json` and `evidence/tau2-bench-delegation/pooled.json` (tau2-bench per domain and pooled) and `evidence/llmrouterbench-delegation/results.json` (LLMRouterBench). No library code, harness or results file changes.
-- Short answer: rarely, and never on both success and cost. In `cost_effective` the decision equals always delegating on 403 of the 432 rows, every row at the three points where inline work is a call of its own among them. In `cost_blind` a fixed policy has a higher held-out success at no more cost on 106 of the 432 rows. On no row of either flavor is the decision better than both fixed policies.
+- Reads only the summary rows of the five committed delegation files: `evidence/delegation/results.json` (AutoBench), `evidence/tau2-bench-delegation/results.json` and `evidence/tau2-bench-delegation/pooled.json` (tau2-bench per domain and pooled), `evidence/llmrouterbench-delegation/results.json` (LLMRouterBench) and `evidence/response-bank-delegation/results.json` (LLM Routing Response Bank). No library code, harness or results file changes.
+- Short answer: rarely, and never by success. In `cost_effective` the decision equals always delegating on 441 of the 472 rows, every row at the three points where inline work is a call of its own among them. In `cost_blind` a fixed policy has a higher held-out success at no more cost on 126 of the 472 rows. The decision is better than both fixed policies on 2 rows, both `cost_effective` rows of the response bank where the work folds into the parent's next call, each at always delegating's held-out success for less cost than either (`## Fifth file: LLM Routing Response Bank (2026-11-13)`); on no row does it have more held-out success than both.
 - Which 13.5 row chose: in `cost_effective` every cell where inline work is a call of its own delegates on all four runs, as a condition from 13.2 on the parent's prices and the point's sizes says it must, and the cost comparison of row 3 chose on under a third of those cells (`## Which 13.5 row chose`).
 - Recommendation: a README Limitations line, and no spec row.
 
@@ -23,7 +23,7 @@
 
 ```text
 $ python research/where_delegation_pays.py
-Where the per-task delegation decision pays: each summary row (bar, flavor, point, parent) of the four committed delegation files, the decision against always inline and always delegate
+Where the per-task delegation decision pays: each summary row (bar, flavor, point, parent) of the five committed delegation files, the decision against always inline and always delegate
 AutoBench (`evidence/delegation/results.json`): 320 rows, 1 task, bars 0.7 0.8, 4 points, 20 parents
   flavor          bar   rows  = delegate  = inline  better  beaten on success  beaten on cost  trade-off  top success
   cost_effective  0.7     80          76         1       0                  1               0          2            0
@@ -92,18 +92,40 @@ LLMRouterBench (`evidence/llmrouterbench-delegation/results.json`): 256 rows, 9 
   changed rows by point, cost_blind: 0: 16, 1: 16, 2: 4, 3: 16
   against always delegate, cost_blind: 52 changed rows, 12 cheaper (4 of them at no less success), 40 not cheaper
   largest gain, cost_blind: bar 0.1, point 0, parent deepseek/deepseek-r1-0528: decision 0.5906 at 226.2996 USD, inline 0.4728 at 146.2874, delegate 0.5906 at 225.4591, gain +0.0000
-All four files
+LLM Routing Response Bank (`evidence/response-bank-delegation/results.json`): 80 rows, 4 tasks, bars 0.8 0.9, 4 points, 5 parents
   flavor          bar   rows  = delegate  = inline  better  beaten on success  beaten on cost  trade-off  top success
-  cost_effective  all    432         403         1       0                  2               0         26            3
-  cost_blind      all    432         208         0       0                106              68         50            0
+  cost_effective  0.8     20          19         0       1                  0               0          0            0
+  cost_effective  0.9     20          19         0       1                  0               0          0            0
+  cost_blind      0.8     20           4         0       0                 10               4          2            0
+  cost_blind      0.9     20           4         0       0                 10               4          2            0
+  changed rows by point, cost_effective: 0: 0, 1: 0, 2: 0, 3: 2
+  against always delegate, cost_effective: 2 changed rows, 2 cheaper (2 of them at no less success), 0 not cheaper
+  largest gain, cost_effective: bar 0.8, point 3, parent z-ai/glm-5.3-flash: decision 0.8467 at 6.8814 USD, inline 0.8451 at 8.4390, delegate 0.8467 at 9.5373, gain +0.0000
+  changed rows by point, cost_blind: 0: 8, 1: 8, 2: 8, 3: 8
+  against always delegate, cost_blind: 32 changed rows, 4 cheaper (0 of them at no less success), 28 not cheaper
+  largest gain, cost_blind: bar 0.8, point 0, parent deepseek/deepseek-v4-flash: decision 0.8743 at 63.4376 USD, inline 0.8612 at 54.9199, delegate 0.8743 at 63.0572, gain +0.0000
+All five files
+  flavor          bar   rows  = delegate  = inline  better  beaten on success  beaten on cost  trade-off  top success
+  cost_effective  all    472         441         1       2                  2               0         26            3
+  cost_blind      all    472         216         0       0                126              76         54            0
 ```
 
 ## Reading it
 
-- `cost_effective`: the decision equals always delegating on 403 of 432 rows and always inline on 1, and is better than both fixed policies on none. Every row at points 0, 1 and 2 is `= delegate`, so there the decision delegates on every cell for every parent and bar; every changed row and the one `= inline` row are at point 3, the one point where inline work folds into the parent's next call. With a separate inline call the parent re-reads its whole context for the work, which a delegate does not (13.2); delegating at the other three points is consistent with that cost, and `## Which 13.5 row chose` below counts the cells by the row that chose: the condition it states from 13.2 holds for every parent there, so every such cell delegates. On tau2-bench, per domain and pooled, the decision changes nothing at any point.
-- Where it changes something in `cost_effective`, it sits between the two fixed policies. On LLMRouterBench all 21 changed rows cost less than always delegate, 6 of them at no less success, and 3 of the 26 trade-offs over the four files have a higher success than both. The largest gain is at bar 0.1, point 3, with `openai/gpt-5-chat` as the parent: 0.4846 at 66.5694 USD, against always delegate's 0.4496 at 88.0736 and always inline's 0.4710 at 32.9471, so +0.0135 over the better fixed policy at a cost between the two. On AutoBench 2 changed rows are beaten on success and the largest gain is +0.0000.
-- `cost_blind`: the decision equals always delegating on 208 of 432 rows and is beaten on success on 106, a fixed policy there having more held-out success at no more cost, and no changed row has a higher success than both. No 13.5 row compares cost in this flavor, so it chooses by the calibration bounds alone, and a held-out half can rank the parent and its delegate the other way, as routing on a calibration half can rank models ([where-routing-pays.md](where-routing-pays.md)). The 68 rows beaten on cost alone have a fixed policy's success at a higher cost, which `cost_blind` does not weigh.
-- So on this evidence the per-task decision is close to a fixed policy: in `cost_effective` it is always delegating except where the work folds into the parent's next call, and there it trades success against cost without beating both fixed policies.
+- `cost_effective`: the decision equals always delegating on 441 of 472 rows and always inline on 1, and is better than both fixed policies on 2, both on the response bank (`## Fifth file` below). Every row at points 0, 1 and 2 is `= delegate`, so there the decision delegates on every cell for every parent and bar; every changed row and the one `= inline` row are at point 3, the one point where inline work folds into the parent's next call. With a separate inline call the parent re-reads its whole context for the work, which a delegate does not (13.2); delegating at the other three points is consistent with that cost, and `## Which 13.5 row chose` below counts the cells by the row that chose: the condition it states from 13.2 holds for every parent there, so every such cell delegates. On tau2-bench, per domain and pooled, the decision changes nothing at any point.
+- Where it changes something in `cost_effective`, it mostly sits between the two fixed policies. On LLMRouterBench all 21 changed rows cost less than always delegate, 6 of them at no less success, and 3 of the 26 trade-offs over the five files have a higher success than both. The largest gain is at bar 0.1, point 3, with `openai/gpt-5-chat` as the parent: 0.4846 at 66.5694 USD, against always delegate's 0.4496 at 88.0736 and always inline's 0.4710 at 32.9471, so +0.0135 over the better fixed policy at a cost between the two. On AutoBench 2 changed rows are beaten on success and the largest gain is +0.0000.
+- `cost_blind`: the decision equals always delegating on 216 of 472 rows and is beaten on success on 126, a fixed policy there having more held-out success at no more cost, and no changed row has a higher success than both. No 13.5 row compares cost in this flavor, so it chooses by the calibration bounds alone, and a held-out half can rank the parent and its delegate the other way, as routing on a calibration half can rank models ([where-routing-pays.md](where-routing-pays.md)). The 76 rows beaten on cost alone have a fixed policy's success at a higher cost, which `cost_blind` does not weigh.
+- So on this evidence the per-task decision is close to a fixed policy: in `cost_effective` it is always delegating except where the work folds into the parent's next call, and there it trades success against cost, beating both fixed policies on cost alone on the two response-bank rows.
+
+## Fifth file: LLM Routing Response Bank (2026-11-13)
+
+On the LLM Routing Response Bank the decision is better than both fixed policies on two `cost_effective` rows, the first such rows of the five files, and by cost alone: where the work folds into the parent's next call, it keeps the work inline on cells where the parent's own model is the one always delegating sends it to, so the same answers cost less without the brief and the result.
+
+- `cost_effective`: 38 of its 40 rows are `= delegate`, every row at points 0, 1 and 2 among them, and no fixed policy beats the decision on success or on cost alone on any of its rows. The other two are at point 3 and `better`: at bar 0.8 with `z-ai/glm-5.3-flash` as the parent, 0.8467 at 6.8814 USD against always delegating's 0.8467 at 9.5373 and always inline's 0.8451 at 8.4390; at bar 0.9 with `moonshotai/kimi-k2.7-code`, 0.8743 at 76.0150 USD against 0.8743 at 86.1982 and 0.8714 at 90.2643.
+- The inline cells behind them: the two rows delegate on 0.75 and 0.77 (their `delegate_rate`) of their 200 (task, seed) cells each, so 50 and 46 cells go inline, 96 in all, and every other `cost_effective` row of the file delegates on every cell. On both rows the decision's held-out success equals always delegating's to the last digit.
+- Which 13.5 row chose them: of the 8,000 `cost_effective` cells, [`evidence/response-bank-delegation/RESULTS.md`](../evidence/response-bank-delegation/RESULTS.md) counts 50 `inline_cheaper` (13.5 row 3), 2,062 `delegate_cheaper` and 848 `parent_below_bar`, which always delegate, and 5,040 `none_clear` (row 7), which can go either way, so the other 46 inline cells are `none_clear` (row 7). A rerun of the 13.14 run on the pinned files puts all 96 on `mmlu_pro`, the 50 of row 3 on the bar 0.8 row and the 46 of row 7 on the bar 0.9 row, and on each of them the route primary, the model always delegating sends the work to, is the parent's own model. At bar 0.8 that model clears the bar and inline is the cheaper path to it (row 3); at bar 0.9 no model clears `mmlu_pro` on any seed, and row 7 takes the path with the higher bound or, at an equal bound, the lower cost, which with one model on both paths is inline at the folded point.
+- `cost_blind`: 8 of its 40 rows are `= delegate`, 20 beaten on success, 8 beaten on cost alone and 4 trade-offs, and none is `better`, as on the four other files.
+- So the response bank leaves the reading above as it is: the decision gains no held-out success over the better fixed policy on any of its rows, and where it is better than both, it is by keeping inline the work of a parent that is its own route primary, at the one point where inline work takes no call of its own.
 
 ## Which 13.5 row chose
 
@@ -202,12 +224,12 @@ check, cost_effective: 2,700 cells at a separate point whose parent meets the co
 
 ## Recommendation
 
-- A README Limitations line, next to the bullet on the datasets the delegation evidence reads: on the committed delegation files the `cost_effective` decision equals always delegating on 403 of 432 rows, every row where inline work is a call of its own among them, and is better than both fixed policies on none, while in `cost_blind` a fixed policy has more held-out success at no more cost on 106 of 432. So the evidence shows how the decision prices the two paths at the stated sizes, not a gain from choosing per task; such a gain needs work whose cheaper path differs from item to item, as where it folds into the parent's next call.
+- A README Limitations line, next to the bullet on the datasets the delegation evidence reads: on the committed delegation files the `cost_effective` decision equals always delegating on 441 of 472 rows, every row where inline work is a call of its own among them, and is better than both fixed policies on 2, both at always delegating's held-out success for less cost, while in `cost_blind` a fixed policy has more held-out success at no more cost on 126 of 472. So the evidence shows how the decision prices the two paths at the stated sizes, not a gain in success from choosing per task; such a gain needs work whose cheaper path differs from item to item, as where it folds into the parent's next call.
 - No spec row: each class above follows from 13.2 and 13.5 as written, and a summary row cannot say which 13.5 row chose a path on which cell, so these files point to no rule to change. The cells would say it, and the results files do not keep them (13.10).
 
 ## Limits
 
-- Summary rows only: each is a mean over seeds and, on the tau2-bench per-domain file and on LLMRouterBench, pooled over tasks, so a decision that gains on one task and loses on another nets out in its row. The cells that would show it are not in the files.
+- Summary rows only: each is a mean over seeds and, on the tau2-bench per-domain file, on LLMRouterBench and on the response bank, pooled over tasks, so a decision that gains on one task and loses on another nets out in its row. The cells that would show it are not in the files.
 - The 13.9 assumptions hold here too: a brief that carries everything the item needs, a parent whose answers its context does not change, and list prices.
 - Always delegate still routes: each cell delegates to that cell's route primary, so it is not one fixed model, and this note compares the inline-or-delegate choice alone.
 - The rows of one file are not independent: a file's bars of one flavor often repeat the same rows, as its `cost_blind` lines show, so a count is of rows, not of separate trials.
@@ -218,7 +240,7 @@ check, cost_effective: 2,700 cells at a separate point whose parent meets the co
 python research/where_delegation_pays.py
 ```
 
-The script reads only the four committed files, so its output is the Results block above on any checkout; `tests/test_research_where_delegation_pays.py` compares the two byte for byte.
+The script reads only the five committed files, so its output is the Results block above on any checkout; `tests/test_research_where_delegation_pays.py` compares the two byte for byte.
 
 The `## Which 13.5 row chose` blocks rerun the delegation runs on the converters' matrices, which need the pinned source files (each converter downloads and verifies them):
 

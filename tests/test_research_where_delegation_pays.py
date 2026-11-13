@@ -34,7 +34,6 @@ FILES = ["evidence/delegation/results.json", "evidence/tau2-bench-delegation/res
 BANK_RESULTS = ROOT / "evidence" / "response-bank-delegation" / "RESULTS.md"
 BANK_SCRIPT = ROOT / "evidence" / "response-bank-delegation" / "results.py"
 BANK_REGISTRY = ROOT / "evidence" / "response-bank-delegation" / "registry.json"
-RED = pytest.mark.xfail(strict=True, reason="v1.323: the script reads the fifth file (row R28)")
 # DESIGN section numbers and the two delegate_rate values of the rule: the only numbers of the
 # note's prose that are not in the script's output
 ALLOWED = {"13.2", "13.4", "13.5", "13.8", "13.9", "13.10", "1.0", "0.0"}
@@ -96,7 +95,6 @@ def test_note_results_block_is_the_script_output(output):
     assert results_block(note()) == COMMAND + "\n" + output
 
 
-@RED
 def test_note_sections_in_order():
     assert re.findall(r"^## .*$", note(), re.M) == SECTIONS
 
@@ -121,7 +119,6 @@ def test_rule_comes_before_any_count():
     assert text.index("The rule, stated before the counts it gives.") < text.index("\n## Results\n")
 
 
-@RED
 def test_regenerate_section_and_files():
     assert COMMAND[2:] in note().split("\n## Regenerate\n", 1)[1]
     for rel in FILES:
@@ -204,7 +201,6 @@ SMALL = small_file(
     + triple(0.5, "cost_effective", 1, "b/q", (0.5, 2.0), (0.6, 2.0), (0.4, 1.0), 0.5))
 
 
-@RED
 def test_report_on_small_files(wdp, tmp_path):
     root = write_root(tmp_path, [SMALL] * 5)
     code, out, err = run(wdp, ["--root", str(root)])
@@ -269,7 +265,6 @@ def test_a_bad_file_is_one_error_line(wdp, tmp_path, case):
     assert err.count("\n") == 1 and err.startswith("error: evidence/tau2-bench-delegation/pooled.json: "), err
 
 
-@RED
 def test_a_missing_file_is_one_error_line(wdp, tmp_path):
     root = write_root(tmp_path, [SMALL, SMALL, SMALL, SMALL])
     code, out, err = run(wdp, ["--root", str(root)])
@@ -283,7 +278,6 @@ def committed(wdp):
         yield name, results, wdp.rows_of(results, rel)
 
 
-@RED
 def test_the_script_reads_the_five_files_in_order(wdp):
     assert [rel for _, rel in wdp.DATASETS] == FILES
 
@@ -306,7 +300,6 @@ def better_rows(wdp):
             if wdp.classify(group["decision"], group["inline"], group["delegate"]) == "better"]
 
 
-@RED
 def test_the_better_rows_are_the_response_banks_at_always_delegatings_success(wdp):
     """Facts (v1.323): the decision is better than both fixed policies on two rows, each a `cost_effective` row of
     the response bank at the folded point, at always delegating's held-out success and a cost below both."""
@@ -314,7 +307,7 @@ def test_the_better_rows_are_the_response_banks_at_always_delegatings_success(wd
     assert [(name, key[1]) for name, key, _ in rows] == [("LLM Routing Response Bank", "cost_effective")] * 2, rows
     for _, key, group in rows:
         assert key[2] == 3, key
-        decision, inline, delegate = (pair(group[s]) for s in wdp.STRATEGIES)
+        decision, inline, delegate = (wdp.pair(group[s]) for s in wdp.STRATEGIES)
         assert decision[0] == delegate[0] > inline[0], key
         assert decision[1] < min(inline[1], delegate[1]), key
 
@@ -398,7 +391,7 @@ def limitations_bullet(wdp, output):
     better = better_rows(wdp)
     assert len(better) == effective["better"] and all(name == "LLM Routing Response Bank" for name, _, _ in better)
     for _, _, group in better:
-        decision, inline, delegate = (pair(group[s]) for s in wdp.STRATEGIES)
+        decision, inline, delegate = (wdp.pair(group[s]) for s in wdp.STRATEGIES)
         assert decision[0] == delegate[0] and decision[1] < min(inline[1], delegate[1]), group
     separate = separate_call_rows(wdp)
     # each file has such rows, so the claim is about every file (review iter-154 should-fix 1)
@@ -418,7 +411,6 @@ def limitations_bullet(wdp, output):
             f"folds into the parent's next call {NOTE_LINK}")
 
 
-@RED
 def test_readme_counts_are_the_notes_recommendation(wdp, output):
     """The counts the README bullet gives are the ones the note's Recommendation gives."""
     totals = all_files(wdp, output)
@@ -430,7 +422,6 @@ def test_readme_counts_are_the_notes_recommendation(wdp, output):
     assert f"better than both fixed policies on {effective['better']}, " in first
 
 
-@RED
 def test_readme_limitations_say_what_the_per_task_decision_adds(wdp, output):
     readme = README.read_text(encoding="utf-8")
     limits = readme.split("\n## Limitations and non-goals (v1)\n", 1)[1].split("\n## ", 1)[0]
@@ -487,7 +478,6 @@ def results_reasons():
     return total, inline_cheaper
 
 
-@RED
 def test_fifth_file_section_on_the_committed_file(wdp):
     """v1.323: each count and pair the dated section gives, rebuilt from the committed file and its RESULTS.md."""
     results, groups, cells, inline = bank(wdp)
@@ -513,7 +503,7 @@ def test_fifth_file_section_on_the_committed_file(wdp):
               if wdp.classify(group["decision"], group["inline"], group["delegate"]) == "better"]
     assert sorted(inline) == sorted(key for key, _ in better), (inline, better)
     for key, group in better:
-        decision, inline_pair, delegate = (pair(group[s]) for s in wdp.STRATEGIES)
+        decision, inline_pair, delegate = (wdp.pair(group[s]) for s in wdp.STRATEGIES)
         assert decision[0] == delegate[0] and decision[1] < min(inline_pair[1], delegate[1]), key
         assert f"at bar {key[0]} with `{key[3]}`" in text, key
         for value in decision + inline_pair + delegate:
@@ -533,7 +523,6 @@ def test_fifth_file_section_on_the_committed_file(wdp):
             "`better`") in text
 
 
-@RED
 def test_fifth_file_inline_cells_on_the_pinned_run(wdp, response_bank_pinned):
     """v1.323: where the pinned files are cached, a rerun of the 13.14 run gives each inline cost_effective cell's
     task, reason and route primary as the dated section states them."""
