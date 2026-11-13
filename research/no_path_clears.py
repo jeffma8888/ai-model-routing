@@ -112,7 +112,9 @@ def rerun_selected(path, folder, name):
 
     Reads the matrix at ``path``, keeps the rows the folder's ``select_rows`` keeps for the
     models of its committed registry and runs 13.9 at that script's bars, base points and seeds.
-    Raises ValueError unless the run's config, tasks and summary are the committed file's.
+    Raises ValueError unless the run's config, tasks and summary are the committed file's, and
+    passes on the ValueError of a row that ``select_rows`` refuses; main reports either as an
+    `error:` line on stderr, exit 1, with nothing on stdout.
     """
     script = _load(_ROOT / "evidence" / folder / "results.py", name)
     registry = Registry.load(_ROOT / "evidence" / folder / "registry.json")

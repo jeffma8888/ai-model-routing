@@ -17,6 +17,7 @@ import io
 import json
 import re
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -196,7 +197,7 @@ def test_rerun_selected_refuses_a_run_that_is_not_the_committed_file(npc, tmp_pa
 
 def test_main_prints_nothing_to_stdout_when_a_rerun_is_refused(npc, monkeypatch, capsys):
     monkeypatch.setattr(npc, "read_rows", lambda path: [])
-    monkeypatch.setattr(npc.Registry, "load", staticmethod(lambda path: None))
+    monkeypatch.setattr(npc, "Registry", SimpleNamespace(load=lambda path: None))
     monkeypatch.setattr(npc, "evaluate_delegation", lambda *a, **k: {})
     monkeypatch.setattr(npc, "report", lambda label, *a: [label])
     seen = []
