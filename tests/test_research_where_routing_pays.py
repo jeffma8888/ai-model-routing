@@ -40,7 +40,6 @@ FINDING = ("The finding of the first five files does not hold on LLMRouterBench:
            "single model's held-out success there")
 # v1.303: the opening of the second dated section, before any number
 BANK_FINDING = "On the LLM Routing Response Bank routing passes the best single model's held-out success too"
-RED = "v1.303 (row R25): the script, the note and README.md change in v1.304"
 NUMBER = re.compile(r"(?<![\w.])\d+(?:,\d{3})*(?:\.\d+)?%?")
 
 
@@ -85,7 +84,6 @@ def test_note_results_block_is_the_script_output(output):
     assert results_block(note()) == COMMAND + "\n" + output
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason=RED)
 def test_note_sections_in_order():
     headings = re.findall(r"^## .*$", note(), re.M)
     assert headings == SECTIONS
@@ -111,7 +109,6 @@ def test_regenerate_section_states_the_command():
     assert COMMAND[2:] in section
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason=RED)
 def test_note_names_each_results_file_it_reads():
     for rel in FILES:
         assert f"`{rel}`" in note(), rel
@@ -245,7 +242,6 @@ def section(text, heading):
     return text.split("\n" + heading + "\n", 1)[1].split("\n## ", 1)[0]
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason=RED)
 def test_the_script_reads_the_seven_files_in_order(wrp):
     assert [rel for _, rel in wrp.DATASETS] == FILES
     assert [name for name, _ in wrp.DATASETS][5:] == ["LLMRouterBench", "LLM Routing Response Bank"]
@@ -286,7 +282,6 @@ def blind_against_best(wrp, results):
     return f"{blind['success'] - best['success']:+.4f}", f"{blind['cost_usd'] / best['cost_usd']:.3f}"
 
 
-@pytest.mark.xfail(strict=True, raises=IndexError, reason=RED)
 def test_response_bank_routing_passes_at_more_than_twice_the_cost(wrp):
     """v1.303: the second dated section's finding, checked on the file: best_on_calibration, every
     cost_blind routed row and the cost_effective row of the highest bar alone pass the best single
@@ -411,7 +406,6 @@ def limitations_bullet(wrp):
             "bar below that success ([research/where-routing-pays.md](research/where-routing-pays.md))")
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason=RED)
 def test_limitations_bullet_fails_on_a_passing_row_between_half_and_twice(wrp, monkeypatch):
     """v1.303: a passing dataset whose passing rows cost neither all under half nor all over twice the
     best single model's has no cost words, so the builder fails."""
@@ -430,7 +424,6 @@ def test_limitations_bullet_fails_on_a_passing_row_between_half_and_twice(wrp, m
         limitations_bullet(wrp)
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason=RED)
 def test_readme_limitations_and_the_index_say_where_routing_passes(wrp):
     readme = README.read_text(encoding="utf-8")
     limits = readme.split("\n## Limitations and non-goals (v1)\n", 1)[1].split("\n## ", 1)[0]

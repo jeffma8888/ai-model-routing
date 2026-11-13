@@ -1,13 +1,14 @@
 # Where task-level routing pays on the committed evidence
 
-README Results at a glance shows routing costing less than the best single model on some datasets, never reaching that model's held-out success on five of them and passing it on LLMRouterBench. This note reads the six committed routing results files to say why, and what a user's own data needs for routing to pay. Its numbers are the output of [where_routing_pays.py](where_routing_pays.py), which reads only those files (`DESIGN.md` 12.8).
+README Results at a glance shows routing costing less than the best single model on some datasets, never reaching that model's held-out success on five of them and passing it on LLMRouterBench and the LLM Routing Response Bank. This note reads the seven committed routing results files to say why, and what a user's own data needs for routing to pay. Its numbers are the output of [where_routing_pays.py](where_routing_pays.py), which reads only those files (`DESIGN.md` 12.8).
 
 ## Facts
 
-- Files read, nothing downloaded: `evidence/routerbench/results.json`, `evidence/autobench-2026/results.json`, `evidence/autobench-judges/results.json`, `evidence/tau2-bench/results.json`, `evidence/livecodebench/results.json` and `evidence/llmrouterbench/results.json`
-- Tasks routed: 65 on RouterBench, 9 on LLMRouterBench, 3 on tau2-bench, 1 each on AutoBench, AutoBench judges and LiveCodeBench
+- Files read, nothing downloaded: `evidence/routerbench/results.json`, `evidence/autobench-2026/results.json`, `evidence/autobench-judges/results.json`, `evidence/tau2-bench/results.json`, `evidence/livecodebench/results.json`, `evidence/llmrouterbench/results.json` and `evidence/response-bank/results.json`
+- Tasks routed: 65 on RouterBench, 9 on LLMRouterBench, 4 on the LLM Routing Response Bank, 3 on tau2-bench, 1 each on AutoBench, AutoBench judges and LiveCodeBench
 - On the first five, no routed row at any bar or flavor reaches the best single model's held-out success, and neither does `best_on_calibration`, each task's best model on its calibration half with no bar: 0.819 against 0.821 on RouterBench, 0.858 against 0.882 on AutoBench, 0.831 against 0.835 on AutoBench judges, 0.578 against 0.612 on tau2-bench and 0.902 against 0.909 on LiveCodeBench
 - On LLMRouterBench both pass it: `best_on_calibration` reaches 0.615 against the 0.592 of `google/gemini-2.5-pro`, `cost_blind` routing 0.615 at every bar for 0.473 of that model's cost, and `cost_effective` routing 0.598 at 0.353 at bar 0.7 and 0.606 at 0.420 at bar 0.8. The `cost_blind` gain, +0.0223, is 0.89 of the in-sample per-task gain, 0.0250, that research/datasets.md measured on all items (section below)
+- On the LLM Routing Response Bank both pass it too, by less and at a higher cost: `best_on_calibration` reaches 0.874 against the 0.872 of `deepseek/deepseek-v4-pro`, and `cost_blind` routing 0.874 at both bars, a gain of +0.0022, but at 2.104 times that model's cost, as does `cost_effective` routing at bar 0.9 (second section below)
 - The best single model is the one with the highest held-out success (12.7), so it is chosen in hindsight, by its success on the held-out halves it is then scored on, while routing and `best_on_calibration` choose on the calibration half alone; it is a reference no rule that sees only a calibration half can be sure to pick
 - Where routing pays on the first five files is cost: at a bar below the best single model's success, `cost_effective` routing takes cheaper models that clear it, for example 0.735 at 0.341 of the best single model's cost at bar 0.6 on RouterBench and 0.854 at 0.056 at bar 0.7 on AutoBench
 - A gain in success needs tasks that differ in their best model and calibration halves large enough to tell the candidates apart. Three of the first five files route one pooled task, and on RouterBench's 65 tasks the top pick takes 0.916 of the `cost_blind` picks; LLMRouterBench's 9 tasks are of the other kind: in `cost_blind` 5 of them never pick the best single model, and the median expected half is 374 items
@@ -127,6 +128,17 @@ LLMRouterBench (evidence/llmrouterbench/results.json): 9 tasks, 13 models, 50 se
   0.6  cost_blind      0.615   173.4190    0.473        0.598    8              5              0.602           9         5           +0.0223
   0.7  cost_blind      0.615   173.4190    0.473        0.433    8              5              0.602           9         5           +0.0223
   0.8  cost_blind      0.615   173.4190    0.473        0.256    8              5              0.602           9         5           +0.0223
+
+LLM Routing Response Bank (evidence/response-bank/results.json): 4 tasks, 5 models, 50 seeds, calibration_fraction 0.5, min_samples 30, confidence 0.95
+  items per task: aime 30, gpqa_diamond 198, livecodebench 1055, mmlu_pro 12032; expected calibration half: 15, 99, 527, 6016; tasks whose half is below min_samples: 1
+  best single model: deepseek/deepseek-v4-pro, held-out success 0.872 at 27.2956 USD; Wilson shortfall of that success: 0.251 at a half of 15, 0.041 at 313
+  best_on_calibration (each task's best model on its half, no bar): held-out success 0.874 at 57.4387 USD
+  not in the file: each task's single-model rows (per_task holds the routed rows only) and each seed's calibration size (the seeded hash split of 12.2 varies it)
+  bar  flavor          routed  cost (USD)  cost / best  cleared  models picked  tasks with 2+  top pick share  off best  never best  gain
+  0.8  cost_effective  0.847   5.4902      0.201        0.735    3              2              0.505           4         2           -0.0252
+  0.9  cost_effective  0.874   57.4387     2.104        0.005    4              3              0.410           3         0           +0.0022
+  0.8  cost_blind      0.874   57.4404     2.104        0.735    3              3              0.415           3         0           +0.0022
+  0.9  cost_blind      0.874   57.4404     2.104        0.005    3              3              0.415           3         0           +0.0022
 ```
 
 ## Reading it
@@ -147,12 +159,22 @@ The finding of the first five files does not hold on LLMRouterBench: routing pas
 - The in-sample gain kept: of the 0.0250, `best_on_calibration` and `cost_blind` routing keep 0.89, and `cost_effective` routing from -1.58 at the lowest bar to 0.55 at the highest. The in-sample gain picks each task's model in hindsight on all items and the held-out gains pick it on the calibration half and score it on the other, so read 0.89 as most of the gain surviving the split, not as an exact share
 - The `aime` task's expected half, 30, equals `min_samples`, so the script counts no task below it, but its real half varies by seed and falls under it on some, where no model can clear; RESULTS.md counts those seeds
 
+## Seventh file: LLM Routing Response Bank (2026-11-12)
+
+On the LLM Routing Response Bank routing passes the best single model's held-out success too, in `cost_blind` at both bars and in `cost_effective` at the higher one, but by about a tenth of LLMRouterBench's gain and, unlike there, at more than twice that model's cost.
+
+- `cost_blind`: 0.874 at both bars for 57.4404 USD, 2.104 times the 27.2956 of the best single model, `deepseek/deepseek-v4-pro`, a gain of +0.0022, level with `best_on_calibration`'s 0.874 at 57.4387. On LLMRouterBench the same row gains +0.0223 at 0.473 of its best single model's cost
+- Where the cost comes from: in `cost_blind` every task picks `deepseek/deepseek-v4-pro` on some seed (`never best` 0, against 5 of LLMRouterBench's 9 tasks that never pick its best single model), but `mmlu_pro`, the largest task with 12032 items, picks `moonshotai/kimi-k2.7-code` on most seeds, a model that costs more than twice as much as the best single model to call on every item. The passing sort of `cost_blind` reduces to the highest bound (5.3) and does not look at price, so the model with the higher bound on the calibration half wins whatever it costs
+- `cost_effective`: at bar 0.8, 0.847 at 0.201 of the best single model's cost, a gain of -0.0252, trading success for cost as on the first five files; at bar 0.9, where 0.005 of the cells clear, the router falls back to the highest bound (5.3, `best_available`) on nearly every cell and lands where `cost_blind` does, 0.874 at 2.104
+- The halves are large but for one task: at the median expected half, 313, the Wilson shortfall is 0.041, near LLMRouterBench's 0.049 at 374, while `aime`'s expected half, 15, is below `min_samples` 30, the one task of the file whose half is
+
 ## What your own data needs
 
 - A bar you mean, with cheaper models that clear it: `cost_effective` routing then saves the price gap and gives up success down toward the bar, which is the trade every saving above shows
 - Calibration halves large enough that the shortfall at your success level is smaller than the gap between your bar and the models you hope will clear it; on these files it runs from 0.033 at a half of 356 to 0.205 at 25
 - More than one task, split where the best model is likely to differ (by input kind, language or length), each with enough items for its own half; one pooled task can do no better than the best single model, while LLMRouterBench's benchmarks, routed one task each, pass it
 - A baseline you could have chosen in advance, such as the model you call today, rather than the best single model of 12.7, which is chosen in hindsight on the held-out halves
+- A look at what a gain in success costs: `cost_blind` ignores price by design, and on the LLM Routing Response Bank its gain of +0.0022 comes at 2.104 times the best single model's cost
 
 ## Limits
 

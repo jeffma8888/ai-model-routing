@@ -72,7 +72,6 @@ NOTE_FILES = 7
 COUNT = {7: "seven"}
 # a dataset name the README gives with an article
 ARTICLE = {"LLM Routing Response Bank": "the "}
-RED = "v1.303 (row R25): the script and README.md change in v1.304"
 WHERE_SCRIPT = ROOT / "research" / "where_routing_pays.py"
 
 
@@ -336,7 +335,6 @@ def evidence_section():
 
 # --- the README ------------------------------------------------------------------------------
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason=RED)
 def test_readme_opens_the_evidence_section_with_the_glance_list():
     intro = evidence_section().split("\n### ", 1)[0]
     paragraphs = intro.strip("\n").split("\n\n")
@@ -379,7 +377,6 @@ def routing_pointer(files):
             "calibration halves and picks beside the best single model, read from the same files")
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason=RED)
 def test_the_pointer_names_the_files_the_note_reads():
     """v1.303: the first seven bullets are the note's seven datasets, in its order (six from
     v1.166), and the pointer is built from their files; the LLMRouterBench and response-bank claims
@@ -836,7 +833,6 @@ def test_design_specifies_the_delegation_pointer():
            "below, and by nothing else." in section
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason=RED)
 def test_the_delegation_pointer_follows_the_routing_one():
     intro = evidence_section().split("\n### ", 1)[0]
     paragraphs = intro.strip("\n").split("\n\n")
