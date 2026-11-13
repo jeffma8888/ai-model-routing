@@ -22,7 +22,7 @@ DEEPSEEK = "https://api-docs.deepseek.com/quick_start/pricing"
 # and the weights' max_position_embeddings
 WINDOWS = {
     "deepseek/deepseek-v4-flash": (1000000, "vendor page, for the model that now serves the name", DEEPSEEK,
-                                   ["deepseek-ai/DeepSeek-V4-Flash"], 1048576),
+                                   ["deepseek-ai/DeepSeek-V4-Flash", "deepseek-ai/DeepSeek-V4.1-Flash-1017"], 1048576),
     "deepseek/deepseek-v4-pro": (1000000, "vendor page", DEEPSEEK,
                                  ["deepseek-ai/DeepSeek-V4-Pro", "deepseek-ai/DeepSeek-V4-Pro-0813"], 1048576),
     "moonshotai/kimi-k2.7-code": (262144, "vendor page", "https://platform.moonshot.ai/docs/pricing/chat",
@@ -107,29 +107,62 @@ def test_command_reads_the_table_windows_and_the_13_10_points():
     for k, (line, pt) in enumerate(zip(lines, points)):
         C, B = pt["context_tokens"], pt["brief_tokens"]
         m = re.fullmatch(rf"  point {k} \(C {C}, B {B}\): room 262144 -> {262144 - C}, 1000000 -> {1000000 - C}; "
-                         r"rule 3 need (\d+), under it 0, margin to the smallest window (\d+); rule 5 need (\d+), under it 0", line)
+                         r"rule 3 need (\d+), under it 0, margin to the smallest window (\d+) \((\d+\.\d) times the largest "
+                         r"S_in \+ S_out\); rule 5 need (\d+), under it 0", line)
         assert m, line
-        assert int(m[1]) + int(m[2]) == smallest and int(m[1]) > C and int(m[3]) > B
+        assert int(m[1]) + int(m[2]) == smallest and int(m[1]) > C and int(m[4]) > B
+        work = int(re.search(r"^  largest S_in \+ S_out \(S_in the whole prompt\): (\d+) ", text, flags=re.M)[1])
+        assert m[3] == f"{int(m[2]) / work:.1f}" and int(m[1]) == C + work and int(m[4]) == work + B
 
 
 def _numbers(text):
     return {x.replace(",", "") for x in re.findall(r"\d[\d,]*\d|\d", text)}
 
 
-def test_each_bullet_number_is_in_the_output_or_the_table():
+def _findings():
     _, sub = _subsection()
-    findings = sub.split("\n| Model |", 1)[0]
-    bullets = [x for x in findings.split("\n") if x.startswith("- ")]
+    bullets = [x for x in sub.split("\n| Model |", 1)[0].split("\n") if x.startswith("- ")]
     assert len(bullets) == 5
     [text] = _blocks(sub, "text")
-    table = "\n".join("|".join(r) for r in _table_rows(sub))
+    return bullets, text, sub
+
+
+def test_each_bullet_number_is_in_the_output_or_the_table():
+    """Every number of the five bullets, of any length, is in the output or the table (URLs left out)."""
+    bullets, text, sub = _findings()
+    table = re.sub(r"https://\S+", "", "\n".join("|".join(r) for r in _table_rows(sub)))
     known = _numbers(text) | _numbers(table)
-    missing = sorted(n for b in bullets for n in _numbers(b) if len(n) >= 4 and n not in known)
+    missing = sorted(n for b in bullets for n in _numbers(b) if n not in known)
     assert not missing, missing
+
+
+def test_per_model_numbers_are_that_models_output_line():
+    """The largest whole call and output a bullet gives a model are the ones on that model's line."""
+    bullets, text, _ = _findings()
+    line = {m: next(x for x in text.split("\n") if x.startswith(f"  {m}: ")) for m in WINDOWS}
+    whole = re.findall(r"(\d+)(?: tokens)? for `([^`]+)` \((?:on )?`(\w+)`\)", bullets[2])
+    assert sorted(m for _, m, _ in whole) == sorted(WINDOWS)
+    for n, model, family in whole:
+        assert f"; largest whole call {n} ({family}); " in line[model], (model, n)
+    capped = re.findall(r"The largest `([^`]+)` output is (\d+)(?: tokens)?, on (\d+) responses", bullets[3])
+    assert sorted(m for m, _, _ in capped) == ["moonshotai/kimi-k2.7-code", "z-ai/glm-5.3", "z-ai/glm-5.3-flash"]
+    for model, n, count in capped:
+        assert re.search(rf"; largest output {n} \(\w+\) on {count}; ", line[model]), (model, n, count)
+    flash = line["z-ai/glm-5.3-flash"]
+    assert "with 72 above 128000 and none above 131072" in bullets[3] and "output over 128,000 72, 131,072 0," in flash
+    v4 = re.search(r"; largest output (\d+) \(\w+\) on (\d+); .*, 384,000 (\d+), 393,216 (\d+)$",
+                   line["deepseek/deepseek-v4-flash"])
+    assert v4[3] == v4[4]
+    assert (f"wrote more than 384,000 tokens on {v4[3]} responses (up to {v4[1]}, on {v4[2]})") in bullets[3]
+    margins = re.findall(r"margin to the smallest window (\d+) \((\d+\.\d) times", text)
+    smallest = min(margins, key=lambda x: int(x[0]))
+    assert re.search(rf"the smallest margin, {smallest[0]} tokens under .* at point 2, is {re.escape(smallest[1])} times the largest "
+                     r"whole-set S_in \+ S_out, (\d+) on `aime`", bullets[4])
 
 
 def test_research_readme_names_the_subsection():
     text = README.read_text(encoding="utf-8")
     assert "the LLM Routing Response Bank section of delegation-datasets.md and its context windows on 2026-11-12." in text
     [row] = [x for x in text.split("\n") if x.startswith("| [delegation-datasets.md](delegation-datasets.md) |")]
-    assert "its context-windows subsection of the same day gives each of the five a window from a vendor page" in row
+    assert ("its context-windows subsection of the same day gives each of the five a window from a vendor page "
+            "(1M for four, 262,144 for the fifth); no recorded response exceeds its model's window") in row
