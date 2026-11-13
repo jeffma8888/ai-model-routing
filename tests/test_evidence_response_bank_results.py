@@ -373,17 +373,11 @@ def reading_phrases(results):
     return phrases
 
 
-pending_files = pytest.mark.xfail(strict=True, raises=FileNotFoundError,
-                                  reason="RESULTS.md and the evidence README are added in v1.294")
-
-
-@pending_files
 def test_results_md_shows_the_table_of_the_committed_results(rs):
     block = "```text\n" + TABLE_COMMAND + "\n" + rs.table(committed()) + "\n```\n"
     assert block in results_md()
 
 
-@pending_files
 def test_results_md_regenerate_block_sources_and_licence(cv):
     text = results_md()
     assert REGENERATE in text
@@ -406,12 +400,10 @@ def test_results_md_regenerate_block_sources_and_licence(cv):
     assert not HOME.search(text)
 
 
-@pending_files
 def test_results_md_single_model_sentence_is_the_committed_results():
     assert beats_statement(committed()) in results_md()
 
 
-@pending_files
 def test_results_md_reading_numbers_are_the_committed_results():
     text = results_md()
     for phrase in reading_phrases(committed()):
@@ -455,7 +447,6 @@ def finish_table(finishes):
     return "\n".join(rows) + "\n"
 
 
-@pending_files
 def test_evidence_readme_states_the_source_models_splits_and_finishes(cv):
     text = evidence_readme()
     assert "(RESULTS.md)" in text and "(results.json)" in text
@@ -472,7 +463,6 @@ def test_evidence_readme_states_the_source_models_splits_and_finishes(cv):
     assert not HOME.search(text)
 
 
-@pending_files
 def test_real_report_matches_the_evidence_readme_and_results_md(cv, response_bank_pinned, real_rows):
     _, out, _, _ = response_bank_pinned
     tasks = json.loads(out)["tasks"]
