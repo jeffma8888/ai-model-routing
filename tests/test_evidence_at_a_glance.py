@@ -61,11 +61,18 @@ def words(items):
     return items[0] if len(items) == 1 else ", ".join(items[:-1]) + " and " + items[-1]
 
 
-# v1.166: the first six bullets are the six files the note reads, LLMRouterBench the sixth
-POINTER = ("Why routing costs less than the best single model on some of the first six datasets in the list "
-           "above, never reaches its held-out success on the first five and passes it on LLMRouterBench: "
-           "[research/where-routing-pays.md](research/where-routing-pays.md) sets each dataset's tasks, "
-           "calibration halves and picks beside the best single model, read from the same files")
+# v1.303: the first seven bullets are the seven files the note reads (six, LLMRouterBench the sixth,
+# from v1.166), and the datasets it passes on are built from them in test_the_pointer_names_...
+POINTER = ("Why routing costs less than the best single model on some of the first seven datasets in the list "
+           "above, never reaches its held-out success on the first five and passes it on LLMRouterBench and "
+           "the LLM Routing Response Bank: [research/where-routing-pays.md](research/where-routing-pays.md) "
+           "sets each dataset's tasks, calibration halves and picks beside the best single model, read from "
+           "the same files")
+NOTE_FILES = 7
+COUNT = {7: "seven"}
+# a dataset name the README gives with an article
+ARTICLE = {"LLM Routing Response Bank": "the "}
+RED = "v1.303 (row R25): the script and README.md change in v1.304"
 WHERE_SCRIPT = ROOT / "research" / "where_routing_pays.py"
 
 
@@ -329,6 +336,7 @@ def evidence_section():
 
 # --- the README ------------------------------------------------------------------------------
 
+@pytest.mark.xfail(strict=True, raises=AssertionError, reason=RED)
 def test_readme_opens_the_evidence_section_with_the_glance_list():
     intro = evidence_section().split("\n### ", 1)[0]
     paragraphs = intro.strip("\n").split("\n\n")
@@ -346,17 +354,59 @@ def test_the_pointer_link_resolves_to_the_note():
     assert (README.parent / target[0]).is_file()
 
 
+def passes_best(results):
+    """v1.303: whether some routed row is above the held-out success of the best single model of 12.7."""
+    config = results["config"]
+    first = (config["bars"][0], config["flavors"][0])
+    models = [r for r in results["summary"]
+              if (r["bar"], r["flavor"]) == first and r["strategy"].startswith("model:")]
+    best = min(models, key=lambda r: (-r["success"], r["cost_usd"], r["strategy"]))
+    return any(summary_row(results, bar, flavor, "routed")["success"] > best["success"]
+               for bar in config["bars"] for flavor in config["flavors"])
+
+
+def routing_pointer(files):
+    """v1.303 (DESIGN 12.8): the paragraph after the bullets, its count of the note's files and the
+    datasets where routing passes the best single model built from the files; the others must be
+    the first five."""
+    names = list(FILES)[:NOTE_FILES]
+    passing = [n for n in names if passes_best(files[n])]
+    assert [n for n in names if n not in passing] == names[:5], passing
+    return ("Why routing costs less than the best single model on some of the first "
+            f"{COUNT[len(names)]} datasets in the list above, never reaches its held-out success on the "
+            f"first five and passes it on {words([ARTICLE.get(n, '') + n for n in passing])}: "
+            "[research/where-routing-pays.md](research/where-routing-pays.md) sets each dataset's tasks, "
+            "calibration halves and picks beside the best single model, read from the same files")
+
+
+@pytest.mark.xfail(strict=True, raises=AssertionError, reason=RED)
 def test_the_pointer_names_the_files_the_note_reads():
-    """v1.166: the first six bullets are the note's six datasets, in its order, and the
-    LLMRouterBench claim of the pointer is the one its bullet asserts; the note's tests check
-    on the files that no routed row of the first five reaches the best single model."""
+    """v1.303: the first seven bullets are the note's seven datasets, in its order (six from
+    v1.166), and the pointer is built from their files; the LLMRouterBench and response-bank claims
+    are those their bullets assert, and the note's tests check on the files that no routed row of
+    the first five reaches the best single model."""
     text = WHERE_SCRIPT.read_text(encoding="utf-8")
     block = text.split("DATASETS = (\n", 1)[1].split("\n)\n", 1)[0]
     listed = re.findall(r'^    \("([^"]+)", "([^"]+)"\),$', block, re.M)
-    assert listed == [(n, str(FILES[n].relative_to(ROOT))) for n in list(FILES)[:6]]
-    assert list(FILES)[5] == "LLMRouterBench"
-    assert "never reaches its held-out success on the first five and passes it on LLMRouterBench" in POINTER
-    llmrouterbench_bullet(committed()["LLMRouterBench"])
+    assert listed == [(n, str(FILES[n].relative_to(ROOT))) for n in list(FILES)[:NOTE_FILES]]
+    assert list(FILES)[5:NOTE_FILES] == ["LLMRouterBench", "LLM Routing Response Bank"]
+    files = committed()
+    assert routing_pointer(files) == POINTER
+    llmrouterbench_bullet(files["LLMRouterBench"])
+    response_bank_bullet(files["LLM Routing Response Bank"])
+
+
+def test_the_pointer_fails_when_the_seventh_file_stops_passing():
+    """v1.303: a seventh file whose routed rows all fall below the best single model leaves the
+    datasets routing does not pass other than the first five, so the builder fails."""
+    files = committed()
+    results = files["LLM Routing Response Bank"]
+    for r in results["summary"]:
+        if r["strategy"] == "routed":
+            r["success"] = 0.0
+    with pytest.raises(AssertionError):
+        routing_pointer(files)
+    assert routing_pointer(committed()) == POINTER
 
 
 def test_each_glance_bullet_links_its_subsection_in_heading_order():
@@ -786,6 +836,7 @@ def test_design_specifies_the_delegation_pointer():
            "below, and by nothing else." in section
 
 
+@pytest.mark.xfail(strict=True, raises=AssertionError, reason=RED)
 def test_the_delegation_pointer_follows_the_routing_one():
     intro = evidence_section().split("\n### ", 1)[0]
     paragraphs = intro.strip("\n").split("\n\n")

@@ -1,6 +1,7 @@
-"""research/where-routing-pays.md and research/where_routing_pays.py (DESIGN 12.8 v1.124, v1.166).
+"""research/where-routing-pays.md and research/where_routing_pays.py (DESIGN 12.8 v1.124, v1.166, v1.303).
 
-The script reads only the committed routing results files, six since v1.166, so the note's Results block is
+The script reads only the committed routing results files, six since v1.166 and seven since v1.303, so
+the note's Results block is
 compared byte for byte with a fresh run on every machine, CI included. Its report is also checked
 on a small hand-made file, where each number can be worked out by hand.
 """
@@ -23,17 +24,23 @@ NOTE = ROOT / "research" / "where-routing-pays.md"
 INDEX = ROOT / "research" / "README.md"
 COMMAND = "$ python research/where_routing_pays.py"
 MANY = "## Many-task data: LLMRouterBench (2026-11-09)"
-SECTIONS = ["## Facts", "## Method", "## Results", "## Reading it", MANY, "## What your own data needs",
+# v1.303: the second dated section, on the seventh file
+BANK = "## Seventh file: LLM Routing Response Bank (2026-11-12)"
+SECTIONS = ["## Facts", "## Method", "## Results", "## Reading it", MANY, BANK, "## What your own data needs",
             "## Limits", "## Regenerate"]
 FILES = ["evidence/routerbench/results.json", "evidence/autobench-2026/results.json",
          "evidence/autobench-judges/results.json", "evidence/tau2-bench/results.json",
-         "evidence/livecodebench/results.json", "evidence/llmrouterbench/results.json"]
+         "evidence/livecodebench/results.json", "evidence/llmrouterbench/results.json",
+         "evidence/response-bank/results.json"]
 # DESIGN section numbers: the only numbers of the note's prose that are not in the script's output
 ALLOWED = {"5.3", "12.2", "12.3", "12.7", "12.8", "12.10", "12.12", "12.15", "12.17", "12.19"}
 README = ROOT / "README.md"
 # v1.166: the opening of the dated section, before any number
 FINDING = ("The finding of the first five files does not hold on LLMRouterBench: routing passes the best "
            "single model's held-out success there")
+# v1.303: the opening of the second dated section, before any number
+BANK_FINDING = "On the LLM Routing Response Bank routing passes the best single model's held-out success too"
+RED = "v1.303 (row R25): the script, the note and README.md change in v1.304"
 NUMBER = re.compile(r"(?<![\w.])\d+(?:,\d{3})*(?:\.\d+)?%?")
 
 
@@ -78,6 +85,7 @@ def test_note_results_block_is_the_script_output(output):
     assert results_block(note()) == COMMAND + "\n" + output
 
 
+@pytest.mark.xfail(strict=True, raises=AssertionError, reason=RED)
 def test_note_sections_in_order():
     headings = re.findall(r"^## .*$", note(), re.M)
     assert headings == SECTIONS
@@ -103,6 +111,7 @@ def test_regenerate_section_states_the_command():
     assert COMMAND[2:] in section
 
 
+@pytest.mark.xfail(strict=True, raises=AssertionError, reason=RED)
 def test_note_names_each_results_file_it_reads():
     for rel in FILES:
         assert f"`{rel}`" in note(), rel
@@ -236,9 +245,10 @@ def section(text, heading):
     return text.split("\n" + heading + "\n", 1)[1].split("\n## ", 1)[0]
 
 
-def test_the_script_reads_the_six_files_in_order(wrp):
+@pytest.mark.xfail(strict=True, raises=AssertionError, reason=RED)
+def test_the_script_reads_the_seven_files_in_order(wrp):
     assert [rel for _, rel in wrp.DATASETS] == FILES
-    assert [name for name, _ in wrp.DATASETS][5] == "LLMRouterBench"
+    assert [name for name, _ in wrp.DATASETS][5:] == ["LLMRouterBench", "LLM Routing Response Bank"]
 
 
 def test_llmrouterbench_routing_passes_the_best_single_model(wrp):
@@ -265,6 +275,56 @@ def test_llmrouterbench_routing_passes_the_best_single_model(wrp):
     opening = text.strip("\n").split("\n\n", 1)[0]
     assert opening.startswith(FINDING)
     assert not re.search(r"\d", opening), opening
+
+
+def blind_against_best(wrp, results):
+    """The cost_blind routed row at the first bar against the best single model of 12.7: the gain in
+    held-out success (signed, 4 decimals) and the cost over that model's (3 decimals), as printed."""
+    config = results["config"]
+    best = wrp.best_single(results, config["bars"][0], config["flavors"][0])
+    blind = wrp.summary_row(results, config["bars"][0], "cost_blind", "routed")
+    return f"{blind['success'] - best['success']:+.4f}", f"{blind['cost_usd'] / best['cost_usd']:.3f}"
+
+
+@pytest.mark.xfail(strict=True, raises=IndexError, reason=RED)
+def test_response_bank_routing_passes_at_more_than_twice_the_cost(wrp):
+    """v1.303: the second dated section's finding, checked on the file: best_on_calibration, every
+    cost_blind routed row and the cost_effective row of the highest bar alone pass the best single
+    model, each passing row at more than twice its cost; in cost_blind no task never picks it, and
+    the largest task picks another model on more than half the seeds, one whose `model:` row costs
+    more than twice the best's. The section opens with no number and holds both files' cost_blind
+    gain and cost ratio and the largest task with its pick."""
+    results = committed(FILES[6])
+    config = results["config"]
+    best = wrp.best_single(results, config["bars"][0], config["flavors"][0])
+    model = best["strategy"][len("model:"):]
+    boc = wrp.summary_row(results, config["bars"][0], config["flavors"][0], "best_on_calibration")
+    assert boc["success"] > best["success"]
+    passing = {}
+    for flavor in config["flavors"]:
+        rows = [wrp.summary_row(results, bar, flavor, "routed") for bar in config["bars"]]
+        passing[flavor] = [r["bar"] for r in rows if r["success"] > best["success"]]
+        assert all(r["cost_usd"] > 2 * best["cost_usd"] for r in rows if r["success"] > best["success"])
+    assert passing == {"cost_effective": config["bars"][-1:], "cost_blind": config["bars"]}, passing
+    largest = max(results["tasks"], key=lambda t: (results["tasks"][t]["items"], t))
+    tops = set()
+    for bar in config["bars"]:
+        assert wrp.picks(results, bar, "cost_blind", model)[3] == 0
+        rows = [p for p in results["per_task"] if (p["bar"], p["flavor"], p["task"]) == (bar, "cost_blind", largest)]
+        assert len(rows) == 1
+        top, count = max(rows[0]["routed_models"].items(), key=lambda kv: (kv[1], kv[0]))
+        assert top != model and count > len(config["seeds"]) / 2, (bar, top, count)
+        assert wrp.summary_row(results, bar, "cost_blind", "model:" + top)["cost_usd"] > 2 * best["cost_usd"]
+        tops.add(top)
+    assert len(tops) == 1
+    text = section(note(), BANK)
+    opening = text.strip("\n").split("\n\n", 1)[0]
+    assert opening.startswith(BANK_FINDING)
+    assert not re.search(r"\d", opening), opening
+    for rel in (FILES[6], FILES[5]):
+        gain, ratio = blind_against_best(wrp, committed(rel))
+        assert gain in text and ratio in text, (rel, gain, ratio)
+    assert f"`{largest}`" in text and f"`{tops.pop()}`" in text
 
 
 def test_report_counts_the_tasks_off_the_best_model(wrp):
@@ -316,60 +376,61 @@ def test_in_sample_gain_is_the_datasets_note(wrp):
     assert f"(+{gain:.4f})" in lines[0]
 
 
-WORDS = {5: "five", 6: "six", 7: "seven"}
+WORDS = {2: "two", 5: "five", 6: "six", 7: "seven"}
+# a dataset name the README gives with an article
+ARTICLE = {"LLM Routing Response Bank": "the "}
 
 
 def limitations_bullet(wrp):
-    """README Limitations bullet 2 (v1.166), its dataset names and counts built from the files."""
+    """README Limitations bullet 2 (v1.166; v1.303, one sentence on the seven files again), its counts,
+    dataset names and the cost of each passing dataset's passing rows built from the files."""
     passing = []
     for name, rel in wrp.DATASETS:
         results = committed(rel)
         config = results["config"]
         best = wrp.best_single(results, config["bars"][0], config["flavors"][0])
-        if any(wrp.summary_row(results, bar, flavor, "routed")["success"] > best["success"]
-               for bar in config["bars"] for flavor in config["flavors"]):
-            passing.append(name)
-    assert passing == ["LLMRouterBench"], passing
-    n = len(wrp.DATASETS)
-    gap, ratio = response_bank_gap(wrp, committed("evidence/response-bank/results.json"))
+        rows = [wrp.summary_row(results, bar, flavor, "routed")
+                for bar in config["bars"] for flavor in config["flavors"]]
+        ratios = [r["cost_usd"] / best["cost_usd"] for r in rows if r["success"] > best["success"]]
+        if not ratios:
+            continue
+        if max(ratios) < 0.5:
+            cost = "at less than half that model's cost"
+        elif min(ratios) > 2:
+            cost = "at more than twice it"
+        else:
+            raise AssertionError(f"{name}: routed rows above the best single model at {min(ratios):.3f} "
+                                 f"to {max(ratios):.3f} of its cost")
+        passing.append(f"{ARTICLE.get(name, '')}{name} {cost}")
+    n, k = len(wrp.DATASETS), len(passing)
+    assert (n, k) == (7, 2), (n, passing)
     return ("- Routing per task pays in held-out success only where tasks differ in their best model and "
-            "each task's calibration half can tell the models apart. Of the first "
-            f"{WORDS[n]} routing datasets above, {passing[0]} alone has a routed row above the best single "
-            f"model's held-out success; on the other {WORDS[n - 1]}, routing pays at most in cost, at a bar "
-            "below that success ([research/where-routing-pays.md](research/where-routing-pays.md)). The "
-            f"{ORDINAL[n + 1]}, the LLM Routing Response Bank, which that note does not read yet, has one too: "
-            f"`cost_blind` routing, {gap:.4f} above that model's held-out success at {ratio:.3f} times its cost")
+            f"each task's calibration half can tell the models apart. Of the {WORDS[n]} routing datasets "
+            f"above, {WORDS[k]} have a routed row above the best single model's held-out success, "
+            f"{passing[0]} and {passing[1]}; on the other {WORDS[n - k]}, routing pays at most in cost, at a "
+            "bar below that success ([research/where-routing-pays.md](research/where-routing-pays.md))")
 
 
-ORDINAL = {7: "seventh"}
+@pytest.mark.xfail(strict=True, raises=AssertionError, reason=RED)
+def test_limitations_bullet_fails_on_a_passing_row_between_half_and_twice(wrp, monkeypatch):
+    """v1.303: a passing dataset whose passing rows cost neither all under half nor all over twice the
+    best single model's has no cost words, so the builder fails."""
+    real = committed
+
+    def changed(rel):
+        results = real(rel)
+        if rel == FILES[6]:
+            config = results["config"]
+            best = wrp.best_single(results, config["bars"][0], config["flavors"][0])
+            wrp.summary_row(results, config["bars"][-1], "cost_blind", "routed")["cost_usd"] = best["cost_usd"]
+        return results
+
+    monkeypatch.setitem(globals(), "committed", changed)
+    with pytest.raises(AssertionError, match="LLM Routing Response Bank: routed rows above"):
+        limitations_bullet(wrp)
 
 
-def response_bank_gap(wrp, results):
-    """v1.296 (DESIGN 12.8): `cost_blind`'s one success and cost at every bar against the best
-    single model of 12.7, as the gap in success and the ratio of cost."""
-    config = results["config"]
-    best = wrp.best_single(results, config["bars"][0], config["flavors"][0])
-    blind = [wrp.summary_row(results, bar, "cost_blind", "routed") for bar in config["bars"]]
-    assert all((r["success"], r["cost_usd"]) == (blind[0]["success"], blind[0]["cost_usd"]) for r in blind), \
-        "the cost_blind rows differ between bars"
-    assert blind[0]["success"] > best["success"], "cost_blind is not above the best single model"
-    return blind[0]["success"] - best["success"], blind[0]["cost_usd"] / best["cost_usd"]
-
-
-def test_response_bank_gap_is_the_committed_file(wrp):
-    results = committed("evidence/response-bank/results.json")
-    gap, ratio = response_bank_gap(wrp, results)
-    assert (f"{gap:.4f}", f"{ratio:.3f}") == ("0.0022", "2.104")
-    fake = json.loads(json.dumps(results))
-    wrp.summary_row(fake, 0.9, "cost_blind", "routed")["success"] = 0.5
-    with pytest.raises(AssertionError, match="differ between bars"):
-        response_bank_gap(wrp, fake)
-    for bar in (0.8, 0.9):
-        wrp.summary_row(fake, bar, "cost_blind", "routed")["success"] = 0.5
-    with pytest.raises(AssertionError, match="not above"):
-        response_bank_gap(wrp, fake)
-
-
+@pytest.mark.xfail(strict=True, raises=AssertionError, reason=RED)
 def test_readme_limitations_and_the_index_say_where_routing_passes(wrp):
     readme = README.read_text(encoding="utf-8")
     limits = readme.split("\n## Limitations and non-goals (v1)\n", 1)[1].split("\n## ", 1)[0]
@@ -379,3 +440,5 @@ def test_readme_limitations_and_the_index_say_where_routing_passes(wrp):
     rows = [x for x in INDEX.read_text(encoding="utf-8").splitlines()
             if x.startswith("| [where-routing-pays.md](where-routing-pays.md) | ")]
     assert len(rows) == 1 and "On LLMRouterBench" in rows[0] and "three of the five" not in rows[0]
+    # v1.303: the row names the seventh file's finding too
+    assert "LLM Routing Response Bank" in rows[0]
