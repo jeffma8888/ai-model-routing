@@ -1,8 +1,12 @@
 """research/no-model-clears.md and research/no_model_clears.py (DESIGN 12.8 v1.144).
 
-The note's numbers are the script's lines on the four routing datasets that record a cost, compared
+The note's numbers are the script's lines on the routing datasets that record a cost, compared
 byte for byte when the pinned files and pandas are present (CI never downloads them). The script's
 report, its check against the committed results file and its exits are tested on a small matrix.
+
+DESIGN 12.8 v1.341 (row R32): the script also reads LLMRouterBench (12.19) and the LLM Routing
+Response Bank (12.21), six datasets in all; the note gains a dated section on the two, and the
+README Limitations bullet and the research index row list the script's `DATASETS` by name.
 """
 
 import contextlib
@@ -15,7 +19,7 @@ from pathlib import Path
 
 import pytest
 
-from model_routing import Registry, evaluate, outcomes_from_rows
+from model_routing import Registry, evaluate, load_outcomes, outcomes_from_rows
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "research" / "no_model_clears.py"
@@ -24,22 +28,33 @@ INDEX = ROOT / "research" / "README.md"
 README = ROOT / "README.md"
 COMMAND = ("$ python research/no_model_clears.py --routerbench routerbench-matrix.jsonl "
            "--autobench autobench-matrix.jsonl --judges autobench-judges.jsonl "
-           "--judges-registry autobench-models.json --tau2 tau2-matrix.jsonl")
+           "--judges-registry autobench-models.json --tau2 tau2-matrix.jsonl "
+           "--llmrouterbench llmrouterbench-matrix.jsonl --response-bank response-bank-matrix.jsonl")
 REGENERATE = [
     'python -m pip install -e ".[evidence]"',
     "python evidence/routerbench/convert.py --out routerbench-matrix.jsonl",
     "python evidence/autobench-2026/convert.py --out autobench-matrix.jsonl --task-by all",
     "python evidence/autobench-2026/judges.py --out autobench-judges.jsonl --registry autobench-models.json",
     "python evidence/tau2-bench/convert.py --out tau2-matrix.jsonl",
+    "python evidence/llmrouterbench/convert.py --out llmrouterbench-matrix.jsonl",
+    "python evidence/response-bank/convert.py --out response-bank-matrix.jsonl",
     COMMAND[2:],
 ]
 DATASETS = [("RouterBench", "evidence/routerbench/results.json"),
             ("AutoBench", "evidence/autobench-2026/results.json"),
             ("AutoBench judges", "evidence/autobench-judges/results.json"),
-            ("tau2-bench", "evidence/tau2-bench/results.json")]
+            ("tau2-bench", "evidence/tau2-bench/results.json"),
+            ("LLMRouterBench", "evidence/llmrouterbench/results.json"),
+            ("LLM Routing Response Bank", "evidence/response-bank/results.json")]
 # DESIGN section and row numbers: the only numbers of the note's prose not in the script's lines
-ALLOWED = {"5.3", "12.3", "12.7", "12.10", "12.12", "12.15", "13.5", "7"}
+ALLOWED = {"5.3", "12.3", "12.7", "12.10", "12.12", "12.15", "12.19", "12.21", "13.5", "7"}
 NUMBER = re.compile(r"(?<![\w.])\d+(?:,\d{3})*(?:\.\d+)?%?")
+DATE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
+SECTION = "LLMRouterBench and the response bank (2026-11-13)"
+# v1.341: how the bullet and the index row name each dataset of the script's DATASETS
+PROSE_NAME = {"AutoBench judges": "the AutoBench judges", "LLM Routing Response Bank": "the LLM Routing Response Bank"}
+COUNT_WORD = {4: "four", 5: "five", 6: "six", 7: "seven", 8: "eight"}
+RED = pytest.mark.xfail(strict=True, reason="v1.341 (row R32): implemented by v1.342")
 CONFIG = {"bars": [0.5, 0.75], "seeds": [0, 1, 2, 3], "flavors": ["cost_effective", "cost_blind"],
           "calibration_fraction": 0.5, "min_samples": 10, "confidence": 0.95}
 
@@ -155,17 +170,27 @@ def _tree(tmp_path, rows):
         {"id": m, "family": m, "price_in": 1.0, "price_out": 2.0, "context_window": 100_000}
         for m in ("v/strong", "v/mid", "v/cheap")]}), encoding="utf-8")
     return ["--root", str(tmp_path), "--routerbench", str(matrix), "--autobench", str(matrix),
-            "--judges", str(matrix), "--judges-registry", str(registry), "--tau2", str(matrix)]
+            "--judges", str(matrix), "--judges-registry", str(registry), "--tau2", str(matrix),
+            "--llmrouterbench", str(matrix), "--response-bank", str(matrix)]
 
 
 def _main(nmc, argv):
     out, err = io.StringIO(), io.StringIO()
     with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
-        code = nmc.main(argv)
+        try:
+            code = nmc.main(argv)
+        except SystemExit as exc:  # argparse refusing an option
+            code = exc.code
     return code, out.getvalue(), err.getvalue()
 
 
-def test_main_prints_the_four_reports_in_order(nmc, tmp_path):
+@RED
+def test_script_datasets_are_the_six_in_order(nmc):
+    assert [(name, rel) for name, rel, _ in nmc.DATASETS] == DATASETS
+
+
+@RED
+def test_main_prints_the_six_reports_in_order(nmc, tmp_path):
     rows = tiny_rows()
     code, out, err = _main(nmc, _tree(tmp_path, rows))
     assert (code, err) == (0, "")
@@ -175,14 +200,15 @@ def test_main_prints_the_four_reports_in_order(nmc, tmp_path):
     assert out == "\n".join(nmc.run({name: outcomes for name, _ in DATASETS}, tmp_path)) + "\n"
 
 
+@RED
 @pytest.mark.parametrize("break_it", ["matrix", "results", "key", "row"])
 def test_main_exits_2_with_one_error_line(nmc, tmp_path, break_it):
     rows = tiny_rows()
     argv = _tree(tmp_path, rows)
     if break_it == "matrix":
-        argv[argv.index("--tau2") + 1] = str(tmp_path / "missing.jsonl")
+        argv[argv.index("--response-bank") + 1] = str(tmp_path / "missing.jsonl")
     elif break_it == "results":
-        (tmp_path / DATASETS[2][1]).write_text("not json", encoding="utf-8")
+        (tmp_path / DATASETS[4][1]).write_text("not json", encoding="utf-8")
     elif break_it == "key":
         (tmp_path / DATASETS[1][1]).write_text(json.dumps({"summary": []}), encoding="utf-8")
     else:
@@ -204,17 +230,19 @@ def _blocks(text, lang):
     return re.findall(rf"^```{lang}\n(.*?)^```$", text, flags=re.M | re.S)
 
 
+@RED
 def test_note_quotes_its_commands_and_links():
     note = NOTE.read_text(encoding="utf-8")
     assert note.startswith("# When no model clears the bar\n")
     assert re.findall(r"^## (.+)$", note, flags=re.M) == [
-        "Facts", "Method", "Results", "Reading it", "Recommendation", "Limits", "Regenerate"]
+        "Facts", "Method", "Results", "Reading it", SECTION, "Recommendation", "Limits", "Regenerate"]
     assert _blocks(note, "bash") == ["\n".join(REGENERATE) + "\n"]
     [text] = _blocks(note, "text")
     assert text.startswith(COMMAND + "\n")
     assert note.isascii()
     for link in ("../DESIGN.md", "../evidence/routerbench/RESULTS.md", "../evidence/autobench-2026/RESULTS.md",
                  "../evidence/autobench-judges/RESULTS.md", "../evidence/tau2-bench/RESULTS.md",
+                 "../evidence/llmrouterbench/RESULTS.md", "../evidence/response-bank/RESULTS.md",
                  "no_model_clears.py", "no-path-clears.md"):
         assert f"]({link})" in note, link
 
@@ -224,6 +252,7 @@ def test_every_number_of_the_prose_is_in_the_output_or_allowed():
     [text] = _blocks(note, "text")
     prose = re.sub(r"^```\w*\n.*?^```$", "", note, flags=re.M | re.S)
     prose = re.sub(r"\]\([^)]*\)|`[^`]*`", "", prose)
+    prose = DATE.sub("", prose)
     printed = set(NUMBER.findall(text))
     assert sorted({n for n in NUMBER.findall(prose) if n not in printed and n not in ALLOWED}) == []
 
@@ -240,11 +269,39 @@ def test_readme_limitations_and_research_index_link_the_note():
     assert sum(x.startswith("- `research/no-model-clears.md` ") for x in index.split("\n")) == 1
 
 
+def _named(names):
+    """The datasets in prose: `A, B and C`, a `the` before the two names that take one."""
+    prose = [PROSE_NAME.get(n, n) for n in names]
+    return ", ".join(prose[:-1]) + " and " + prose[-1]
+
+
+def test_named_lists_the_names_in_order():
+    assert _named(["X", "AutoBench judges", "Y"]) == "X, the AutoBench judges and Y"
+
+
+@RED
+def test_bullet_and_index_row_list_the_script_datasets(nmc):
+    names = [name for name, _, _ in nmc.DATASETS]
+    count, listed = COUNT_WORD[len(names)], _named(names)
+    readme = README.read_text(encoding="utf-8")
+    limits = readme[readme.index("## Limitations and non-goals (v1)\n"):readme.index("\n## Layout\n")]
+    [bullet] = [x for x in limits.split("\n") if "(research/no-model-clears.md)" in x]
+    assert bullet.endswith(f" measures it on the {count} routing datasets that record a cost, {listed}, "
+                           "and recommends keeping the rule")
+    [row] = [x for x in INDEX.read_text(encoding="utf-8").split("\n")
+             if x.startswith("| [no-model-clears.md](no-model-clears.md) | ")]
+    assert f"(Short answer: keep 5.3. On the {count} routing datasets that record a cost ({listed}) " in row
+    for text in (bullet, row):
+        assert not re.search(r"\b(?:" + "|".join(w for k, w in COUNT_WORD.items() if k != len(names))
+                             + r") routing datasets\b", text)
+
+
 # --- the pinned files, only when already cached ------------------------------------------------
 
 @pytest.fixture(scope="module")
-def output(nmc, tmp_path_factory):
-    """The script's lines on the four datasets, their matrices built in process from the cached files."""
+def output(nmc, tmp_path_factory, llmrouterbench_pinned, response_bank_pinned):
+    """The script's lines on the six datasets, their matrices built in process from the cached files
+    (the LLMRouterBench and response-bank matrices are the session fixtures' converter output, v1.341)."""
     pytest.importorskip("pandas")
     rb = _load("r8_routerbench_convert", ROOT / "evidence" / "routerbench" / "convert.py")
     ab = _load("r8_autobench_convert", ROOT / "evidence" / "autobench-2026" / "convert.py")
@@ -272,9 +329,23 @@ def output(nmc, tmp_path_factory):
                                                    params["top_k"], task_by="all")[0]),
         "AutoBench judges": outcomes_from_rows(jm.judge_matrix(matrix, pool)[0], Registry.load(registry)),
         "tau2-bench": outcomes_from_rows(t2.convert(extracts)[0])}
+    lrb_code, _report, lrb_path = llmrouterbench_pinned
+    bank_code, _out, _err, bank_path = response_bank_pinned
+    assert (lrb_code, bank_code) == (0, 0)
+    outcomes["LLMRouterBench"] = load_outcomes(str(lrb_path))
+    outcomes["LLM Routing Response Bank"] = load_outcomes(str(bank_path))
     return "\n".join(nmc.run(outcomes, ROOT)) + "\n"
 
 
+@RED
+def test_output_holds_the_six_datasets_in_order(output):
+    heads = [x.split(" (")[0] for x in output.split("\n") if x and not x.startswith(" ")]
+    assert heads == [name for name, _ in DATASETS]
+    for name, rel in DATASETS:
+        assert f"\n{name} ({rel}): " in "\n" + output
+
+
+@RED
 def test_note_results_block_is_the_script_output(output):
     [text] = _blocks(NOTE.read_text(encoding="utf-8"), "text")
     assert text == COMMAND + "\n" + output
@@ -285,3 +356,14 @@ def test_the_fallback_is_best_on_calibration_on_every_cell_where_no_model_clears
                        r"[\d,]+ held-out items.*\n    the routed model is best_on_calibration's on ([\d,]+) ",
                        output)
     assert len(heads) >= 10 and all(a == b for a, b in heads)
+
+
+@RED
+def test_the_fallback_is_best_on_calibration_on_both_new_datasets(output):
+    for name in ("LLMRouterBench", "LLM Routing Response Bank"):
+        block = output[output.index(f"{name} ("):]
+        block = block[:block.index("\n\n")] if "\n\n" in block else block
+        heads = re.findall(r"no model clears on ([\d,]+) of [\d,]+ cost_effective cells \([\d.]+%\), "
+                           r"[\d,]+ held-out items.*\n    the routed model is best_on_calibration's on ([\d,]+) ",
+                           block)
+        assert heads and all(a == b for a, b in heads), name
