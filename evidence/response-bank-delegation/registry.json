@@ -1,0 +1,51 @@
+{
+  "as_of": "2026-11-12",
+  "note": "List prices and context windows of the 5 LLM Routing Response Bank models, used only to reprice their recorded calls, each at the input and output pair its bills give on its responses with cache_read 0; research/delegation-datasets.md records each value and the page it comes from, opened on 2026-11-12 (DESIGN 13.14).",
+  "models": [
+    {
+      "id": "deepseek/deepseek-v4-flash",
+      "family": "deepseek",
+      "price_in": 0.14,
+      "price_out": 0.28,
+      "context_window": 1000000,
+      "source": "https://huggingface.co/datasets/Lurume/llm-routing-response-bank/tree/547beb31ecd8f12b116b87eb4f56feee73edda6c",
+      "notes": "The pair its bills give on its responses with cache_read 0; its cache-read price 0.0028 is not in the registry. https://api-docs.deepseek.com/quick_start/pricing, opened 2026-11-12, states other prices: the name is retired and its requests are served by DeepSeek-V4.1-Flash-1017 at the deepseek-flash price, 0.15 and 0.6 off-peak and 0.3 and 1.2 at peak. The window is that page's 1M for deepseek-flash, read as 1,000,000; the weights' max_position_embeddings is 1048576."
+    },
+    {
+      "id": "deepseek/deepseek-v4-pro",
+      "family": "deepseek",
+      "price_in": 0.435,
+      "price_out": 0.87,
+      "context_window": 1000000,
+      "source": "https://huggingface.co/datasets/Lurume/llm-routing-response-bank/tree/547beb31ecd8f12b116b87eb4f56feee73edda6c",
+      "notes": "The pair its bills give on its responses with cache_read 0; its cache-read price 0.003625 is not in the registry. https://api-docs.deepseek.com/quick_start/pricing, opened 2026-11-12, states other prices: 0.66 and 1.98 off-peak and 1.32 and 3.96 at peak. The window is that page's 1M, read as 1,000,000; the weights' max_position_embeddings is 1048576."
+    },
+    {
+      "id": "moonshotai/kimi-k2.7-code",
+      "family": "moonshotai",
+      "price_in": 0.95,
+      "price_out": 4,
+      "context_window": 262144,
+      "source": "https://platform.moonshot.ai/docs/pricing/chat",
+      "notes": "The page now redirects to https://platform.kimi.ai/docs/pricing/chat; it states this pair and a cache-read price of 0.19, which is not in the registry, and a 262,144-token window for every K2 series model; it closes the K2 series to new users from October 31, 2026 and plans to retire it by the end of December 2026."
+    },
+    {
+      "id": "z-ai/glm-5.3",
+      "family": "z-ai",
+      "price_in": 1.4,
+      "price_out": 4.4,
+      "context_window": 1000000,
+      "source": "https://docs.z.ai/guides/overview/pricing",
+      "notes": "The page states this pair and a cache-read price of 0.26, which is not in the registry. The window is the 1M of https://docs.z.ai/guides/llm/glm-5.3, read as 1,000,000."
+    },
+    {
+      "id": "z-ai/glm-5.3-flash",
+      "family": "z-ai",
+      "price_in": 0.15,
+      "price_out": 0.5,
+      "context_window": 1000000,
+      "source": "https://docs.z.ai/guides/overview/pricing",
+      "notes": "The page states this pair and a cache-read price of 0.03, which is not in the registry. The window is the 1M of https://docs.z.ai/guides/llm/glm-5.3-flash, read as 1,000,000."
+    }
+  ]
+}

@@ -13,6 +13,8 @@ the dropped items, kept counts, success span and list-cost-to-bill ratios that 1
 
 v1.311 (review iter-207 must-fix 1 and should-fix 1) adds four strict-xfail cases of the v1.269 check of
 an ``--out`` that names an input, adapted from 13.13's, and more ``notes`` phrases in the registry test.
+
+v1.312 (row E21c) commits the script, ``registry.json`` and ``results.json`` and removes the markers.
 """
 
 import importlib.util
@@ -76,10 +78,6 @@ REASONS = {
     "cost_blind": {"none_clear": 5040, "delegate_better": 1492, "parent_below_bar": 848, "inline_as_good": 620},
 }
 POINT0 = {0.8: (20.7429, 101.6277, 0.847, 0.861), 0.9: (75.1256, 101.6277, 0.874, 0.861)}
-
-NEEDS_SCRIPT = pytest.mark.xfail(strict=True, raises=FileNotFoundError,
-                                 reason="row E21c adds evidence/response-bank-delegation/ (DESIGN 13.14)")
-
 
 def _load(name, path):
     spec = importlib.util.spec_from_file_location(name, path)
@@ -228,7 +226,6 @@ def test_pinned_list_cost_is_just_under_the_bill(pinned_rows, lrb):
 
 # ---- the script and its files (row E21c) ----
 
-@NEEDS_SCRIPT
 def test_constants(ld):
     assert ld.POOL == POOL
     assert ld.BARS == BARS
@@ -236,12 +233,10 @@ def test_constants(ld):
     assert ld.KEYS == KEYS
 
 
-@NEEDS_SCRIPT
 def test_points_are_the_13_10_base_points(ld, dr):
     assert ld.points() == dr.points()
 
 
-@NEEDS_SCRIPT
 def test_select_rows_is_the_13_13_function(ld, lrb):
     assert Path(ld.select_rows.__code__.co_filename).resolve() == LRB_SCRIPT.resolve()
     rows = [row("t", "t:1", "vendor/a", True, 10, 5), row("t", "t:1", "vendor/b", False, None, None),
@@ -250,7 +245,6 @@ def test_select_rows_is_the_13_13_function(ld, lrb):
     assert ld.select_rows(rows, ["vendor/a", "vendor/b"]) == ([rows[2], rows[3]], ["t:1"])
 
 
-@NEEDS_SCRIPT
 def test_run_is_evaluate_delegation_keeping_keys(ld):
     rows, registry = synthetic()
     result = ld.run(rows, registry)
@@ -259,7 +253,6 @@ def test_run_is_evaluate_delegation_keeping_keys(ld):
     assert result == {key: full[key] for key in KEYS}
 
 
-@NEEDS_SCRIPT
 def test_cli_writes_the_run_on_the_rows_left(ld, tmp_path):
     rows, registry = synthetic()
     rows.append(row("t", "t:0", "vendor/a", False, None, None))
@@ -276,7 +269,6 @@ def test_cli_writes_the_run_on_the_rows_left(ld, tmp_path):
     assert not (tmp_path / "results.json.part").exists()
 
 
-@NEEDS_SCRIPT
 def test_cli_errors(ld, tmp_path, capsys):
     rows, registry = synthetic()
     matrix = tmp_path / "m.jsonl"
@@ -300,7 +292,6 @@ def test_cli_errors(ld, tmp_path, capsys):
     assert exc.value.code == 2
 
 
-@NEEDS_SCRIPT
 def test_cli_out_with_an_empty_name_is_one_error_line(ld, tmp_path, capsys):
     rows, registry = synthetic()
     matrix = tmp_path / "m.jsonl"
@@ -313,7 +304,6 @@ def test_cli_out_with_an_empty_name_is_one_error_line(ld, tmp_path, capsys):
         assert err.startswith("error: ") and err.count("\n") == 1, out
 
 
-@NEEDS_SCRIPT
 def test_cli_failure_removes_a_part_left_by_an_earlier_run(ld, tmp_path, capsys):
     rows, registry = synthetic()
     matrix = tmp_path / "m.jsonl"
@@ -332,7 +322,6 @@ def test_cli_failure_removes_a_part_left_by_an_earlier_run(ld, tmp_path, capsys)
         assert not part.exists()
 
 
-@NEEDS_SCRIPT
 def test_registry_file():
     text = REGISTRY.read_text(encoding="utf-8")
     content = json.loads(text)
@@ -368,7 +357,6 @@ def test_registry_file():
     Registry.load(REGISTRY)
 
 
-@NEEDS_SCRIPT
 def test_results_file_shape(dr):
     text = RESULTS.read_text(encoding="utf-8")
     assert len(text.encode("utf-8")) < 300_000
@@ -386,7 +374,6 @@ def test_results_file_shape(dr):
     assert len(keys) == len(results["summary"]) == len(BARS) * 2 * 4 * len(POOL) * 3 == 240
 
 
-@NEEDS_SCRIPT
 def test_pinned_run_rebuilds_the_committed_file_and_the_prototype_numbers(ld, pinned_rows):
     kept, dropped = ld.select_rows(pinned_rows, list(POOL))
     assert dropped == DROPPED
@@ -420,7 +407,6 @@ class _Unread:
         raise AssertionError(f"{path} read before the --out check")
 
 
-@NEEDS_SCRIPT
 @pytest.mark.parametrize("case, option", [
     ("out is the matrix", "--matrix"), ("out is the registry", "--registry"),
     ("part is the matrix", "--matrix"), ("part is the registry", "--registry")])
