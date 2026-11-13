@@ -14,7 +14,7 @@ figures read from their committed results blocks, so it runs in CI where the pin
 
 v1.328 (row R29): the per-item note reruns the response bank too, so the delegation paragraph's
 cut is the one of its five blocks and `on the datasets of the first three, ` goes; the tests that
-read the paragraph or the note's blocks are strict xfails until v1.329 lands the block.
+read the paragraph or the note's blocks were strict xfails until v1.329 landed the block.
 """
 
 import copy
@@ -770,7 +770,6 @@ DELEGATION = ("Delegation on AutoBench", "Delegation on tau2-bench", "Delegation
 PER_ITEM_COMMAND = "$ python research/per_item_delegation.py "
 # the five runs of the per-item note: no --dataset is LLMRouterBench (DESIGN 13.8 v1.227 to v1.233, v1.328)
 PER_ITEM_RUNS = [None, "autobench", "tau2-bench", "tau2-bench-pooled", "response-bank"]
-RED = pytest.mark.xfail(strict=True, reason="DESIGN 13.8 v1.328: the per-item note's fifth block lands in v1.329")
 # every line of a block's table, between its header and its first `pick, switched share by point` line
 TABLE_ROW = re.compile(r"^  (cost_effective|cost_blind) +(\d\.\d) +(pick|size rule) +\d+ +[\d,]+ / [\d,]+ +"
                        r"(?:-|\d\.\d{4}) +(\d\.\d{4}) +([+-]\d\.\d{4}) +\d+$")
@@ -899,7 +898,6 @@ def test_design_specifies_the_delegation_pointer():
            "below, and by nothing else." in section
 
 
-@RED
 def test_the_delegation_pointer_follows_the_routing_one():
     intro = evidence_section().split("\n### ", 1)[0]
     paragraphs = intro.strip("\n").split("\n\n")
@@ -908,7 +906,6 @@ def test_the_delegation_pointer_follows_the_routing_one():
     assert paragraphs[4] == delegation_pointer(*notes())
 
 
-@RED
 def test_the_delegation_pointer_figures_on_the_committed_notes():
     """The figures the paragraph gives on the committed notes, beside the counts each note's prose states."""
     pays, per_item = notes()
@@ -923,7 +920,6 @@ def test_the_delegation_pointer_figures_on_the_committed_notes():
     assert "only on the cells where the decision chose by cost" in text
 
 
-@RED
 def test_the_delegation_pointer_links_resolve_in_order():
     text = delegation_pointer(*notes())
     targets = re.findall(r"\]\(([^)]+)\)", text)
@@ -931,7 +927,6 @@ def test_the_delegation_pointer_links_resolve_in_order():
     assert all((README.parent / t).is_file() for t in targets)
 
 
-@RED
 def test_the_delegation_bullets_are_the_subsections_the_notes_read():
     # v1.323: the first note reads the four delegation subsections' files; v1.328: the second note's five blocks
     # rerun all four datasets (tau2-bench per domain and pooled)
@@ -1011,7 +1006,6 @@ def _move_the_cut(per_item):
     (_drop_a_row, 1, "the strategies' bars differ"),
     (_end_the_table, 1, "no table between a header and its end"),
 ])
-@RED
 def test_a_note_that_breaks_a_claim_fails_the_pointer(change, which, match):
     texts = list(notes())
     delegation_pointer(*texts)
@@ -1020,7 +1014,6 @@ def test_a_note_that_breaks_a_claim_fails_the_pointer(change, which, match):
         delegation_pointer(*texts)
 
 
-@RED
 def test_a_moved_figure_moves_the_pointer():
     pays, per_item = notes()
     before = delegation_pointer(pays, per_item)
@@ -1086,7 +1079,6 @@ def test_the_glance_list_ends_with_the_response_bank_delegation_bullet():
     assert lines[at + 1] == ""
 
 
-@RED
 def test_the_delegation_pointer_names_the_four_delegation_bullets():
     intro = evidence_section().split("\n### ", 1)[0]
     assert ("Whether choosing per task between inline work and a sub-agent beats a fixed policy, on the datasets of "

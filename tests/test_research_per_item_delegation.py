@@ -620,7 +620,6 @@ def test_note_tau2_blocks_are_the_script_output(pid, tau2_matrices, tmp_path, da
 
 
 # --- the LLM Routing Response Bank (DESIGN 13.8 v1.328, row R29) ------------------------------
-RED = pytest.mark.xfail(strict=True, reason="DESIGN 13.8 v1.328: the script change and the note land in v1.329")
 RB_COMMAND = "$ python research/per_item_delegation.py --dataset response-bank --matrix response-bank-matrix.jsonl"
 RB_CONVERT = "python evidence/response-bank/convert.py --out response-bank-matrix.jsonl"
 RB_FOLDER = ROOT / "evidence" / "response-bank-delegation"
@@ -666,7 +665,6 @@ def _response_bank_root(tmp_path, registry):
     return rb, root, kept, matrix
 
 
-@RED
 def test_response_bank_run_on_a_hand_root(pid, tmp_path):
     registry = Registry([P, D])
     rb, root, kept, matrix = _response_bank_root(tmp_path, registry)
@@ -694,7 +692,6 @@ def test_response_bank_run_on_a_hand_root(pid, tmp_path):
                               "evidence/response-bank-delegation/results.json\n")
 
 
-@RED
 def test_response_bank_run_refuses_a_registry(pid):
     err = io.StringIO()
     with contextlib.redirect_stderr(err):
@@ -702,7 +699,6 @@ def test_response_bank_run_refuses_a_registry(pid):
     assert err.getvalue() == "error: --registry is only used with --dataset autobench\n"
 
 
-@RED
 def test_note_has_the_response_bank_block_regenerate_and_a_four_dataset_recommendation():
     note = NOTE.read_text(encoding="utf-8")
     assert note.count("```text\n" + RB_COMMAND + "\n") == 1 and note.count("\n" + RB_HEADING + "\n") == 1
@@ -714,7 +710,6 @@ def test_note_has_the_response_bank_block_regenerate_and_a_four_dataset_recommen
         assert "LLM Routing Response Bank" in body, name
 
 
-@RED
 def test_note_response_bank_block_is_the_script_output(pid, response_bank_pinned):
     code, _out, err, matrix = response_bank_pinned
     assert code == 0, err
@@ -824,7 +819,6 @@ def per_item_bullet():
             f"{README_LINK}")
 
 
-@RED
 def test_readme_limitations_say_what_choosing_per_item_adds():
     readme = README.read_text(encoding="utf-8")
     limits = readme.split("\n## Limitations and non-goals (v1)\n", 1)[1].split("\n## ", 1)[0]
@@ -835,7 +829,6 @@ def test_readme_limitations_say_what_choosing_per_item_adds():
     assert sum(README_LINK in b for b in bullets) == 1
 
 
-@RED
 def test_note_recommendation_names_the_readme_line():
     share, cuts, _pick_cut, _pick_loss = per_item_figures()
     note = NOTE.read_text(encoding="utf-8")

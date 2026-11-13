@@ -1,10 +1,11 @@
-"""Whether held-out items' cheaper delegation paths differ from the per-task decision (DESIGN 13.8 v1.227, v1.230, v1.233)
+"""Whether held-out items' cheaper delegation paths differ from the per-task decision (DESIGN 13.8 v1.227, v1.230, v1.233, v1.328)
 
 Usage:
   python research/per_item_delegation.py --matrix llmrouterbench-matrix.jsonl [--root PATH]
   python research/per_item_delegation.py --dataset autobench --matrix autobench-tokens.jsonl --registry autobench-pool.json [--root PATH]
   python research/per_item_delegation.py --dataset tau2-bench --matrix tau2-calls.jsonl [--root PATH]
   python research/per_item_delegation.py --dataset tau2-bench-pooled --matrix tau2-calls-all.jsonl [--root PATH]
+  python research/per_item_delegation.py --dataset response-bank --matrix response-bank-matrix.jsonl [--root PATH]
 
 Runs `evaluate_delegation` (DESIGN 13.9) on the LLMRouterBench matrix that the converter writes, as
 evidence/llmrouterbench-delegation/results.py does (its `select_rows`, registry, bars, seeds and
@@ -12,8 +13,10 @@ points), or with `--dataset autobench` on the AutoBench 2026 converter's `--task
 matrix and `--registry` pool, as evidence/delegation/results.py does on its base grid (v1.230),
 or with `--dataset tau2-bench` (`tau2-bench-pooled`) on the tau2-bench converter's `--calls`
 (`--calls --task-by all`) matrix and the committed registry, as evidence/tau2-bench-delegation/
-results.py makes results.json (pooled.json) (v1.233), checks that the run's summary is the
-committed one, and rebuilds, for every held-out item of every cell, the list-price cost 13.9
+results.py makes results.json (pooled.json) (v1.233), or with `--dataset response-bank` on the
+response-bank converter's default matrix, after evidence/response-bank-delegation/results.py's
+`select_rows`, and the committed registry, as that script makes results.json (v1.328), checks that
+the run's summary is the committed one, and rebuilds, for every held-out item of every cell, the list-price cost 13.9
 charges always inline (the parent at its own sizes on that item, or on its own calls on a row with
 per-call sizes, 13.9 v1.74) and always delegating (the cell's delegate likewise); each pair of
 rebuilt sums must equal its cell's costs and correct counts exactly. An item's cheaper path is the
@@ -42,12 +45,17 @@ ROOT = Path(__file__).resolve().parents[1]
 FOLDER = "evidence/llmrouterbench-delegation"
 AUTOBENCH_FOLDER = "evidence/delegation"
 TAU2_FOLDER = "evidence/tau2-bench-delegation"
-DATASETS = ("llmrouterbench", "autobench", "tau2-bench", "tau2-bench-pooled")
+RESPONSE_BANK_FOLDER = "evidence/response-bank-delegation"
+DATASETS = ("llmrouterbench", "autobench", "tau2-bench", "tau2-bench-pooled", "response-bank")
 NAMES = {"llmrouterbench": "LLMRouterBench", "autobench": "AutoBench 2026",
-         "tau2-bench": "tau2-bench per domain", "tau2-bench-pooled": "tau2-bench pooled"}
-# dataset: (folder of its 13.13, 13.10 or 13.12 script, the committed file whose summary it gives)
+         "tau2-bench": "tau2-bench per domain", "tau2-bench-pooled": "tau2-bench pooled",
+         "response-bank": "the LLM Routing Response Bank"}
+# dataset: (folder of its 13.13, 13.10, 13.12 or 13.14 script, the committed file whose summary it gives)
 SOURCES = {"llmrouterbench": (FOLDER, "results.json"), "autobench": (AUTOBENCH_FOLDER, "results.json"),
-           "tau2-bench": (TAU2_FOLDER, "results.json"), "tau2-bench-pooled": (TAU2_FOLDER, "pooled.json")}
+           "tau2-bench": (TAU2_FOLDER, "results.json"), "tau2-bench-pooled": (TAU2_FOLDER, "pooled.json"),
+           "response-bank": (RESPONSE_BANK_FOLDER, "results.json")}
+# the datasets whose script drops the items with a null token count first (13.13 and, v1.328, 13.14)
+SELECTED = ("llmrouterbench", "response-bank")
 STRATEGIES = ("pick", "size rule")
 COMPARED = ("delegate_cheaper", "inline_cheaper")
 HEADER = "  flavor          bar  strategy    cells  switched / items     share  cost / decision  success - decision  better"
@@ -294,8 +302,9 @@ def _read_rows(path):
 def rerun(matrix, root=ROOT, dataset="llmrouterbench", registry=None) -> tuple:
     """The 13.13 run on the matrix (with `dataset="autobench"` the 13.10 base-grid run on it and the
     `registry` pool file; with `"tau2-bench"` or `"tau2-bench-pooled"` the 13.12 run on it and the
-    committed registry), checked against the committed summary: (rows, registry, run). Shared with
-    research/delegation_reasons.py (DESIGN 13.8 v1.253)."""
+    committed registry; with `"response-bank"` the 13.14 run on the rows its `select_rows` keeps and
+    the committed registry, v1.328), checked against the committed summary: (rows, registry, run).
+    Shared with research/delegation_reasons.py (DESIGN 13.8 v1.253)."""
     root = Path(root)
     if dataset not in DATASETS:
         raise ValueError(f"dataset must be one of {', '.join(DATASETS)}, got {dataset!r}")
@@ -312,7 +321,7 @@ def rerun(matrix, root=ROOT, dataset="llmrouterbench", registry=None) -> tuple:
         where = folder if registry is None else f"{folder} or {registry}"
         raise ValueError(f"{where}: cannot read ({exc})") from None
     rows = _read_rows(matrix)
-    if dataset == "llmrouterbench":
+    if dataset in SELECTED:
         rows, _dropped = script.select_rows(rows, [m.id for m in pool.models])
     full = evaluate_delegation(rows, pool, bars=list(script.BARS), points=script.points(),
                                seeds=range(script.SEEDS))
@@ -331,10 +340,12 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(prog="per_item_delegation.py", description=__doc__.splitlines()[0])
     parser.add_argument("--matrix", required=True,
                         help="the converter's output (JSONL): LLMRouterBench, AutoBench 2026 with --dataset autobench, "
-                             "tau2-bench --calls with --dataset tau2-bench or tau2-bench-pooled")
+                             "tau2-bench --calls with --dataset tau2-bench or tau2-bench-pooled, the response "
+                             "bank's default output with --dataset response-bank")
     parser.add_argument("--dataset", choices=DATASETS, default="llmrouterbench",
                         help="the delegation evidence to rerun (default: llmrouterbench, DESIGN 13.13; autobench, 13.10; "
-                             "tau2-bench and tau2-bench-pooled, 13.12 results.json and pooled.json)")
+                             "tau2-bench and tau2-bench-pooled, 13.12 results.json and pooled.json; response-bank, "
+                             "13.14)")
     parser.add_argument("--registry", help="with --dataset autobench: the AutoBench converter's --registry output")
     parser.add_argument("--root", type=Path, default=ROOT, help="repository root (default: this checkout)")
     args = parser.parse_args(argv)
