@@ -458,7 +458,7 @@ def test_pinned_files_give_the_stated_work_calls_and_window_checks(dr, full_runs
 
 README = ROOT / "README.md"
 EVIDENCE_HEADINGS = ["RouterBench", "AutoBench", "AutoBench judges", "tau2-bench", "LiveCodeBench",
-                     "LLMRouterBench", "Delegation on AutoBench", "Delegation on tau2-bench",
+                     "LLMRouterBench", "LLM Routing Response Bank", "Delegation on AutoBench", "Delegation on tau2-bench",
             "Delegation on LLMRouterBench"]
 README_LINKS = (
     "[tau2-bench](https://github.com/sierra-research/tau2-bench)",

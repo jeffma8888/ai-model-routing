@@ -370,7 +370,6 @@ def test_response_bank_gap_is_the_committed_file(wrp):
         response_bank_gap(wrp, fake)
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="v1.296: the bullet changes in v1.297")
 def test_readme_limitations_and_the_index_say_where_routing_passes(wrp):
     readme = README.read_text(encoding="utf-8")
     limits = readme.split("\n## Limitations and non-goals (v1)\n", 1)[1].split("\n## ", 1)[0]

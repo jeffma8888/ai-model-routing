@@ -4,7 +4,8 @@ The README evidence section opens with a short list, one bullet per subsection. 
 number and model ID in it is built here from the committed results files (four since v1.28,
 which adds the AutoBench judges bullet, five since v1.55, which adds tau2-bench, six since
 v1.65, which adds LiveCodeBench, seven since v1.80, which adds delegation on tau2-bench, eight
-since v1.164, which adds LLMRouterBench, nine since v1.200, which adds delegation on LLMRouterBench), at the rounding of the subsection tables, and every word that depends on the data (no routed row
+since v1.164, which adds LLMRouterBench, nine since v1.200, which adds delegation on LLMRouterBench,
+ten since v1.297, which adds the LLM Routing Response Bank), at the rounding of the subsection tables, and every word that depends on the data (no routed row
 reaches or beats, every seed, more, less) is asserted against those files, so the list cannot
 drift from them or keep a claim a regenerated file no longer supports.
 
@@ -30,6 +31,7 @@ FILES = {"RouterBench": ROOT / "evidence" / "routerbench" / "results.json",
          "tau2-bench": ROOT / "evidence" / "tau2-bench" / "results.json",
          "LiveCodeBench": ROOT / "evidence" / "livecodebench" / "results.json",
          "LLMRouterBench": ROOT / "evidence" / "llmrouterbench" / "results.json",
+         "LLM Routing Response Bank": ROOT / "evidence" / "response-bank" / "results.json",
          "Delegation on AutoBench": ROOT / "evidence" / "delegation" / "results.json",
          "Delegation on tau2-bench": ROOT / "evidence" / "tau2-bench-delegation" / "results.json",
          "Delegation on LLMRouterBench": ROOT / "evidence" / "llmrouterbench-delegation" / "results.json"}
@@ -179,6 +181,33 @@ def llmrouterbench_bullet(results):
             "model's held-out success")
 
 
+def response_bank_bullet(results):
+    """v1.296 (DESIGN 12.8): at the lowest bar cost_effective reaches a held-out success at a share of
+    the best single model's cost (12.7) and costs less than the cheapest single model (12.15) for more
+    success at 3 decimals; cost_blind passes the best model's success at 3 decimals at every bar, at
+    more than twice its cost."""
+    config = results["config"]
+    first = (config["bars"][0], config["flavors"][0])
+    models = [r for r in results["summary"]
+              if (r["bar"], r["flavor"]) == first and r["strategy"].startswith("model:")]
+    best = min(models, key=lambda r: (-r["success"], r["cost_usd"], r["strategy"]))
+    cheapest = min(models, key=lambda r: (r["cost_usd"], -r["success"], r["strategy"]))
+    low = summary_row(results, config["bars"][0], "cost_effective", "routed")
+    assert low["cost_usd"] < cheapest["cost_usd"], "the lowest bar costs no less than the cheapest model"
+    assert float(f"{low['success']:.3f}") > float(f"{cheapest['success']:.3f}"), \
+        "the lowest bar has no more success than the cheapest model"
+    blind = [summary_row(results, bar, "cost_blind", "routed") for bar in config["bars"]]
+    assert all(float(f"{r['success']:.3f}") > float(f"{best['success']:.3f}") for r in blind), \
+        "cost_blind is not above the best model"
+    assert all(r["cost_usd"] > 2 * best["cost_usd"] for r in blind), "cost_blind costs twice the best model or less"
+    return (link("LLM Routing Response Bank") + f"at bar {config['bars'][0]}, `cost_effective` routing "
+            f"reaches held-out success {low['success']:.3f} at {low['cost_usd'] / best['cost_usd']:.3f} of "
+            f"the cost of the best single model, `{best['strategy'][len('model:'):]}`, and costs less than "
+            f"always calling the cheapest model, `{cheapest['strategy'][len('model:'):]}`, for more held-out "
+            "success; `cost_blind` routing passes the best single model's held-out success at every bar, "
+            "but at more than twice its cost")
+
+
 def delegation_bullet(results):
     config = results["config"]
     rows = {(r["bar"], r["flavor"], r["point"], r["parent"], r["strategy"]): r
@@ -281,6 +310,7 @@ def llmrouterbench_delegation_bullet(results):
 BULLETS = {"RouterBench": routerbench_bullet, "AutoBench": autobench_bullet,
            "AutoBench judges": judges_bullet, "tau2-bench": tau2_bullet,
            "LiveCodeBench": livecodebench_bullet, "LLMRouterBench": llmrouterbench_bullet,
+           "LLM Routing Response Bank": response_bank_bullet,
            "Delegation on AutoBench": delegation_bullet,
            "Delegation on tau2-bench": tau2_delegation_bullet,
            "Delegation on LLMRouterBench": llmrouterbench_delegation_bullet}
@@ -578,36 +608,9 @@ def test_a_file_that_breaks_a_claim_fails_the_builder(change, match):
 
 
 
-# --- v1.296 (row E20e): the response-bank bullet, held as strict xfail until v1.297 -----------
+# --- v1.296 (row E20e): the response-bank bullet (v1.297: in FILES and BULLETS) -------------
 
-RESPONSE_BANK = ROOT / "evidence" / "response-bank" / "results.json"
-
-
-def response_bank_bullet(results):
-    """v1.296 (DESIGN 12.8): at the lowest bar cost_effective reaches a held-out success at a share of
-    the best single model's cost (12.7) and costs less than the cheapest single model (12.15) for more
-    success at 3 decimals; cost_blind passes the best model's success at 3 decimals at every bar, at
-    more than twice its cost."""
-    config = results["config"]
-    first = (config["bars"][0], config["flavors"][0])
-    models = [r for r in results["summary"]
-              if (r["bar"], r["flavor"]) == first and r["strategy"].startswith("model:")]
-    best = min(models, key=lambda r: (-r["success"], r["cost_usd"], r["strategy"]))
-    cheapest = min(models, key=lambda r: (r["cost_usd"], -r["success"], r["strategy"]))
-    low = summary_row(results, config["bars"][0], "cost_effective", "routed")
-    assert low["cost_usd"] < cheapest["cost_usd"], "the lowest bar costs no less than the cheapest model"
-    assert float(f"{low['success']:.3f}") > float(f"{cheapest['success']:.3f}"), \
-        "the lowest bar has no more success than the cheapest model"
-    blind = [summary_row(results, bar, "cost_blind", "routed") for bar in config["bars"]]
-    assert all(float(f"{r['success']:.3f}") > float(f"{best['success']:.3f}") for r in blind), \
-        "cost_blind is not above the best model"
-    assert all(r["cost_usd"] > 2 * best["cost_usd"] for r in blind), "cost_blind costs twice the best model or less"
-    return (link("LLM Routing Response Bank") + f"at bar {config['bars'][0]}, `cost_effective` routing "
-            f"reaches held-out success {low['success']:.3f} at {low['cost_usd'] / best['cost_usd']:.3f} of "
-            f"the cost of the best single model, `{best['strategy'][len('model:'):]}`, and costs less than "
-            f"always calling the cheapest model, `{cheapest['strategy'][len('model:'):]}`, for more held-out "
-            "success; `cost_blind` routing passes the best single model's held-out success at every bar, "
-            "but at more than twice its cost")
+RESPONSE_BANK = FILES["LLM Routing Response Bank"]
 
 
 def response_bank():
@@ -659,7 +662,6 @@ def test_a_file_that_breaks_a_response_bank_claim_fails_its_bullet(change, match
         response_bank_bullet(results)
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="v1.296: the bullet lands in v1.297")
 def test_the_glance_list_holds_the_response_bank_bullet_after_llmrouterbench():
     lines = evidence_section().split("\n### ", 1)[0].splitlines()
     bullet = response_bank_bullet(response_bank())

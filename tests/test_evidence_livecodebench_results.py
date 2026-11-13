@@ -265,7 +265,7 @@ def test_evidence_readme_links_the_results():
 
 README = ROOT / "README.md"
 HEADINGS = ["RouterBench", "AutoBench", "AutoBench judges", "tau2-bench", "LiveCodeBench",
-            "LLMRouterBench", "Delegation on AutoBench", "Delegation on tau2-bench",
+            "LLMRouterBench", "LLM Routing Response Bank", "Delegation on AutoBench", "Delegation on tau2-bench",
             "Delegation on LLMRouterBench"]
 LIMITS = ["The models date from 2023 to 2025 and the 713 problems from 2023-05-07 to 2024-10-05, "
           "so many problems predate a model's training data: the contamination LiveCodeBench "

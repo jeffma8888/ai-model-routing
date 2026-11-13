@@ -244,7 +244,7 @@ def autobench_subsection():
     section = readme.split(heading, 1)[1].split("\n## ", 1)[0]
     assert re.findall(r"^### (.*)$", section, re.M) == ["RouterBench", "AutoBench",
                                                         "AutoBench judges", "tau2-bench",
-                                                        "LiveCodeBench", "LLMRouterBench",
+                                                        "LiveCodeBench", "LLMRouterBench", "LLM Routing Response Bank",
                                                         "Delegation on AutoBench", "Delegation on tau2-bench",
             "Delegation on LLMRouterBench"]
     return section.split("\n### AutoBench\n", 1)[1].split("\n### ", 1)[0]
@@ -258,7 +258,8 @@ def test_readme_evidence_intro_names_the_three_labels():
             "AutoBench, agreement with the other judges' grades for a judge model's grade "
             "in AutoBench judges, whether an agent's conversation passed the run's program "
             "checks on tau2-bench, whether a model's first sample passed the problem's test "
-            "cases on LiveCodeBench, and whether the record scored 1 on LLMRouterBench)") in intro
+            "cases on LiveCodeBench, whether the record scored 1 on LLMRouterBench, and whether the "
+            "response scored 1 on the LLM Routing Response Bank)") in intro
     assert ("and the cost of each call (of each whole conversation on tau2-bench) or the token "
             "counts to estimate it at list prices (LiveCodeBench records neither, so it is "
             "`cost_blind` evidence only)") in intro

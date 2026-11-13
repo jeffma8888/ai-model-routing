@@ -520,8 +520,6 @@ LABEL = ("whether the record scored 1 on LLMRouterBench, and whether the respons
          "LLM Routing Response Bank)")
 NUMBER = {4: "four"}
 DESIGN_REF = re.compile(r"DESIGN (?=\d)")
-README_PENDING = pytest.mark.xfail(strict=True, raises=AssertionError,
-                                   reason="v1.296: the README subsection lands in v1.297")
 
 
 def readme_text():
@@ -631,7 +629,6 @@ def regenerate_line(cv):
             "from them only where the four pinned files are cached):")
 
 
-@README_PENDING
 def test_readme_response_bank_source_counts_and_tables_are_the_committed_results(cv):
     results, section = committed(), readme_subsection()
     lines = readme_source_lines(cv, results)
@@ -639,7 +636,6 @@ def test_readme_response_bank_source_counts_and_tables_are_the_committed_results
     assert readme_columns(results) + "\n\n" + readme_tables(results) in section
 
 
-@README_PENDING
 def test_readme_response_bank_reading_and_limits_are_results_md_lines():
     section = readme_subsection()
     reading, limits = results_md_bullets()
@@ -654,7 +650,6 @@ def test_readme_response_bank_reading_and_limits_are_results_md_lines():
     assert "](README.md)" not in section and "](results.json)" not in section and "../" not in section
 
 
-@README_PENDING
 def test_readme_response_bank_regenerate_label_and_layout(cv):
     section, text = readme_subsection(), readme_text()
     assert section.rstrip("\n").endswith(regenerate_line(cv) + "\n\n" + REGENERATE.rstrip("\n"))

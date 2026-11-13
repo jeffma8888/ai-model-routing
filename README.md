@@ -396,7 +396,7 @@ for row in report(monitor.records, by="tag:team"):
 
 ## Evidence: held-out results on public data
 
-Each dataset here already holds every model's answer to every item, a label for whether that answer was good enough (right or wrong on RouterBench, a Delta-Hit from a judge committee's scores on AutoBench, agreement with the other judges' grades for a judge model's grade in AutoBench judges, whether an agent's conversation passed the run's program checks on tau2-bench, whether a model's first sample passed the problem's test cases on LiveCodeBench, and whether the record scored 1 on LLMRouterBench) and the cost of each call (of each whole conversation on tau2-bench) or the token counts to estimate it at list prices (LiveCodeBench records neither, so it is `cost_blind` evidence only), so the router is tested offline with no API key: for each task and seed, calibrate on one half of the items, route at a bar, and score the routed model on the other half, next to fixed baselines (`model-routing evaluate`, `DESIGN.md` 12). The test suite rebuilds every number in these tables from that dataset's committed results file, so they cannot drift from it. On GitHub, the `evidence` workflow ([.github/workflows/evidence.yml](.github/workflows/evidence.yml)) reruns the regenerate commands of the AutoBench, AutoBench judges, tau2-bench, LiveCodeBench, LLMRouterBench and delegation subsections, downloading the pinned files, and fails if `evidence/autobench-2026/results.json`, `evidence/autobench-judges/results.json`, `evidence/tau2-bench/results.json`, `evidence/livecodebench/results.json`, `evidence/llmrouterbench/results.json`, `evidence/delegation/results.json`, `evidence/delegation/variants.json`, `evidence/tau2-bench-delegation/results.json`, `evidence/tau2-bench-delegation/pooled.json` or `evidence/llmrouterbench-delegation/results.json` changes by a byte; RouterBench is left out of it, since its source is a 99,567,659-byte pickle that needs pandas and its evaluate step takes about 70 seconds.
+Each dataset here already holds every model's answer to every item, a label for whether that answer was good enough (right or wrong on RouterBench, a Delta-Hit from a judge committee's scores on AutoBench, agreement with the other judges' grades for a judge model's grade in AutoBench judges, whether an agent's conversation passed the run's program checks on tau2-bench, whether a model's first sample passed the problem's test cases on LiveCodeBench, whether the record scored 1 on LLMRouterBench, and whether the response scored 1 on the LLM Routing Response Bank) and the cost of each call (of each whole conversation on tau2-bench) or the token counts to estimate it at list prices (LiveCodeBench records neither, so it is `cost_blind` evidence only), so the router is tested offline with no API key: for each task and seed, calibrate on one half of the items, route at a bar, and score the routed model on the other half, next to fixed baselines (`model-routing evaluate`, `DESIGN.md` 12). The test suite rebuilds every number in these tables from that dataset's committed results file, so they cannot drift from it. On GitHub, the `evidence` workflow ([.github/workflows/evidence.yml](.github/workflows/evidence.yml)) reruns the regenerate commands of the AutoBench, AutoBench judges, tau2-bench, LiveCodeBench, LLMRouterBench and delegation subsections, downloading the pinned files, and fails if `evidence/autobench-2026/results.json`, `evidence/autobench-judges/results.json`, `evidence/tau2-bench/results.json`, `evidence/livecodebench/results.json`, `evidence/llmrouterbench/results.json`, `evidence/delegation/results.json`, `evidence/delegation/variants.json`, `evidence/tau2-bench-delegation/results.json`, `evidence/tau2-bench-delegation/pooled.json` or `evidence/llmrouterbench-delegation/results.json` changes by a byte; RouterBench is left out of it, since its source is a 99,567,659-byte pickle that needs pandas and its evaluate step takes about 70 seconds.
 
 Results at a glance, each number from the committed results of the subsection it links:
 
@@ -406,6 +406,7 @@ Results at a glance, each number from the committed results of the subsection it
 - [tau2-bench](#tau2-bench): on trial 0, no routed row beats any of the 4 single agents on held-out success and cost together, and at bar 0.3 `cost_effective` routing costs 9.1340 USD against 3.6044 for always calling the cheapest agent, `openai/gpt-4.1-mini-2025-04-14`, for no more held-out success
 - [LiveCodeBench](#livecodebench): the dataset records no cost, so only `cost_blind` routing is run; it reaches held-out success 0.902 at every bar, below the 0.909 of always calling the best single model, `openai/o4-mini-high`
 - [LLMRouterBench](#llmrouterbench): `cost_blind` routing reaches held-out success 0.615 at every bar, above the 0.592 of always calling the best single model, `google/gemini-2.5-pro`, at less than half its cost; at bar 0.1 `cost_effective` routing costs less still and falls below that model's held-out success
+- [LLM Routing Response Bank](#llm-routing-response-bank): at bar 0.8, `cost_effective` routing reaches held-out success 0.847 at 0.201 of the cost of the best single model, `deepseek/deepseek-v4-pro`, and costs less than always calling the cheapest model, `z-ai/glm-5.3-flash`, for more held-out success; `cost_blind` routing passes the best single model's held-out success at every bar, but at more than twice its cost
 - [Delegation on AutoBench](#delegation-on-autobench): at bar 0.8, with the brief assumed to carry the whole question and inline work in a parent call of its own, the `cost_effective` decision delegates on every seed for each of the 20 parents, so it scores and costs the same as always delegating; its mean held-out success over the parents is 0.855 against 0.670 for always inline, and it costs more than always inline at 8,000 context tokens but less at 64,000 and 200,000
 - [Delegation on tau2-bench](#delegation-on-tau2-bench): on trial 0, the `cost_effective` decision delegates on every seed for each of the 3 parents at every bar and point; at bar 0.3 and 8,000 context tokens, with inline work in a parent call of its own, its mean cost over the parents is 19.8422 USD against 67.1856 for always inline, for less held-out success
 - [Delegation on LLMRouterBench](#delegation-on-llmrouterbench): at bar 0.1 and 8,000 context tokens, with inline work in a parent call of its own, the `cost_effective` decision delegates on every seed for each of the 8 parents; its mean cost over the parents is 69.5970 USD against 133.3194 for always inline, for no less held-out success, but it costs more than always inline for 3 of the 8 parents
@@ -744,6 +745,60 @@ python evidence/llmrouterbench/convert.py --out llmrouterbench-matrix.jsonl
 model-routing evaluate --outcomes llmrouterbench-matrix.jsonl --bar 0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 --seeds 50 --json > llmrouterbench-evaluate.json
 python evidence/routerbench/results.py --evaluate llmrouterbench-evaluate.json --out evidence/llmrouterbench/results.json
 python evidence/routerbench/results.py --table evidence/llmrouterbench/results.json
+```
+
+### LLM Routing Response Bank
+
+- Dataset: [Lurume/llm-routing-response-bank](https://huggingface.co/datasets/Lurume/llm-routing-response-bank) on Hugging Face, pinned at revision [`547beb3`](https://huggingface.co/datasets/Lurume/llm-routing-response-bank/tree/547beb31ecd8f12b116b87eb4f56feee73edda6c), four JSON Lines files of 1,018,191,580 bytes in all, each checked by size and sha256, then read one line at a time
+- Licence: the dataset card names no standard licence and points to the dataset's LICENSE file, which says: "Planned license: Open Data Commons Attribution License v4.0 (ODC-BY-4.0, https://opendatacommons.org/licenses/by/4-0/). Final licensing wording will be attached at the formal publication of the associated study; until then, you may use, redistribute, and build on this data under ODC-BY-4.0 terms with attribution to this dataset repository." Its per-family terms are quoted in [RESULTS.md](evidence/response-bank/RESULTS.md). This repo commits no part of the dataset, only numbers derived from it
+- Attribution, as those terms ask: the data behind these results is the LLM Routing Response Bank, from the dataset repository https://huggingface.co/datasets/Lurume/llm-routing-response-bank
+- What was run: 5 models, 4 benchmark families, each one routing task (`aime` 30 items, `gpqa_diamond` 198, `livecodebench` 1,055 and `mmlu_pro` 12,032, 13,315 in all), 50 seeds; each task is split in half per seed and routed at bars 0.8 and 0.9 in both flavors. A success is a response whose `quality` is 1, the label of an exact-answer parser or, for code, of LiveCodeBench's tests, and the cost is the response's billed `official_usd`
+- Full results, with every one of the 5 single models and the routed rows that beat each on both counts: [RESULTS.md](evidence/response-bank/RESULTS.md) and [results.json](evidence/response-bank/results.json); source, the models, the tasks, the finishes and missing cells and what a row keeps: [evidence/response-bank/README.md](evidence/response-bank/README.md)
+
+Held-out success is the share of held-out items whose response scored 1, pooled over the 4 tasks, and cost is the billed cost of answering them, both averaged over the seeds; the ratio divides that cost by the cost of the best single model. The cleared rate is the share of the 200 (task, seed) cells where some model cleared the bar on the calibration half, and the bar-violation rate is the share of cleared cells whose held-out success fell below the bar.
+
+| Bar | Flavor | Held-out success | Cost (USD) | Cost / best single model | Cleared rate | Bar-violation rate |
+|---|---|---|---|---|---|---|
+| 0.8 | `cost_effective` | 0.847 | 5.4902 | 0.201 | 0.735 | 0.000 |
+| 0.8 | `cost_blind` | 0.874 | 57.4404 | 2.104 | 0.735 | 0.000 |
+| 0.9 | `cost_effective` | 0.874 | 57.4387 | 2.104 | 0.005 | 1.000 |
+| 0.9 | `cost_blind` | 0.874 | 57.4404 | 2.104 | 0.005 | 1.000 |
+
+| Baseline | Held-out success | Cost (USD) |
+|---|---|---|
+| Per-item oracle: on each item, the cheapest model that scored 1, or the cheapest model, counted wrong, when none did | 0.938 | 8.0211 |
+| Always `deepseek/deepseek-v4-flash` | 0.861 | 23.2204 |
+| Always `deepseek/deepseek-v4-pro`, the best single model | 0.872 | 27.2956 |
+| Always `moonshotai/kimi-k2.7-code` | 0.871 | 71.0675 |
+| Always `z-ai/glm-5.3` | 0.855 | 69.0601 |
+| Always `z-ai/glm-5.3-flash`, the cheapest single model | 0.845 | 6.2289 |
+| Best model on the calibration half, per task | 0.874 | 57.4387 |
+| Cheapest model on the calibration half, per task | 0.847 | 5.4364 |
+
+Reading it:
+
+- `cost_effective`: At bar 0.8 a model clears on 147 of the 200 (task, seed) cells; of their 50 seeds each, it clears on 0 of `aime`, 47 of `gpqa_diamond`, 50 of `livecodebench` and 50 of `mmlu_pro`. The `aime` calibration half holds 10 to 21 of its 30 items over the 50 seeds and is under `min_samples` 30 on 50 of them, so on every seed no model can clear it (`DESIGN.md` 12.3) and the router falls back to the model with the highest Wilson lower bound on that half, ties to the lower cost (`on_no_model="best_available"`, `DESIGN.md` 5.3). At bar 0.8 the router spends 0.201 of the best single model's cost for a held-out success of 0.847, against 0.872 for that model (`deepseek/deepseek-v4-pro`), and it routes every seed of `livecodebench` and `mmlu_pro` to `z-ai/glm-5.3-flash`. Always calling the cheapest model, `z-ai/glm-5.3-flash`, reaches 0.845 at 6.2289 USD, so at bar 0.8 the router pays 0.881 of that cost for more held-out success; the `cheapest` baseline, which takes the model of lowest mean calibration cost on each task, reaches 0.847 at 5.4364 USD
+- At bar 0.9 a model clears on 1 of the 200 cells, 1 seed of `gpqa_diamond`. Where no model clears, the router falls back the same way, and since every model of a (task, seed) has the same calibration items, the highest bound goes with the highest calibration success, the model `best_on_calibration` takes (`DESIGN.md` 12.3), so `cost_effective` there reaches 0.874 at 2.104 of the best single model's cost, the held-out success and cost of `best_on_calibration`
+- `cost_blind` reaches 0.874 at 2.104 of the best single model's cost at every bar, 0.0022 above that model's held-out success, while the 5 single models' held-out successes run from 0.845 to 0.872: at bar 0.8 it routes 45 of the 50 `mmlu_pro` seeds to `moonshotai/kimi-k2.7-code`, the single model with the highest cost, 71.0675 USD. Where the models are this close, leaving cost out buys little held-out success at a much higher cost
+- Bar violations: 1.000 at bar 0.9 (`cost_effective`) is 1 of 1 cleared cell and 1.000 at bar 0.9 (`cost_blind`) is 1 of 1 cleared cell, against a nominal one-sided 0.025 for the 0.95 Wilson bound. One cleared cell gives no rate worth reading; the 0.8 rows, where most cells clear, show none (`DESIGN.md` 12.3)
+- The per-item oracle reaches 0.938 at 8.0211 USD, while the highest routed success of either flavor at any bar is 0.874: on some items some model succeeds where the one routed to that task fails, and routing per family, not per prompt, cannot pick per item
+
+Limits:
+
+- Each cost is the response's billed `official_usd`, which the dataset card describes as provider billing in USD including cache discounts: a recorded bill, never tokens times a list price, and never a price from `models.json`, which has none of the five models (`DESIGN.md` 12.20)
+- `mmlu_pro` holds 12,032 of the 13,315 items, so the pooled rows mostly measure it; each family is routed apart, on its own halves
+- Misses with no bill: the 6 `missing` cells (all on `mmlu_pro`, three each of `z-ai/glm-5.3` and `z-ai/glm-5.3-flash`: provider content filters and one refusal) score 0 at a cost of 0.0, so a router that picks either model there meets those failures (`DESIGN.md` 12.20)
+- Length finishes keep their label: 450 kept cells stopped at their length limit and 17 of them score 1, since the label is what an acceptance check reads from the returned text (`DESIGN.md` 12.20)
+- Both splits: the release's 256 calibration and 13,059 evaluation tasks are joined, and the halves here are the library's own, drawn by seed as on every other dataset (`DESIGN.md` 12.20). Nothing is dropped: every item has a score from all five models, a response or a `missing` reason in every cell, and one prompt digest across its responses
+
+Regenerate (the converter downloads the four pinned files, about 1.02 GB, into a cache folder outside the repo, and verifying, reading and converting them takes about 3 seconds once they are cached; the `evidence` workflow does not rerun these commands yet, while the test suite rebuilds `results.json` from them only where the four pinned files are cached):
+
+```bash
+python -m pip install -e .
+python evidence/response-bank/convert.py --out response-bank-matrix.jsonl
+model-routing evaluate --outcomes response-bank-matrix.jsonl --bar 0.8 0.9 --seeds 50 --json > response-bank-evaluate.json
+python evidence/routerbench/results.py --evaluate response-bank-evaluate.json --out evidence/response-bank/results.json
+python evidence/routerbench/results.py --table evidence/response-bank/results.json
 ```
 
 ### Delegation on AutoBench
@@ -1087,7 +1142,7 @@ Full survey with sources and dates: [research/prior-art.md](research/prior-art.m
 ## Limitations and non-goals (v1)
 
 - Routes per task, not per prompt: the router picks each task's first model, with no difficulty prediction or confidence-based cascade. What reacts per call is the executor's fallback, which moves to the next model of the route when the caller's `validate` check fails (`DESIGN.md` 7). Replayed on LLMRouterBench with a check as good as the record's own score, so as upper bounds, two fallbacks recover 0.476 to 0.678 of the gap between routed and per-item oracle success, at 2.009 to 3.522 times the cost, and the router's whole sorted list, which at a high bar holds only the models that clear it, 0.927 to 0.960, at 2.454 to 8.772 times. A check at call time can only do worse, and on every task but `arenahard` the score is made against an answer key a caller does not hold, in part on `livecodebench`, whose public test cases a caller may hold ([research/check-fallback.md](research/check-fallback.md))
-- Routing per task pays in held-out success only where tasks differ in their best model and each task's calibration half can tell the models apart. Of the six routing datasets above, LLMRouterBench alone has a routed row above the best single model's held-out success; on the other five, routing pays at most in cost, at a bar below that success ([research/where-routing-pays.md](research/where-routing-pays.md))
+- Routing per task pays in held-out success only where tasks differ in their best model and each task's calibration half can tell the models apart. Of the first six routing datasets above, LLMRouterBench alone has a routed row above the best single model's held-out success; on the other five, routing pays at most in cost, at a bar below that success ([research/where-routing-pays.md](research/where-routing-pays.md)). The seventh, the LLM Routing Response Bank, which that note does not read yet, has one too: `cost_blind` routing, 0.0022 above that model's held-out success at 2.104 times its cost
 - The success rate is measured as is. Position and verbosity bias in a judge's calibration set flow into the measured rate; the library does not debias the judge
 - No online drift detection. Re-calibrate from audited samples on a schedule, and when a provider ships a new model version
 - No budgets, alerts, async execution or streaming. The OpenAI-compatible adapter covers gateways; there are no native vendor SDK adapters
@@ -1128,6 +1183,7 @@ evidence/       public datasets turned into outcome matrices, with committed res
                 (tau2-bench: evidence/tau2-bench/RESULTS.md)
                 (LiveCodeBench: evidence/livecodebench/RESULTS.md)
                 (LLMRouterBench: evidence/llmrouterbench/RESULTS.md)
+                (LLM Routing Response Bank: evidence/response-bank/RESULTS.md)
                 (delegation on AutoBench: evidence/delegation/RESULTS.md)
                 (TRAIL sub-agent sizes: evidence/trail/RESULTS.md)
                 (delegation on tau2-bench: evidence/tau2-bench-delegation/RESULTS.md)
