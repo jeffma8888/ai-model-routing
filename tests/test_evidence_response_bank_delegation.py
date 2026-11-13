@@ -10,6 +10,9 @@ row E21c commits them and removes the markers. The other tests pass before and a
 research note states each price, cache-read price, window and source the registry takes from it,
 and, when the four pinned files are cached, 13.13's ``select_rows`` on the converter's rows gives
 the dropped items, kept counts, success span and list-cost-to-bill ratios that 13.14 states.
+
+v1.311 (review iter-207 must-fix 1 and should-fix 1) adds four strict-xfail cases of the v1.269 check of
+an ``--out`` that names an input, adapted from 13.13's, and more ``notes`` phrases in the registry test.
 """
 
 import importlib.util
@@ -304,7 +307,7 @@ def test_cli_out_with_an_empty_name_is_one_error_line(ld, tmp_path, capsys):
     write_jsonl(matrix, rows)
     reg = tmp_path / "registry.json"
     reg.write_text(json.dumps(registry_json(registry)), encoding="utf-8")
-    for out in ("/", "."):
+    for out in (tmp_path.anchor, "."):
         assert ld.main(["--matrix", str(matrix), "--registry", str(reg), "--out", out]) == 1, out
         err = capsys.readouterr().err
         assert err.startswith("error: ") and err.count("\n") == 1, out
@@ -350,14 +353,17 @@ def test_registry_file():
         if got["id"] != KIMI:
             assert "1M" in notes and "1,000,000" in notes, got["id"]
         if got["id"] in (FLASH, PRO):
-            for phrase in ("cache_read", DEEPSEEK_PAGE, "1048576"):
+            for phrase in ("responses with cache_read 0", DEEPSEEK_PAGE, "opened 2026-11-12", "off-peak", "at peak",
+                           "max_position_embeddings", "1048576"):
                 assert phrase in notes, (got["id"], phrase)
+        if got["id"] in PAGE_PRICED:
+            assert "states this pair" in notes, got["id"]
     by_id = {m["id"]: m["notes"] for m in models}
-    for phrase in ("retired", "DeepSeek-V4.1-Flash-1017", "0.15 and 0.6", "0.3 and 1.2"):
+    for phrase in ("retired", "DeepSeek-V4.1-Flash-1017", "deepseek-flash", "0.15 and 0.6", "0.3 and 1.2"):
         assert phrase in by_id[FLASH], phrase
     for phrase in ("0.66 and 1.98", "1.32 and 3.96"):
         assert phrase in by_id[PRO], phrase
-    for phrase in ("October 31, 2026", "end of December 2026"):
+    for phrase in ("redirects", "new users", "October 31, 2026", "retire", "end of December 2026"):
         assert phrase in by_id[KIMI], phrase
     Registry.load(REGISTRY)
 
@@ -402,3 +408,39 @@ def test_pinned_run_rebuilds_the_committed_file_and_the_prototype_numbers(ld, pi
         assert round(mean(r["cost_usd"] for r in inl), 4) == inl_cost, bar
         assert round(mean(r["success"] for r in dec), 3) == dec_success, bar
         assert round(mean(r["success"] for r in inl), 3) == inl_success, bar
+
+
+# ---- v1.311 an --out that names an input (review iter-207 must-fix 1; 13.13 v1.269) ----
+
+class _Unread:
+    """A stand-in for both reads: a call means a file was read before the --out check."""
+
+    @staticmethod
+    def load(path):
+        raise AssertionError(f"{path} read before the --out check")
+
+
+@NEEDS_SCRIPT
+@pytest.mark.parametrize("case, option", [
+    ("out is the matrix", "--matrix"), ("out is the registry", "--registry"),
+    ("part is the matrix", "--matrix"), ("part is the registry", "--registry")])
+def test_cli_out_naming_an_input_is_exit_2_before_any_read(ld, tmp_path, capsys, monkeypatch, case, option):
+    matrix, reg, out = tmp_path / "m.jsonl", tmp_path / "registry.json", tmp_path / "results.json"
+    if case == "out is the matrix":
+        out = matrix
+    elif case == "out is the registry":
+        out = reg
+    elif case == "part is the matrix":
+        matrix = tmp_path / "results.json.part"
+    else:
+        reg = tmp_path / "results.json.part"
+    matrix.write_text("matrix bytes\n", encoding="utf-8")
+    reg.write_text("registry bytes\n", encoding="utf-8")
+    before = {p.name: p.read_bytes() for p in sorted(tmp_path.iterdir())}
+    monkeypatch.setattr(ld, "_read_rows", _Unread.load)
+    monkeypatch.setattr(ld, "Registry", _Unread)
+    assert ld.main(["--matrix", str(matrix), "--registry", str(reg), "--out", str(out)]) == 2, case
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == f"error: --out (or its .part file) names the same file as {option}\n"
+    assert {p.name: p.read_bytes() for p in sorted(tmp_path.iterdir())} == before
