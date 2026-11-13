@@ -1,7 +1,11 @@
 """DESIGN 13.10 v1.271 (row D4j): each of the three delegation evidence folders has a README.md
 that names every file the folder holds, links the converter whose output its script reads with
 the options its RESULTS.md `## Regenerate` block passes, links that dataset's evidence README,
-and points to the `## Regenerate` block instead of repeating its commands."""
+and points to the `## Regenerate` block instead of repeating its commands.
+
+DESIGN 13.10 and 13.14 v1.319 (row E21f): the fourth delegation folder, response-bank-delegation,
+is checked the same way; its six per-folder cases are held as strict xfail, raising
+FileNotFoundError, until its README lands."""
 
 import re
 from pathlib import Path
@@ -36,9 +40,22 @@ FOLDERS = {
         "dataset_readme": "../llmrouterbench/README.md",
         "files": ("results.py", "registry.json", "results.json", "RESULTS.md"),
     },
+    "response-bank-delegation": {
+        "title": "# Delegation evidence on the LLM Routing Response Bank",
+        "section": "13.14",
+        "converter": "../response-bank/convert.py",
+        "options": (),
+        "dataset_readme": "../response-bank/README.md",
+        "files": ("results.py", "registry.json", "results.json", "RESULTS.md"),
+    },
 }
 LINK = re.compile(r"\]\(([^)\s]+)\)")
-NAMES = sorted(FOLDERS)
+PENDING = {"response-bank-delegation"}
+NAMES = [
+    pytest.param(name, marks=pytest.mark.xfail(strict=True, raises=FileNotFoundError))
+    if name in PENDING else name
+    for name in sorted(FOLDERS)
+]
 
 
 def readme(name):
