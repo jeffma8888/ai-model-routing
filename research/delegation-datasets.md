@@ -392,3 +392,103 @@ for prompt in ("input", "input + cache_read"):
 - Registry rule for that version: every model at the input and output pair its bills give on the responses with `cache_read` 0, the vendor page price for three of the five, with `notes` saying for the two DeepSeek models that the page now states other prices and, for `deepseek/deepseek-v4-flash`, that the name is served by another model; a vendor page price that differs from the recorded bill would price the work at a price it was not billed at
 - That version states four things. The input size: `usage.input` as the converter writes it, the uncached part, or `input + cache_read`, the whole prompt; the family split holds either way, while only the whole prompt makes the list cost of a cached response its size at the input price, above its bill, and `usage.input` alone puts that cost below the bill by the cache-read charge. The four `mmlu_pro` items that lack a model, which a complete matrix drops. A context window per model for 13.4 rule 3 and the 5.2 rule 5 check: the DeepSeek page gives 1M for its current models and the Kimi page 262,144 for the K2 series, while the Z.ai pricing page gives none, so the windows are read first, as the 2026-11-10 subsection did for LLMRouterBench. And the dates: `deepseek-v4-flash` is retired and the K2 series retires by the end of December 2026, so the results describe models a reader may no longer be able to call
 - What it cannot show, as on the other three datasets: a real hand-off with a brief and a result, which the 13.9 grid assumes; the split above is the stated grid's prices at each family's median sizes, not a held-out result
+
+### Context windows (2026-11-12)
+
+`DESIGN.md` 13.4 rule 3 blocks inline when the parent's `context_window` is under C + K * (S_in + S_out), and 5.2 rule 5 checks the delegate's last call, S_in + B + S_out, against its own window, so the registry of the later version the Recommendation above names (row E21) needs a window for each of the five models. The List prices table gives one for three of them. Pages opened 2026-11-12; every number below the table that is not on a page is a line of the command after it, run on the four pinned files.
+
+- A vendor page gives a window for all five: 1M for `deepseek/deepseek-v4-pro` and for `deepseek-flash`, the model that now serves the retired `deepseek-v4-flash` name (the DeepSeek pricing page), 1M for `z-ai/glm-5.3` and `z-ai/glm-5.3-flash` (their Z.ai model pages), and 262,144 for `moonshotai/kimi-k2.7-code` (the Kimi pricing page, for every K2 series model). Each 1M is read here as 1,000,000
+- The open weights agree: `max_position_embeddings` in each model's config.json at its Hugging Face revision is 1048576 for the DeepSeek-V4-Flash and DeepSeek-V4-Pro weights (and for DeepSeek-V4-Pro-0813, the version the pricing page names; the release does not say which version recorded its calls) and for both GLM-5.3 weights, and 262144 for Kimi-K2.7-Code. That is how far the weights attend, not the window of the service that recorded the bills
+- No response is longer than its model's window: the largest whole call, `input + cache_read + output`, is 516654 tokens for `deepseek/deepseek-v4-flash` (on `mmlu_pro`), 222286 for `deepseek/deepseek-v4-pro` (`livecodebench`), 35520 for `moonshotai/kimi-k2.7-code` (`gpqa_diamond`), 130806 for `z-ai/glm-5.3` (`gpqa_diamond`) and 132871 for `z-ai/glm-5.3-flash` (`mmlu_pro`)
+- The outputs show limits the pages do not all state. The largest `z-ai/glm-5.3` output is 128000 tokens, its page's "maximum output length of 128K tokens" read as 128,000; the largest `z-ai/glm-5.3-flash` output is 131072, the same 128K read as 131,072, on 72 responses above 128000, though its page says its text parameters are those of GLM-5.3. The largest `moonshotai/kimi-k2.7-code` output is 32768, a limit no page fetched states. `deepseek/deepseek-v4-flash` wrote more than 384,000 tokens on 111 responses (up to 515083), above the 384K maximum output the DeepSeek page gives `deepseek-flash`, so that page's limits are not the ones the recorded calls ran under
+- At the 13.10 points (K = 1) no window blocks inline or a delegate: with each family's `median_low` sizes over all five models (S_in the whole prompt, `input + cache_read`), the largest rule 3 need, C + S_in + S_out, is 13168 tokens at points 0 and 3, 69168 at point 1 and 205168 at point 2, and the largest rule 5 need, S_in + B + S_out, is 5668, against the smallest window, 262,144, which leaves 254144, 198144 and 62144 tokens past C. 13.9 reads the sizes on each calibration half, not on the whole set, but the smallest margin, 56976 tokens under `moonshotai/kimi-k2.7-code`'s window at point 2, is many times the largest whole-set S_in + S_out, 5168 on `aime`. So reading 1M as 1,048,576 instead would change no check at these points
+
+| Model | Page (opened) | What it states | Window (tokens) | Kind |
+|---|---|---|---|---|
+| `deepseek/deepseek-v4-flash` | https://api-docs.deepseek.com/quick_start/pricing (2026-11-12); https://huggingface.co/deepseek-ai/DeepSeek-V4-Flash/raw/60d8d70770c6776ff598c94bb586a859a38244f1/config.json (2026-11-12; a revision last modified 2026-06-22) | context length 1M and maximum output 384K for `deepseek-flash`, model version DeepSeek-V4.1-Flash-1017, which serves the legacy name `deepseek-v4-flash`, whose own model is retired; the weights' `max_position_embeddings` 1048576, `rope_scaling` type `yarn`, factor 16, `original_max_position_embeddings` 65536 | 1,000,000 | vendor page, for the model that now serves the name |
+| `deepseek/deepseek-v4-pro` | https://api-docs.deepseek.com/quick_start/pricing (2026-11-12); https://huggingface.co/deepseek-ai/DeepSeek-V4-Pro/raw/b5968e9190ef611bbf34a7229255be88a0e937c1/config.json and https://huggingface.co/deepseek-ai/DeepSeek-V4-Pro-0813/raw/72e1d3230f6c080a530b0a1d46f8eb4602340597/config.json (2026-11-12; revisions last modified 2026-06-22 and 2026-08-13) | context length 1M and maximum output 384K for `deepseek-v4-pro`, model version DeepSeek-V4-Pro-0813; both weights' `max_position_embeddings` 1048576, with the `rope_scaling` of `deepseek/deepseek-v4-flash` | 1,000,000 | vendor page |
+| `moonshotai/kimi-k2.7-code` | https://platform.moonshot.ai/docs/pricing/chat, which now redirects (HTTP 301) to https://platform.kimi.ai/docs/pricing/chat (2026-11-12); https://huggingface.co/moonshotai/Kimi-K2.7-Code/raw/74797c9c62378b951a1f6fcf5c4631024e9b8bef/config.json (2026-11-12; a revision last modified 2026-06-15) | "All K2 series models support a 262,144-token context window."; the weights' `text_config.max_position_embeddings` 262144, `rope_scaling` type `yarn`, factor 64, `original_max_position_embeddings` 4096 | 262,144 | vendor page |
+| `z-ai/glm-5.3` | https://docs.z.ai/guides/llm/glm-5.3 (2026-11-12); https://huggingface.co/zai-org/GLM-5.3/raw/ba32f8c19c8738e2c57c71798c601d477a7bf844/config.json (2026-11-12; a revision last modified 2026-10-14) | "GLM-5.3 currently supports text-only inputs, with a 1M-token context window and a maximum output length of 128K tokens."; the weights' `max_position_embeddings` 1048576 | 1,000,000 | vendor page |
+| `z-ai/glm-5.3-flash` | https://docs.z.ai/guides/llm/glm-5.3-flash (2026-11-12); https://huggingface.co/zai-org/GLM-5.3-Flash/raw/46a050bec13002ad29ee795c16e61cf4fa3c4a9c/config.json (2026-11-12; a revision last modified 2026-10-15) | "Text parameters are consistent with GLM-5.3, with support for a 1M-token context window."; the weights' `text_config.max_position_embeddings` 1048576 | 1,000,000 | vendor page |
+
+```text
+$ python - < response-bank-windows.py
+66569 responses; windows (1M read as 1,000,000): deepseek-v4-flash 1000000, deepseek-v4-pro 1000000, kimi-k2.7-code 262144, glm-5.3 1000000, glm-5.3-flash 1000000
+per model: the largest input + cache_read + output and the largest output of one response, each with its family
+  deepseek/deepseek-v4-flash: 13315 responses; largest whole call 516654 (mmlu_pro); largest output 515083 (mmlu_pro); over its window 0; output over 128,000 688, 131,072 688, 384,000 111, 393,216 111
+  deepseek/deepseek-v4-pro: 13315 responses; largest whole call 222286 (livecodebench); largest output 221145 (livecodebench); over its window 0; output over 128,000 8, 131,072 7, 384,000 0, 393,216 0
+  moonshotai/kimi-k2.7-code: 13315 responses; largest whole call 35520 (gpqa_diamond); largest output 32768 (mmlu_pro); over its window 0; output over 128,000 0, 131,072 0, 384,000 0, 393,216 0
+  z-ai/glm-5.3: 13312 responses; largest whole call 130806 (gpqa_diamond); largest output 128000 (mmlu_pro); over its window 0; output over 128,000 0, 131,072 0, 384,000 0, 393,216 0
+  z-ai/glm-5.3-flash: 13312 responses; largest whole call 132871 (mmlu_pro); largest output 131072 (mmlu_pro); over its window 0; output over 128,000 72, 131,072 0, 384,000 0, 393,216 0
+per family over all five models: median_low input, input + cache_read and output, the sizes 13.9 reads on the whole set (it reads them on each calibration half)
+  aime: 150 responses; S_in 182, S_in with cache_read 182, S_out 4986
+  gpqa_diamond: 990 responses; S_in 238, S_in with cache_read 238, S_out 2414
+  livecodebench: 5275 responses; S_in 492, S_in with cache_read 492, S_out 1808
+  mmlu_pro: 60154 responses; S_in 980, S_in with cache_read 1281, S_out 302
+  largest S_in + S_out (S_in the whole prompt): 5168 (aime)
+at each 13.10 point (K = 1): the room past C each window leaves, the largest 13.4 rule 3 need C + S_in + S_out and 5.2 rule 5 need S_in + B + S_out of any family (S_in the whole prompt), and the models whose window is under each
+  point 0 (C 8000, B 500): room 262144 -> 254144, 1000000 -> 992000; rule 3 need 13168, under it 0, margin to the smallest window 248976; rule 5 need 5668, under it 0
+  point 1 (C 64000, B 500): room 262144 -> 198144, 1000000 -> 936000; rule 3 need 69168, under it 0, margin to the smallest window 192976; rule 5 need 5668, under it 0
+  point 2 (C 200000, B 500): room 262144 -> 62144, 1000000 -> 800000; rule 3 need 205168, under it 0, margin to the smallest window 56976; rule 5 need 5668, under it 0
+  point 3 (C 8000, B 500): room 262144 -> 254144, 1000000 -> 992000; rule 3 need 13168, under it 0, margin to the smallest window 248976; rule 5 need 5668, under it 0
+```
+
+The command is the block below, saved as `response-bank-windows.py` and run from the repository root as the one in Recorded costs is, with the same files and imports; the windows in it are the table's. Nothing from the files is committed.
+
+```python
+import importlib.util, json, statistics as st
+from collections import defaultdict
+
+def load(name, path):
+    spec = importlib.util.spec_from_file_location(name, path)
+    mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
+    return mod
+
+cv = load("convert", "evidence/response-bank/convert.py")
+points = load("results", "evidence/delegation/results.py").points()
+paths = cv.fetch()  # downloads once into the cache and checks each file's size and sha256
+rows = []
+for name in ("responses_cal.jsonl", "responses_eval.jsonl"):
+    with open(paths[name], "rb") as f:
+        for raw in f:
+            if raw.strip():
+                obj = json.loads(raw)
+                r = cv.response_record(obj)
+                r["cache"] = obj["usage"]["cache_read"]
+                rows.append(r)
+window = {"deepseek/deepseek-v4-flash": 1_000_000, "deepseek/deepseek-v4-pro": 1_000_000,
+          "moonshotai/kimi-k2.7-code": 262_144, "z-ai/glm-5.3": 1_000_000, "z-ai/glm-5.3-flash": 1_000_000}
+print(len(rows), "responses; windows (1M read as 1,000,000):", ", ".join(f"{m.split('/')[1]} {w}" for m, w in window.items()))
+print("per model: the largest input + cache_read + output and the largest output of one response, each with its family")
+for m in sorted(window):
+    rs = [r for r in rows if r["model"] == m]
+    big = max(rs, key=lambda r: (r["input_tokens"] + r["cache"] + r["output_tokens"], r["family"]))
+    out = max(rs, key=lambda r: (r["output_tokens"], r["family"]))
+    over = sum(r["input_tokens"] + r["cache"] + r["output_tokens"] > window[m] for r in rs)
+    print(f"  {m}: {len(rs)} responses; largest whole call {big['input_tokens'] + big['cache'] + big['output_tokens']} ({big['family']}); "
+          f"largest output {out['output_tokens']} ({out['family']}); over its window {over}; output over "
+          + ", ".join(f"{x:,} {sum(r['output_tokens'] > x for r in rs)}" for x in (128_000, 131_072, 384_000, 393_216)))
+print("per family over all five models: median_low input, input + cache_read and output, the sizes 13.9 reads on the whole set (it reads them on each calibration half)")
+size = {}
+for fam in sorted({r["family"] for r in rows}):
+    rs = [r for r in rows if r["family"] == fam]
+    size[fam] = (st.median_low([r["input_tokens"] for r in rs]), st.median_low([r["input_tokens"] + r["cache"] for r in rs]),
+                 st.median_low([r["output_tokens"] for r in rs]))
+    print(f"  {fam}: {len(rs)} responses; S_in {size[fam][0]}, S_in with cache_read {size[fam][1]}, S_out {size[fam][2]}")
+work = max(sorted(size), key=lambda fam: size[fam][1] + size[fam][2])
+print(f"  largest S_in + S_out (S_in the whole prompt): {size[work][1] + size[work][2]} ({work})")
+print("at each 13.10 point (K = 1): the room past C each window leaves, the largest 13.4 rule 3 need C + S_in + S_out and 5.2 rule 5 need S_in + B + S_out"
+      " of any family (S_in the whole prompt), and the models whose window is under each")
+for k, pt in enumerate(points):
+    C, B = pt["context_tokens"], pt["brief_tokens"]
+    need = max(C + s[1] + s[2] for s in size.values())
+    brief = max(s[1] + B + s[2] for s in size.values())
+    print(f"  point {k} (C {C}, B {B}): room " + ", ".join(f"{w} -> {w - C}" for w in sorted(set(window.values())))
+          + f"; rule 3 need {need}, under it {sum(w < need for w in window.values())}, margin to the smallest window {min(window.values()) - need}"
+          + f"; rule 5 need {brief}, under it {sum(w < brief for w in window.values())}")
+```
+
+Recommendation for the registry of the later version (row E21b):
+
+- Give the four 1M models `context_window` 1,000,000, the pages' 1M read as decimal, with `notes` giving the weights' 1048576 and, for `deepseek/deepseek-v4-flash`, that the page's window is that of DeepSeek-V4.1-Flash-1017, the model now serving the name; give `moonshotai/kimi-k2.7-code` 262,144, where the page and the weights agree. Either reading of 1M leaves every rule 3 and rule 5 check above as it is, so the results do not depend on the choice
+- The window enters only those two checks, so the results section can state its `parent_context_full` cells per parent, which the margins above put at 0 at every 13.10 point unless a calibration half's sizes move by tens of thousands of tokens
