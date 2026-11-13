@@ -47,7 +47,7 @@ rule` success, cost and counts on a hand matrix whose input sizes vary, against 
 exact values of the rebuilt costs; the report's new lines; the refusal of per-call rows; the hand
 response-bank root, whose output now ends with the new lines; and the note's response-bank block
 and Recommendation. v1.331 commits these ahead of the script change and the note, each a strict
-xfail but the one that reads the v1.331 bullet.
+xfail but the one that reads the v1.331 bullet; v1.332 lands both and removes the markers.
 """
 
 import contextlib
@@ -677,7 +677,6 @@ def _response_bank_root(tmp_path, registry):
     return rb, root, kept, matrix
 
 
-@pytest.mark.xfail(strict=True, reason="v1.331: the response-bank report ends with the input rule's lines (row R31)")
 def test_response_bank_run_on_a_hand_root(pid, tmp_path):
     registry = Registry([P, D])
     rb, root, kept, matrix = _response_bank_root(tmp_path, registry)
@@ -855,10 +854,11 @@ def test_the_first_sentence_reads_the_unrounded_cut():
     """v1.330 (review iter-216 must-fix 1): a response-bank `size rule` ratio of 0.9801 (cut 1.99%) and of 0.9800
     (cut 2.00%) both show as 2%, but only the first is under 2%, so the two bullets differ in their first sentence."""
     note = NOTE.read_text(encoding="utf-8")
-    old = "0.1322           0.9431             +0.0013"
+    # the line from its flavor on: from v1.332 the block's `all` `size rule` line repeats its columns
+    old = "  cost_effective  0.8  size rule    2108   853,995 / 6,462,124  0.1322           0.9431             +0.0013"
     assert note.count(old) == 1
-    below = per_item_bullet(note.replace(old, "0.1322           0.9801             +0.0013"))
-    at = per_item_bullet(note.replace(old, "0.1322           0.9800             +0.0013"))
+    below = per_item_bullet(note.replace(old, old.replace("0.9431", "0.9801")))
+    at = per_item_bullet(note.replace(old, old.replace("0.9431", "0.9800")))
     assert below.startswith("- Choosing the path per item instead would add little on that evidence. ")
     assert at.startswith("- Choosing the path per item instead would add little on three of the four datasets. ")
     for bullet in (below, at):
@@ -883,7 +883,6 @@ def test_note_recommendation_names_the_readme_line():
 
 
 # --- a per-item rule on the input size alone (DESIGN 13.8 v1.331, row R31) --------------------
-R31 = pytest.mark.xfail(strict=True, reason="v1.331: the input rule lands with the script change and the note (row R31)")
 INPUT_TITLE = ("  input rule, cost_effective: on the cells size rule may change, inline when the parent's input tokens on "
                "the item are under a threshold set on the cell's calibration half")
 INPUT_HEADER = "  bar  point  strategy    cells  switched / items     share  cost / decision  success - decision  better"
@@ -926,7 +925,6 @@ def _threshold(pid, xs, diffs, flags, inline_mode):
     return pid.threshold(sorted(range(len(xs)), key=xs.__getitem__), xs, diffs, flags, inline_mode)
 
 
-@R31
 def test_threshold_by_hand(pid):
     xs, diffs, cal = [5, 1, 3, 3, 9, 7], [-2, -5, 1, -1, 4, 3], [False] * 6
     # inline under 3, 5, 7, 9 sums -5, -5, -7, -4; every item inline 0; none 0: 7 in both modes
@@ -946,7 +944,6 @@ def test_threshold_by_hand(pid):
     assert _threshold(pid, [1, 2, 3, 4], [-5, -100, 4, -100], [False, True, False, True], False) == 3
 
 
-@R31
 def test_threshold_is_the_brute_force_one(pid):
     rng = random.Random(331)
     for _ in range(400):
@@ -986,7 +983,6 @@ def tiny_inputs():
     return rows, registry, full
 
 
-@R31
 def test_input_rule_rows_are_the_brute_force_ones(pid, tiny_inputs):
     """Each compared cell's threshold by brute force on the exact values of its calibration items' rebuilt costs,
     then its held-out success, cost and switched items; every other cell keeps the decision."""
@@ -1029,7 +1025,6 @@ def test_input_rule_rows_are_the_brute_force_ones(pid, tiny_inputs):
         assert out[key]["size rule"]["cost_usd"] <= row["cost_usd"] + 1e-15
 
 
-@R31
 def test_report_lines_with_the_input_rule(pid, tiny_inputs):
     rows, registry, full = tiny_inputs
     base = pid.report(rows, registry, full)
@@ -1057,7 +1052,6 @@ def test_report_lines_with_the_input_rule(pid, tiny_inputs):
     assert all("input rule" not in row for row in plain.values())
 
 
-@R31
 def test_input_rule_refuses_per_call_rows(pid, tiny_calls):
     rows, registry, full = tiny_calls
     with pytest.raises(ValueError, match="the input rule reads single-call rows only"):
@@ -1077,7 +1071,6 @@ def input_rule_cut(note=None):
     return percent(1 - smallest)
 
 
-@R31
 def test_note_response_bank_block_has_the_input_rule_and_the_recommendation_gives_its_cut():
     note = NOTE.read_text(encoding="utf-8")
     block = note.split("```text\n" + RB_COMMAND + "\n", 1)[1].split("\n```", 1)[0]

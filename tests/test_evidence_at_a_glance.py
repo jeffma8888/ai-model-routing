@@ -992,10 +992,11 @@ def _end_the_table(per_item):
 
 
 def _move_the_cut(per_item):
-    """v1.328: the response bank's bar 0.8 `size rule` row, the smallest `cost / decision` of the five blocks."""
-    old = "0.1322           0.9431             +0.0013"
+    """v1.328: the response bank's bar 0.8 `size rule` row, the smallest `cost / decision` of the five blocks (from
+    v1.332 the line from its flavor on, since the block's `all` `size rule` line repeats its columns)."""
+    old = "  cost_effective  0.8  size rule    2108   853,995 / 6,462,124  0.1322           0.9431             +0.0013"
     assert per_item.count(old) == 1
-    return per_item.replace(old, "0.1322           0.9331             +0.0013")
+    return per_item.replace(old, old.replace("0.9431", "0.9331"))
 
 
 @pytest.mark.parametrize("change, which, match", [

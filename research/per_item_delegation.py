@@ -1,4 +1,4 @@
-"""Whether held-out items' cheaper delegation paths differ from the per-task decision (DESIGN 13.8 v1.227, v1.230, v1.233, v1.328)
+"""Whether held-out items' cheaper delegation paths differ from the per-task decision (DESIGN 13.8 v1.227, v1.230, v1.233, v1.328, v1.331)
 
 Usage:
   python research/per_item_delegation.py --matrix llmrouterbench-matrix.jsonl [--root PATH]
@@ -24,11 +24,15 @@ one with the lower rebuilt cost, the decision's mode on a tie. Two strategies ta
 every cell, and `size rule` only on the cells where the decision compared the two paths' costs
 (13.5 row 3, reason `delegate_cheaper` or `inline_cheaper`), every other cell keeping its mode.
 Each item's success is the record of the path it takes, so on cost `pick` is a floor for any rule
-that sees each item's sizes before the call. Standard library and the model_routing package. Read
+that sees each item's sizes before the call. With `--dataset response-bank` the report ends with a
+third strategy, `input rule` (v1.331): on the cells `size rule` may change, inline on the held-out
+items whose parent input tokens are under a threshold set on the cell's calibration half alone,
+printed by bar and point beside `size rule`. Standard library and the model_routing package. Read
 by research/per-item-delegation.md. Exit 0, or 2 with one `error: ...` line on a missing or
 unreadable file, a row the 13.13 script or 13.9 refuses, a summary that is not the committed one, a
-rebuilt cost or count that is not its cell's, a tiered model (not rebuilt here), or
-`--dataset autobench` without `--registry` or `--registry` without it.
+rebuilt cost or count that is not its cell's, a tiered model (not rebuilt here), a row with
+per-call sizes where the input rule is computed, or `--dataset autobench` without `--registry` or
+`--registry` without it.
 """
 
 import argparse
@@ -57,8 +61,13 @@ SOURCES = {"llmrouterbench": (FOLDER, "results.json"), "autobench": (AUTOBENCH_F
 # the datasets whose script drops the items with a null token count first (13.13 and, v1.328, 13.14)
 SELECTED = ("llmrouterbench", "response-bank")
 STRATEGIES = ("pick", "size rule")
+# v1.331: the rule that reads only each item's input size, measured where `size rule` may switch
+INPUT_RULE = "input rule"
+# the datasets whose report gives it (v1.331): the one where `size rule`, its cost floor, cuts a measurable share
+INPUT_RULE_DATASETS = ("response-bank",)
 COMPARED = ("delegate_cheaper", "inline_cheaper")
 HEADER = "  flavor          bar  strategy    cells  switched / items     share  cost / decision  success - decision  better"
+INPUT_HEADER = "  bar  point  strategy    cells  switched / items     share  cost / decision  success - decision  better"
 
 
 def _load(name, path):
@@ -136,12 +145,44 @@ def _mask(flags):
     return sum(1 << j for j, f in enumerate(flags) if f)
 
 
-def tally(rows, registry, full):
+def _exact(values):
+    """Each float as an integer numerator over one common power of two, so sums of them compare exactly."""
+    ratios = [v.as_integer_ratio() for v in values]
+    top = max((d for _, d in ratios), default=1)
+    return [n * (top // d) for n, d in ratios]
+
+
+def threshold(ranked, xs, diffs, flags, inline_mode):
+    """The input rule's threshold on one cell (DESIGN 13.8 v1.331): the rule takes inline on an item
+    whose parent input size x is under it and delegates the rest. `ranked` lists the task's item
+    positions by ascending x, `diffs` each item's exact inline minus delegate cost, `flags` the
+    held-out positions. Candidates are 0 (every item delegated), each distinct x of a calibration
+    item above the smallest, and None (no bound, every item inline); the threshold is the one whose
+    calibration items' summed cost is lowest, compared exactly, and on a tie the one that switches
+    the fewest calibration items from the cell's mode. Held-out items are never read."""
+    cal = [j for j in ranked if not flags[j]]
+    n = len(cal)
+    best = best_tau = None
+    total = k = 0
+    while True:
+        key = (total, n - k if inline_mode else k)
+        if best is None or key < best:
+            best, best_tau = key, (0 if k == 0 else xs[cal[k]] if k < n else None)
+        if k == n:
+            return best_tau
+        x = xs[cal[k]]
+        while k < n and xs[cal[k]] == x:
+            total += diffs[cal[k]]
+            k += 1
+
+
+def tally(rows, registry, full, input_rule=False):
     """Per summary row (bar, flavor, point, parent) and strategy: the decision's and the strategy's
     (success, cost) as 13.9 aggregates them, and the switched and held-out items of the cells the
     strategy may change. Also returns the number of path pairs rebuilt. A row with per-call sizes
-    is priced on its own calls (13.9 v1.74). Raises ValueError on a rebuilt cost or count that is
-    not its cell's or a tiered model."""
+    is priced on its own calls (13.9 v1.74). With `input_rule` each row also has the `input rule`
+    strategy (v1.331) on the cells `size rule` may change. Raises ValueError on a rebuilt cost or
+    count that is not its cell's, a tiered model, or, with `input_rule`, a row with per-call sizes."""
     config = full["config"]
     points, seeds, fraction = config["points"], config["seeds"], config["calibration_fraction"]
     table, order = {}, {}
@@ -153,6 +194,8 @@ def tally(rows, registry, full):
     for m in registry.models:
         if m.price_tiers:
             raise ValueError(f"model {m.id!r} has price tiers, which this script does not rebuild")
+    if input_rule and any(v[3] is not None for models in table.values() for v in models.values()):
+        raise ValueError("the input rule reads single-call rows only, and the matrix has per-call sizes")
     held = {}
     for task, items in order.items():
         for seed in seeds:
@@ -162,6 +205,8 @@ def tally(rows, registry, full):
     ok = {(task, m): _mask(table[task, i][m][0] for i in items)
           for task, items in order.items() for m in {m for i in items for m in table[task, i]}}
     vectors, pairs = {}, {}
+    ranks, exact, rules = {}, {}, {}
+    names = ("decision",) + STRATEGIES + ((INPUT_RULE,) if input_rule else ())
     out = {}
     for cell in full["cells"]:
         task, seed, index, parent, d = (cell[k] for k in ("task", "seed", "point", "parent", "delegate"))
@@ -194,13 +239,34 @@ def tally(rows, registry, full):
             switched = (hm & lt).bit_count()
         right = (take_i & ok[task, parent]).bit_count() + ((hm & ~take_i) & ok[task, d]).bit_count()
         row = out.setdefault((cell["bar"], cell["flavor"], index, parent), {
-            s: {"seeds": {}, "switched": 0, "items": 0, "cells": 0} for s in ("decision",) + STRATEGIES})
-        for s in ("decision",) + STRATEGIES:
-            if s == "decision" or (s == "size rule" and cell["reason"] not in COMPARED):
+            s: {"seeds": {}, "switched": 0, "items": 0, "cells": 0} for s in names})
+        compared = cell["reason"] in COMPARED
+        if input_rule and compared:
+            rule = pair + (cell["mode"],)
+            if rule not in rules:
+                if (task, parent) not in ranks:
+                    xs = [table[task, i][parent][1] for i in order[task]]
+                    ranks[task, parent] = (xs, sorted(range(len(xs)), key=xs.__getitem__))
+                xs, ranked = ranks[task, parent]
+                if key not in exact:
+                    both = _exact(ci + cd)
+                    exact[key] = [a - b for a, b in zip(both[:len(ci)], both[len(ci):])]
+                tau = threshold(ranked, xs, exact[key], flags, cell["mode"] == "inline")
+                below = [tau is None or x < tau for x in xs]
+                take = hm & _mask(below)
+                moved = (hm & ~take).bit_count() if cell["mode"] == "inline" else take.bit_count()
+                rules[rule] = ((take & ok[task, parent]).bit_count() + ((hm & ~take) & ok[task, d]).bit_count(),
+                               fsum(a if b else c for a, c, b, f in zip(ci, cd, below, flags) if f), moved)
+        for s in names:
+            if s == "decision" or (s != "pick" and not compared):
                 c_ok, c_cost = cell["correct"]["decision"], cell["cost_usd"]["decision"]
             else:
-                c_ok, c_cost = right, cost_pick
-                row[s]["switched"] += switched
+                if s == INPUT_RULE:
+                    c_ok, c_cost, moved = rules[pair + (cell["mode"],)]
+                    row[s]["switched"] += moved
+                else:
+                    c_ok, c_cost = right, cost_pick
+                    row[s]["switched"] += switched
                 row[s]["items"] += n
                 row[s]["cells"] += 1
             acc = row[s]["seeds"].setdefault(seed, [0, 0, []])
@@ -224,11 +290,63 @@ def _share(top, bottom):
     return f"{top / bottom:.4f}" if bottom else "-"
 
 
-def report(rows, registry, full, name="LLMRouterBench") -> list:
+def _columns(group, s):
+    """The columns from `cells` to `better` of strategy `s` over a group of rows."""
+    cells = sum(row[s]["cells"] for row in group)
+    switched = sum(row[s]["switched"] for row in group)
+    n = sum(row[s]["items"] for row in group)
+    cost = fsum(row[s]["cost_usd"] for row in group)
+    dec_cost = fsum(row["decision"]["cost_usd"] for row in group)
+    gain = fsum(row[s]["success"] - row["decision"]["success"] for row in group) / len(group)
+    better = sum(row[s]["success"] >= row["decision"]["success"]
+                 and row[s]["cost_usd"] < row["decision"]["cost_usd"] for row in group)
+    return (f"{cells:>5}  {switched:>8,} / {n:<9,}  "
+            f"{_share(switched, n):>6}  {_share(cost, dec_cost):>15}  {gain:>+18.4f}  {better:>6}")
+
+
+def _largest(out, flavor, s):
+    """The line naming the row of `flavor` with the largest cost cut of `s` at no less success."""
+    best = None
+    for (bar, f, index, parent), row in out.items():
+        if f != flavor or row[s]["success"] < row["decision"]["success"]:
+            continue
+        cut = row["decision"]["cost_usd"] - row[s]["cost_usd"]
+        if cut > 0 and (best is None or cut > best[0]):
+            best = (cut, bar, index, parent, row)
+    if best is None:
+        return f"  largest cost cut at no less success, {s}, {flavor}: no row"
+    _, bar, index, parent, row = best
+    return (f"  largest cost cut at no less success, {s}, {flavor}: bar {bar}, point {index}, "
+            f"parent {parent}: decision {row['decision']['success']:.4f} at "
+            f"{row['decision']['cost_usd']:.4f} USD, {s} {row[s]['success']:.4f} at "
+            f"{row[s]['cost_usd']:.4f}")
+
+
+def _input_rule_lines(out, config):
+    """v1.331: per flavor where `size rule` may change a cell, `size rule` and `input rule` by bar and point."""
+    lines = []
+    for flavor in config["flavors"]:
+        if not any(row["size rule"]["cells"] for (_, f, _, _), row in out.items() if f == flavor):
+            continue
+        lines.append(f"  input rule, {flavor}: on the cells size rule may change, inline when the parent's input "
+                     "tokens on the item are under a threshold set on the cell's calibration half")
+        lines.append(INPUT_HEADER)
+        for bar in config["bars"]:
+            for index in list(range(len(config["points"]))) + ["all"]:
+                group = [row for (b, f, i, _), row in out.items()
+                         if (b, f) == (bar, flavor) and index in (i, "all")]
+                for s in ("size rule", INPUT_RULE):
+                    lines.append(f"  {bar:<3}  {index:<5}  {s:<10}  {_columns(group, s)}")
+        lines.append(_largest(out, flavor, INPUT_RULE))
+    return lines
+
+
+def report(rows, registry, full, name="LLMRouterBench", input_rule=False) -> list:
     """The lines the script prints, from the matrix rows, the registry and the 13.9 run on them;
-    `name` is the dataset's in the title line."""
+    `name` is the dataset's in the title line. With `input_rule` the lines end with the v1.331
+    input rule's table."""
     rows = list(rows)
-    out, pairs = tally(rows, registry, full)
+    out, pairs = tally(rows, registry, full, input_rule)
     for (bar, flavor, index, parent), row in out.items():
         for r in full["summary"]:
             if (r["bar"], r["flavor"], r["point"], r["parent"], r["strategy"]) == (bar, flavor, index, parent, "decision"):
@@ -247,17 +365,8 @@ def report(rows, registry, full, name="LLMRouterBench") -> list:
     for flavor in config["flavors"]:
         for bar in config["bars"]:
             group = [row for (b, f, _, _), row in out.items() if (b, f) == (bar, flavor)]
-            dec_cost = fsum(row["decision"]["cost_usd"] for row in group)
             for s in STRATEGIES:
-                cells = sum(row[s]["cells"] for row in group)
-                switched = sum(row[s]["switched"] for row in group)
-                n = sum(row[s]["items"] for row in group)
-                cost = fsum(row[s]["cost_usd"] for row in group)
-                gain = fsum(row[s]["success"] - row["decision"]["success"] for row in group) / len(group)
-                better = sum(row[s]["success"] >= row["decision"]["success"]
-                             and row[s]["cost_usd"] < row["decision"]["cost_usd"] for row in group)
-                lines.append(f"  {flavor:<14}  {bar:<3}  {s:<10}  {cells:>5}  {switched:>8,} / {n:<9,}  "
-                             f"{_share(switched, n):>6}  {_share(cost, dec_cost):>15}  {gain:>+18.4f}  {better:>6}")
+                lines.append(f"  {flavor:<14}  {bar:<3}  {s:<10}  {_columns(group, s)}")
     for flavor in config["flavors"]:
         parts = []
         for index in range(len(config["points"])):
@@ -266,21 +375,9 @@ def report(rows, registry, full, name="LLMRouterBench") -> list:
         lines.append(f"  pick, switched share by point, {flavor}: " + ", ".join(parts))
     for flavor in config["flavors"]:
         for s in STRATEGIES:
-            best = None
-            for (bar, f, index, parent), row in out.items():
-                if f != flavor or row[s]["success"] < row["decision"]["success"]:
-                    continue
-                cut = row["decision"]["cost_usd"] - row[s]["cost_usd"]
-                if cut > 0 and (best is None or cut > best[0]):
-                    best = (cut, bar, index, parent, row)
-            if best is None:
-                lines.append(f"  largest cost cut at no less success, {s}, {flavor}: no row")
-                continue
-            _, bar, index, parent, row = best
-            lines.append(f"  largest cost cut at no less success, {s}, {flavor}: bar {bar}, point {index}, "
-                         f"parent {parent}: decision {row['decision']['success']:.4f} at "
-                         f"{row['decision']['cost_usd']:.4f} USD, {s} {row[s]['success']:.4f} at "
-                         f"{row[s]['cost_usd']:.4f}")
+            lines.append(_largest(out, flavor, s))
+    if input_rule:
+        lines.extend(_input_rule_lines(out, config))
     return lines
 
 
@@ -333,7 +430,7 @@ def rerun(matrix, root=ROOT, dataset="llmrouterbench", registry=None) -> tuple:
 def run(matrix, root=ROOT, dataset="llmrouterbench", registry=None) -> list:
     """`rerun`, then `report` on its rows, registry and run."""
     rows, pool, full = rerun(matrix, root, dataset, registry)
-    return report(rows, pool, full, name=NAMES[dataset])
+    return report(rows, pool, full, name=NAMES[dataset], input_rule=dataset in INPUT_RULE_DATASETS)
 
 
 def main(argv=None) -> int:
