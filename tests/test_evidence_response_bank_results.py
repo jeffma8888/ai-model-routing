@@ -625,8 +625,9 @@ def regenerate_line(cv):
     return ("Regenerate (the converter downloads the four pinned files, about "
             f"{download_bytes(cv) / 1e9:.2f} GB, into a cache folder outside the repo, and verifying, "
             "reading and converting them takes about 3 seconds once they are cached; the `evidence` "
-            "workflow does not rerun these commands yet, while the test suite rebuilds `results.json` "
-            "from them only where the four pinned files are cached):")
+            "workflow reruns these commands on GitHub and fails if `results.json` changes by a byte, "
+            "while the test suite rebuilds `results.json` from them only where the four pinned files "
+            "are cached):")
 
 
 def test_readme_response_bank_source_counts_and_tables_are_the_committed_results(cv):

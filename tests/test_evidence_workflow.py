@@ -1,14 +1,15 @@
 """The `evidence` workflow reruns the README regenerate commands of the AutoBench-based
 subsections, from v1.55 the tau2-bench one, from v1.65 the LiveCodeBench one, from v1.80 the tau2-bench
-delegation one, from v1.84 its pooled run, from v1.168 the LLMRouterBench one and from v1.200 the
-LLMRouterBench delegation one on GitHub (from v1.215 running a repeated line once) and
+delegation one, from v1.84 its pooled run, from v1.168 the LLMRouterBench one, from v1.200 the
+LLMRouterBench delegation one and from v1.299 the LLM Routing Response Bank one on GitHub (from
+v1.215 running a repeated line once) and
 fails when a committed results file changes (DESIGN 12.13, v1.30),
 and both workflows run on one pinned runner image with a dated comment (v1.49), and the job
 has a time limit of ten times its slowest run, rounded up to whole five minutes, with no download
 retry (v1.152; 25 minutes, restated as 30 at v1.170, as 40 at v1.217, whose basis is the
 slowest run on the `Regenerate` lines in force, as 50 at v1.225 and as 55 at v1.268). From v1.278
-the top comment names the eight rerun subsections in README heading order, on lines under 100
-columns.
+the top comment names the rerun subsections (eight, nine from v1.299) in README heading order, on
+lines under 100 columns.
 
 The workflow is read with a line parser for its own shape (no YAML library, so this runs in
 CI); the run itself is checked on GitHub, not here."""
@@ -29,7 +30,8 @@ LLMROUTERBENCH = ROOT / "evidence" / "llmrouterbench" / "convert.py"
 ROUTERBENCH_CONVERT = ROOT / "evidence" / "routerbench" / "convert.py"
 EVIDENCE = "## Evidence: held-out results on public data\n"
 SUBSECTIONS = ("AutoBench", "AutoBench judges", "tau2-bench", "LiveCodeBench", "LLMRouterBench",
-               "Delegation on AutoBench", "Delegation on tau2-bench", "Delegation on LLMRouterBench")
+               "LLM Routing Response Bank", "Delegation on AutoBench", "Delegation on tau2-bench",
+               "Delegation on LLMRouterBench")
 INSTALL = "python -m pip install -e ."
 ON = (
     "on:\n"
@@ -167,7 +169,7 @@ def readme_sentence(text):
         "On GitHub, the `evidence` workflow "
         "([.github/workflows/evidence.yml](.github/workflows/evidence.yml)) reruns the "
         "regenerate commands of the AutoBench, AutoBench judges, tau2-bench, LiveCodeBench, "
-        "LLMRouterBench and "
+        "LLMRouterBench, LLM Routing Response Bank and "
         "delegation "
         "subsections, "
         f"downloading the pinned files, and fails if {named} changes by a byte; RouterBench "
@@ -311,14 +313,15 @@ def test_workflow_reruns_the_readme_commands_and_compares_the_results():
     assert problems(workflow_text(), readme(), CI.read_text(encoding="utf-8")) == []
 
 
-def test_readme_commands_are_the_eight_rerun_subsections():
+def test_readme_commands_are_the_nine_rerun_subsections():
     commands = expected_commands(readme())
-    assert len(commands) == 4 + 4 + 4 + 4 + 4 + 6 + 4 + 3 + 4
+    assert len(commands) == 4 + 4 + 4 + 4 + 4 + 4 + 6 + 4 + 3 + 4
     assert out_paths(commands) == ["evidence/autobench-2026/results.json",
                                    "evidence/autobench-judges/results.json",
                                    "evidence/tau2-bench/results.json",
                                    "evidence/livecodebench/results.json",
                                    "evidence/llmrouterbench/results.json",
+                                   "evidence/response-bank/results.json",
                                    "evidence/delegation/results.json",
                                    "evidence/delegation/variants.json",
                                    "evidence/tau2-bench-delegation/results.json",
@@ -329,6 +332,9 @@ def test_readme_commands_are_the_eight_rerun_subsections():
     assert not any(re.search(r"\brouterbench-matrix", c) for c in commands)
     assert not any("evidence/routerbench/convert.py" in c for c in commands)
     assert any("llmrouterbench-matrix.jsonl" in c for c in commands)
+    # v1.299: the response-bank lines come right after the LLMRouterBench ones.
+    at = commands.index("python evidence/response-bank/convert.py --out response-bank-matrix.jsonl")
+    assert commands[at - 1] == "python evidence/routerbench/results.py --table evidence/llmrouterbench/results.json"
 
 
 RUN_ONCE_CASES = [
@@ -371,7 +377,7 @@ def test_the_hand_built_list_count_is_the_one_design_states():
 def test_regenerate_leaves_out_the_one_repeated_converter_line():
     commands = expected_commands(readme())
     run = regenerate_commands(readme())
-    assert len(commands) == 37 and len(run) == 36
+    assert len(commands) == 41 and len(run) == 40
     assert commands.count(REPEATED) == 2 and run.count(REPEATED) == 1
     second = len(commands) - 1 - commands[::-1].index(REPEATED)
     assert commands[second + 1].startswith("python evidence/llmrouterbench-delegation/results.py --matrix")
@@ -379,7 +385,8 @@ def test_regenerate_leaves_out_the_one_repeated_converter_line():
 
 
 def test_the_rerun_subsections_are_in_readme_heading_order():
-    # v1.278: SUBSECTIONS, which the top comment check and readme_blocks read, is the README order.
+    # v1.278: SUBSECTIONS, which the top comment check and readme_blocks read, is the order of the
+    # rerun subsections within the README headings (RouterBench, not rerun, is among them).
     section = readme().split(EVIDENCE, 1)[1].split("\n## ", 1)[0]
     headings = re.findall(r"^### (.+)$", section, re.M)
     assert [h for h in headings if h in SUBSECTIONS] == list(SUBSECTIONS)
@@ -446,6 +453,10 @@ MUTANTS = {
     "the compare step without llmrouterbench delegation": lambda t: t.replace(
         "evidence/tau2-bench-delegation/pooled.json evidence/llmrouterbench-delegation/results.json\n",
         "evidence/tau2-bench-delegation/pooled.json\n", 1),
+    # v1.299: the response-bank file, directly after the LLMRouterBench one
+    "the compare step without the response bank": lambda t: t.replace(
+        "evidence/llmrouterbench/results.json evidence/response-bank/results.json ",
+        "evidence/llmrouterbench/results.json ", 1),
     "checkout with credentials": lambda t: t.replace("persist-credentials: false",
                                                      "persist-credentials: true", 1),
     "a job shell without pipefail": lambda t: t.replace(
@@ -514,7 +525,7 @@ TIME_LIMIT_MUTANTS = {
 
 
 def test_the_mutant_count_is_the_one_design_states():
-    assert len(MUTANTS) == 30
+    assert len(MUTANTS) == 31
     assert len(CACHE_MUTANTS) == 2 and set(CACHE_MUTANTS) <= set(MUTANTS)
     assert len(TIME_LIMIT_MUTANTS) == 5 and set(TIME_LIMIT_MUTANTS) <= set(MUTANTS)
     assert len(REPEAT_MUTANTS) == 2 and set(REPEAT_MUTANTS) <= set(MUTANTS)
@@ -596,6 +607,7 @@ def test_a_time_limit_mutant_fails_on_the_check_it_names(name):
 @pytest.mark.parametrize("name", ["the compare step without llmrouterbench",
                                   "the compare step without llmrouterbench delegation",
                                   "the compare step without pooled.json",
+                                  "the compare step without the response bank",
                                   "the compare step without variants.json"])
 def test_a_compare_mutant_fails_on_the_compare_line_alone(name):
     # v1.85 review: a mutant that broke a Regenerate line instead would pass the test below.

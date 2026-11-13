@@ -1,9 +1,10 @@
 name: evidence
 
 # Reruns the regenerate commands of the README subsections AutoBench, AutoBench judges,
-# tau2-bench, LiveCodeBench, LLMRouterBench, Delegation on AutoBench, Delegation on
-# tau2-bench and Delegation on LLMRouterBench, which download the pinned dataset files and
-# check their sha256, then fails if a committed results file changed (DESIGN.md 12.13).
+# tau2-bench, LiveCodeBench, LLMRouterBench, LLM Routing Response Bank, Delegation on
+# AutoBench, Delegation on tau2-bench and Delegation on LLMRouterBench, which download the
+# pinned dataset files and check their sha256, then fails if a committed results file
+# changed (DESIGN.md 12.13).
 # RouterBench is left out of it, since its source is a 99,567,659-byte pickle that needs
 # pandas and its evaluate step takes about 70 seconds.
 # A README line identical to one already run in the step is not run again when no line
@@ -68,6 +69,10 @@ jobs:
           model-routing evaluate --outcomes llmrouterbench-matrix.jsonl --bar 0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 --seeds 50 --json > llmrouterbench-evaluate.json
           python evidence/routerbench/results.py --evaluate llmrouterbench-evaluate.json --out evidence/llmrouterbench/results.json
           python evidence/routerbench/results.py --table evidence/llmrouterbench/results.json
+          python evidence/response-bank/convert.py --out response-bank-matrix.jsonl
+          model-routing evaluate --outcomes response-bank-matrix.jsonl --bar 0.8 0.9 --seeds 50 --json > response-bank-evaluate.json
+          python evidence/routerbench/results.py --evaluate response-bank-evaluate.json --out evidence/response-bank/results.json
+          python evidence/routerbench/results.py --table evidence/response-bank/results.json
           python evidence/autobench-2026/convert.py --out autobench-tokens.jsonl --task-by all --tokens --registry autobench-pool.json
           python evidence/delegation/results.py --matrix autobench-tokens.jsonl --registry autobench-pool.json --out evidence/delegation/results.json
           python evidence/delegation/results.py --table evidence/delegation/results.json
@@ -85,4 +90,4 @@ jobs:
           python evidence/delegation/results.py --table evidence/llmrouterbench-delegation/results.json
           python evidence/delegation/results.py --table evidence/llmrouterbench-delegation/results.json --bar 0.1 --point 0
       - name: Compare
-        run: git diff --exit-code -- evidence/autobench-2026/results.json evidence/autobench-judges/results.json evidence/tau2-bench/results.json evidence/livecodebench/results.json evidence/llmrouterbench/results.json evidence/delegation/results.json evidence/delegation/variants.json evidence/tau2-bench-delegation/results.json evidence/tau2-bench-delegation/pooled.json evidence/llmrouterbench-delegation/results.json
+        run: git diff --exit-code -- evidence/autobench-2026/results.json evidence/autobench-judges/results.json evidence/tau2-bench/results.json evidence/livecodebench/results.json evidence/llmrouterbench/results.json evidence/response-bank/results.json evidence/delegation/results.json evidence/delegation/variants.json evidence/tau2-bench-delegation/results.json evidence/tau2-bench-delegation/pooled.json evidence/llmrouterbench-delegation/results.json
