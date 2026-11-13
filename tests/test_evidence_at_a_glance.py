@@ -942,6 +942,13 @@ def _break_better(pays):
     return pays.replace(old, "  cost_blind      all    472         216         0       1")
 
 
+def _break_better_effective(pays):
+    """v1.325 (review iter-214 nit 1): a moved `cost_effective` `better` count no longer matches the files."""
+    old = "  cost_effective  all    472         441         1       2"
+    assert pays.count(old) == 1
+    return pays.replace(old, "  cost_effective  all    472         441         1       3")
+
+
 def _break_size_rule(per_item):
     old = "0.0609           0.9864             +0.0005"
     assert per_item.count(old) == 1
@@ -986,6 +993,7 @@ def _move_the_cut(per_item):
 
 @pytest.mark.parametrize("change, which, match", [
     (_break_better, 0, "a `cost_blind` row is better than both"),
+    (_break_better_effective, 0, r"'better': 3"),
     (_break_size_rule, 1, "a size rule row loses mean success"),
     (_drop_a_block, 1, r"\[None, 'autobench', 'tau2-bench'\]"),
     (_tab_a_row, 1, r"not a table row: '  cost_effective  0\.3  size rule\\t"),

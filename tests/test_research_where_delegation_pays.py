@@ -134,6 +134,21 @@ def test_research_index_row_and_bullet():
     assert sum(1 for line in text.splitlines() if line.startswith("- `research/where-delegation-pays.md` ")) == 1
 
 
+def test_research_index_row_counts_are_the_script_output(wdp, output):
+    """v1.325 (review iter-214 should-fix 3): the counts of the index row are those of the `All five files` lines."""
+    totals = all_files(wdp, output)
+    effective, blind = totals["cost_effective"], totals["cost_blind"]
+    row = [line for line in INDEX.read_text(encoding="utf-8").splitlines()
+           if line.startswith("| [where-delegation-pays.md](where-delegation-pays.md) | ")][0]
+    for phrase in (f"equals always delegating on {effective['= delegate']} of the {effective['rows']} summary rows of "
+                   "the five delegation files",
+                   f"trades success against cost on {effective['trade-off']} of the "
+                   f"{effective['rows'] - effective['= delegate']} others",
+                   f"better than both fixed policies on {effective['better']}, both on the response bank",
+                   f"at no more cost on {blind['beaten on success']} of the {blind['rows']}."):
+        assert phrase in row, phrase
+
+
 def test_script_imports_only_the_standard_library():
     tree = ast.parse(SCRIPT.read_text(encoding="utf-8"))
     names = set()
@@ -313,14 +328,21 @@ def test_the_better_rows_are_the_response_banks_at_always_delegatings_success(wd
 
 
 def test_top_success_rows_are_trade_offs(wdp):
-    """A changed row with a positive gain can be neither beaten nor better, so it is a trade-off."""
-    seen = 0
-    for _, _, groups in committed(wdp):
-        for group in groups.values():
+    """A changed row with a positive gain can be neither beaten nor better, so it is a trade-off. Facts (v1.325,
+    review iter-214 must-fix 1): all 3 are cost_effective rows of LLMRouterBench, at a cost between the two fixed
+    policies'."""
+    seen = []
+    for name, _, groups in committed(wdp):
+        for key, group in groups.items():
             if wdp.gain(group) > 0:
-                seen += 1
+                seen.append((name, key[1]))
                 assert wdp.classify(group["decision"], group["inline"], group["delegate"]) == "trade-off"
-    assert seen == 3
+                costs = sorted(group[s]["cost_usd"] for s in ("inline", "delegate"))
+                assert costs[0] < group["decision"]["cost_usd"] < costs[1], key
+    assert seen == [("LLMRouterBench", "cost_effective")] * 3, seen
+    facts = note().split("\n## Facts\n", 1)[1].split("\n## ", 1)[0]
+    assert (f"On {len(seen)} rows, all `cost_effective` rows of LLMRouterBench, it has more held-out success than "
+            "both, at a cost between theirs.") in facts
 
 
 def test_a_changed_row_at_always_delegates_cost_is_not_cheaper(wdp, tmp_path):
@@ -406,8 +428,8 @@ def limitations_bullet(wdp, output):
             f"{blind['rows']:,}, and the decision is better than both fixed policies on {effective['better']:,} rows, "
             "each a `cost_effective` row of the response bank at always delegating's held-out success for less cost "
             "than either. "
-            "So the evidence shows how the decision prices the two paths at the stated sizes, not a gain in success "
-            "from choosing per task; such a gain needs work whose cheaper path differs from item to item, as where it "
+            "So the evidence shows how the decision prices the two paths at the stated sizes, not a gain from "
+            "choosing per task; such a gain needs work whose cheaper path differs from item to item, as where it "
             f"folds into the parent's next call {NOTE_LINK}")
 
 
@@ -475,7 +497,7 @@ def results_reasons():
     assert len(found) == 1, found
     total, none_clear, delegate_cheaper, below_bar, inline_cheaper = (int(v.replace(",", "")) for v in found[0])
     assert total == none_clear + delegate_cheaper + below_bar + inline_cheaper
-    return total, inline_cheaper
+    return total, inline_cheaper, delegate_cheaper, below_bar, none_clear
 
 
 def test_fifth_file_section_on_the_committed_file(wdp):
@@ -509,13 +531,21 @@ def test_fifth_file_section_on_the_committed_file(wdp):
         for value in decision + inline_pair + delegate:
             assert f"{value:.4f}" in text, (key, value)
         assert format(group["decision"]["delegate_rate"], "g") in text, key
+    # v1.325 (review iter-214 should-fix 4): the decision's saving against each fixed policy
+    savings = [(f"{group['delegate']['cost_usd'] - group['decision']['cost_usd']:.4f}",
+                f"{group['inline']['cost_usd'] - group['decision']['cost_usd']:.4f}") for _, group in better]
+    assert (f"saving against always delegating, {savings[0][0]} and {savings[1][0]} USD, is what the inline cells save "
+            f"by not delegating, and its saving against always inline, {savings[0][1]} and {savings[1][1]}, is what its "
+            f"other {cells - inline[better[0][0]]} and {cells - inline[better[1][0]]} cells, which delegate,") in text
     first, second = (inline[key] for key, _ in better)
     assert f"of their {cells} (task, seed) cells each, so {first} and {second} cells go inline, {first + second} in all" \
         in text
-    total, inline_cheaper = results_reasons()
+    total, inline_cheaper, delegate_cheaper, below_bar, none_clear = results_reasons()
     assert total == len(results["config"]["bars"]) * len(points) * len(results["config"]["parents"]) * cells
     assert f"of the {total:,} `cost_effective` cells" in text
-    assert f"counts {inline_cheaper} `inline_cheaper` (13.5 row 3)" in text
+    # v1.325 (review iter-214 should-fix 2): every reason count the section gives
+    assert (f"counts {inline_cheaper} `inline_cheaper` (13.5 row 3), {delegate_cheaper:,} `delegate_cheaper` and "
+            f"{below_bar:,} `parent_below_bar`, which always delegate, and {none_clear:,} `none_clear` (row 7)") in text
     assert f"so the other {first + second - inline_cheaper} inline cells are `none_clear` (row 7)" in text
     assert blind["better"] == blind["= inline"] == 0, blind
     assert (f"{blind['= delegate']} of its {rows} rows are `= delegate`, {blind['beaten on success']} beaten on "
@@ -547,7 +577,7 @@ def test_fifth_file_inline_cells_on_the_pinned_run(wdp, response_bank_pinned):
                for key in inline}
     (low, low_count), (high, high_count) = sorted(inline.items())
     assert reasons == {low: {"inline_cheaper"}, high: {"none_clear"}}, reasons
-    _, inline_cheaper = results_reasons()
+    inline_cheaper = results_reasons()[1]
     assert low_count == inline_cheaper
     text = section(note(), BANK)
     assert (f"puts all {low_count + high_count} on `mmlu_pro`, the {low_count} of row 3 on the bar {low[0]} row and "
