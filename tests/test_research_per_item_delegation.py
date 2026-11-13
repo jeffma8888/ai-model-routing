@@ -39,6 +39,15 @@ compared byte for byte when the four pinned response-bank files are cached (the 
 datasets whose cut is under 2%. v1.328 commits these ahead of the script change and the note, each
 a strict xfail but the ones that read the v1.328 bullet and the counting rule; v1.329 lands both and
 removes the markers.
+
+v1.331 (row R31) adds the `input rule` strategy, which the report gives with `--dataset response-bank`
+only: its threshold against a brute force over every candidate on exact integers (ties, an
+all-delegate and an all-inline cell, held-out costs that leave it unchanged); each row's `input
+rule` success, cost and counts on a hand matrix whose input sizes vary, against a brute force on the
+exact values of the rebuilt costs; the report's new lines; the refusal of per-call rows; the hand
+response-bank root, whose output now ends with the new lines; and the note's response-bank block
+and Recommendation. v1.331 commits these ahead of the script change and the note, each a strict
+xfail but the one that reads the v1.331 bullet.
 """
 
 import contextlib
@@ -48,7 +57,10 @@ import decimal
 import importlib.util
 import io
 import json
+import math
+import random
 import re
+from fractions import Fraction
 from pathlib import Path
 
 import pytest
@@ -665,6 +677,7 @@ def _response_bank_root(tmp_path, registry):
     return rb, root, kept, matrix
 
 
+@pytest.mark.xfail(strict=True, reason="v1.331: the response-bank report ends with the input rule's lines (row R31)")
 def test_response_bank_run_on_a_hand_root(pid, tmp_path):
     registry = Registry([P, D])
     rb, root, kept, matrix = _response_bank_root(tmp_path, registry)
@@ -673,7 +686,10 @@ def test_response_bank_run_on_a_hand_root(pid, tmp_path):
     with contextlib.redirect_stdout(out):
         assert pid.main(argv) == 0
     full = evaluate_delegation(kept, registry, bars=list(rb.BARS), points=rb.points(), seeds=range(rb.SEEDS))
-    want = pid.report(kept, registry, full, name=RB_TITLE)
+    # v1.331: the response-bank report gives the input rule, and its first lines are the v1.227 report
+    want = pid.report(kept, registry, full, name=RB_TITLE, input_rule=True)
+    assert want[:len(pid.report(kept, registry, full, name=RB_TITLE))] == pid.report(kept, registry, full, name=RB_TITLE)
+    assert any(line.startswith("  input rule, cost_effective: ") for line in want)
     assert out.getvalue() == "\n".join(want) + "\n"
     assert want[0].startswith(f"Per-item delegation paths on {RB_TITLE}: ")
     assert want[1].startswith("matrix: 160 rows, 80 items, 1 task, 2 models; 1,600 cells, ")
@@ -864,3 +880,217 @@ def test_note_recommendation_names_the_readme_line():
     facts = note.split("\n## Facts\n", 1)[1].split("\n## ", 1)[0]
     stated = [b for b in facts.splitlines() if b.startswith("- Recommendation: ")]
     assert len(stated) == 1 and NOTE_PLACE in stated[0]
+
+
+# --- a per-item rule on the input size alone (DESIGN 13.8 v1.331, row R31) --------------------
+R31 = pytest.mark.xfail(strict=True, reason="v1.331: the input rule lands with the script change and the note (row R31)")
+INPUT_TITLE = ("  input rule, cost_effective: on the cells size rule may change, inline when the parent's input tokens on "
+               "the item are under a threshold set on the cell's calibration half")
+INPUT_HEADER = "  bar  point  strategy    cells  switched / items     share  cost / decision  success - decision  better"
+DH = Model("v/d", "fam-d", 0.5, 1.0, 1_000_000)
+SEPARATE = dict(POINT, inline_separate_call=True)
+
+
+def test_design_bullet_v1331_states_the_input_rule():
+    text = DESIGN.read_text(encoding="utf-8")
+    section = text.split("\n### 13.8 ", 1)[1].split("\n### ", 1)[0]
+    bullets = [line for line in section.splitlines()
+               if line.startswith("- v1.331, a per-item rule on the input size alone, on the response bank (row R31): ")]
+    assert len(bullets) == 1
+    for phrase in ("`input rule`", "`--dataset response-bank` only", "`delegate_cheaper` or `inline_cheaper`",
+                   "the parent's `input_tokens` on the item", "calibration half alone", "the candidates are 0",
+                   "each distinct x of a calibration item above the smallest", "no bound (every item inline)",
+                   "compared exactly", "the fewest calibration items from the cell's mode",
+                   "No held-out item is read", "`the input rule reads single-call rows only`",
+                   INPUT_TITLE.strip().replace("cost_effective", "<flavor>"), "`  bar  point  strategy`", "then `all`", "unchanged byte for byte",
+                   "`  cost_` or `  flavor `", "Recommendation's first bullet", "strict xfails", "No library code"):
+        assert phrase in bullets[0], phrase
+
+
+def _brute_threshold(xs, diffs, flags, inline_mode):
+    """Every candidate scored on the calibration items alone: (summed inline minus delegate cost, items
+    switched from the mode); the threshold is the lowest score's."""
+    cal = [j for j, f in enumerate(flags) if not f]
+    candidates = [0] + sorted({xs[j] for j in cal})[1:] + [None]
+
+    def score(tau):
+        inline = [j for j in cal if tau is None or xs[j] < tau]
+        return (sum(diffs[j] for j in inline), len(cal) - len(inline) if inline_mode else len(inline))
+
+    scores = [score(t) for t in candidates]
+    assert len(set(scores)) == len(scores)  # the tie-break leaves no tie
+    return candidates[scores.index(min(scores))]
+
+
+def _threshold(pid, xs, diffs, flags, inline_mode):
+    return pid.threshold(sorted(range(len(xs)), key=xs.__getitem__), xs, diffs, flags, inline_mode)
+
+
+@R31
+def test_threshold_by_hand(pid):
+    xs, diffs, cal = [5, 1, 3, 3, 9, 7], [-2, -5, 1, -1, 4, 3], [False] * 6
+    # inline under 3, 5, 7, 9 sums -5, -5, -7, -4; every item inline 0; none 0: 7 in both modes
+    for mode in (True, False):
+        assert _threshold(pid, xs, diffs, cal, mode) == 7
+    # a tie: under 3 and under 5 both sum -2, below every item inline (-1); the mode breaks it
+    assert _threshold(pid, [1, 3, 5], [-2, 0, 1], [False] * 3, True) == 5
+    assert _threshold(pid, [1, 3, 5], [-2, 0, 1], [False] * 3, False) == 3
+    # inline dearer on every item: 0 (every item delegated); cheaper on every item: no bound
+    for mode in (True, False):
+        assert _threshold(pid, [4, 2, 8], [1, 2, 3], [False] * 3, mode) == 0
+        assert _threshold(pid, [4, 2, 8], [-1, -2, -3], [False] * 3, mode) is None
+    # every calibration item at one size: 0 or no bound, never that size
+    assert _threshold(pid, [6, 6, 6], [1, 1, -5], [False] * 3, True) is None
+    assert _threshold(pid, [6, 6, 6], [1, 1, 5], [False] * 3, True) == 0
+    # the held-out items are never read: under 3 on the calibration items alone
+    assert _threshold(pid, [1, 2, 3, 4], [-5, -100, 4, -100], [False, True, False, True], False) == 3
+
+
+@R31
+def test_threshold_is_the_brute_force_one(pid):
+    rng = random.Random(331)
+    for _ in range(400):
+        n = rng.randint(1, 12)
+        xs = [rng.randint(0, 6) for _ in range(n)]
+        diffs = [rng.randint(-4, 4) for _ in range(n)]
+        flags = [rng.random() < 0.4 for _ in range(n)]
+        if all(flags):
+            flags[0] = False
+        for mode in (True, False):
+            tau = _threshold(pid, xs, diffs, flags, mode)
+            assert tau == _brute_threshold(xs, diffs, flags, mode)
+            # moving the held-out items' sizes and costs leaves it unchanged
+            xs2 = [rng.randint(0, 6) if f else x for x, f in zip(xs, flags)]
+            diffs2 = [rng.randint(-50, 50) if f else d for d, f in zip(diffs, flags)]
+            assert _threshold(pid, xs2, diffs2, flags, mode) == tau
+
+
+def _input_rows():
+    """Items whose sizes vary: inline (x + 2 * out) / 1e6 at the folded point, (2x + 3 * out) / 1e6 at the
+    separate one, against (45 + x / 2 + out) / 1e6 delegated to v/d, so the cheaper path turns on x."""
+    rows = []
+    for j in range(80):
+        tin, tout = 20 + 2 * ((7 * j) % 73), j % 6
+        for model, correct in (("v/p", j % 4 != 0), ("v/d", j % 5 != 0)):
+            rows.append({"task": "t", "item": f"i{j:02d}", "model": model, "correct": correct,
+                         "input_tokens": tin, "output_tokens": tout})
+    return rows
+
+
+@pytest.fixture(scope="module")
+def tiny_inputs():
+    registry = Registry([P, DH])
+    rows = _input_rows()
+    full = evaluate_delegation(rows, registry, bars=[0.5, 0.7], points=[POINT, SEPARATE], seeds=range(3),
+                               min_samples=10, parents=["v/p"])
+    return rows, registry, full
+
+
+@R31
+def test_input_rule_rows_are_the_brute_force_ones(pid, tiny_inputs):
+    """Each compared cell's threshold by brute force on the exact values of its calibration items' rebuilt costs,
+    then its held-out success, cost and switched items; every other cell keeps the decision."""
+    rows, registry, full = tiny_inputs
+    out, _ = pid.tally(rows, registry, full, input_rule=True)
+    record = {(r["item"], r["model"]): r for r in rows}
+    items = sorted({r["item"] for r in rows})
+    points, fraction = full["config"]["points"], full["config"]["calibration_fraction"]
+    want, taus = {}, []
+    for c in full["cells"]:
+        key = (c["bar"], c["flavor"], c["point"], c["parent"])
+        if c["reason"] not in ("delegate_cheaper", "inline_cheaper"):
+            want.setdefault(key, []).append((c["success"]["decision"], c["cost_usd"]["decision"], 0, 0, 0))
+            continue
+        cal, held = split_items(items, c["seed"], fraction)
+        p, d, point = registry.get(c["parent"]), registry.get(c["delegate"]), points[c["point"]]
+        cost = {}
+        for i in items:
+            a, b = record[i, c["parent"]], record[i, c["delegate"]]
+            cost[i] = (pid._inline(p, point, a["input_tokens"], a["output_tokens"]),
+                       pid._delegate(p, d, point, b["input_tokens"], b["output_tokens"]))
+        xs = [record[i, c["parent"]]["input_tokens"] for i in items]
+        diffs = [Fraction(cost[i][0]) - Fraction(cost[i][1]) for i in items]
+        tau = _brute_threshold(xs, diffs, [i in held for i in items], c["mode"] == "inline")
+        taus.append(tau)
+        inline = {i: tau is None or record[i, c["parent"]]["input_tokens"] < tau for i in held}
+        right = sum(record[i, c["parent"] if inline[i] else c["delegate"]]["correct"] for i in held)
+        moved = sum(inline[i] != (c["mode"] == "inline") for i in held)
+        want.setdefault(key, []).append((right / len(held), math.fsum(cost[i][0] if inline[i] else cost[i][1]
+                                                                      for i in held), moved, len(held), 1))
+    # the hand matrix sets thresholds between its sizes, and the input rule moves rows off the decision
+    assert taus and all(t not in (0, None) for t in taus)
+    assert any(out[k]["input rule"]["cost_usd"] != out[k]["decision"]["cost_usd"] for k in out)
+    for key, entries in want.items():
+        row = out[key]["input rule"]
+        assert row["success"] == pytest.approx(sum(e[0] for e in entries) / 3, rel=1e-12)
+        assert row["cost_usd"] == pytest.approx(sum(e[1] for e in entries) / 3, rel=1e-12)
+        assert (row["switched"], row["items"], row["cells"]) == tuple(sum(e[k] for e in entries) for k in (2, 3, 4))
+        # on cost it is no lower than the size rule, every item of whose cells takes its cheaper path
+        assert out[key]["size rule"]["cost_usd"] <= row["cost_usd"] + 1e-15
+
+
+@R31
+def test_report_lines_with_the_input_rule(pid, tiny_inputs):
+    rows, registry, full = tiny_inputs
+    base = pid.report(rows, registry, full)
+    lines = pid.report(rows, registry, full, input_rule=True)
+    assert lines[:len(base)] == base
+    new = lines[len(base):]
+    # cost_effective only (no cost_blind cell compares costs): title, header, 2 bars by (2 points and all) by
+    # 2 strategies, the largest-cut line
+    assert len(new) == 2 + 2 * 3 * 2 + 1
+    assert new[0] == INPUT_TITLE and new[1] == INPUT_HEADER == pid.INPUT_HEADER
+    labels = [line.split()[:4] for line in new[2:-1]]
+    assert labels == [[bar, point, *s.split()] for bar in ("0.5", "0.7") for point in ("0", "1", "all")
+                      for s in ("size rule", "input rule")]
+    assert new[-1].startswith("  largest cost cut at no less success, input rule, cost_effective: ")
+    assert not any(line.startswith(("  cost_", "  flavor ")) for line in new)
+    # the `all` size rule line has the columns of the v1.227 bar line
+    for bar in ("0.5", "0.7"):
+        main = [line for line in base if line.split()[:4] == ["cost_effective", bar, "size", "rule"]]
+        every = [line for line in new if line.split()[:4] == [bar, "all", "size", "rule"]]
+        assert len(main) == len(every) == 1 and main[0].split()[4:] == every[0].split()[4:]
+    # 0.7 has no compared cell, so both strategies there are the decision's
+    assert new[-3].split()[4:] == new[-2].split()[4:] == ["0", "0", "/", "0", "-", "1.0000", "+0.0000", "0"]
+    # without the option the tally has no input rule
+    plain, _ = pid.tally(rows, registry, full)
+    assert all("input rule" not in row for row in plain.values())
+
+
+@R31
+def test_input_rule_refuses_per_call_rows(pid, tiny_calls):
+    rows, registry, full = tiny_calls
+    with pytest.raises(ValueError, match="the input rule reads single-call rows only"):
+        pid.tally(rows, registry, full, input_rule=True)
+    pid.tally(rows, registry, full)
+
+
+def input_rule_cut(note=None):
+    """One minus the smallest `all` `input rule` `cost / decision` of the note's response-bank block, a percent."""
+    note = NOTE.read_text(encoding="utf-8") if note is None else note
+    block = note.split("```text\n" + RB_COMMAND + "\n", 1)[1].split("\n```", 1)[0]
+    ratios = [line.split()[9] for line in block.split("\n")
+              if re.match(r"^  \d\.\d  all    input rule  ", line)]
+    assert ratios, "no `all` input rule line"
+    smallest = min(decimal.Decimal(r) for r in ratios)
+    assert smallest < 1, "the input rule cuts no bar's summed cost"
+    return percent(1 - smallest)
+
+
+@R31
+def test_note_response_bank_block_has_the_input_rule_and_the_recommendation_gives_its_cut():
+    note = NOTE.read_text(encoding="utf-8")
+    block = note.split("```text\n" + RB_COMMAND + "\n", 1)[1].split("\n```", 1)[0]
+    assert INPUT_TITLE in block.split("\n") and INPUT_HEADER in block.split("\n")
+    for name in ("Facts", "Reading it", "Recommendation"):
+        body = note.split(f"\n## {name}\n", 1)[1].split("\n## ", 1)[0]
+        assert "input rule" in body, name
+    recommendation = note.split("\n## Recommendation\n", 1)[1].split("\n## ", 1)[0]
+    first = [line for line in recommendation.splitlines() if line.startswith("- ")][0]
+    assert "`input rule`" in first and f"{input_rule_cut(note)}%" in first
+    # the v1.329 open question is answered, not restated
+    assert "a spec row would first need a rule on what is known before the call" not in note
+    # the four earlier blocks hold no input rule line
+    for command in (COMMAND, AB_COMMAND, T2_COMMAND, T2_POOLED_COMMAND):
+        other = note.split("```text\n" + command + "\n", 1)[1].split("\n```", 1)[0]
+        assert "input rule" not in other, command
