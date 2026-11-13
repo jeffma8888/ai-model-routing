@@ -764,7 +764,8 @@ PAYS_SCRIPT = ROOT / "research" / "where_delegation_pays.py"
 PER_ITEM_NOTE = ROOT / "research" / "per-item-delegation.md"
 PAYS_LINK = "[research/where-delegation-pays.md](research/where-delegation-pays.md)"
 PER_ITEM_LINK = "[research/per-item-delegation.md](research/per-item-delegation.md)"
-# v1.323 (row R28): the first note reads all four delegation subsections' files, the second the first three's
+# v1.323 (row R28): the first note reads all four delegation subsections' files; v1.328 (row R29): the second's
+# five blocks rerun all four datasets
 DELEGATION = ("Delegation on AutoBench", "Delegation on tau2-bench", "Delegation on LLMRouterBench",
               "Delegation on the LLM Routing Response Bank")
 PER_ITEM_COMMAND = "$ python research/per_item_delegation.py "

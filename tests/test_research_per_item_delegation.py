@@ -733,18 +733,21 @@ WORDS = ("none", "one", "two", "three")
 
 
 def little(cuts):
-    """v1.328: where the bullet says choosing per item adds little, from the per-dataset size rule cuts (percents):
-    `on that evidence` while every one is under 2%, else on how many of the four datasets it is."""
+    """v1.328: where the bullet says choosing per item adds little, from the per-dataset size rule cuts as unrounded
+    fractions (v1.330, review iter-216 must-fix 1: one minus the block's `cost / decision`, never the two-significant-
+    figure percent, which shows 0.0199 as 2): `on that evidence` while every one is under 0.02, else on how many of the
+    four datasets it is."""
     assert len(cuts) == 4, cuts
-    under = sum(decimal.Decimal(c) < 2 for c in cuts.values())
+    under = sum(decimal.Decimal(c) < decimal.Decimal("0.02") for c in cuts.values())
     return "on that evidence" if under == len(cuts) else f"on {WORDS[under]} of the four datasets"
 
 
 def test_little_counts_the_cuts_under_two_percent():
-    assert little({"a": "1.4", "b": "1.1", "c": "0.05", "d": "1.9"}) == "on that evidence"
-    assert little({"a": "1.4", "b": "1.1", "c": "0.05", "d": "5.7"}) == "on three of the four datasets"
-    assert little({"a": "1.4", "b": "1.1", "c": "0.05", "d": "2"}) == "on three of the four datasets"
-    assert little({"a": "2.5", "b": "11", "c": "0.05", "d": "5.7"}) == "on one of the four datasets"
+    assert little({"a": "0.014", "b": "0.011", "c": "0.0005", "d": "0.019"}) == "on that evidence"
+    assert little({"a": "0.014", "b": "0.011", "c": "0.0005", "d": "0.0569"}) == "on three of the four datasets"
+    assert little({"a": "0.014", "b": "0.011", "c": "0.0005", "d": "0.02"}) == "on three of the four datasets"
+    assert little({"a": "0.014", "b": "0.011", "c": "0.0005", "d": "0.0199"}) == "on that evidence"
+    assert little({"a": "0.025", "b": "0.11", "c": "0.0005", "d": "0.0569"}) == "on one of the four datasets"
 
 
 def test_design_specifies_the_per_item_readme_line():
@@ -759,9 +762,10 @@ def test_design_specifies_the_per_item_readme_line():
         assert phrase in bullets[0], phrase
 
 
-def effective_rows(command):
-    """The `cost_effective` table lines of the note's block for `command`: (strategy, share, cost, success)."""
-    note = NOTE.read_text(encoding="utf-8")
+def effective_rows(command, note=None):
+    """The `cost_effective` table lines of the note's block for `command`: (strategy, share, cost, success); `note`
+    is the note's text, by default the committed file's."""
+    note = NOTE.read_text(encoding="utf-8") if note is None else note
     block = note.split("```text\n" + command + "\n", 1)[1].split("\n```", 1)[0]
     rows = []
     for line in block.split("\n"):
@@ -786,27 +790,28 @@ def test_percent_rounds_to_two_significant_figures():
         ["40", "1.4", "1.1", "0.05", "43", "11", "2.5"]
 
 
-def per_item_figures():
-    """(largest pick share, {dataset: largest size rule cut}, largest pick cut, largest pick loss), as percents."""
-    rows = {name: [r for c in commands for r in effective_rows(c)] for name, commands in DATASETS.items()}
+def per_item_figures(note=None):
+    """(largest pick share, {dataset: largest size rule cut}, largest pick cut, largest pick loss), as percents, and
+    {dataset: largest size rule cut} as unrounded fractions, which `little` counts (v1.330)."""
+    rows = {name: [r for c in commands for r in effective_rows(c, note)] for name, commands in DATASETS.items()}
     every = [r for found in rows.values() for r in found]
     pick = [r for r in every if r[0] == "pick"]
     size = [r for r in every if r[0] == "size rule"]
     one = decimal.Decimal(1)
     # every cost_effective pick row has items, and the size rule never loses mean success
     assert all(r[1] != "-" for r in pick) and all(r[3].startswith("+") for r in size)
-    cuts = {name: percent(one - min(decimal.Decimal(r[2]) for r in found if r[0] == "size rule"))
-            for name, found in rows.items()}
+    raw = {name: one - min(decimal.Decimal(r[2]) for r in found if r[0] == "size rule") for name, found in rows.items()}
+    cuts = {name: percent(value) for name, value in raw.items()}
     loss = min(decimal.Decimal(r[3]) for r in pick)
     assert loss < 0
     return (percent(max(decimal.Decimal(r[1]) for r in pick)), cuts,
-            percent(one - min(decimal.Decimal(r[2]) for r in pick)), percent(-loss))
+            percent(one - min(decimal.Decimal(r[2]) for r in pick)), percent(-loss), raw)
 
 
-def per_item_bullet():
-    """The README Limitations bullet of v1.236, its figures from the note's results blocks."""
-    share, cuts, pick_cut, pick_loss = per_item_figures()
-    return (f"- Choosing the path per item instead would add little {little(cuts)}. In `cost_effective` a held-out "
+def per_item_bullet(note=None):
+    """The README Limitations bullet of v1.236 and v1.328, its figures from the note's results blocks."""
+    share, cuts, pick_cut, pick_loss, raw = per_item_figures(note)
+    return (f"- Choosing the path per item instead would add little {little(raw)}. In `cost_effective` a held-out "
             "item's cheaper path, by list price at its own sizes, is not the one the per-task decision took on up to "
             f"{share}% of the held-out items at a bar, but taking it only where the decision chose by cost "
             "(`DESIGN.md` 13.5 row 3) cuts a bar's summed cost by at most "
@@ -829,8 +834,24 @@ def test_readme_limitations_say_what_choosing_per_item_adds():
     assert sum(README_LINK in b for b in bullets) == 1
 
 
+
+def test_the_first_sentence_reads_the_unrounded_cut():
+    """v1.330 (review iter-216 must-fix 1): a response-bank `size rule` ratio of 0.9801 (cut 1.99%) and of 0.9800
+    (cut 2.00%) both show as 2%, but only the first is under 2%, so the two bullets differ in their first sentence."""
+    note = NOTE.read_text(encoding="utf-8")
+    old = "0.1322           0.9431             +0.0013"
+    assert note.count(old) == 1
+    below = per_item_bullet(note.replace(old, "0.1322           0.9801             +0.0013"))
+    at = per_item_bullet(note.replace(old, "0.1322           0.9800             +0.0013"))
+    assert below.startswith("- Choosing the path per item instead would add little on that evidence. ")
+    assert at.startswith("- Choosing the path per item instead would add little on three of the four datasets. ")
+    for bullet in (below, at):
+        assert ", 0.05% on tau2-bench and 2% on the LLM Routing Response Bank, " in bullet
+    assert per_item_bullet().startswith("- Choosing the path per item instead would add little on three of the four "
+                                        "datasets. ")
+
 def test_note_recommendation_names_the_readme_line():
-    share, cuts, _pick_cut, _pick_loss = per_item_figures()
+    share, cuts, _pick_cut, _pick_loss, _raw = per_item_figures()
     note = NOTE.read_text(encoding="utf-8")
     assert "later backlog row" not in note
     recommendation = note.split("\n## Recommendation\n", 1)[1].split("\n## ", 1)[0]
