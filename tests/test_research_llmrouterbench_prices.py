@@ -251,8 +251,8 @@ def _section():
     note = NOTE.read_text(encoding="utf-8")
     assert note.count("\n" + HEADING + "\n") == 1
     section = note.split("\n" + HEADING + "\n", 1)[1]
-    assert "\n## " not in section, "the LLMRouterBench section is the last one"
-    return section
+    # up to the next dated section, the LLM Routing Response Bank from v1.306 (row R26)
+    return section.split("\n## ", 1)[0]
 
 
 def _blocks(text, lang):

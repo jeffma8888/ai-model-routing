@@ -183,3 +183,212 @@ Recommendation for the registry of a later version (`DESIGN.md` 13.13, row E17b)
 
 - Keep all 8 models, each window with its kind in `notes`, as 13.12 keeps an assumed window for `anthropic/claude-3-7-sonnet-20250219` and says so: for the four open-weight models `notes` says the window is the weights' position limit, not a served window, and for `anthropic/claude-sonnet-4` that it is inferred from the sentence on every other Claude model. Dropping them would leave 4 models, two of them OpenAI's, and the window enters only the rule 3 and 5.2 rule 5 checks, whose `parent_context_full` cells RESULTS.md can count per parent
 - Read 200K as 200,000 for the two pages that write it and say so in `notes`, since at point 2 the other reading leaves 4,800 tokens of room
+
+## LLM Routing Response Bank (2026-11-12)
+
+Question: can the LLM Routing Response Bank (`DESIGN.md` 12.20, Lurume/llm-routing-response-bank at 547beb31ecd8f12b116b87eb4f56feee73edda6c, ODC-BY-4.0 terms with attribution), whose items are single calls with a success, a billed `official_usd` and the `usage` token counts, be a fourth delegation dataset beside AutoBench 2026, LLMRouterBench and tau2-bench? The 13.9 harness prices both paths at list price from a registry and needs a complete matrix, so the question is whether one price pair per model reproduces the bills, whether a vendor page states it, how large the work is per family, and whether the cheaper path, inline or delegated, changes with the family at the 13.10 `points()`. Prices are from the vendor pages below, opened 2026-11-12; every other number is a line of the command below, run on the four pinned files.
+
+- Yes, as a later version with its own registry rule: one input and output price pair per model, with a third price for cache reads, reproduces every bill, three vendor pages state those same prices, and at the 13.10 points the cheaper path changes with the family for many (parent, delegate) pairs
+- The pair each model's bills give on its responses with `usage.cache_read` 0 misses every response with a cache read and no other: 1572 of 13315 for `deepseek/deepseek-v4-flash` (0.14 and 0.28 USD per 1M input and output tokens), 6527 for `deepseek/deepseek-v4-pro` (0.435 and 0.87), 5872 for `moonshotai/kimi-k2.7-code` (0.95 and 4), 5906 for `z-ai/glm-5.3` (1.4 and 4.4) and 5602 for `z-ai/glm-5.3-flash` (0.15 and 0.5), by at most 0.000005734 to 0.000615680 USD. No pair is within 1e-09 USD of every bill: the least-squares pair over all of a model's responses is off by 0.000005725 to 0.000606944 USD at its worst one, where a pair within 1e-09 USD of each would leave it under 1.2e-07. With a cache-read price as a third price (0.0028, 0.003625, 0.19, 0.26 and 0.03, in the same order) every bill is reproduced within 1e-09 USD
+- `usage.input` counts only the prompt tokens not read from the cache: `total_tokens` is `input + output + cache_read` on all 66569 responses. So the converter's `input_tokens` (12.20) is the uncached part of the prompt, and a list-price harness that charges the whole prompt at the input price would put the cached responses above their bills
+- The vendor pages state the recorded three prices for `z-ai/glm-5.3`, `z-ai/glm-5.3-flash` and `moonshotai/kimi-k2.7-code`. DeepSeek's page states other prices today: `deepseek-v4-pro` at 0.66 and 1.98 off-peak and 1.32 and 3.96 at peak (cache hit 0.022 and 0.044), and the legacy name `deepseek-v4-flash` is still accepted but retired, its requests served by DeepSeek-V4.1-Flash-1017 at the `deepseek-flash` price (0.15 and 0.6 off-peak, 0.3 and 1.2 at peak). The Kimi page says the K2 series, `kimi-k2.7-code` among it, closes to new users from October 31, 2026 and retires by the end of December 2026
+- The families differ in size mostly in output: over all five models the median output is 4999.5 tokens on `aime`, 2414 on `gpqa_diamond`, 1808 on `livecodebench` and 302 on `mmlu_pro` (90th percentiles 31480, 40574, 131182 and 2771), while the median input is 183 to 980 (90th percentiles 346 to 1366), and only `mmlu_pro` has cache reads (90th percentile 1536)
+- At the 13.10 points, with each model at its own `median_low` sizes per family and priced at the pair above, the cheaper path differs between families for 10 of the 25 (parent, delegate) pairs at point 0 (C 8000, inline work a call of its own), 3 at point 1 (C 64000), 1 at point 2 (C 200000) and 16 at point 3 (C 8000, inline work folded into the parent's call). Every model is the parent of such a pair at point 0. Read with the whole prompt, `input + cache_read`, as the work's input, the counts are the same at points 0 to 2 and 14 at point 3
+- The matrix is complete on 13311 of the 13315 items: four `mmlu_pro` items lack one or two models' responses, the six `missing` cells of 12.20
+
+### List prices
+
+| Model | Page (opened 2026-11-12) | Status on that page | Input, cached input, output (USD per 1M tokens) | Context window on that page |
+|---|---|---|---|---|
+| `deepseek/deepseek-v4-flash` | https://api-docs.deepseek.com/quick_start/pricing | the legacy name `deepseek-v4-flash` is accepted, but its model is retired and its requests are served by DeepSeek-V4.1-Flash-1017 and billed at the `deepseek-flash` price | none for this model; `deepseek-flash` 0.15, 0.003, 0.6 off-peak and 0.3, 0.006, 1.2 at peak | 1M for `deepseek-flash` |
+| `deepseek/deepseek-v4-pro` | https://api-docs.deepseek.com/quick_start/pricing | listed, model version DeepSeek-V4-Pro-0813 | 0.66, 0.022, 1.98 off-peak and 1.32, 0.044, 3.96 at peak, neither the recorded 0.435, 0.003625, 0.87 | 1M |
+| `moonshotai/kimi-k2.7-code` | https://platform.moonshot.ai/docs/pricing/chat | listed in the K2 series table of the page's HTML (its text view shows no table); the page's note closes the K2 series to new users from October 31, 2026 and plans to retire it by the end of December 2026 | 0.95, 0.19, 4 | 262,144 for every K2 series model |
+| `z-ai/glm-5.3` | https://docs.z.ai/guides/overview/pricing | listed among the latest models | 1.4, 0.26, 4.4 | not on that page |
+| `z-ai/glm-5.3-flash` | https://docs.z.ai/guides/overview/pricing | listed among the latest models as GLM-5.3-Flash | 0.15, 0.03, 0.5 | not on that page |
+
+### Recorded costs
+
+Each model line gives its responses and billed total; the input and output pair fit, by least squares rounded to 4 decimals, on its responses with `cache_read` 0; how many responses that pair misses by more than 1e-09 USD, how many of those have a `cache_read` above 0, and the largest miss; how far the unrounded least-squares pair over all its responses is off at its worst one, beside the square root of the response count times 1e-09 USD that a pair within 1e-09 USD of every bill would keep it under; and the misses left when each cache-read token is priced at the median, over the cached responses, of the bill left after the pair divided by `cache_read`, rounded to 6 decimals. The family lines pool all five models; the last part names each pair whose cheaper path differs between families, as `parent>delegate` and the families where inline costs less, with the 13.9 inline and delegated cost expressions at K = 1.
+
+```text
+$ python - < response-bank-delegation.py
+66569 responses, sample_index [0] | total_tokens == input + output + cache_read on 66569
+per model: one price pair for every billed official_usd (USD per 1M tokens, exact within 1e-09 USD)
+  deepseek/deepseek-v4-flash: 13315 responses, billed 46.883518; pair 0.14 in, 0.28 out fit on the 11743 with cache_read 0; misses 1572, 1572 of them cache_read > 0, largest 0.000005734; least squares on all off by up to 0.000005725 (bound 1.2e-07); with 0.0028 per cache_read token misses 0
+  deepseek/deepseek-v4-pro: 13315 responses, billed 54.603459; pair 0.435 in, 0.87 out fit on the 6788 with cache_read 0; misses 6527, 6527 of them cache_read > 0, largest 0.000008352; least squares on all off by up to 0.000008026 (bound 1.2e-07); with 0.003625 per cache_read token misses 0
+  moonshotai/kimi-k2.7-code: 13315 responses, billed 141.864469; pair 0.95 in, 4 out fit on the 7443 with cache_read 0; misses 5872, 5872 of them cache_read > 0, largest 0.000437760; least squares on all off by up to 0.000426408 (bound 1.2e-07); with 0.19 per cache_read token misses 0
+  z-ai/glm-5.3: 13312 responses, billed 138.970994; pair 1.4 in, 4.4 out fit on the 7406 with cache_read 0; misses 5906, 5906 of them cache_read > 0, largest 0.000615680; least squares on all off by up to 0.000606944 (bound 1.2e-07); with 0.26 per cache_read token misses 0
+  z-ai/glm-5.3-flash: 13312 responses, billed 12.534056; pair 0.15 in, 0.5 out fit on the 7710 with cache_read 0; misses 5602, 5602 of them cache_read > 0, largest 0.000055680; least squares on all off by up to 0.000055359 (bound 1.2e-07); with 0.03 per cache_read token misses 0
+items held by all five models: 13311 of 13315 | short: [('mmlu_pro', 'mmlu_pro:10969', 3), ('mmlu_pro', 'mmlu_pro:10990', 4), ('mmlu_pro', 'mmlu_pro:11007', 3), ('mmlu_pro', 'mmlu_pro:7872', 4)]
+per family over all five models: median and 90th percentile (nearest rank) tokens
+  aime: 150 responses; input 183, 346; cache 0, 0; output 4999.5, 31480
+  gpqa_diamond: 990 responses; input 238, 395; cache 0, 0; output 2414, 40574
+  livecodebench: 5275 responses; input 492, 779; cache 0, 0; output 1808, 131182
+  mmlu_pro: 60154 responses; input 980, 1366; cache 0, 1536; output 302, 2771
+cheaper path at each 13.10 point, every (parent, delegate) pair, each model at its median_low sizes per family, priced at the pair above
+  input, point 0 (C 8000, separate call True): 10 of 25 pairs differ
+    deepseek-v4-flash>deepseek-v4-pro inline on aime,gpqa_diamond
+    deepseek-v4-flash>kimi-k2.7-code inline on aime,gpqa_diamond,mmlu_pro
+    deepseek-v4-flash>glm-5.3 inline on aime,gpqa_diamond,mmlu_pro
+    deepseek-v4-pro>deepseek-v4-flash inline on livecodebench
+    deepseek-v4-pro>kimi-k2.7-code inline on aime,gpqa_diamond
+    kimi-k2.7-code>deepseek-v4-flash inline on livecodebench
+    glm-5.3>deepseek-v4-flash inline on livecodebench
+    glm-5.3>kimi-k2.7-code inline on aime,gpqa_diamond,livecodebench
+    glm-5.3-flash>deepseek-v4-flash inline on aime,livecodebench
+    glm-5.3-flash>deepseek-v4-pro inline on aime,gpqa_diamond,livecodebench
+  input, point 1 (C 64000, separate call True): 3 of 25 pairs differ
+    deepseek-v4-flash>kimi-k2.7-code inline on aime,gpqa_diamond
+    glm-5.3-flash>deepseek-v4-flash inline on livecodebench
+    glm-5.3-flash>kimi-k2.7-code inline on aime,gpqa_diamond,livecodebench
+  input, point 2 (C 200000, separate call True): 1 of 25 pairs differ
+    glm-5.3-flash>deepseek-v4-flash inline on livecodebench
+  input, point 3 (C 8000, separate call False): 16 of 25 pairs differ
+    deepseek-v4-flash>deepseek-v4-flash inline on gpqa_diamond,mmlu_pro
+    deepseek-v4-flash>deepseek-v4-pro inline on aime,gpqa_diamond,mmlu_pro
+    deepseek-v4-flash>kimi-k2.7-code inline on aime,gpqa_diamond,mmlu_pro
+    deepseek-v4-flash>glm-5.3 inline on aime,gpqa_diamond,mmlu_pro
+    deepseek-v4-flash>glm-5.3-flash inline on gpqa_diamond,mmlu_pro
+    deepseek-v4-pro>deepseek-v4-flash inline on livecodebench,mmlu_pro
+    deepseek-v4-pro>deepseek-v4-pro inline on mmlu_pro
+    deepseek-v4-pro>glm-5.3 inline on mmlu_pro
+    deepseek-v4-pro>glm-5.3-flash inline on mmlu_pro
+    kimi-k2.7-code>deepseek-v4-flash inline on livecodebench,mmlu_pro
+    kimi-k2.7-code>deepseek-v4-pro inline on mmlu_pro
+    kimi-k2.7-code>kimi-k2.7-code inline on gpqa_diamond,livecodebench,mmlu_pro
+    kimi-k2.7-code>glm-5.3 inline on mmlu_pro
+    kimi-k2.7-code>glm-5.3-flash inline on mmlu_pro
+    glm-5.3>deepseek-v4-flash inline on gpqa_diamond,livecodebench,mmlu_pro
+    glm-5.3>glm-5.3-flash inline on gpqa_diamond,livecodebench,mmlu_pro
+  input + cache_read, point 0 (C 8000, separate call True): 10 of 25 pairs differ
+    deepseek-v4-flash>deepseek-v4-pro inline on aime,gpqa_diamond
+    deepseek-v4-flash>kimi-k2.7-code inline on aime,gpqa_diamond,mmlu_pro
+    deepseek-v4-flash>glm-5.3 inline on aime,gpqa_diamond,mmlu_pro
+    deepseek-v4-pro>deepseek-v4-flash inline on livecodebench
+    deepseek-v4-pro>kimi-k2.7-code inline on aime,gpqa_diamond
+    kimi-k2.7-code>deepseek-v4-flash inline on livecodebench
+    glm-5.3>deepseek-v4-flash inline on livecodebench
+    glm-5.3>kimi-k2.7-code inline on aime,gpqa_diamond,livecodebench
+    glm-5.3-flash>deepseek-v4-flash inline on aime,livecodebench
+    glm-5.3-flash>deepseek-v4-pro inline on aime,gpqa_diamond,livecodebench
+  input + cache_read, point 1 (C 64000, separate call True): 3 of 25 pairs differ
+    deepseek-v4-flash>kimi-k2.7-code inline on aime,gpqa_diamond
+    glm-5.3-flash>deepseek-v4-flash inline on livecodebench
+    glm-5.3-flash>kimi-k2.7-code inline on aime,gpqa_diamond,livecodebench
+  input + cache_read, point 2 (C 200000, separate call True): 1 of 25 pairs differ
+    glm-5.3-flash>deepseek-v4-flash inline on livecodebench
+  input + cache_read, point 3 (C 8000, separate call False): 14 of 25 pairs differ
+    deepseek-v4-flash>deepseek-v4-flash inline on gpqa_diamond,mmlu_pro
+    deepseek-v4-flash>deepseek-v4-pro inline on aime,gpqa_diamond,mmlu_pro
+    deepseek-v4-flash>kimi-k2.7-code inline on aime,gpqa_diamond,mmlu_pro
+    deepseek-v4-flash>glm-5.3 inline on aime,gpqa_diamond,mmlu_pro
+    deepseek-v4-flash>glm-5.3-flash inline on gpqa_diamond,mmlu_pro
+    deepseek-v4-pro>deepseek-v4-flash inline on livecodebench
+    deepseek-v4-pro>deepseek-v4-pro inline on mmlu_pro
+    deepseek-v4-pro>glm-5.3 inline on mmlu_pro
+    kimi-k2.7-code>deepseek-v4-flash inline on livecodebench
+    kimi-k2.7-code>deepseek-v4-pro inline on mmlu_pro
+    kimi-k2.7-code>kimi-k2.7-code inline on gpqa_diamond,livecodebench,mmlu_pro
+    kimi-k2.7-code>glm-5.3 inline on mmlu_pro
+    glm-5.3>deepseek-v4-flash inline on gpqa_diamond,livecodebench,mmlu_pro
+    glm-5.3>glm-5.3-flash inline on gpqa_diamond,livecodebench,mmlu_pro
+```
+
+The command is the block below, saved as `response-bank-delegation.py` and run from the repository root with Python 3.10 or later: the standard library, `evidence/response-bank/convert.py`, whose `fetch` downloads the four pinned files (about 1 GB) once into `~/.cache/ai-model-routing-evidence/response-bank/` and checks each size and sha256, and `evidence/delegation/results.py` for `points()`, which imports `model_routing` from the checkout. Nothing from the files is committed.
+
+```python
+import importlib.util, json, math, statistics as st
+from collections import defaultdict
+
+def load(name, path):
+    spec = importlib.util.spec_from_file_location(name, path)
+    mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
+    return mod
+
+cv = load("convert", "evidence/response-bank/convert.py")
+points = load("results", "evidence/delegation/results.py").points()
+paths = cv.fetch()  # downloads once into the cache and checks each file's size and sha256
+rows = []
+for name in ("responses_cal.jsonl", "responses_eval.jsonl"):
+    with open(paths[name], "rb") as f:
+        for raw in f:
+            if raw.strip():
+                obj = json.loads(raw)
+                r = cv.response_record(obj)
+                r["cache"] = obj["usage"]["cache_read"]
+                r["total"] = obj["usage"]["total_tokens"]
+                rows.append(r)
+by_model, by_family = defaultdict(list), defaultdict(list)
+for r in rows:
+    by_model[r["model"]].append(r); by_family[r["family"]].append(r)
+print(len(rows), "responses, sample_index", sorted({r["sample_index"] for r in rows}),
+      "| total_tokens == input + output + cache_read on", sum(r["total"] == r["input_tokens"] + r["output_tokens"] + r["cache"] for r in rows))
+
+def pair(rs):  # least squares (USD per 1M tokens) of cost on input and output, no intercept
+    a = math.fsum(r["input_tokens"] ** 2 for r in rs); b = math.fsum(r["input_tokens"] * r["output_tokens"] for r in rs)
+    c = math.fsum(r["output_tokens"] ** 2 for r in rs); d = math.fsum(r["input_tokens"] * r["cost_usd"] for r in rs)
+    e = math.fsum(r["output_tokens"] * r["cost_usd"] for r in rs)
+    return (d * c - b * e) / (a * c - b * b) * 1e6, (a * e - b * d) / (a * c - b * b) * 1e6
+
+def cost(r, p_in, p_out, p_cache=0.0):
+    return (r["input_tokens"] * p_in + r["output_tokens"] * p_out + r["cache"] * p_cache) / 1e6
+
+prices = {}
+print("per model: one price pair for every billed official_usd (USD per 1M tokens, exact within 1e-09 USD)")
+for m, rs in sorted(by_model.items()):
+    fresh = [r for r in rs if r["cache"] == 0]
+    p = tuple(round(x, 4) for x in pair(fresh))
+    off = [abs(cost(r, *p) - r["cost_usd"]) for r in rs]
+    miss = [r for r, x in zip(rs, off) if x > 1e-9]
+    ls = pair(rs)
+    worst = max(abs(cost(r, *ls) - r["cost_usd"]) for r in rs)
+    hit = [r for r in rs if r["cache"] > 0]
+    q = round(st.median((r["cost_usd"] - cost(r, *p)) / r["cache"] * 1e6 for r in hit), 6)
+    three = sum(abs(cost(r, *p, q) - r["cost_usd"]) > 1e-9 for r in rs)
+    prices[m] = p
+    print(f"  {m}: {len(rs)} responses, billed {math.fsum(r['cost_usd'] for r in rs):.6f}; pair {p[0]:g} in, {p[1]:g} out fit on the "
+          f"{len(fresh)} with cache_read 0; misses {len(miss)}, {sum(r['cache'] > 0 for r in miss)} of them cache_read > 0, largest {max(off):.9f}; "
+          f"least squares on all off by up to {worst:.9f} (bound {math.sqrt(len(rs)) * 1e-9:.1e}); with {q:g} per cache_read token misses {three}")
+def nearest(xs, q):
+    xs = sorted(xs); return xs[math.ceil(q * len(xs)) - 1]
+held = defaultdict(set)
+for r in rows:
+    held[r["family"], r["task_id"]].add(r["model"])
+print("items held by all five models:", sum(len(v) == 5 for v in held.values()), "of", len(held),
+      "| short:", sorted((f, t, len(v)) for (f, t), v in held.items() if len(v) < 5))
+print("per family over all five models: median and 90th percentile (nearest rank) tokens")
+for fam, rs in sorted(by_family.items()):
+    cells = []
+    for key in ("input_tokens", "cache", "output_tokens"):
+        xs = [r[key] for r in rs]; cells.append(f"{key.replace('_tokens', '')} {st.median(xs):g}, {nearest(xs, 0.9)}")
+    print(f"  {fam}: {len(rs)} responses; " + "; ".join(cells))
+print("cheaper path at each 13.10 point, every (parent, delegate) pair, each model at its median_low sizes per family, priced at the pair above")
+for prompt in ("input", "input + cache_read"):
+    size = {}
+    for (m, fam) in {(r["model"], r["family"]) for r in rows}:
+        rs = [r for r in by_model[m] if r["family"] == fam]
+        size[m, fam] = (st.median_low([r["input_tokens"] + (r["cache"] if prompt != "input" else 0) for r in rs]),
+                        st.median_low([r["output_tokens"] for r in rs]))
+    for k, pt in enumerate(points):
+        C, B, R, T, sep = (pt[x] for x in ("context_tokens", "brief_tokens", "result_tokens", "carry_turns", "inline_separate_call"))
+        split = []
+        c = lambda m, i, o: (i * prices[m][0] + o * prices[m][1]) / 1e6
+        for P in sorted(by_model):
+            for D in sorted(by_model):
+                path = {}
+                for fam in sorted(by_family):
+                    (pi, po), (di, do) = size[P, fam], size[D, fam]
+                    inline = c(P, C + pi, po) + (1 + T) * c(P, pi + po, 0) if sep else c(P, pi, po) + T * c(P, pi + po, 0)
+                    deleg = c(P, 0, B) + c(D, B + di, do) + (1 + T) * c(P, B + R, 0)
+                    path[fam] = "inline" if inline < deleg else "delegate" if deleg < inline else "tie"
+                if len(set(path.values())) > 1:
+                    split.append(f"{P.split('/')[1]}>{D.split('/')[1]} inline on " + ",".join(f for f, v in path.items() if v == "inline"))
+        print(f"  {prompt}, point {k} (C {C}, separate call {sep}): {len(split)} of 25 pairs differ" + ("".join(f"\n    {s}" for s in split)))
+```
+
+### Recommendation
+
+- Take it as a fourth delegation dataset, in a later version specified in `DESIGN.md` first as a 13.x results section, as 13.13 took LLMRouterBench: its items are single calls, every model's bills reproduce exactly from three prices, and at the 13.10 points the cheaper path depends on the family for many pairs, which a per-task decision can act on
+- Registry rule for that version: every model at the input and output pair its bills give on the responses with `cache_read` 0, the vendor page price for three of the five, with `notes` saying for the two DeepSeek models that the page now states other prices and, for `deepseek/deepseek-v4-flash`, that the name is served by another model; a vendor page price that differs from the recorded bill would price the work at a price it was not billed at
+- That version states four things. The input size: `usage.input` as the converter writes it, the uncached part, or `input + cache_read`, the whole prompt; the family split holds either way, while only the whole prompt makes the list cost of a cached response its size at the input price, above its bill. The four `mmlu_pro` items that lack a model, which a complete matrix drops. A context window per model for 13.4 rule 3 and the 5.2 rule 5 check: the DeepSeek page gives 1M for its current models and the Kimi page 262,144 for the K2 series, while the Z.ai pricing page gives none, so the windows are read first, as the 2026-11-10 subsection did for LLMRouterBench. And the dates: `deepseek-v4-flash` is retired and the K2 series retires by the end of December 2026, so the results describe models a reader may no longer be able to call
+- What it cannot show, as on the other three datasets: a real hand-off with a brief and a result, which the 13.9 grid assumes; the split above is the stated grid's prices at each family's median sizes, not a held-out result
