@@ -295,6 +295,8 @@ def test_response_bank_routing_passes_at_more_than_twice_the_cost(wrp):
     model = best["strategy"][len("model:"):]
     boc = wrp.summary_row(results, config["bars"][0], config["flavors"][0], "best_on_calibration")
     assert boc["success"] > best["success"]
+    # v1.305 (review iter-204 should-fix 1): best_on_calibration too passes at over twice the cost
+    assert boc["cost_usd"] > 2 * best["cost_usd"]
     passing = {}
     for flavor in config["flavors"]:
         rows = [wrp.summary_row(results, bar, flavor, "routed") for bar in config["bars"]]
@@ -369,6 +371,38 @@ def test_in_sample_gain_is_the_datasets_note(wrp):
     assert len(lines) == 1
     assert f"Each task's own best model reaches 0.6240 (+{gain:.4f})" in lines[0]
     assert f"(+{gain:.4f})" in lines[0]
+
+
+SHORTFALLS = re.compile(r"Wilson shortfall of that success: (\d\.\d{3}) at a half of (\d+)(?:, (\d\.\d{3}) at (\d+))?$",
+                        re.M)
+NEEDS_HALVES = "- Calibration halves large enough that the shortfall at your success level is smaller than the gap "
+
+
+def shortfall_range(output):
+    """v1.305 (review iter-204 must-fix 1): the lowest and the highest Wilson shortfall the output prints
+    over every file, each with its half, as the needs bullet gives them."""
+    pairs = []
+    for found in SHORTFALLS.finditer(output):
+        pairs.append((found[1], int(found[2])))
+        if found[3]:
+            pairs.append((found[3], int(found[4])))
+    low = min(pairs, key=lambda p: (float(p[0]), p[1]))
+    high = max(pairs, key=lambda p: (float(p[0]), -p[1]))
+    return f"from {low[0]} at a half of {low[1]} to {high[0]} at {high[1]}"
+
+
+def test_the_needs_bullet_gives_the_shortfall_range_of_every_file(wrp, output):
+    """v1.305: the halves bullet of What your own data needs states the lowest and the highest
+    shortfall of all the files the script reads, so a file added later moves it; checked on a small
+    output where a later file holds the highest."""
+    assert len(SHORTFALLS.findall(output)) == len(wrp.DATASETS)
+    bullets = [line for line in section(note(), "## What your own data needs").splitlines()
+               if line.startswith(NEEDS_HALVES)]
+    assert len(bullets) == 1
+    assert bullets[0].endswith("; on these files it runs " + shortfall_range(output)), bullets[0]
+    small_output = ("  x: Wilson shortfall of that success: 0.100 at a half of 40, 0.050 at 80\n"
+                    "  y: Wilson shortfall of that success: 0.300 at a half of 9\n")
+    assert shortfall_range(small_output) == "from 0.050 at a half of 80 to 0.300 at 9"
 
 
 WORDS = {2: "two", 5: "five", 6: "six", 7: "seven"}

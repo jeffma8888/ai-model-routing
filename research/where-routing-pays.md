@@ -171,7 +171,7 @@ On the LLM Routing Response Bank routing passes the best single model's held-out
 ## What your own data needs
 
 - A bar you mean, with cheaper models that clear it: `cost_effective` routing then saves the price gap and gives up success down toward the bar, which is the trade every saving above shows
-- Calibration halves large enough that the shortfall at your success level is smaller than the gap between your bar and the models you hope will clear it; on these files it runs from 0.033 at a half of 356 to 0.205 at 25
+- Calibration halves large enough that the shortfall at your success level is smaller than the gap between your bar and the models you hope will clear it; on these files it runs from 0.033 at a half of 356 to 0.251 at 15
 - More than one task, split where the best model is likely to differ (by input kind, language or length), each with enough items for its own half; one pooled task can do no better than the best single model, while LLMRouterBench's benchmarks, routed one task each, pass it
 - A baseline you could have chosen in advance, such as the model you call today, rather than the best single model of 12.7, which is chosen in hindsight on the held-out halves
 - A look at what a gain in success costs: `cost_blind` ignores price by design, and on the LLM Routing Response Bank its gain of +0.0022 comes at 2.104 times the best single model's cost
