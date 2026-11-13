@@ -193,13 +193,14 @@ MATRIX_BLOCK = (
     "python evidence/response-bank/convert.py --out response-bank-matrix.jsonl\n"
     "```\n")
 # The dataset's LICENSE file at the pinned revision (1,480 bytes, read 2026-11-12), every
-# paragraph but its title, each joined onto one line.
+# paragraph and list item but its title, each joined onto one line (the lead-in from v1.295).
 LICENSE_SHA256 = "ebff7b5d9a32da5f04702a29a8b6ce45bbc7b805963cfe45aeb85cd00e0ef6cd"
 TERMS = ("Planned license: Open Data Commons Attribution License v4.0 (ODC-BY-4.0, "
          "https://opendatacommons.org/licenses/by/4-0/). Final licensing wording will be attached "
          "at the formal publication of the associated study; until then, you may use, "
          "redistribute, and build on this data under ODC-BY-4.0 terms with attribution to this "
          "dataset repository.")
+FAMILY_LEAD = "Per-family terms additionally apply:"
 FAMILY_TERMS = {
     "mmlu_pro": "derived from TIGER-Lab/MMLU-Pro (MIT). Retain the upstream notice when redistributing.",
     "livecodebench": ("problems originate from LeetCode, AtCoder, and Codeforces and are republished "
@@ -382,7 +383,7 @@ def test_results_md_regenerate_block_sources_and_licence(cv):
     text = results_md()
     assert REGENERATE in text
     for needle in [DATASET_URL, f"[`{cv.REVISION}`]({DATASET_URL}/tree/{cv.REVISION})",
-                   TERMS, NO_WARRANTY, LICENSE_SHA256, "1,480 bytes", "ODC-BY-4.0",
+                   TERMS, f"\"{FAMILY_LEAD}\"", NO_WARRANTY, LICENSE_SHA256, "1,480 bytes", "ODC-BY-4.0",
                    "(README.md)", "(results.json)", "DESIGN 12.21", "0.767", "0.967",
                    "`z-ai/glm-5.3` on `aime`, 23 of 30", "`deepseek/deepseek-v4-pro` on `aime`, 29 of 30",
                    "only `gpqa_diamond` clears, on 1 seed of 50",
