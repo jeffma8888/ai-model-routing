@@ -467,7 +467,8 @@ README = ROOT / "README.md"
 EVIDENCE_HEADING = "\n## Evidence: held-out results on public data\n"
 HEADINGS = ["RouterBench", "AutoBench", "AutoBench judges", "tau2-bench", "LiveCodeBench",
             "LLMRouterBench", "LLM Routing Response Bank", "Delegation on AutoBench", "Delegation on tau2-bench",
-            "Delegation on LLMRouterBench"]
+            "Delegation on LLMRouterBench",
+            "Delegation on the LLM Routing Response Bank"]
 INDENT = " " * 16
 LCB_LAYOUT = INDENT + "(LiveCodeBench: evidence/livecodebench/RESULTS.md)\n"
 LAYOUT = INDENT + "(LLMRouterBench: evidence/llmrouterbench/RESULTS.md)\n"

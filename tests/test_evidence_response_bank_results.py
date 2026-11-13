@@ -508,7 +508,8 @@ EVIDENCE_HEADING = "\n## Evidence: held-out results on public data\n"
 HEADING = "LLM Routing Response Bank"
 HEADINGS = ["RouterBench", "AutoBench", "AutoBench judges", "tau2-bench", "LiveCodeBench",
             "LLMRouterBench", "LLM Routing Response Bank", "Delegation on AutoBench",
-            "Delegation on tau2-bench", "Delegation on LLMRouterBench"]
+            "Delegation on tau2-bench", "Delegation on LLMRouterBench",
+            "Delegation on the LLM Routing Response Bank"]
 INDENT = " " * 16
 LRB_LAYOUT = INDENT + "(LLMRouterBench: evidence/llmrouterbench/RESULTS.md)\n"
 LAYOUT = INDENT + "(LLM Routing Response Bank: evidence/response-bank/RESULTS.md)\n"

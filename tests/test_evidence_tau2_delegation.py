@@ -459,7 +459,8 @@ def test_pinned_files_give_the_stated_work_calls_and_window_checks(dr, full_runs
 README = ROOT / "README.md"
 EVIDENCE_HEADINGS = ["RouterBench", "AutoBench", "AutoBench judges", "tau2-bench", "LiveCodeBench",
                      "LLMRouterBench", "LLM Routing Response Bank", "Delegation on AutoBench", "Delegation on tau2-bench",
-            "Delegation on LLMRouterBench"]
+            "Delegation on LLMRouterBench",
+            "Delegation on the LLM Routing Response Bank"]
 README_LINKS = (
     "[tau2-bench](https://github.com/sierra-research/tau2-bench)",
     f"[{REVISION[:7]}](https://github.com/sierra-research/tau2-bench/tree/{REVISION})",
@@ -999,7 +1000,7 @@ def test_readme_limitations_say_the_cached_point_moves_no_decision(dr):
     text = README.read_text(encoding="utf-8")
     limits = text.split("\n## Limitations and non-goals (v1)\n", 1)[1].split("\n## ", 1)[0]
     bullets = [line for line in limits.splitlines() if line.startswith("- ")]
-    two = [i for i, b in enumerate(bullets) if b.startswith("- The delegation evidence reads three datasets")]
+    two = [i for i, b in enumerate(bullets) if b.startswith("- The delegation evidence reads four datasets")]
     assert len(two) == 1
     assert bullets[two[0]].endswith(f"(research/delegation-datasets.md)). {limitations_cached_sentence(dr)}")
     above = bullets[two[0] - 1]

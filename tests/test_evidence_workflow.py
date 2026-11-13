@@ -33,7 +33,7 @@ ROUTERBENCH_CONVERT = ROOT / "evidence" / "routerbench" / "convert.py"
 EVIDENCE = "## Evidence: held-out results on public data\n"
 SUBSECTIONS = ("AutoBench", "AutoBench judges", "tau2-bench", "LiveCodeBench", "LLMRouterBench",
                "LLM Routing Response Bank", "Delegation on AutoBench", "Delegation on tau2-bench",
-               "Delegation on LLMRouterBench")
+               "Delegation on LLMRouterBench", "Delegation on the LLM Routing Response Bank")
 INSTALL = "python -m pip install -e ."
 ON = (
     "on:\n"
@@ -112,6 +112,8 @@ def expected_commands(text):
 READ_FLAGS = ("--outcomes", "--matrix", "--evaluate", "--table")
 DATA_FILE = re.compile(r"[^\s=<>|;&'\"]+\.jsonl?(?![\w.])")
 REPEATED = "python evidence/llmrouterbench/convert.py --out llmrouterbench-matrix.jsonl"
+# v1.316: the response-bank converter line, repeated in the response-bank delegation block
+RB_REPEATED = "python evidence/response-bank/convert.py --out response-bank-matrix.jsonl"
 REPEAT_SENTENCE = ("A README line identical to one already run in the step is not run again when no line "
                    "between them names one of its files except to read it (DESIGN.md 12.13).")
 REPEAT_PROBLEM = "the top comment does not give the repeated-line rule"
@@ -319,9 +321,9 @@ def test_workflow_reruns_the_readme_commands_and_compares_the_results():
     assert problems(workflow_text(), readme(), CI.read_text(encoding="utf-8")) == []
 
 
-def test_readme_commands_are_the_nine_rerun_subsections():
+def test_readme_commands_are_the_ten_rerun_subsections():
     commands = expected_commands(readme())
-    assert len(commands) == 4 + 4 + 4 + 4 + 4 + 4 + 6 + 4 + 3 + 4
+    assert len(commands) == 4 + 4 + 4 + 4 + 4 + 4 + 6 + 4 + 3 + 4 + 4
     assert out_paths(commands) == ["evidence/autobench-2026/results.json",
                                    "evidence/autobench-judges/results.json",
                                    "evidence/tau2-bench/results.json",
@@ -332,7 +334,8 @@ def test_readme_commands_are_the_nine_rerun_subsections():
                                    "evidence/delegation/variants.json",
                                    "evidence/tau2-bench-delegation/results.json",
                                    "evidence/tau2-bench-delegation/pooled.json",
-                                   "evidence/llmrouterbench-delegation/results.json"]
+                                   "evidence/llmrouterbench-delegation/results.json",
+                                   "evidence/response-bank-delegation/results.json"]
     assert all((ROOT / p).is_file() for p in out_paths(commands))
     # v1.168: RouterBench stays out; `llmrouterbench-matrix.jsonl` holds its matrix name as a substring.
     assert not any(re.search(r"\brouterbench-matrix", c) for c in commands)
@@ -380,14 +383,17 @@ def test_the_hand_built_list_count_is_the_one_design_states():
     assert len(RUN_ONCE_CASES) == 12
 
 
-def test_regenerate_leaves_out_the_one_repeated_converter_line():
+def test_regenerate_leaves_out_the_two_repeated_converter_lines():
     commands = expected_commands(readme())
     run = regenerate_commands(readme())
-    assert len(commands) == 41 and len(run) == 40
-    assert commands.count(REPEATED) == 2 and run.count(REPEATED) == 1
-    second = len(commands) - 1 - commands[::-1].index(REPEATED)
-    assert commands[second + 1].startswith("python evidence/llmrouterbench-delegation/results.py --matrix")
-    assert run == commands[:second] + commands[second + 1:]
+    assert len(commands) == 45 and len(run) == 43
+    left_out = []
+    for repeated, script in ((REPEATED, "llmrouterbench-delegation"), (RB_REPEATED, "response-bank-delegation")):
+        assert commands.count(repeated) == 2 and run.count(repeated) == 1
+        second = len(commands) - 1 - commands[::-1].index(repeated)
+        assert commands[second + 1].startswith(f"python evidence/{script}/results.py --matrix")
+        left_out.append(second)
+    assert run == [c for k, c in enumerate(commands) if k not in left_out]
 
 
 def test_the_rerun_subsections_are_in_readme_heading_order():
@@ -457,8 +463,12 @@ MUTANTS = {
         "evidence/tau2-bench-delegation/results.json ", 1),
     # v1.200: the LLMRouterBench delegation file, last in command order
     "the compare step without llmrouterbench delegation": lambda t: t.replace(
-        "evidence/tau2-bench-delegation/pooled.json evidence/llmrouterbench-delegation/results.json\n",
-        "evidence/tau2-bench-delegation/pooled.json\n", 1),
+        "evidence/tau2-bench-delegation/pooled.json evidence/llmrouterbench-delegation/results.json ",
+        "evidence/tau2-bench-delegation/pooled.json ", 1),
+    # v1.316: the response-bank delegation file, now last in command order
+    "the compare step without the response-bank delegation": lambda t: t.replace(
+        "evidence/llmrouterbench-delegation/results.json evidence/response-bank-delegation/results.json\n",
+        "evidence/llmrouterbench-delegation/results.json\n", 1),
     # v1.299: the response-bank file, directly after the LLMRouterBench one
     "the compare step without the response bank": lambda t: t.replace(
         "evidence/llmrouterbench/results.json evidence/response-bank/results.json ",
@@ -531,7 +541,7 @@ TIME_LIMIT_MUTANTS = {
 
 
 def test_the_mutant_count_is_the_one_design_states():
-    assert len(MUTANTS) == 31
+    assert len(MUTANTS) == 32
     assert len(CACHE_MUTANTS) == 2 and set(CACHE_MUTANTS) <= set(MUTANTS)
     assert len(TIME_LIMIT_MUTANTS) == 5 and set(TIME_LIMIT_MUTANTS) <= set(MUTANTS)
     assert len(REPEAT_MUTANTS) == 2 and set(REPEAT_MUTANTS) <= set(MUTANTS)
@@ -717,8 +727,6 @@ RB_TABLES = ["python evidence/delegation/results.py --table evidence/response-ba
              "--bar 0.8 --point 0"]
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError,
-                   reason="the workflow line lands with the README subsection, row E21d (DESIGN 12.13 v1.316)")
 def test_the_workflow_reruns_the_response_bank_delegation_block():
     assert SUBSECTIONS[-1] == "Delegation on the LLM Routing Response Bank"
     text = workflow_text()

@@ -34,7 +34,9 @@ FILES = {"RouterBench": ROOT / "evidence" / "routerbench" / "results.json",
          "LLM Routing Response Bank": ROOT / "evidence" / "response-bank" / "results.json",
          "Delegation on AutoBench": ROOT / "evidence" / "delegation" / "results.json",
          "Delegation on tau2-bench": ROOT / "evidence" / "tau2-bench-delegation" / "results.json",
-         "Delegation on LLMRouterBench": ROOT / "evidence" / "llmrouterbench-delegation" / "results.json"}
+         "Delegation on LLMRouterBench": ROOT / "evidence" / "llmrouterbench-delegation" / "results.json",
+         "Delegation on the LLM Routing Response Bank":
+             ROOT / "evidence" / "response-bank-delegation" / "results.json"}
 LEAD = ("Results at a glance, each number from the committed results of the subsection it "
         "links:")
 LUNA = "model:openai/gpt-5.6-luna"
@@ -317,7 +319,7 @@ def response_bank_delegation_bullet(results):
     """Delegation on the LLM Routing Response Bank (v1.316): at the lowest bar and point 0 every
     `cost_effective` decision row delegates on every seed and costs less than its parent's always inline row,
     and the decision's mean held-out success over the parents is below always inline's at 3 decimals, the
-    unfavourable result that the bullet states with both values."""
+    unfavourable result the bullet states without the two values, since a bullet holds two (v1.23, v1.317)."""
     name = "Delegation on the LLM Routing Response Bank"
     config = results["config"]
     bar, parents, flavor = config["bars"][0], config["parents"], "cost_effective"
@@ -342,8 +344,7 @@ def response_bank_delegation_bullet(results):
     return (link(name) + f"at bar {bar} and {point['context_tokens']:,} context tokens, with inline work in a "
             f"parent call of its own, the `{flavor}` decision delegates on every seed for each of the "
             f"{len(parents)} parents and costs less than always inline for each; its mean cost over the parents "
-            f"is {dec_cost:.4f} USD against {inl_cost:.4f} for always inline, for less held-out success, "
-            f"{dec_success} against {inl_success}")
+            f"is {dec_cost:.4f} USD against {inl_cost:.4f} for always inline, for less held-out success")
 
 
 BULLETS = {"RouterBench": routerbench_bullet, "AutoBench": autobench_bullet,
@@ -352,7 +353,8 @@ BULLETS = {"RouterBench": routerbench_bullet, "AutoBench": autobench_bullet,
            "LLM Routing Response Bank": response_bank_bullet,
            "Delegation on AutoBench": delegation_bullet,
            "Delegation on tau2-bench": tau2_delegation_bullet,
-           "Delegation on LLMRouterBench": llmrouterbench_delegation_bullet}
+           "Delegation on LLMRouterBench": llmrouterbench_delegation_bullet,
+           "Delegation on the LLM Routing Response Bank": response_bank_delegation_bullet}
 
 
 def glance(files):
@@ -841,7 +843,7 @@ def delegation_pointer(pays_note, per_item_note):
     effective = totals["cost_effective"]
     assert totals["cost_effective"]["better"] == totals["cost_blind"]["better"] == 0, "a row is better than both"
     return ("Whether choosing per task between inline work and a sub-agent beats a fixed policy, on the datasets of "
-            f"the last three bullets above: {PAYS_LINK} finds the `cost_effective` decision equal to always delegating "
+            f"the first three delegation bullets above: {PAYS_LINK} finds the `cost_effective` decision equal to always delegating "
             f"on {effective['= delegate']:,} of their {effective['rows']:,} (bar, point, parent) rows and, in either "
             f"flavor, better than both fixed policies on none, and {PER_ITEM_LINK} finds that taking each held-out "
             "item's cheaper path only on the cells where the decision chose by cost cuts a bar's summed cost by at "
@@ -895,8 +897,10 @@ def test_the_delegation_pointer_links_resolve_in_order():
     assert all((README.parent / t).is_file() for t in targets)
 
 
-def test_the_last_three_bullets_are_the_delegation_subsections_the_notes_read():
-    assert tuple(FILES)[-3:] == DELEGATION
+def test_the_first_three_delegation_bullets_are_the_subsections_the_notes_read():
+    # v1.316: the response bank's, the last bullet, is not read by the notes yet (rows R28 and R29)
+    assert tuple(FILES)[-4:-1] == DELEGATION
+    assert tuple(FILES)[-1] == "Delegation on the LLM Routing Response Bank"
     folders = {str(FILES[name].parent.relative_to(ROOT)) for name in DELEGATION}
     text = PAYS_SCRIPT.read_text(encoding="utf-8")
     block = text.split("DATASETS = (\n", 1)[1].split("\n)\n", 1)[0]
@@ -979,8 +983,6 @@ def test_a_moved_figure_moves_the_pointer():
 # --- v1.316 (row E21d): the response-bank delegation bullet -----------------------------------
 
 RB_DELEGATION = ROOT / "evidence" / "response-bank-delegation" / "results.json"
-GLANCE_RED = pytest.mark.xfail(strict=True, raises=AssertionError,
-                               reason="the README subsection lands with row E21d (DESIGN 12.8 v1.316)")
 
 
 def rb_delegation():
@@ -1010,8 +1012,7 @@ def test_the_response_bank_delegation_bullet_is_built_from_the_committed_file():
         "- [Delegation on the LLM Routing Response Bank](#delegation-on-the-llm-routing-response-bank): at bar "
         "0.8 and 8,000 context tokens, with inline work in a parent call of its own, the `cost_effective` decision "
         "delegates on every seed for each of the 5 parents and costs less than always inline for each; its mean "
-        "cost over the parents is 20.7429 USD against 101.6277 for always inline, for less held-out success, "
-        "0.847 against 0.861")
+        "cost over the parents is 20.7429 USD against 101.6277 for always inline, for less held-out success")
 
 
 @pytest.mark.parametrize("change, match", [
@@ -1027,7 +1028,6 @@ def test_a_file_that_breaks_a_response_bank_delegation_claim_fails_its_bullet(ch
         response_bank_delegation_bullet(results)
 
 
-@GLANCE_RED
 def test_the_glance_list_ends_with_the_response_bank_delegation_bullet():
     assert anchor("Delegation on the LLM Routing Response Bank") == "#delegation-on-the-llm-routing-response-bank"
     lines = evidence_section().split("\n### ", 1)[0].split("\n")
@@ -1038,7 +1038,6 @@ def test_the_glance_list_ends_with_the_response_bank_delegation_bullet():
     assert lines[at + 1] == ""
 
 
-@GLANCE_RED
 def test_the_delegation_pointer_names_the_first_three_delegation_bullets():
     intro = evidence_section().split("\n### ", 1)[0]
     assert ("Whether choosing per task between inline work and a sub-agent beats a fixed policy, on the datasets of "

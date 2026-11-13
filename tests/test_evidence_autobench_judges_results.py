@@ -66,7 +66,8 @@ README = ROOT / "README.md"
 EVIDENCE_README = ROOT / "evidence" / "autobench-2026" / "README.md"
 HEADINGS = ["RouterBench", "AutoBench", "AutoBench judges", "tau2-bench", "LiveCodeBench",
             "LLMRouterBench", "LLM Routing Response Bank", "Delegation on AutoBench", "Delegation on tau2-bench",
-            "Delegation on LLMRouterBench"]
+            "Delegation on LLMRouterBench",
+            "Delegation on the LLM Routing Response Bank"]
 RESULTS_LINK = "([AutoBench results](../autobench-2026/RESULTS.md))"
 
 

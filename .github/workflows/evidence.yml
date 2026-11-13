@@ -2,9 +2,9 @@ name: evidence
 
 # Reruns the regenerate commands of the README subsections AutoBench, AutoBench judges,
 # tau2-bench, LiveCodeBench, LLMRouterBench, LLM Routing Response Bank, Delegation on
-# AutoBench, Delegation on tau2-bench and Delegation on LLMRouterBench, which download the
-# pinned dataset files and check their sha256, then fails if a committed results file
-# changed (DESIGN.md 12.13).
+# AutoBench, Delegation on tau2-bench, Delegation on LLMRouterBench and Delegation on the
+# LLM Routing Response Bank, which download the pinned dataset files and check their
+# sha256, then fails if a committed results file changed (DESIGN.md 12.13).
 # RouterBench is left out of it, since its source is a 99,567,659-byte pickle that needs
 # pandas and its evaluate step takes about 70 seconds.
 # A README line identical to one already run in the step is not run again when no line
@@ -89,5 +89,8 @@ jobs:
           python evidence/llmrouterbench-delegation/results.py --matrix llmrouterbench-matrix.jsonl --registry evidence/llmrouterbench-delegation/registry.json --out evidence/llmrouterbench-delegation/results.json
           python evidence/delegation/results.py --table evidence/llmrouterbench-delegation/results.json
           python evidence/delegation/results.py --table evidence/llmrouterbench-delegation/results.json --bar 0.1 --point 0
+          python evidence/response-bank-delegation/results.py --matrix response-bank-matrix.jsonl --registry evidence/response-bank-delegation/registry.json --out evidence/response-bank-delegation/results.json
+          python evidence/delegation/results.py --table evidence/response-bank-delegation/results.json
+          python evidence/delegation/results.py --table evidence/response-bank-delegation/results.json --bar 0.8 --point 0
       - name: Compare
-        run: git diff --exit-code -- evidence/autobench-2026/results.json evidence/autobench-judges/results.json evidence/tau2-bench/results.json evidence/livecodebench/results.json evidence/llmrouterbench/results.json evidence/response-bank/results.json evidence/delegation/results.json evidence/delegation/variants.json evidence/tau2-bench-delegation/results.json evidence/tau2-bench-delegation/pooled.json evidence/llmrouterbench-delegation/results.json
+        run: git diff --exit-code -- evidence/autobench-2026/results.json evidence/autobench-judges/results.json evidence/tau2-bench/results.json evidence/livecodebench/results.json evidence/llmrouterbench/results.json evidence/response-bank/results.json evidence/delegation/results.json evidence/delegation/variants.json evidence/tau2-bench-delegation/results.json evidence/tau2-bench-delegation/pooled.json evidence/llmrouterbench-delegation/results.json evidence/response-bank-delegation/results.json

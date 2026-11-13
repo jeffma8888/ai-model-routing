@@ -525,7 +525,8 @@ def test_results_md_regenerate_block():
 README = ROOT / "README.md"
 EVIDENCE_HEADINGS = ["RouterBench", "AutoBench", "AutoBench judges", "tau2-bench", "LiveCodeBench",
                      "LLMRouterBench", "LLM Routing Response Bank", "Delegation on AutoBench", "Delegation on tau2-bench",
-                     "Delegation on LLMRouterBench"]
+                     "Delegation on LLMRouterBench",
+            "Delegation on the LLM Routing Response Bank"]
 README_LINKS = (
     "[LLMRouterBench](https://huggingface.co/datasets/NPULH/LLMRouterBench)",
     f"[`{REVISION[:7]}`]({DATASET_TREE})",
@@ -632,10 +633,10 @@ def test_readme_limitations_name_the_third_dataset():
     bullets = [line for line in limits.splitlines() if line.startswith("- The delegation evidence reads")]
     assert len(bullets) == 1
     assert bullets[0].startswith(
-        "- The delegation evidence reads three datasets: the AutoBench 2026 matrix, LLMRouterBench on the "
+        "- The delegation evidence reads four datasets: the AutoBench 2026 matrix, LLMRouterBench on the "
         f"{len(POOL)} of its 13 pool models that a list price or the exact price pair of their recorded costs prices "
         "([evidence/llmrouterbench-delegation/RESULTS.md](evidence/llmrouterbench-delegation/RESULTS.md)), which "
-        "leaves out its best single model, `google/gemini-2.5-pro`, and tau2-bench ")
+        "leaves out its best single model, `google/gemini-2.5-pro`, ")
     # the left-out model is the one RESULTS.md names
     assert GEMINI.startswith("The pool leaves out `google/gemini-2.5-pro`, the best single model")
 

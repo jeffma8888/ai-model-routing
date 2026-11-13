@@ -275,7 +275,8 @@ def test_evidence_readme_links_the_results():
 
 HEADINGS = ["RouterBench", "AutoBench", "AutoBench judges", "tau2-bench", "LiveCodeBench",
             "LLMRouterBench", "LLM Routing Response Bank", "Delegation on AutoBench", "Delegation on tau2-bench",
-            "Delegation on LLMRouterBench"]
+            "Delegation on LLMRouterBench",
+            "Delegation on the LLM Routing Response Bank"]
 LIMITS = ["date from 2025, and the costs are those the runs recorded at the prices of their time",
           '("airline: 29 tasks differ, retail: 114")',
           "plays the user in every conversation",

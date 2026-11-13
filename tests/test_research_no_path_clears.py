@@ -177,7 +177,7 @@ def test_readme_limitations_and_research_index_link_the_note():
     readme = README.read_text(encoding="utf-8")
     limits = readme[readme.index("## Limitations and non-goals (v1)\n"):readme.index("\n## Layout\n")]
     assert "\n" + LIMITATION + "\n" in limits
-    two = limits.index("\n- The delegation evidence reads three datasets")
+    two = limits.index("\n- The delegation evidence reads four datasets")
     assert two < limits.index("\n" + LIMITATION + "\n")
     index = INDEX.read_text(encoding="utf-8")
     assert "| [no-path-clears.md](no-path-clears.md) | " in index

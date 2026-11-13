@@ -246,7 +246,8 @@ def autobench_subsection():
                                                         "AutoBench judges", "tau2-bench",
                                                         "LiveCodeBench", "LLMRouterBench", "LLM Routing Response Bank",
                                                         "Delegation on AutoBench", "Delegation on tau2-bench",
-            "Delegation on LLMRouterBench"]
+            "Delegation on LLMRouterBench",
+            "Delegation on the LLM Routing Response Bank"]
     return section.split("\n### AutoBench\n", 1)[1].split("\n### ", 1)[0]
 
 

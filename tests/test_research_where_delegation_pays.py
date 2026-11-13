@@ -369,7 +369,8 @@ def limitations_bullet(wdp, output):
     # each file has such rows, so the claim is about every file (review iter-154 should-fix 1)
     assert len(separate) == len(FILES) and all(separate.values()), separate
     assert sum(separate.values()) <= effective["= delegate"]
-    return ("- On the four delegation results files of those three datasets the per-task decision is close to a "
+    return ("- On the four delegation results files of AutoBench 2026, tau2-bench and LLMRouterBench the per-task "
+            "decision is close to a "
             f"fixed policy. The `cost_effective` decision equals always delegating on {effective['= delegate']:,} "
             f"of their {effective['rows']:,} (bar, point, parent) rows, every row at a point where inline work takes "
             "a parent call of its own among them, while in `cost_blind` a fixed policy, always inline or always "
@@ -395,7 +396,7 @@ def test_readme_limitations_say_what_the_per_task_decision_adds(wdp, output):
     readme = README.read_text(encoding="utf-8")
     limits = readme.split("\n## Limitations and non-goals (v1)\n", 1)[1].split("\n## ", 1)[0]
     bullets = [line for line in limits.splitlines() if line.startswith("- ")]
-    datasets = [i for i, b in enumerate(bullets) if b.startswith("- The delegation evidence reads three datasets")]
+    datasets = [i for i, b in enumerate(bullets) if b.startswith("- The delegation evidence reads four datasets")]
     assert len(datasets) == 1
     assert bullets[datasets[0] + 1] == limitations_bullet(wdp, output)
     assert sum(NOTE_LINK in b for b in bullets) == 1

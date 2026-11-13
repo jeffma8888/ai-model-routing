@@ -674,8 +674,6 @@ README_METHOD = ("`aime` has 30 items", "Outside `aime`, ", "Inline is blocked o
 README_ASSUMED = ("The lossless brief", "Every cost is a list price", "A row's input tokens are `usage.input`",
                   "The windows are the vendor pages'", "The vendor pages, opened 2026-11-12",
                   "The limits of `DESIGN.md` 13.8")
-README_RED = pytest.mark.xfail(strict=True, raises=AssertionError,
-                               reason="the README subsection lands with row E21d (DESIGN 12.8 v1.316)")
 
 
 def readme_subsection():
@@ -711,7 +709,6 @@ def root_pool_line():
     return line.replace("](../response-bank/RESULTS.md)", "](evidence/response-bank/RESULTS.md)")
 
 
-@README_RED
 def test_readme_subsection_links_the_sources_and_licence():
     sub = readme_subsection()
     for needle in README_LINKS:
@@ -720,7 +717,6 @@ def test_readme_subsection_links_the_sources_and_licence():
     assert "](../" not in sub
 
 
-@README_RED
 def test_readme_subsection_shows_the_counts_tables_and_reading_it(dr):
     sub = readme_subsection()
     results = json.loads(RESULTS.read_text(encoding="utf-8"))
@@ -742,7 +738,6 @@ def test_readme_subsection_shows_the_counts_tables_and_reading_it(dr):
     assert "`results.json` is " not in sub
 
 
-@README_RED
 def test_readme_subsection_repeats_the_results_md_lines():
     sub = readme_subsection()
     for start in README_METHOD:
@@ -758,7 +753,6 @@ def test_readme_subsection_repeats_the_results_md_lines():
     assert limits < sub.index(results_md_line(README_ASSUMED[0], "## Assumed"))
 
 
-@README_RED
 def test_readme_subsection_regenerate_block_is_the_results_md_one():
     sub = readme_subsection()
     assert re.findall(r"```bash\n.*?```\n", sub, re.S) == ["```bash\n" + "\n".join(REGENERATE) + "\n```\n"]
@@ -766,7 +760,6 @@ def test_readme_subsection_regenerate_block_is_the_results_md_one():
     assert blocks and blocks[0].split("\n") == REGENERATE
 
 
-@README_RED
 def test_readme_layout_names_the_results_md():
     text = README.read_text(encoding="utf-8")
     layout = text.split("\n## Layout\n", 1)[1].split("\n## ", 1)[0]
@@ -775,7 +768,6 @@ def test_readme_layout_names_the_results_md():
                    "evidence/response-bank-delegation/RESULTS.md)\n") in layout
 
 
-@README_RED
 def test_readme_limitations_name_the_fourth_dataset():
     text = README.read_text(encoding="utf-8")
     limits = text.split("\n## Limitations and non-goals (v1)\n", 1)[1].split("\n## ", 1)[0]
