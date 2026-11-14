@@ -96,7 +96,9 @@ def test_note_sections_in_order():
 
 
 def test_prose_numbers_are_in_the_output(output):
-    text = note()
+    # v1.384: the seeds bullet, built whole below from the two seeds notes, is the one skipped
+    assert note().count(seeds_bullet() + "\n") == 1
+    text = note().replace(seeds_bullet() + "\n", "")
     prose = re.sub(r"^```text\n.*?^```$", "", text, flags=re.M | re.S)
     prose = re.sub(r"https?://\S+", "", prose)
     # v1.167: an ISO date, such as the dated section's, is no claim
@@ -104,8 +106,6 @@ def test_prose_numbers_are_in_the_output(output):
     # a code span holds a model ID, a path or a name, whose digits are not a claim (review iter-115)
     prose = re.sub(r"`[^`\n]*`", "", prose)
     known = set(NUMBER.findall(output)) | ALLOWED
-    # v1.384: the seeds bullet, built whole below from the two seeds notes
-    prose = prose.replace(seeds_bullet() + "\n", "")
     stray = sorted(set(NUMBER.findall(prose)) - known)
     assert not stray, stray
 
@@ -464,14 +464,12 @@ def test_seed_counts_fail_on_a_block_the_sentences_would_misread(which, old, new
         seed_counts(blocks["lrb"], blocks["rb"])
 
 
-@pytest.mark.xfail(strict=True, reason="v1.385 lands the note wording (row DOC27)")
 def test_the_seventh_file_section_ends_with_the_seeds_bullet():
     bullets = [x for x in section(note(), BANK).splitlines() if x.startswith("- ")]
     assert bullets[-1] == seeds_bullet()
     assert sum(x.startswith(SEEDS_LEAD) for x in note().splitlines()) == 1
 
 
-@pytest.mark.xfail(strict=True, reason="v1.385 lands the note wording (row DOC27)")
 def test_the_limits_bullet_on_means_links_both_seeds_notes():
     bullets = [x for x in section(note(), "## Limits").splitlines()
                if x.startswith("- Every held-out number here is a mean over the seeds of a results file; ")]
@@ -479,7 +477,6 @@ def test_the_limits_bullet_on_means_links_both_seeds_notes():
     assert "](llmrouterbench-seeds.md)" in bullets[0] and "](response-bank-seeds.md) the response bank's" in bullets[0]
 
 
-@pytest.mark.xfail(strict=True, reason="v1.385 completes the sentence (row DOC27)")
 def test_the_halves_bullet_is_a_whole_sentence():
     """v1.385: the seventh-file bullet on halves ended `whose half is` from v1.304 to v1.384."""
     bullets = [x for x in section(note(), BANK).splitlines() if x.startswith("- The halves are large but for one task")]
@@ -547,7 +544,6 @@ def test_limitations_bullet_fails_on_a_passing_row_between_half_and_twice(wrp, m
         limitations_bullet(wrp)
 
 
-@pytest.mark.xfail(strict=True, reason="v1.385 lands the README wording (row DOC27)")
 def test_readme_limitations_and_the_index_say_where_routing_passes(wrp):
     readme = README.read_text(encoding="utf-8")
     limits = readme.split("\n## Limitations and non-goals (v1)\n", 1)[1].split("\n## ", 1)[0]

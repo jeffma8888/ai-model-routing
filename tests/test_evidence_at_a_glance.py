@@ -387,7 +387,6 @@ def evidence_section():
 
 # --- the README ------------------------------------------------------------------------------
 
-@pytest.mark.xfail(strict=True, reason="v1.385 lands the README wording (row DOC27)")
 def test_readme_opens_the_evidence_section_with_the_glance_list():
     intro = evidence_section().split("\n### ", 1)[0]
     paragraphs = intro.strip("\n").split("\n\n")
@@ -782,7 +781,6 @@ def test_a_file_that_breaks_a_response_bank_claim_fails_its_bullet(change, match
         response_bank_bullet(results)
 
 
-@pytest.mark.xfail(strict=True, reason="v1.385 lands the README wording (row DOC27)")
 def test_the_glance_list_holds_the_response_bank_bullet_after_llmrouterbench():
     lines = evidence_section().split("\n### ", 1)[0].splitlines()
     bullet = response_bank_bullet(response_bank())
