@@ -53,7 +53,10 @@ def release_split(outcomes, calibration, config):
     and summary on that one split at the committed config."""
     table, task_items = {}, {}
     for o in outcomes:
-        table.setdefault((o.task, o.item), {})[o.model] = o
+        by_model = table.setdefault((o.task, o.item), {})
+        if o.model in by_model:
+            raise ValueError(f"repeated outcome for task {o.task!r}, item {o.item!r}, model {o.model!r}")
+        by_model[o.model] = o
         task_items.setdefault(o.task, set()).add(o.item)
     models = sorted({o.model for o in outcomes})
     for (task, item), by_model in sorted(table.items()):
@@ -97,8 +100,10 @@ def best_single(summary, bar, flavor):
 def report(outcomes, calibration, committed):
     config = committed["config"]
     models, tasks, splits, sums, cells, summary = release_split(outcomes, calibration, config)
-    if tasks != sorted(committed["tasks"]):
-        raise ValueError(f"the matrix tasks {tasks} are not the committed file's {sorted(committed['tasks'])}")
+    items = {t: len(cal) + len(held) for t, (cal, held) in splits.items()}
+    want = {t: committed["tasks"][t]["items"] for t in committed["tasks"]}
+    if items != want:
+        raise ValueError(f"the matrix tasks and items {items} are not the committed file's {want}")
     floor, confidence = config["min_samples"], config["confidence"]
     lines = [f"LLM Routing Response Bank on the release's own split ({CALIBRATION_FILE} calibrates, "
              f"the evaluation tasks score): {len(tasks)} task{'' if len(tasks) == 1 else 's'}, "
@@ -106,16 +111,17 @@ def report(outcomes, calibration, committed):
              + " ".join(str(b) for b in config["bars"])
              + f", min_samples {floor}, confidence {confidence} ({RESULTS} config)",
              "  task           calibration  evaluation  committed half  below min_samples  "
-             "highest calibration bound"]
+             "highest calibration bound (every model at it)"]
     fraction = config["calibration_fraction"]
     for task in tasks:
         cal, held = splits[task]
         half = int(committed["tasks"][task]["items"] * fraction)
         succ = sums[task, SEED]["succ"]
-        top = max(models, key=lambda m: (wilson_lower_bound(succ[m], len(cal), confidence), -sums[task, SEED]["mean_cost"][m]))
-        bound = wilson_lower_bound(succ[top], len(cal), confidence)
+        most = max(succ.values())
+        top = ", ".join(m for m in models if succ[m] == most)
+        bound = wilson_lower_bound(most, len(cal), confidence)
         lines.append(f"  {task:<14} {len(cal):<12,} {len(held):<11,} {half:<15,} "
-                     f"{'yes' if len(cal) < floor else 'no':<18} {bound:.3f} ({top}, {succ[top]:,} of {len(cal):,})")
+                     f"{'yes' if len(cal) < floor else 'no':<18} {bound:.3f} ({top}, {most:,} of {len(cal):,})")
     n_cal = sum(len(c) for c, _ in splits.values())
     n_held = sum(len(h) for _, h in splits.values())
     lines.append(f"  all            {n_cal:<12,} {n_held:,}")

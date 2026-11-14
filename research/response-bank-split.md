@@ -20,11 +20,11 @@
 ```text
 $ python research/response_bank_split.py --matrix response-bank-matrix.jsonl
 LLM Routing Response Bank on the release's own split (scores_cal.jsonl calibrates, the evaluation tasks score): 4 tasks, 5 models, bars 0.8 0.9, min_samples 30, confidence 0.95 (evidence/response-bank/results.json config)
-  task           calibration  evaluation  committed half  below min_samples  highest calibration bound
-  aime           8            22          15              yes                0.676 (deepseek/deepseek-v4-flash, 8 of 8)
+  task           calibration  evaluation  committed half  below min_samples  highest calibration bound (every model at it)
+  aime           8            22          15              yes                0.676 (deepseek/deepseek-v4-flash, deepseek/deepseek-v4-pro, moonshotai/kimi-k2.7-code, 8 of 8)
   gpqa_diamond   32           166         99              no                 0.682 (deepseek/deepseek-v4-flash, 27 of 32)
   livecodebench  88           967         527             no                 0.831 (deepseek/deepseek-v4-pro, 80 of 88)
-  mmlu_pro       128          11,904      6,016           no                 0.834 (z-ai/glm-5.3-flash, 115 of 128)
+  mmlu_pro       128          11,904      6,016           no                 0.834 (deepseek/deepseek-v4-flash, z-ai/glm-5.3-flash, 115 of 128)
   all            256          13,059
   single models on the evaluation split, held-out success and cost (USD):
     deepseek/deepseek-v4-flash   0.861  43.3917
@@ -67,7 +67,7 @@ LLM Routing Response Bank on the release's own split (scores_cal.jsonl calibrate
 - One split: the committed rows are means over 50 seeds and this is one draw, so a gap of a few thousandths here may be the draw alone.
 - Different items: the scored side here holds 13,059 items and each committed held-out half about half of the joined set, so only the cost shares and the success rates are compared, never the totals.
 - `mmlu_pro` holds 11,904 of the 13,059 scored items, so the pooled rows mostly measure it, as in the committed run.
-- The highest-bound column breaks a tie in the bound by the lower mean calibration cost; the router's own tie rule may differ, and the routed picks lines show what it chose.
+- The highest-bound column lists every model at that bound, as on `aime` and `mmlu_pro`, so it applies no tie rule; which of them the router takes is the 5.3 order of its flavor, and the routed picks lines show what it chose.
 
 ## Regenerate
 

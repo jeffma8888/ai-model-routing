@@ -139,7 +139,7 @@ def test_split_columns_are_the_evidence_readme_and_the_committed_halves():
     table = dict((t, (int(c.replace(",", "")), int(e.replace(",", ""))))
                  for t, c, e in re.findall(r"^\| `?([a-z_]+)`? \| ([\d,]+) \| ([\d,]+) \| [\d,]+ \|$", readme, re.M))
     assert sorted(table) == sorted(results["tasks"])
-    rows = re.findall(r"^  ([a-z_]+) +([\d,]+) +([\d,]+) +([\d,]+) +(yes|no) +([\d.]+) \((\S+), ([\d,]+) of ([\d,]+)\)$",
+    rows = re.findall(r"^  ([a-z_]+) +([\d,]+) +([\d,]+) +([\d,]+) +(yes|no) +([\d.]+) \(([^()]+), ([\d,]+) of ([\d,]+)\)$",
                       block, re.M)
     assert [r[0] for r in rows] == sorted(results["tasks"])
     floor = results["config"]["min_samples"]
@@ -162,6 +162,24 @@ def test_a_task_below_min_samples_never_clears():
         for task, model in (p.split(" ", 1) for p in line.split(", ")):
             if task in below:
                 assert not model.endswith("*"), line
+
+
+def test_fallback_and_cost_blind_picks_are_at_the_highest_bound():
+    # v1.377 (review iter-239 should-fix 1): the column lists every model at the task's highest
+    # calibration bound, so it names no tie rule; a pick that did not clear is the 5.3 fallback, the
+    # highest bound, and a cost_blind pick that cleared is the highest passing bound, so each is one
+    # of the column's models, whichever tie rule its flavor applies
+    block = results_block(note())
+    top = {task: set(models.split(", ")) for task, models in
+           re.findall(r"^  ([a-z_]+) +[\d,]+ +[\d,]+ +[\d,]+ +(?:yes|no) +[\d.]+ \(([^()]+), [\d,]+ of [\d,]+\)$",
+                      block, re.M)}
+    assert len(top) == 4 and len(top["mmlu_pro"]) == 2
+    lines = re.findall(r"^    (0\.\d+) (cost_effective|cost_blind): (.*)$", block, re.M)
+    assert len(lines) == 4
+    for _, flavor, picks in lines:
+        for task, model in (p.split(" ", 1) for p in picks.split(", ")):
+            if not model.endswith("*") or flavor == "cost_blind":
+                assert model.rstrip("*") in top[task], (flavor, task, model)
 
 
 def test_regenerate_section_states_the_commands():
@@ -231,11 +249,12 @@ def _committed():
 
 def test_report_on_a_hand_made_matrix(rbs):
     # Both models are right on all 30 calibration items, so each has the Wilson bound 30 / (30 + 1.96^2)
-    # = 0.886 at 0.95 and clears 0.8; cost_effective takes the cheaper v/b, right on 2 of the 4
+    # = 0.886 at 0.95, the column lists both (v1.377), and both clear 0.8; cost_effective takes the
+    # cheaper v/b, right on 2 of the 4
     # evaluation items at 1.0 each, against v/a's 4 of 4 at 2.0 each; the oracle pays v/b on the two
     # items it gets right and v/a on the other two, 6.0, 0.750 of the best single model's 8.0
     lines = [" ".join(line.split()) for line in rbs.report(outcomes_from_rows(_rows()), CALIBRATION, _committed())]
-    for want in ("t 30 4 17 no 0.886 (v/b, 30 of 30)", "all 30 4", "v/a 1.000 8.0000", "v/b 0.500 4.0000",
+    for want in ("t 30 4 17 no 0.886 (v/a, v/b, 30 of 30)", "all 30 4", "v/a 1.000 8.0000", "v/b 0.500 4.0000",
                  "best single model: v/a 1.000 here; v/a 0.900 in the committed means over 2 seeds",
                  "oracle: 1.000 at 0.750 of the best's cost here; 0.950 at 0.800 committed",
                  "best_on_calibration: 0.500 at 0.500 of the best's cost here; 0.600 at 0.500 committed",
@@ -256,9 +275,22 @@ def test_release_split_refusals(rbs, change, message):
         rbs.release_split(outcomes_from_rows(rows), cal, _committed()["config"])
 
 
-def test_report_refuses_other_tasks_than_the_committed_file(rbs):
+def test_release_split_refuses_a_repeated_outcome(rbs):
+    # v1.377 (review iter-239 nit 2): as evaluate (12.3), never the last one winning
+    rows = _rows()
+    with pytest.raises(ValueError, match="repeated outcome"):
+        rbs.release_split(outcomes_from_rows(rows) + outcomes_from_rows(rows[:1]), set(CALIBRATION),
+                          _committed()["config"])
+
+
+@pytest.mark.parametrize("change", [
+    lambda tasks: {"u": tasks["t"]},
+    # v1.377 (review iter-239 nit 1): the per-task item counts are checked too
+    lambda tasks: {"t": dict(tasks["t"], items=33)},
+])
+def test_report_refuses_other_tasks_than_the_committed_file(rbs, change):
     other = _committed()
-    other["tasks"] = {"u": other["tasks"]["t"]}
+    other["tasks"] = change(other["tasks"])
     with pytest.raises(ValueError, match="not the committed file's"):
         rbs.report(outcomes_from_rows(_rows()), CALIBRATION, other)
 
