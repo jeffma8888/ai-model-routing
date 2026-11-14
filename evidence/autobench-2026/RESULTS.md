@@ -84,6 +84,7 @@ At bar 0.8 almost nothing clears: at 95% confidence a perfect score needs at lea
 - The models are 2026 models, and the costs are the billed USD per call in the matrix frozen on 2026-08-29; vendor prices have moved since
 - A Delta-Hit is relative, not an absolute acceptance check: it means "rated about as well as the best three answers in this pool on this question" by judges that are themselves models from the same pool, so these are model judgments, not gold labels
 - The sample is small: 203 questions, with 77 to 120 in the calibration half over the 50 seeds, so the Wilson bound admits few models at high bars, and the per-domain split is too small for the default `min_samples`
+- The converter drops the 49 questions with an unscored pool cell (107 cells) rather than scoring them as misses, and the 388 rows for 13 models outside the 20-model pool
 - Data: CC-BY-4.0, Autobench, Autobench Router Benchmark 2026, https://huggingface.co/datasets/AutoBench/router-benchmark-2026-10 at revision 43755180be7d8097068982d7a3f37fc04cd15379. Pinned files, sha256 values, the citation the card asks for and what the converter drops are in [README.md](README.md)
 
 ## Regenerate

@@ -9,6 +9,12 @@ requires the committed bytes, the other rebuilds every sensitivity number in RES
 v1.17 adds the README `### AutoBench` subsection (DESIGN 12.8), rebuilt from the committed
 file, and the card quotes RESULTS.md uses for what the card graded, checked against the
 pinned card when it is cached.
+
+v1.371 (DESIGN 12.10 v1.370, row DOC19j): the subsection is trimmed to the 12.8 size budget. It
+keeps its first two Reading it bullets and its date and cost limit, then one line that links
+RESULTS.md ``## Caveats``; the tests require the facts of the dropped oracle bullet and limits in
+RESULTS.md and absent from the subsection, the dropped-counts limit, which RESULTS.md lacked, as
+its fourth caveat.
 """
 
 import hashlib
@@ -42,6 +48,23 @@ REGENERATE = (
     "python evidence/routerbench/results.py --table evidence/autobench-2026/results.json\n"
     "```\n")
 CARD = ("no commercial pass beats always calling GPT-5.6 Luna on quality and cost together")
+# v1.371 (12.10 v1.370): the README limit the subsection keeps, the line after it that links the rest
+# of RESULTS.md, and the regenerate paragraph after that.
+KEPT_LIMIT = ("- The models are 2026 models, and the costs are the billed USD per call in the matrix frozen "
+              "on 2026-08-29; vendor prices have moved since")
+LINK_LINE = ("The other limits are in [RESULTS.md](evidence/autobench-2026/RESULTS.md#caveats) `## Caveats` "
+             "(the relative Delta-Hit label, the sample size, what the converter drops) and its "
+             "`## Sensitivity` (the per-domain run), and the other Reading it bullets in its `## Reading it` "
+             "(`cost_effective` at each bar, `cost_blind`, the per-question oracle).")
+REGENERATE_LINE = ("Regenerate (the evaluate step takes under a second; the dataset downloads into a cache "
+                   "folder outside the repo):")
+# v1.371: the README limit RESULTS.md lacked, now its fourth caveat word for word, before `Data:`.
+DROPPED_COUNTS = ("- The converter drops the 49 questions with an unscored pool cell (107 cells) rather than "
+                  "scoring them as misses, and the 388 rows for 13 models outside the 20-model pool")
+# v1.371: the starts of the README lines the trim drops and of the RESULTS.md bullets never in the README.
+DROPPED_STARTS = ("- The per-question oracle", "- A Delta-Hit is relative", "- Routing here is one pooled",
+                  "- The converter drops", "- `cost_effective` buys", "- `cost_blind` routes",
+                  "- There is one task", "- The oracle's 1.000", "- The sample is small")
 LUNA = "model:openai/gpt-5.6-luna"
 OFFICIAL_WIDTH = 0.3011090610836323
 MODELS = [
@@ -187,7 +210,9 @@ def test_results_md_regenerate_block_and_width_in_prose():
     assert "0.2007" in text and "0.20073937405575484" not in text
     for needle in ["https://huggingface.co/datasets/AutoBench/router-benchmark-2026-10",
                    "43755180be7d8097068982d7a3f37fc04cd15379", "CC-BY-4.0", "(README.md)",
-                   "(results.json)", "--task-by all", "not an absolute acceptance check"]:
+                   "(results.json)", "--task-by all", "not an absolute acceptance check",
+                   # v1.371 (12.10 v1.370): from the dropped README pooled-task limit.
+                   "10 tasks of 12 to 33 questions"]:
         assert needle in text, needle
 
 
@@ -333,15 +358,49 @@ def test_readme_autobench_links_source_licence_limits_and_commands(cv):
                    "(evidence/autobench-2026/RESULTS.md)", "(evidence/autobench-2026/results.json)",
                    "(evidence/autobench-2026/README.md)",
                    "at the converter's default width, the dataset's `delta_signal` of 0.2007",
-                   "frozen on 2026-08-29", "not an absolute acceptance check",
-                   "12 to 33 questions", "the 49 questions with an unscored pool cell (107 cells)",
-                   "the 388 rows for 13 models outside the 20-model pool"):
+                   "frozen on 2026-08-29"):
         assert needle in section, needle
     assert "0.20073937405575484" not in section
     regenerate = results_md().split("## Regenerate\n\n```bash\n", 1)[1].split("```", 1)[0]
     assert regenerate.count("\n") == 5
     assert "```bash\n" + regenerate + "```" in section
     assert REGENERATE.rstrip("\n") == "```bash\n" + regenerate + "```"
+
+
+def results_md_section(text, heading):
+    assert text.count(f"\n## {heading}\n") == 1, heading
+    return text.split(f"\n## {heading}\n", 1)[1].split("\n## ", 1)[0]
+
+
+def test_readme_autobench_keeps_two_bullets_one_limit_and_a_link_line():
+    """v1.371 (12.10 v1.370): after its four source bullets the subsection's only bullets are its
+    first two Reading it bullets and the date and cost limit, then the link line, whose anchor is the
+    RESULTS.md `## Caveats` heading, and the regenerate paragraph; the facts of the dropped oracle
+    bullet and limits are in RESULTS.md and absent from the subsection, the dropped counts as its
+    fourth caveat."""
+    results, section, md = committed(), autobench_subsection(), results_md()
+    kept = [f'- The dataset card\'s headline, at the pinned revision: "{CARD}". {luna_statement(results)} '
+            "RESULTS.md shows how close `cost_effective` at bar 0.7 comes, and why",
+            "- The bar-violation rate reads as in the RouterBench table, with one task: each rate counts "
+            "seeds, not evals", KEPT_LIMIT]
+    block = (f"Reading it:\n\n{kept[0]}\n{kept[1]}\n\nLimits:\n\n{kept[2]}\n\n{LINK_LINE}\n\n"
+             f"{REGENERATE_LINE}\n\n```bash\n")
+    assert section.count(block) == 1
+    bullets = [line for line in section.splitlines() if line.startswith("- ")]
+    assert len(bullets) == 7 and bullets[4:] == kept
+    caveats = [line for line in results_md_section(md, "Caveats").splitlines() if line.startswith("- ")]
+    assert len(caveats) == 5 and caveats[0] == KEPT_LIMIT and caveats[3] == DROPPED_COUNTS
+    assert caveats[1].startswith("- A Delta-Hit is relative, not an absolute acceptance check")
+    assert caveats[4].startswith("- Data: ")
+    reading = results_md_section(md, "Reading it")
+    assert "is a hindsight bound that routing one pooled task cannot approach" in reading
+    assert "a calibration half holds from" in results_md_section(md, "Sensitivity")
+    assert "rather than each prompt" in results_md_section(md, "Next to the dataset's headline")
+    for start in DROPPED_STARTS:
+        assert not any(line.startswith(start) for line in section.splitlines()), start
+    for needle in ("not an absolute acceptance check", "12 to 33", "unscored pool cell", "388 rows",
+                   "hindsight bound", "`min_samples`"):
+        assert needle not in section, needle
 
 
 # --- the pinned files, only when already cached ---------------------------------------------

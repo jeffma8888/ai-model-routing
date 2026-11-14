@@ -499,14 +499,12 @@ Reading it:
 
 - The dataset card's headline, at the pinned revision: "no commercial pass beats always calling GPT-5.6 Luna on quality and cost together". On the same matrix no routed row beats it on both counts: always calling `openai/gpt-5.6-luna` reaches held-out success 0.872 at 0.3092 USD, and every routed row in the table has lower held-out success or a higher cost. RESULTS.md shows how close `cost_effective` at bar 0.7 comes, and why
 - The bar-violation rate reads as in the RouterBench table, with one task: each rate counts seeds, not evals
-- The per-question oracle is a hindsight bound. Routing one pooled task gets nowhere near it
 
 Limits:
 
 - The models are 2026 models, and the costs are the billed USD per call in the matrix frozen on 2026-08-29; vendor prices have moved since
-- A Delta-Hit is relative, not an absolute acceptance check: it means "rated about as well as the best three answers in this pool on this question", by judges that are themselves models from the same pool, so these are model judgments, not gold labels
-- Routing here is one pooled task, not per domain or per question: a domain has 12 to 33 questions, so its calibration half cannot reach the default `min_samples` of 30. RESULTS.md has a per-domain sensitivity run at a lower `--min-samples`
-- The converter drops the 49 questions with an unscored pool cell (107 cells) rather than scoring them as misses, and the 388 rows for 13 models outside the 20-model pool
+
+The other limits are in [RESULTS.md](evidence/autobench-2026/RESULTS.md#caveats) `## Caveats` (the relative Delta-Hit label, the sample size, what the converter drops) and its `## Sensitivity` (the per-domain run), and the other Reading it bullets in its `## Reading it` (`cost_effective` at each bar, `cost_blind`, the per-question oracle).
 
 Regenerate (the evaluate step takes under a second; the dataset downloads into a cache folder outside the repo):
 
