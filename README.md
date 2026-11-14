@@ -892,47 +892,9 @@ python evidence/delegation/results.py --table evidence/tau2-bench-delegation/poo
 
 ### Delegation on LLMRouterBench
 
-The [LLMRouterBench](https://huggingface.co/datasets/NPULH/LLMRouterBench) records at revision [`b95870f`](https://huggingface.co/datasets/NPULH/LLMRouterBench/tree/b95870f9e60c589e82f7972c91ffa8de9ca89f85) (licence MIT, "Copyright (c) 2025-2026 LLMRouterBench contributors"), the records the [LLMRouterBench](#llmrouterbench) routing results above read, score the [inline or sub-agent](#inline-or-sub-agent) decision on held-out items, next to always working inline and always delegating ([RESULTS.md](evidence/llmrouterbench-delegation/RESULTS.md), [results.json](evidence/llmrouterbench-delegation/results.json), `DESIGN.md` 13.9 and 13.13). Each item is one benchmark question, which each model answered in one recorded call, one task per benchmark (`aime` 60, `arc-agi` 400, `arenahard` 749, `gpqa` 198, `hle` 2,152, `livecodebench` 1,055, `livemathbench` 121, `mmlupro` 3,000 and `simpleqa` 4,321 items, 12,056 in all), with each of the 8 priced models (`anthropic/claude-sonnet-4`, `deepseek/deepseek-r1-0528`, `deepseek/deepseek-v3-0324`, `deepseek/deepseek-v3.1-terminus`, `internlm/intern-s1`, `openai/gpt-5`, `openai/gpt-5-chat` and `z-ai/glm-4.6`) as the parent, over 50 seeds. The rows are the LLMRouterBench converter's default output ([evidence/llmrouterbench/README.md](evidence/llmrouterbench/README.md)), kept to the 8 models that [registry.json](evidence/llmrouterbench-delegation/registry.json) prices, 4 at a vendor page's list price and 4 at the one price pair their recorded costs give, with the pages and the checks behind them in [research/delegation-datasets.md](research/delegation-datasets.md), so every cost is a list-price estimate, never a billed cost. The grid is the four base points of [Delegation on AutoBench](#delegation-on-autobench): 8,000, 64,000 and 200,000 context tokens with inline work in parent calls of its own, and 8,000 with the work folded into the parent's next call, each with a brief of 500 tokens, a 500-token result and one later parent call. Means over the 8 parents, columns as in [Delegation on AutoBench](#delegation-on-autobench):
+The [LLMRouterBench](https://huggingface.co/datasets/NPULH/LLMRouterBench) records at revision [`b95870f`](https://huggingface.co/datasets/NPULH/LLMRouterBench/tree/b95870f9e60c589e82f7972c91ffa8de9ca89f85) (licence MIT, "Copyright (c) 2025-2026 LLMRouterBench contributors"), the records the [LLMRouterBench](#llmrouterbench) routing results above read, score the [inline or sub-agent](#inline-or-sub-agent) decision on held-out items, next to always working inline and always delegating ([RESULTS.md](evidence/llmrouterbench-delegation/RESULTS.md), [results.json](evidence/llmrouterbench-delegation/results.json), `DESIGN.md` 13.9 and 13.13). Each item is one benchmark question, which each model answered in one recorded call, one task per benchmark (`aime` 60, `arc-agi` 400, `arenahard` 749, `gpqa` 198, `hle` 2,152, `livecodebench` 1,055, `livemathbench` 121, `mmlupro` 3,000 and `simpleqa` 4,321 items, 12,056 in all), with each of the 8 priced models (`anthropic/claude-sonnet-4`, `deepseek/deepseek-r1-0528`, `deepseek/deepseek-v3-0324`, `deepseek/deepseek-v3.1-terminus`, `internlm/intern-s1`, `openai/gpt-5`, `openai/gpt-5-chat` and `z-ai/glm-4.6`) as the parent, over 50 seeds. The rows are the LLMRouterBench converter's default output ([evidence/llmrouterbench/README.md](evidence/llmrouterbench/README.md)), kept to the 8 models that [registry.json](evidence/llmrouterbench-delegation/registry.json) prices, 4 at a vendor page's list price and 4 at the one price pair their recorded costs give, with the pages and the checks behind them in [research/delegation-datasets.md](research/delegation-datasets.md), so every cost is a list-price estimate, never a billed cost. The grid is the four base points of [Delegation on AutoBench](#delegation-on-autobench): 8,000, 64,000 and 200,000 context tokens with inline work in parent calls of its own, and 8,000 with the work folded into the parent's next call, each with a brief of 500 tokens, a 500-token result and one later parent call.
 
-```text
-$ python evidence/delegation/results.py --table evidence/llmrouterbench-delegation/results.json
-bar  flavor          context  separate  dec_success  dec_cost  inl_success  inl_cost   del_success  del_cost  delegated
----  --------------  -------  --------  -----------  --------  -----------  ---------  -----------  --------  ---------
-0.1  cost_effective  8000     True      0.450        69.5970   0.445        133.3194   0.450        69.5970   1.000
-0.1  cost_effective  64000    True      0.450        69.5970   0.445        441.4268   0.450        69.5970   1.000
-0.1  cost_effective  200000   True      0.450        69.5970   0.445        1189.6878  0.450        69.5970   1.000
-0.1  cost_effective  8000     False     0.445        61.8219   0.445        75.9449    0.450        69.5970   0.718
-0.1  cost_blind      8000     True      0.591        248.3151  0.445        133.3194   0.591        239.6925  0.869
-0.1  cost_blind      64000    True      0.591        300.8536  0.445        441.4268   0.591        239.6925  0.869
-0.1  cost_blind      200000   True      0.591        427.2685  0.445        1189.6878  0.591        239.6925  0.883
-0.1  cost_blind      8000     False     0.591        237.2439  0.445        75.9449    0.591        239.6925  0.869
-0.3  cost_effective  8000     True      0.525        148.5838  0.445        133.3194   0.525        148.5838  1.000
-0.3  cost_effective  64000    True      0.525        148.5838  0.445        441.4268   0.525        148.5838  1.000
-0.3  cost_effective  200000   True      0.525        148.5838  0.445        1189.6878  0.525        148.5838  1.000
-0.3  cost_effective  8000     False     0.523        144.3870  0.445        75.9449    0.525        148.5838  0.780
-0.3  cost_blind      8000     True      0.591        248.3151  0.445        133.3194   0.591        239.6925  0.869
-0.3  cost_blind      64000    True      0.591        300.8536  0.445        441.4268   0.591        239.6925  0.869
-0.3  cost_blind      200000   True      0.591        427.2685  0.445        1189.6878  0.591        239.6925  0.883
-0.3  cost_blind      8000     False     0.591        237.2439  0.445        75.9449    0.591        239.6925  0.869
-0.5  cost_effective  8000     True      0.559        179.0738  0.445        133.3194   0.559        179.0738  1.000
-0.5  cost_effective  64000    True      0.559        179.0738  0.445        441.4268   0.559        179.0738  1.000
-0.5  cost_effective  200000   True      0.559        179.0738  0.445        1189.6878  0.559        179.0738  1.000
-0.5  cost_effective  8000     False     0.555        175.2834  0.445        75.9449    0.559        179.0738  0.814
-0.5  cost_blind      8000     True      0.591        248.3151  0.445        133.3194   0.591        239.6925  0.869
-0.5  cost_blind      64000    True      0.591        300.8536  0.445        441.4268   0.591        239.6925  0.869
-0.5  cost_blind      200000   True      0.591        427.2685  0.445        1189.6878  0.591        239.6925  0.883
-0.5  cost_blind      8000     False     0.591        237.2439  0.445        75.9449    0.591        239.6925  0.869
-0.8  cost_effective  8000     True      0.582        221.6676  0.445        133.3194   0.582        221.6676  1.000
-0.8  cost_effective  64000    True      0.582        221.6676  0.445        441.4268   0.582        221.6676  1.000
-0.8  cost_effective  200000   True      0.582        221.6676  0.445        1189.6878  0.582        221.6676  1.000
-0.8  cost_effective  8000     False     0.582        218.7178  0.445        75.9449    0.582        221.6676  0.910
-0.8  cost_blind      8000     True      0.591        248.3151  0.445        133.3194   0.591        239.6925  0.869
-0.8  cost_blind      64000    True      0.591        300.8536  0.445        441.4268   0.591        239.6925  0.869
-0.8  cost_blind      200000   True      0.591        427.2685  0.445        1189.6878  0.591        239.6925  0.883
-0.8  cost_blind      8000     False     0.591        237.2439  0.445        75.9449    0.591        239.6925  0.869
-```
-
-One row per (flavor, parent) at bar 0.1 and point 0:
+One row per (flavor, parent) at bar 0.1 and point 0, columns as in [Delegation on AutoBench](#delegation-on-autobench):
 
 ```text
 $ python evidence/delegation/results.py --table evidence/llmrouterbench-delegation/results.json --bar 0.1 --point 0
@@ -958,20 +920,12 @@ cost_blind      z-ai/glm-4.6                     0.991      0.591        226.917
 
 - In `cost_effective` the decision delegates on every seed for every parent at points 0 to 2 at every bar (`delegate_rate` 1.0 on all 96 of their decision rows); at point 3, the work folded into the parent's next call, its rate averaged over the 8 parents is 0.718, 0.780, 0.814 and 0.910 at bars 0.1, 0.3, 0.5 and 0.8.
 - At bar 0.1 and point 0 (8,000 context tokens), averaged over the 8 parents, the `cost_effective` decision costs 69.5970 USD on a held-out half against 133.3194 for always inline (1.92 times as much), with held-out success 0.450 against 0.445.
-- At bar 0.8 and point 0 it costs 221.6676 USD against 133.3194 for always inline, with held-out success 0.582 against 0.445.
-- The pool leaves out `google/gemini-2.5-pro`, the best single model of [the LLMRouterBench routing results](evidence/llmrouterbench/RESULTS.md), since no vendor page prices it and its recorded costs give no exact price pair.
-- `aime` has 60 items, so its calibration half holds 22 to 42 over the seeds and is under the default `min_samples` of 30 on 25 of the 50: no model clears a bar there on those seeds, and every `aime` cell of them is 13.5 row 7 (`none_clear`) unless 13.4 blocks inline
-- At point 2, C = 200,000 alone fills the window of every parent but `openai/gpt-5` (400,000), so inline is blocked (`parent_context_full`) on all 3,600 point 2 cells of each of the other 7. At point 1 (C = 64,000) it is blocked on 2,184 of the 3,600 cells of `internlm/intern-s1`, whose 65,536-token window leaves 1,536 tokens past C, and on no other cell
-- Of the 57,600 `cost_effective` cells, 19,921 `delegate_cheaper`, 14,840 `none_clear`, 13,692 `parent_context_full`, 6,555 `parent_below_bar` and 2,592 `inline_cheaper`. `none_clear` is 13.5 row 7: no model clears the bar, so the calibration bounds decide, not cost.
 
 Limits, as RESULTS.md states them:
 
 - The lossless brief of `DESIGN.md` 13.9: the delegate is credited with its own recorded answer, as if a brief of B tokens carried what it needs, and the parent with its own as if C more tokens of context did not change it
-- Every cost is a list price of the registry applied to the recorded token counts, never a recorded cost. For the four page-priced models the recorded costs are 0.906 (`openai/gpt-5`), 0.967 (`openai/gpt-5-chat`), 0.996 (`z-ai/glm-4.6`) and 1.000 (`anthropic/claude-sonnet-4`) of list price on the same counts; the other four are priced at the pair their recorded costs give, so for them the two agree
-- The windows of the three DeepSeek models (163,840) and `internlm/intern-s1` (65,536) are the open weights' position limit, `max_position_embeddings` at a pinned Hugging Face revision, not the window of the service that recorded the costs, which the dataset does not name. The 200,000-token window of `anthropic/claude-sonnet-4` is inferred from the Claude page's sentence on every Claude model outside its 1M-token list, since the page does not name it. The `z-ai/glm-4.6` page writes 200K, read here as 200,000; read as 204,800, it would leave that parent 4,800 tokens of room at point 2
-- The 8 models are 2025 snapshots, as are all 13 of the dataset's pool: the model pages list `openai/gpt-5` as Deprecated and `openai/gpt-5-chat` as Shut down, and `anthropic/claude-sonnet-4` has the retirement date June 15, 2026. These prices only reprice their recorded calls
-- An `arenahard` score of 0.5 counts as a miss, since a success is a score of 1 (`DESIGN.md` 12.18)
-- The limits of `DESIGN.md` 13.8: each item's success is its one recorded score, and the bar is held per call
+
+The other limits are in [RESULTS.md](evidence/llmrouterbench-delegation/RESULTS.md#assumed) `## Assumed`, and the means over the parents at every bar and point, the bar 0.8 cost, why `google/gemini-2.5-pro` is left out, the short `aime` halves, the window blocks and the reason counts in the rest of that file.
 
 Regenerate (the converter's download is the one of [LLMRouterBench](#llmrouterbench), kept in its cache folder after the first run):
 

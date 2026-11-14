@@ -16,6 +16,11 @@ v1.239 (row E17f) adds a Reading it bullet that names, at the lowest bar and poi
 whose `cost_effective` decision costs more than always inline, with both costs and both held-out
 successes; its test was committed ahead of the bullet as a strict xfail, and v1.240 lands the bullet
 and removes the marker.
+
+v1.351 (row DOC19c) trims the README subsection to the 12.8 v1.334 size budget, as the 13.13
+README trim bullet (v1.350) specifies: the whole table, the third Reading it bullet, the four
+`## Method` bullets and five of the six `## Assumed` bullets leave it, and the tests that required
+them there now require each in RESULTS.md and none of them in the subsection.
 """
 
 import importlib.util
@@ -541,11 +546,21 @@ README_LINKS = (
     "8,000, 64,000 and 200,000",
     "list-price estimate",
 )
-# Each is the start of one RESULTS.md bullet that the README repeats verbatim (12.8 v1.200).
+# Each is the start of one RESULTS.md bullet that the README repeated verbatim (12.8 v1.200). From
+# v1.351 (13.13 v1.350) the README keeps only the one in README_KEPT_LINES, then the link line; every
+# one stays a RESULTS.md line.
 METHOD_LINES = ("`aime` has 60 items", "At point 2, C = 200,000", "Of the ")
 ASSUMED_LINES = ("The lossless brief", "Every cost is a list price", "The windows of the three DeepSeek models",
                  "The 8 models are 2025 snapshots", "An `arenahard` score of 0.5", "The limits of `DESIGN.md` 13.8")
+README_KEPT_LINES = ("The lossless brief",)
 ROOT_GEMINI = GEMINI.replace("](../llmrouterbench/RESULTS.md)", "](evidence/llmrouterbench/RESULTS.md)")
+LINK_LINE = ("The other limits are in [RESULTS.md](evidence/llmrouterbench-delegation/RESULTS.md#assumed) `## Assumed`, "
+             "and the means over the parents at every bar and point, the bar 0.8 cost, why `google/gemini-2.5-pro` is "
+             "left out, the short `aime` halves, the window blocks and the reason counts in the rest of that file.")
+PARENT_INTRO = ("One row per (flavor, parent) at bar 0.1 and point 0, columns as in "
+                "[Delegation on AutoBench](#delegation-on-autobench):")
+REGENERATE_INTRO = ("Regenerate (the converter's download is the one of [LLMRouterBench](#llmrouterbench), kept in "
+                    "its cache folder after the first run):")
 
 
 def readme_subsection():
@@ -582,36 +597,63 @@ def test_readme_subsection_links_the_sources_and_licence():
     assert "](../" not in sub
 
 
+def readme_reading_it():
+    """The RESULTS.md `## Reading it` bullets, each with its `- `, in order."""
+    reading = [line for line in section(RESULTS_MD.read_text(encoding="utf-8"), "## Reading it").split("\n")
+               if line.startswith("- ")]
+    assert len(reading) == 5 and reading[-1].startswith("- `results.json` is ")
+    return reading
+
+
 def test_readme_subsection_shows_the_counts_tables_and_reading_it(dr):
+    # v1.351 (13.13 v1.350): the per-parent block and the first two Reading it bullets; the whole
+    # table, which RESULTS.md `## Results` holds, and the other three bullets are left to RESULTS.md.
     sub = readme_subsection()
     results = committed_results()
     assert counts_sentence(results) in sub
     assert sum(task["items"] for task in results["tasks"].values()) == 12_056
-    assert f"```text\n{TABLE_CMD}\n{dr.table(results)}\n```" in sub
-    assert f"```text\n{PARENT_CMD}\n{dr.parent_table(results, results['config']['bars'][0], 0)}\n```" in sub
-    # the first three Reading it bullets, which the RESULTS.md test builds from the committed file; the
-    # v1.239 bullet on the parents dearer than inline and the size bullet, the last, stay in RESULTS.md
-    reading = [line for line in section(RESULTS_MD.read_text(encoding="utf-8"), "## Reading it").split("\n")
-               if line.startswith("- ")]
-    assert reading[-1].startswith("- `results.json` is ")
-    for line in reading[:3]:
-        assert f"\n{line}\n" in sub, line
-    for line in reading[3:]:
+    assert f"```text\n{TABLE_CMD}\n" not in sub
+    assert dr.table(results).split("\n")[0] not in sub
+    assert "Means over the 8 parents" not in sub
+    parent = dr.parent_table(results, results['config']['bars'][0], 0)
+    assert sub.count(f"\n{PARENT_INTRO}\n\n```text\n{PARENT_CMD}\n{parent}\n```\n") == 1
+    reading = readme_reading_it()
+    for line in reading[:2]:
+        assert sub.count(f"\n{line}\n") == 1, line
+    for line in reading[2:]:
         assert line[2:] not in sub, line
     assert "`results.json` is " not in sub
 
 
-def test_readme_subsection_repeats_the_results_md_lines():
+def test_readme_subsection_keeps_two_bullets_one_limit_and_a_link_line():
+    """v1.351 (13.13 v1.350): the subsection's only bullets are the first two Reading it ones and the
+    lossless-brief limit, in that order after the per-parent block, then the link line and the
+    regenerate paragraph; the link line's anchor is the RESULTS.md `## Assumed` heading."""
     sub = readme_subsection()
-    for start in METHOD_LINES:
-        assert f"\n{results_md_line(start, '## Method')}\n" in sub, start
-    for start in ASSUMED_LINES:
-        assert f"\n{results_md_line(start, '## Assumed')}\n" in sub, start
-    # The one repeated line with a link targets the routing RESULTS.md from the repo root.
+    reading = readme_reading_it()
+    lossless = results_md_line("The lossless brief", "## Assumed")
+    assert [line for line in sub.splitlines() if line.startswith("- ")] == [reading[0], reading[1], lossless]
+    tail = (f"\n{reading[1]}\n\nLimits, as RESULTS.md states them:\n\n{lossless}\n\n{LINK_LINE}\n\n"
+            f"{REGENERATE_INTRO}\n\n```bash\n")
+    assert sub.count(tail) == 1
+    assert sub.index(PARENT_CMD) < sub.index(tail)
+    assert "\n## Assumed\n" in RESULTS_MD.read_text(encoding="utf-8")
+
+
+def test_readme_subsection_repeats_the_results_md_lines():
+    # v1.351 (13.13 v1.350): each is one RESULTS.md line; the subsection keeps only README_KEPT_LINES.
+    sub = readme_subsection()
+    for start, heading in [(m, "## Method") for m in METHOD_LINES] + [(a, "## Assumed") for a in ASSUMED_LINES]:
+        line = results_md_line(start, heading)
+        if start in README_KEPT_LINES:
+            assert sub.count(f"\n{line}\n") == 1, start
+        else:
+            assert f"\n- {start}" not in sub, start
+    # The one dropped line with a link: in RESULTS.md relative to its folder, in neither form in the README.
     assert results_md_line("The pool leaves out", "## Method") == "- " + GEMINI
-    assert f"\n- {ROOT_GEMINI}\n" in sub
+    assert ROOT_GEMINI not in sub and GEMINI not in sub
+    assert "\n- The pool leaves out" not in sub
     limits = sub.index("\nLimits, as RESULTS.md states them:\n")
-    assert sub.index(results_md_line(METHOD_LINES[-1], "## Method")) < limits
     assert limits < sub.index(results_md_line(ASSUMED_LINES[0], "## Assumed"))
 
 
