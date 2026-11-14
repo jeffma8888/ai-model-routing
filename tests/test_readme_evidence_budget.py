@@ -56,8 +56,9 @@ SAME_OR_HIGHER = re.compile(r"#{1,3} ")
 # DESIGN 12.8 v1.344: the ceiling on 12.8 in bytes for each count of PENDING names. The row that removes
 # a PENDING name adds the entry for the new count, the size its trim leaves (v1.344: 98,443 bytes; v1.345,
 # from review, 99,206, its size after the review's clauses; v1.346, row DOC20a, 96,239; v1.347,
-# from review, 96,365; for 9 names, v1.348, row DOC19b, 96,312; for 8 names, v1.350, row DOC19c, 95,933).
-DESIGN_12_8_CEILINGS = {8: 95_933, 9: 96_312, 10: 96_365}
+# from review, 96,365; for 9 names, v1.348, row DOC19b, 96,312; for 8 names, v1.350, row DOC19c, 95,933,
+# and v1.352, from review, 96,008).
+DESIGN_12_8_CEILINGS = {8: 96_008, 9: 96_312, 10: 96_365}
 
 
 def size(lines):
