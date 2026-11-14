@@ -42,7 +42,7 @@ model:zero-one-ai/Yi-34B-Chat            0.680    1.8655
 - `cost_effective` buys the cheapest model that clears the bar on each eval, not the best answer. At bar 0.6 it cleared 80.4% of cells and spent 0.341 of the best single model's cost for an overall success of 0.735 against that model's 0.821; at 0.9 only 11.1% of cells clear, the router falls back to the best available model elsewhere, and the cost ratio rises to 0.953
 - `cost_blind` routes each eval to the model with the highest lower bound: success 0.819 at 0.963 of the best single model's cost at every bar, close to `best_on_calibration` (0.819 at 0.953): the same success to three decimals at 1.1% more cost
 - `bar_violation_rate` for `cost_effective` runs from 0.013 to 0.032 across the four bars, next to a nominal one-sided 0.025 for a 95% Wilson bound on one model. It is a resampling estimate for this matrix (the routed model is picked among several that passed, 11 evals hold only 100 prompts, and their held-out halves run from 36 to 66 prompts over the 50 seeds, and the 50 seeds re-split one pool), not a guarantee (DESIGN 12.3, "Reading the numbers")
-- The per-prompt oracle reaches 0.959 at 1.9634 USD. Routing per eval gets nowhere near it; whether per-prompt routing can is an open question this file does not answer
+- The per-prompt oracle reaches 0.959 at 1.9634 USD, against at most 0.819 for a routed row. It is a hindsight bound, and routing per eval gets nowhere near it; whether per-prompt routing can is an open question this file does not answer
 
 ## Sensitivity: graded evals
 
@@ -52,6 +52,8 @@ By default the converter drops the six evals whose scores are not just 0 or 1 (s
 
 - The models date from 2023 and the costs are the ones the dataset recorded, at that time's prices
 - A task is one eval (`eval_name`), so this is routing per task, not per prompt
+- Most evals are MMLU subjects (57 of the 65), so the overall rows mostly measure MMLU
+- By default the converter drops graded evals (scores other than 0 and 1, such as `grade-school-math`) and evals with fewer than 100 prompts, keeping 65 of the 86; the sensitivity run above keeps the graded ones at a stated pass score
 - The dataset card states no licence for the data; the RouterBench code is MIT licensed. Source, pinned revision and sha256 are in [README.md](README.md)
 
 ## Regenerate

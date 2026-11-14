@@ -39,10 +39,9 @@ CLASS = {
     "Delegation on the LLM Routing Response Bank": "delegation",
 }
 # The untrimmed subsections and their sizes at 0b3e142 (12.8 v1.334); each of rows DOC19b to DOC19k
-# removes one name.
-PENDING = {
-    "RouterBench": 4_731,
-}
+# removed one name, the last (`RouterBench`, 4,731 bytes) v1.373, row DOC19k, so the section total is
+# now required.
+PENDING = {}
 DESIGN = ROOT / "DESIGN.md"
 DESIGN_12_8 = "### 12.8 "
 SAME_OR_HIGHER = re.compile(r"#{1,3} ")
@@ -53,8 +52,9 @@ SAME_OR_HIGHER = re.compile(r"#{1,3} ")
 # and v1.352, from review, 96,008; for 7 names, v1.353, row DOC19d, 95,632; for 6 names, v1.355,
 # row DOC19e, 95,561, and v1.357, from review, 95,620; for 5 names, v1.358, row DOC19f, 95,429;
 # for 4 names, v1.362, row DOC19g, 95,282; for 3 names, v1.365, row DOC19h, 95,193; for 2 names,
-# v1.368, row DOC19i, 94,685; for 1 name, v1.370, row DOC19j, 94,563).
-DESIGN_12_8_CEILINGS = {1: 94_563, 2: 94_685, 3: 95_193, 4: 95_282, 5: 95_429, 6: 95_620, 7: 95_632, 8: 96_008,
+# v1.368, row DOC19i, 94,685; for 1 name, v1.370, row DOC19j, 94,563; for 0 names, v1.372, row DOC19k,
+# 94,335).
+DESIGN_12_8_CEILINGS = {0: 94_335, 1: 94_563, 2: 94_685, 3: 95_193, 4: 95_282, 5: 95_429, 6: 95_620, 7: 95_632, 8: 96_008,
                         9: 96_312, 10: 96_365}
 
 
@@ -225,6 +225,16 @@ def test_autobench_is_trimmed():
     sizes = dict(measure(README.read_text(encoding="utf-8"))[2:])
     assert "AutoBench" not in PENDING
     assert sizes["AutoBench"] <= CAPS["routing"]
+
+
+def test_routerbench_is_trimmed_and_the_section_total_is_required():
+    # Row DOC19k: out of PENDING and at most its cap (4,731 bytes at 0b3e142, under its cap already);
+    # with PENDING empty, the section is held at most 70,000 bytes.
+    parts = measure(README.read_text(encoding="utf-8"))
+    sizes = dict(parts[2:])
+    assert PENDING == {}
+    assert sizes["RouterBench"] <= CAPS["routing"]
+    assert parts[0][1] <= SECTION_CAP
 
 
 def test_each_measure_runs_from_its_heading_to_the_next_of_its_level_or_higher():

@@ -447,15 +447,12 @@ Reading it:
 
 - `cost_effective` buys the cheapest model that clears the bar on each eval, not the best answer. At the lower bars it gives up held-out success for a large cut in cost; as the bar rises, fewer evals clear it, the router falls back to the best available model on the rest, and its cost approaches that of the best single model
 - `cost_blind` routes each eval to the model with the highest lower bound, and at every bar it reaches held-out success 0.819 at 25.2675 USD against 0.819 at 25.0029 USD for the best model on the calibration half: the same success to three decimals at 1.1% more cost
-- The bar-violation rate is a resampling estimate for this matrix, to be read next to the nominal one-sided 0.025 of a 95% Wilson bound on one model, never as a guarantee (`DESIGN.md` 12.3, "Reading the numbers")
-- The per-prompt oracle is a hindsight bound (0.959 held-out success at 1.9634 USD, against at most 0.819 for a routed row). Routing per task gets nowhere near it
 
 Limits:
 
 - The models date from 2023, and the costs are the ones the dataset recorded at that time's prices, not today's list prices
-- Routing here is per task (one eval), not per prompt
-- Most evals are MMLU subjects (count above), so the overall rows mostly measure MMLU
-- By default the converter drops graded evals (scores other than 0 and 1, such as `grade-school-math`) and evals with fewer than 100 prompts, keeping 65 of the 86; RESULTS.md has a sensitivity run that keeps the graded ones at a stated pass score
+
+The other limits are in [RESULTS.md](evidence/routerbench/RESULTS.md#caveats) `## Caveats` (routing per task, the MMLU share, what the converter drops) and its `## Sensitivity: graded evals` (the graded evals at a pass score), and the other Reading it bullets in its `## Reading it` (the bar-violation rate, the per-prompt oracle).
 
 Regenerate (about 70 seconds for the evaluate step on one laptop core; the dataset downloads into a cache folder outside the repo):
 

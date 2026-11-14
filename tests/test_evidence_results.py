@@ -7,7 +7,10 @@ commit removed that marker. They need no pandas and no download: they run on a s
 synthetic matrix, on hand-made results with known answers, and on the committed
 ``results.json`` and ``RESULTS.md``. v1.18 also builds the RouterBench prose numbers of
 RESULTS.md and the README from the committed file, and rebuilds the half sizes and the
-graded-evals sensitivity numbers from the pinned pickle only when it is cached.
+graded-evals sensitivity numbers from the pinned pickle only when it is cached. v1.373 (12.7
+v1.372, row DOC19k) trims the README subsection to the 12.8 v1.334 size budget, so the checks of
+the lines it drops (the kept-of-86 count, the bar-violation bullet, the oracle bullet and three
+limits) require their facts in RESULTS.md and none in the subsection.
 """
 
 import hashlib
@@ -33,6 +36,24 @@ MODELS = [
 # sha256 of json.dumps({task: items}, sort_keys=True) for the converter's default output;
 # equal to the converter's "kept" report on the pinned file when results.json was made
 TASK_ITEMS_SHA256 = "79113be5a8ef336b9e398c59fa8ec6b5fb5ab10eadfeff193d7f56e516a3193b"
+# v1.373 (12.7 v1.372): the lines the trimmed README subsection keeps after its tables.
+KEPT_COST_EFFECTIVE = (
+    "- `cost_effective` buys the cheapest model that clears the bar on each eval, not the best answer. At "
+    "the lower bars it gives up held-out success for a large cut in cost; as the bar rises, fewer evals "
+    "clear it, the router falls back to the best available model on the rest, and its cost approaches that "
+    "of the best single model")
+KEPT_LIMIT = ("- The models date from 2023, and the costs are the ones the dataset recorded at that time's "
+              "prices, not today's list prices")
+LINK_LINE = ("The other limits are in [RESULTS.md](evidence/routerbench/RESULTS.md#caveats) `## Caveats` "
+             "(routing per task, the MMLU share, what the converter drops) and its `## Sensitivity: graded "
+             "evals` (the graded evals at a pass score), and the other Reading it bullets in its "
+             "`## Reading it` (the bar-violation rate, the per-prompt oracle).")
+REGENERATE_LINE = ("Regenerate (about 70 seconds for the evaluate step on one laptop core; the dataset "
+                   "downloads into a cache folder outside the repo):")
+# v1.373: the starts of the README lines the trim drops and of the RESULTS.md bullets never in the README.
+DROPPED_STARTS = ("- The bar-violation rate is", "- The per-prompt oracle", "- Routing here is per task",
+                  "- Most evals are MMLU", "- By default the converter drops", "- `bar_violation_rate` for",
+                  "- A task is one eval", "- The dataset card states no licence")
 
 def load_rs():
     if not SCRIPT.is_file():
@@ -356,7 +377,8 @@ def test_readme_evidence_tables_are_the_committed_results():
               f"{items:,} prompts, {len(config['seeds'])} seeds")
     assert counts in section
     assert f"routed at bars {config['bars'][0]} to {config['bars'][-1]} in both flavors" in section
-    assert f"keeping {len(tasks)} of the 86;" in section
+    # v1.373: the kept-of-86 count is in RESULTS.md `## Caveats`, no longer in the subsection.
+    assert f"keeping {len(tasks)} of the 86;" in results_md() and "of the 86" not in section
     assert "from 86 evals" in (FOLDER / "README.md").read_text(encoding="utf-8")
 
 
@@ -433,6 +455,8 @@ def results_md_phrases(results):
     fewest, how_many = fewest_prompts(results)
     ratio = [r["cost_usd"] / best["cost_usd"] for r in ce]
     assert all(a < b for a, b in zip(ratio, ratio[1:])), "the cost ratio no longer rises"
+    top = max(r["success"] for r in ce + cb)
+    assert oracle["success"] - top >= 0.1, "routing per task is no longer nowhere near the oracle"
     return [
         f"{len(models)} models, {len(tasks)} evals (one task each), {items:,} prompts",
         f"For each eval and each of {seeds} seeds",
@@ -450,7 +474,10 @@ def results_md_phrases(results):
         f"{(1 - conf) / 2:.3f} for a {conf * 100:.0f}% Wilson bound on one model",
         f"{how_many} evals hold only {fewest} prompts, and their held-out halves run from",
         f"and the {seeds} seeds re-split one pool",
-        f"The per-prompt oracle reaches {oracle['success']:.3f} at {oracle['cost_usd']:.4f} USD",
+        # v1.373: with the two facts of the dropped README oracle bullet it lacked.
+        f"The per-prompt oracle reaches {oracle['success']:.3f} at {oracle['cost_usd']:.4f} USD, against "
+        f"at most {top:.3f} for a routed row. It is a hindsight bound, and routing per eval gets nowhere "
+        f"near it",
     ]
 
 
@@ -462,20 +489,13 @@ def test_results_md_reading_numbers_are_the_committed_results():
 
 
 def readme_reading_phrases(results):
-    config, best, ce, cb, boc, oracle = prose_rows(results)
-    conf = config["confidence"]
-    top = max(r["success"] for r in ce + cb)
-    assert oracle["success"] - top >= 0.1, "routing per task is no longer nowhere near the oracle"
+    # v1.373: the nominal-rate and oracle phrases moved to results_md_phrases with their bullets.
+    _, _, _, cb, boc, _ = prose_rows(results)
     return [
         f"`cost_blind` routes each eval to the model with the highest lower bound, and at every "
         f"bar it reaches held-out success {cb[0]['success']:.3f} at {cb[0]['cost_usd']:.4f} USD "
         f"against {boc['success']:.3f} at {boc['cost_usd']:.4f} USD for the best model on the "
         f"calibration half: " + same_success_words(cb, boc),
-        f"next to the nominal one-sided {(1 - conf) / 2:.3f} of a {conf * 100:.0f}% Wilson bound "
-        f"on one model",
-        f"The per-prompt oracle is a hindsight bound ({oracle['success']:.3f} held-out success at "
-        f"{oracle['cost_usd']:.4f} USD, against at most {top:.3f} for a routed row). Routing per "
-        f"task gets nowhere near it",
     ]
 
 
@@ -507,6 +527,48 @@ def test_same_success_words_refuse_a_gap_or_a_cheaper_cost_blind():
             same_success_words(cb, dict(boc, **change))
     with pytest.raises(AssertionError):
         same_success_words(cb[:1] + [dict(cb[1], cost_usd=cb[1]["cost_usd"] + 1)] + cb[2:], boc)
+
+
+def results_md_section(text, heading):
+    assert text.count(f"\n## {heading}\n") == 1, heading
+    return text.split(f"\n## {heading}\n", 1)[1].split("\n## ", 1)[0]
+
+
+def test_readme_routerbench_keeps_two_bullets_one_limit_and_a_link_line():
+    """v1.373 (12.7 v1.372): after its four source bullets the subsection's only bullets are its
+    `cost_effective` and `cost_blind` Reading it bullets and the date and cost limit, then the link
+    line, whose anchor is the RESULTS.md `## Caveats` heading, and the regenerate paragraph; the facts
+    of the dropped bullets are in RESULTS.md and absent from the subsection, the MMLU share and the
+    converter's drops as its third and fourth caveats."""
+    results, section, md = committed_results(), routerbench_subsection(), results_md()
+    kept = [KEPT_COST_EFFECTIVE, "- " + readme_reading_phrases(results)[0], KEPT_LIMIT]
+    block = (f"Reading it:\n\n{kept[0]}\n{kept[1]}\n\nLimits:\n\n{kept[2]}\n\n{LINK_LINE}\n\n"
+             f"{REGENERATE_LINE}\n\n```bash\n")
+    assert section.count(block) == 1
+    bullets = [line for line in section.splitlines() if line.startswith("- ")]
+    assert len(bullets) == 7 and bullets[4:] == kept
+    tasks = results["tasks"]
+    mmlu = sum(1 for task in tasks if task.startswith("mmlu"))
+    assert mmlu > len(tasks) / 2, "most evals are no longer MMLU subjects"
+    caveats = [line for line in results_md_section(md, "Caveats").splitlines() if line.startswith("- ")]
+    assert caveats[1:4] == [
+        "- A task is one eval (`eval_name`), so this is routing per task, not per prompt",
+        f"- Most evals are MMLU subjects ({mmlu} of the {len(tasks)}), so the overall rows mostly measure MMLU",
+        "- By default the converter drops graded evals (scores other than 0 and 1, such as "
+        f"`grade-school-math`) and evals with fewer than 100 prompts, keeping {len(tasks)} of the 86; the "
+        "sensitivity run above keeps the graded ones at a stated pass score"]
+    assert len(caveats) == 5 and caveats[0].startswith("- The models date from 2023 and the costs are")
+    assert caveats[4].startswith("- The dataset card states no licence for the data")
+    assert md.index("\n## Sensitivity: graded evals\n") < md.index("\n## Caveats\n")
+    reading = results_md_section(md, "Reading it")
+    for needle in ("It is a resampling estimate for this matrix", 'not a guarantee (DESIGN 12.3, "Reading the '
+                   'numbers")', "It is a hindsight bound, and routing per eval gets nowhere near it"):
+        assert needle in reading, needle
+    for start in DROPPED_STARTS:
+        assert not any(line.startswith(start) for line in section.splitlines()), start
+    for needle in ("hindsight bound", "nowhere near", "Wilson bound", "never as a guarantee",
+                   "not per prompt", "mostly measure MMLU", "of the 86", "fewer than 100 prompts"):
+        assert needle not in section, needle
 
 
 # --- checks on the pinned pickle, only when it is found (DESIGN 12.7, v1.18) -------------------
