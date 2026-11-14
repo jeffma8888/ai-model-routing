@@ -1,15 +1,17 @@
-"""Does the LLMRouterBench success gain hold seed by seed? (DESIGN 12.8 v1.177)
+"""Does a routing dataset's success gain hold seed by seed? (DESIGN 12.8 v1.177, 12.21 v1.381)
 
 Usage:
   python research/llmrouterbench_seeds.py --matrix llmrouterbench-matrix.jsonl
+  python research/llmrouterbench_seeds.py --dataset response-bank --matrix response-bank-matrix.jsonl
 
-Runs `evaluate` (DESIGN 12.3) on the LLMRouterBench matrix that the converter writes, with the
-bars, seeds, flavors and options of evidence/llmrouterbench/results.json, and prints, for
+Runs `evaluate` (DESIGN 12.3) on the matrix that the dataset's converter writes (LLMRouterBench by
+default, the LLM Routing Response Bank with `--dataset response-bank`), with the bars, seeds,
+flavors and options of that dataset's committed results file, and prints, for
 `best_on_calibration` and for the routed row of each flavor at each bar, on how many seeds its
 pooled held-out success is above, equal to and below the best single model's on the same halves,
 the lowest, median, highest and mean gap, and its cost over that model's. The mean over seeds of
 each row's success and cost must be the committed one. Standard library and the model_routing package. Read by
-research/llmrouterbench-seeds.md. Exit 0, or 2 with one `error: ...` line on a missing or
+research/llmrouterbench-seeds.md and research/response-bank-seeds.md. Exit 0, or 2 with one `error: ...` line on a missing or
 unreadable file, a row `load_outcomes` refuses, a missing key or a row that is not the committed one.
 """
 
@@ -23,21 +25,24 @@ from pathlib import Path
 from model_routing import evaluate, load_outcomes
 
 ROOT = Path(__file__).resolve().parents[1]
-RESULTS = "evidence/llmrouterbench/results.json"
+# --dataset: (the name the first line gives, the committed results file under --root)
+DATASETS = {"llmrouterbench": ("LLMRouterBench", "evidence/llmrouterbench/results.json"),
+            "response-bank": ("LLM Routing Response Bank", "evidence/response-bank/results.json")}
+RESULTS = DATASETS["llmrouterbench"][1]
 
 
-def best_single_model(summary) -> str:
+def best_single_model(summary, rel=RESULTS) -> str:
     """12.7: the `model:` summary row with the highest held-out success, then lower cost, then ID;
     an error when it differs between bars or flavors."""
     picks = set()
     for key in sorted({(r["bar"], r["flavor"]) for r in summary}):
         rows = [r for r in summary if (r["bar"], r["flavor"]) == key and r["strategy"].startswith("model:")]
         if not rows:
-            raise ValueError(f"{RESULTS}: no model: rows at bar {key[0]}, {key[1]}")
+            raise ValueError(f"{rel}: no model: rows at bar {key[0]}, {key[1]}")
         best = min(rows, key=lambda r: (-r["success"], r["cost_usd"], r["strategy"]))
         picks.add(best["strategy"][len("model:"):])
     if len(picks) != 1:
-        raise ValueError(f"{RESULTS}: the best single model differs between bars or flavors")
+        raise ValueError(f"{rel}: the best single model differs between bars or flavors")
     return picks.pop()
 
 
@@ -82,11 +87,12 @@ def _check(rel, committed, bar, flavor, strategy, counts):
             raise ValueError(f"{rel}: the {strategy} {flavor} row at bar {bar} is not the committed one ({key})")
 
 
-def report(outcomes, committed, rel=RESULTS) -> list:
-    """The printed lines; `committed` is the results file (its config and summary)."""
+def report(outcomes, committed, rel=RESULTS, name="LLMRouterBench") -> list:
+    """The printed lines; `committed` is the results file (its config and summary), `rel` its path
+    and `name` the dataset's name, both for the first line."""
     config = committed["config"]
     bars, seeds, flavors = list(config["bars"]), list(config["seeds"]), list(config["flavors"])
-    best = best_single_model(committed["summary"])
+    best = best_single_model(committed["summary"], rel)
     result = evaluate(outcomes, bars=bars, seeds=seeds, flavors=flavors,
                       calibration_fraction=config["calibration_fraction"],
                       min_samples=config["min_samples"], confidence=config["confidence"])
@@ -100,7 +106,7 @@ def report(outcomes, committed, rel=RESULTS) -> list:
     first = at[(bars[0], flavors[0])]
     base = per_seed(first, seeds, f"model:{best}")
     held = [n for _, n, _ in base]
-    lines = [f"LLMRouterBench ({rel}): {len(tasks)} tasks, {len(models)} models, "
+    lines = [f"{name} ({rel}): {len(tasks)} tasks, {len(models)} models, "
              f"{sum(t['items'] for t in tasks.values()):,} items, bars {', '.join(str(b) for b in bars)}, "
              f"{len(seeds)} seeds, held-out items per seed {min(held):,} to {max(held):,}",
              f"best single model (12.7): {best}; a gap is a row's pooled held-out success on a seed minus "
@@ -126,14 +132,17 @@ def report(outcomes, committed, rel=RESULTS) -> list:
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(prog="llmrouterbench_seeds.py", description=__doc__.splitlines()[0])
-    parser.add_argument("--matrix", required=True, help="the LLMRouterBench converter's output (JSONL)")
+    parser.add_argument("--dataset", choices=sorted(DATASETS), default="llmrouterbench",
+                        help="whose matrix and committed results file (default: llmrouterbench)")
+    parser.add_argument("--matrix", required=True, help="that dataset's converter output (JSONL)")
     parser.add_argument("--root", type=Path, default=ROOT,
                         help="repository root holding evidence/ (default: this checkout)")
     args = parser.parse_args(argv)
+    name, rel = DATASETS[args.dataset]
     try:
-        with open(Path(args.root) / RESULTS, encoding="utf-8") as fh:
+        with open(Path(args.root) / rel, encoding="utf-8") as fh:
             committed = json.load(fh)
-        lines = report(load_outcomes(args.matrix), committed)
+        lines = report(load_outcomes(args.matrix), committed, rel=rel, name=name)
     except (OSError, ValueError, KeyError, TypeError, AttributeError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2

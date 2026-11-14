@@ -40,7 +40,6 @@ BUILT = ("Facts", "Reading it", "Recommendation")
 # DESIGN section numbers: the only numbers of the prose outside the built sections
 ALLOWED = {"12.2", "12.3", "12.7", "12.20", "12.21"}
 NUMBER = re.compile(r"(?<![\w.])[+-]?\d+(?:,\d{3})*(?:\.\d+)?%?")
-PENDING = pytest.mark.xfail(strict=True, reason="v1.382 lands the option and the note")
 CONFIG = {"bars": [0.5, 0.65], "seeds": list(range(6)), "flavors": ["cost_effective", "cost_blind"],
           "calibration_fraction": 0.5, "min_samples": 10, "confidence": 0.95}
 TINY = {"a": (120, {"v/x": (72, 0.03), "v/y": (55, 0.02), "v/z": (45, 0.001)}),
@@ -98,13 +97,11 @@ def _main(lrs, argv):
 
 # --- the option, on a small matrix ------------------------------------------------------------
 
-@PENDING
 def test_the_datasets(lrs):
     assert lrs.DATASETS == {"llmrouterbench": ("LLMRouterBench", LRB_RESULTS), "response-bank": (NAME, RESULTS)}
     assert lrs.RESULTS == LRB_RESULTS
 
 
-@PENDING
 def test_response_bank_reads_its_own_file_and_names_itself(lrs, tmp_path):
     rows = tiny_rows()
     code, out, err = _main(lrs, ["--dataset", "response-bank"] + _tree(tmp_path, rows))
@@ -115,7 +112,6 @@ def test_response_bank_reads_its_own_file_and_names_itself(lrs, tmp_path):
     assert out.startswith(f"{NAME} ({RESULTS}): 2 tasks, 3 models, 220 items, ")
 
 
-@PENDING
 def test_response_bank_never_reads_the_llmrouterbench_file(lrs, tmp_path):
     argv = ["--dataset", "response-bank"] + _tree(tmp_path, tiny_rows(), rel=LRB_RESULTS)
     code, out, err = _main(lrs, argv)
@@ -123,7 +119,6 @@ def test_response_bank_never_reads_the_llmrouterbench_file(lrs, tmp_path):
     assert err.startswith("error: ") and err.count("\n") == 1 and RESULTS in err
 
 
-@PENDING
 @pytest.mark.parametrize("key", ["success", "cost_usd"])
 def test_response_bank_row_not_the_committed_one_exits_2(lrs, tmp_path, key):
     argv = ["--dataset", "response-bank"] + _tree(tmp_path, tiny_rows())
@@ -230,7 +225,7 @@ def built_sections(block):
         f"model at both bars, so its line is the same at both",
         f"`best_on_calibration`, and `cost_effective` routing at bar {high_bar}, give that same line",
         f"`cost_effective` at bar {low_bar}: below on all {n} seeds, from {low['lowest']} to "
-        f"{low['highest']}, at {low['low']} to {low['high']} of the cost; {ce_signs['signs']} of the {n} "
+        f"{low['highest']}, at {low['low']} to {low['high']} of that model's cost; {ce_signs['signs']} of the {n} "
         f"seeds keep one sign at both bars, those below at bar {high_bar} too, and {ce_signs['cells']} of "
         f"the {ce_signs['all']} cells keep one routed model",
     ]
@@ -283,7 +278,6 @@ def _prose(text):
     return re.sub(r"\]\([^)]*\)|`[^`]*`", "", prose)
 
 
-@PENDING
 def test_note_shape_commands_and_links():
     note = _note()
     assert note.startswith("# The response-bank gain, seed by seed\n\n")
@@ -298,7 +292,6 @@ def test_note_shape_commands_and_links():
         assert f"]({link})" in note, link
 
 
-@PENDING
 def test_built_sections_are_the_note_s():
     note = _note()
     [text] = _blocks(note, "text")
@@ -306,13 +299,11 @@ def test_built_sections_are_the_note_s():
         assert _section(note, heading) == "\n" + "".join(f"- {b}\n" for b in bullets), heading
 
 
-@PENDING
 def test_facts_states_the_finding_before_any_number():
     [text] = _blocks(_note(), "text")
     assert NUMBER.findall(_prose(built_sections(text)["Facts"][0])) == []
 
 
-@PENDING
 def test_every_other_number_of_the_prose_is_a_section_number():
     note = _note()
     for heading in BUILT:
@@ -320,7 +311,6 @@ def test_every_other_number_of_the_prose_is_a_section_number():
     assert sorted(n for n in set(NUMBER.findall(_prose(note))) if n not in ALLOWED) == []
 
 
-@PENDING
 @pytest.mark.parametrize("old, new", [
     ("above on 42, equal on 0, below on 8", "above on 8, equal on 0, below on 42"),
     ("gap lowest -0.0032", "gap lowest +0.0001"),
@@ -337,7 +327,6 @@ def test_builder_refuses_a_block_it_would_misread(old, new):
 
 # --- the LLMRouterBench note and the index ----------------------------------------------------
 
-@PENDING
 def test_llmrouterbench_note_no_longer_calls_it_the_one_such_dataset():
     note = LRB_NOTE.read_text(encoding="utf-8")
     opening = note.split("\n\n", 2)[1]
@@ -347,7 +336,6 @@ def test_llmrouterbench_note_no_longer_calls_it_the_one_such_dataset():
     assert sum("](response-bank-seeds.md)" in x for x in limits.split("\n")) == 1
 
 
-@PENDING
 def test_research_index_lists_the_note():
     index = INDEX.read_text(encoding="utf-8").split("\n")
     rows = [x for x in index if x.startswith("| [response-bank-seeds.md](response-bank-seeds.md) | ")]
@@ -367,13 +355,11 @@ def output(lrs, response_bank_pinned):
     return out
 
 
-@PENDING
 def test_note_results_block_is_the_script_output(output):
     [text] = _blocks(_note(), "text")
     assert text == COMMAND + "\n" + output
 
 
-@PENDING
 def test_means_over_seeds_are_the_committed_rows(lrs, response_bank_pinned):
     """Rebuilt here, apart from the script's own check: each row's per-seed pooled success and cost,
     averaged over the seeds, is the committed summary row at every bar and flavor."""

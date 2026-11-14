@@ -1,6 +1,6 @@
 # The LLMRouterBench gain, seed by seed
 
-[where-routing-pays.md](where-routing-pays.md) finds LLMRouterBench the one routing dataset where a routed row passes the best single model's held-out success, and the README's LLMRouterBench bullet and its Limitations bullet on where routing pays rest on that finding. Every committed number is a mean over the seeds of the 12.2 split, since 12.3's `summary` averages each seed's pooled held-out success ([DESIGN.md](../DESIGN.md)), and no committed file holds a seed's value, so a mean gain could come from a few seeds with large gains beside others that lose. This note runs the evaluation again and reads it seed by seed. Its numbers are the output of [llmrouterbench_seeds.py](llmrouterbench_seeds.py), which runs `evaluate` on the matrix behind [the committed results](../evidence/llmrouterbench/RESULTS.md) and stops unless each mean it rebuilds is the committed one.
+[where-routing-pays.md](where-routing-pays.md) finds two routing datasets where a routed row passes the best single model's held-out success, LLMRouterBench and the LLM Routing Response Bank, and the README's LLMRouterBench bullet and its Limitations bullet on where routing pays rest on that finding. Every committed number is a mean over the seeds of the 12.2 split, since 12.3's `summary` averages each seed's pooled held-out success ([DESIGN.md](../DESIGN.md)), and no committed file holds a seed's value, so a mean gain could come from a few seeds with large gains beside others that lose. This note runs the evaluation again and reads it seed by seed. Its numbers are the output of [llmrouterbench_seeds.py](llmrouterbench_seeds.py), which runs `evaluate` on the matrix behind [the committed results](../evidence/llmrouterbench/RESULTS.md) and stops unless each mean it rebuilds is the committed one. [response-bank-seeds.md](response-bank-seeds.md) reads the LLM Routing Response Bank the same way.
 
 ## Facts
 
@@ -59,7 +59,7 @@ cost_blind routed:
 - The 50 seeds re-split the same 12,066 items, so they show how the gain moves from one split of this dataset to another, not how it would move on new items or new tasks; the seeds are not independent samples, and the note gives no interval
 - The best single model is chosen in hindsight on the held-out halves (12.7); every other single model has a lower mean held-out success, so against a model chosen in advance the mean gap would be at least as large
 - A success is a record scored 1, so an `arenahard` half score counts as a miss (12.18), and a cost is the record's own `cost`, as in the committed results
-- One dataset: the other routing results files have no routed row above the best single model to read this way ([where-routing-pays.md](where-routing-pays.md))
+- One dataset: of the other routing results files only the LLM Routing Response Bank's has a routed row above the best single model ([where-routing-pays.md](where-routing-pays.md)), and [response-bank-seeds.md](response-bank-seeds.md) reads it the same way, where the gain holds on most seeds but not on every one
 
 ## Regenerate
 
