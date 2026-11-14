@@ -96,8 +96,11 @@ def stats_table(summary):
 
 def readme_sentence(summary):
     calls = summary["stats"]["model_calls"]
+    # v1.349 (DESIGN 13.11, row DOC19b): "of [RESULTS.md](...), whose variant point 2 takes" in place
+    # of "below, and variant point 2 below takes", since the variant points left the subsection.
     return ("Real sub-agent runs make more model calls than the grid's one, or two at variant "
-            "point 0 below, and variant point 2 below takes their median (`work_calls`): in the "
+            "point 0 of [RESULTS.md](evidence/delegation/RESULTS.md#variant-points), whose variant "
+            "point 2 takes their median (`work_calls`): in the "
             "public TRAIL traces (licence MIT), the top agent "
             f"hands work to a sub-agent {summary['run_count']} times in "
             f"{summary['traces_with_runs']} of {summary['traces']} GAIA traces, and each of those "
@@ -240,6 +243,8 @@ def test_readme_delegation_sentence_is_built_from_the_summary_and_the_points():
     sentence = readme_sentence(summary)
     assert sub.count(sentence) == 1
     assert sub.index("[research/hand-off-data.md]") < sub.index(sentence) < sub.index("```text\n")
+    assert "variant point 0 below" not in sub and "variant point 2 below" not in sub
+    assert "## Variant points" in (DELEGATION / "RESULTS.md").read_text(encoding="utf-8").splitlines()
 
 
 def test_readme_layout_names_the_trail_results_after_the_delegation_line():

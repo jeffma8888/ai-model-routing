@@ -12,6 +12,9 @@ regenerates ``variants.json`` and removes the markers. The other tests held befo
 summary's median, the stated point on a small matrix, SHA-256 pins of ``results.json`` and of the
 committed summary rows of variant points 0 and 1 (taken on v1.71), and, only when the pinned
 AutoBench files are already in the default cache, the window facts DESIGN 13.10 states for K = 15.
+v1.349 (row DOC19b, DESIGN 13.10 v1.348) trims the README subsection: variant point 2's bullet and
+the variant table leave it, and the README test checks that they are absent there; the RESULTS.md
+part test checks them in that file.
 """
 
 import hashlib
@@ -295,21 +298,17 @@ def test_results_md_variant_part_shows_variant_point_2_and_its_bullet(dr):
         assert phrase in part, phrase
 
 
-def test_readme_subsection_shows_variant_point_2_and_its_bullet(dr):
+def test_readme_subsection_leaves_variant_point_2_to_results_md(dr):
+    # v1.349 (13.10 v1.348): the bullet, the table and the paragraph's caveats are in the RESULTS.md
+    # part (test_results_md_variant_part_shows_variant_point_2_and_its_bullet).
     text = README.read_text(encoding="utf-8")
     section = text.split("\n## Evidence: held-out results on public data\n", 1)[1].split("\n## ", 1)[0]
     sub = section.split("\n### Delegation on AutoBench\n", 1)[1].split("\n### ", 1)[0]
     variants = committed(VARIANTS_FILE)
-    table = f"```text\n{VARIANTS_COMMAND}\n{dr.table(variants)}\n```\n"
-    bullet = f"- {observed_reading(variants)}"
-    lines = sub.split("\n")
-    assert lines.count(bullet) == 1
-    at = lines.index(bullet)
-    assert lines[at - 1].startswith("- With the parent's reads of its ") and lines[at + 1] == ""
-    assert sub.index(table) < sub.index(bullet) < sub.index("```bash\n")
+    assert VARIANTS_COMMAND not in sub and dr.table(variants) not in sub
+    assert observed_reading(variants) not in sub
     for phrase in ("Variant point 2 is variant point 0 with the work in 15 calls (`work_calls` 15)",
-                   "[evidence/trail/RESULTS.md](evidence/trail/RESULTS.md)",
                    "never a measured hand-off",
                    "whether the 15 calls succeed together is not measured",
                    "the bar is held per call"):
-        assert phrase in sub, phrase
+        assert phrase not in sub, phrase

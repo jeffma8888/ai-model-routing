@@ -20,7 +20,10 @@ variant point 1, base point 2 with ``cached_read_ratio`` 0.1 (tests/test_delegat
 and a second bullet, variant point 1 against base point 2, joins the RESULTS.md part and the
 README subsection. v1.73 appends variant point 2, variant point 0 at 15 work calls
 (tests/test_delegation_observed_point.py, which also checks its bullet), so the pins here read
-three variant points and README Limitations names two multi-call points.
+three variant points and README Limitations names two multi-call points. v1.349 (row DOC19b,
+DESIGN 13.10 v1.348) trims the README subsection: its variant paragraph, block and bullets leave it,
+each in the RESULTS.md part, and the README test checks that they are absent there and that its
+regenerate block and its links to ``variants.json`` and the part stay.
 """
 
 import importlib.util
@@ -404,6 +407,8 @@ def test_results_md_variant_part_shows_the_table_bullet_and_regenerate_lines(dr)
     assert f"[variants.json](variants.json) ({VARIANTS_FILE.stat().st_size:,} bytes)" in part
     for phrase in ("`work_calls` 2", "the `calls` column", "`DESIGN.md` 13.10", "`DESIGN.md` 13.2",
                    "whether the two calls succeed together is not measured",
+                   # v1.349: moved from the README test with the paragraph that held it there
+                   "Point 3 stands for every context size that leaves every parent room",
                    "`cached_read_ratio` 0.1", "the `cached` column", "0.1 is an assumption",
                    "records no cached price"):
         assert phrase in part, phrase
@@ -450,25 +455,22 @@ def bash_blocks(text):
     return re.findall(r"```bash\n(.*?)```\n", text, re.S)
 
 
-def test_readme_subsection_shows_the_variant_table_bullet_link_and_regenerate_lines(dr):
+def test_readme_subsection_leaves_the_variant_points_to_results_md(dr):
+    # v1.349 (13.10 v1.348): the variant table, its two bullets here and the paragraph are in the
+    # RESULTS.md part (test_results_md_variant_part_shows_the_table_bullet_and_regenerate_lines);
+    # the subsection keeps its links to variants.json and the part, and its regenerate block.
     sub = readme_delegation()
     variants = committed(VARIANTS_FILE)
-    table = f"```text\n{VARIANTS_COMMAND}\n{dr.table(variants)}\n```\n"
-    assert table in sub
-    bullet = f"- {variant_reading(committed(RESULTS), variants)}\n"
-    assert bullet in sub
-    cached = f"- {cached_reading(committed(RESULTS), variants)}\n"
-    assert cached in sub
-    base_command = "$ python evidence/delegation/results.py --table evidence/delegation/results.json\n"
-    assert (sub.index(base_command) < sub.index(table) < sub.index(bullet) < sub.index(cached)
-            < sub.index("```bash\n"))
-    for phrase in ("[variants.json](evidence/delegation/variants.json)",
-                   "[Variant points](evidence/delegation/RESULTS.md#variant-points)",
-                   "`work_calls` 2", "the `calls` column", "`DESIGN.md` 13.10",
-                   "whether the two calls succeed together is not measured",
-                   "point 3 stands for every context size that leaves every parent room",
-                   "`cached_read_ratio` 0.1", "the `cached` column", "0.1 is an assumption"):
-        assert phrase in sub, phrase
+    assert VARIANTS_COMMAND not in sub and dr.table(variants) not in sub
+    assert variant_reading(committed(RESULTS), variants) not in sub
+    assert cached_reading(committed(RESULTS), variants) not in sub
+    for phrase in ("Variant point 0, in a second file", "Variant point 1 is point 2", "`work_calls` 2",
+                   "`cached_read_ratio` 0.1", "0.1 is an assumption"):
+        assert phrase not in sub, phrase
+    for link in ("[variants.json](evidence/delegation/variants.json)",
+                 "[Variant points](evidence/delegation/RESULTS.md#variant-points)"):
+        assert sub.count(link) == 1, link
+    assert sub.index("[variants.json](evidence/delegation/variants.json)") < sub.index("```bash\n")
     md = RESULTS_MD.read_text(encoding="utf-8")
     base = bash_blocks(md.split("\n## Regenerate\n", 1)[1])
     assert len(base) == 1 and len(base[0].rstrip("\n").split("\n")) == 5

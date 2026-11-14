@@ -10,6 +10,9 @@ and skips otherwise (CI never downloads them). v1.37 adds the break-even table
 a lossy hand-off may lose before delegating does no better than working inline. v1.40 adds a
 fourth grid point with the work folded into the parent's next call, on which the
 ``cost_effective`` decision keeps some work inline, and a ``separate`` column to ``table``.
+v1.349 (row DOC19b) trims the README subsection to the DESIGN 12.8 v1.334 size budget, as 13.10
+v1.348 specifies: the folded-point bullet, the break-even bullet and the variant points leave it, and
+the tests that required them there now require each in RESULTS.md and none of them in the subsection.
 """
 
 import importlib.util
@@ -536,7 +539,7 @@ def reading_it(results):
 
 
 def folded_reading(results):
-    """v1.40: the RESULTS.md and README bullet on the folded point (DESIGN 13.10)."""
+    """v1.40: the RESULTS.md bullet on the folded point, also the README one until v1.349 (DESIGN 13.10)."""
     rows = {(r["bar"], r["flavor"], r["point"], r["parent"], r["strategy"]): r
             for r in results["summary"]}
     parents = results["config"]["parents"]
@@ -613,7 +616,10 @@ def test_readme_subsection_shows_the_table_and_links(dr):
     assert block(TABLE_COMMAND, dr.table(committed())) in sub
     for sentence in reading_it(committed())[1:3]:
         assert sentence in sub, sentence
-    assert f"- {folded_reading(committed())}\n" in sub
+    # v1.349 (13.10 v1.348): the folded-point bullet is left to RESULTS.md, which
+    # test_results_md_reading_it_is_the_committed_results checks.
+    assert folded_reading(committed()) not in sub
+    assert "- With the work folded" not in sub
     assert re.findall(r"```bash\n.*?```\n", sub, re.S) == [README_REGENERATE]
     for phrase in ("[RESULTS.md](evidence/delegation/RESULTS.md)",
                    "[results.json](evidence/delegation/results.json)",
@@ -632,13 +638,34 @@ def test_readme_subsection_shows_the_table_and_links(dr):
     assert "[Delegation on AutoBench](#delegation-on-autobench)" in inline
 
 
+LINK_LINE = ("The other Reading it bullets are in [RESULTS.md](evidence/delegation/RESULTS.md#reading-it), and the "
+             "variant points, from a second file, [variants.json](evidence/delegation/variants.json), are in its "
+             "[Variant points](evidence/delegation/RESULTS.md#variant-points) part.")
+
+
+def test_readme_subsection_keeps_two_bullets_and_a_link_line():
+    """v1.349 (13.10 v1.348): the subsection's only bullets are the second and third RESULTS.md
+    Reading it bullets, in that order after the whole table, then the link line, whose fragments
+    are RESULTS.md headings, and the regenerate paragraph."""
+    sub = readme_subsection()
+    reading = reading_it(committed())
+    assert [line for line in sub.splitlines() if line.startswith("- ")] == [f"- {reading[1]}", f"- {reading[2]}"]
+    tail = (f"\n- {reading[1]}\n- {reading[2]}\n\n{LINK_LINE}\n\n"
+            f"Regenerate (a few seconds after the download):\n\n```bash\n")
+    assert sub.count(tail) == 1
+    assert sub.index(TABLE_COMMAND) < sub.index(tail)
+    headings = RESULTS_MD.read_text(encoding="utf-8").splitlines()
+    assert "## Reading it" in headings and "## Variant points" in headings
+
+
 BREAKEVEN_COMMAND = ("$ python evidence/delegation/results.py --breakeven"
                      " evidence/delegation/results.json --bar 0.8 --point 1")
 
 
 def breakeven_reading(results):
     """v1.37: the RESULTS.md "Reading it" bullet and the README bullet on the bar 0.8, point 1
-    break-even table, built from a results file (DESIGN 13.10)."""
+    break-even table, built from a results file (DESIGN 13.10); from v1.349 (13.10 v1.348) the
+    README holds neither."""
     rows = {(r["bar"], r["flavor"], r["point"], r["parent"], r["strategy"]): r
             for r in results["summary"]}
     parents = results["config"]["parents"]
@@ -687,8 +714,14 @@ def test_results_md_shows_the_breakeven_block_and_its_reading(dr):
         assert phrase in md, phrase
 
 
-def test_readme_subsection_states_the_breakeven_numbers(dr):
-    assert f"- {breakeven_reading(committed())[1]}\n" in readme_subsection()
+def test_readme_subsection_leaves_the_breakeven_bullet_to_results_md(dr):
+    # v1.349 (13.10 v1.348): the README bullet's mean, minimum, parent at the minimum and count
+    # below zero are those of the RESULTS.md bullet, which
+    # test_results_md_shows_the_breakeven_block_and_its_reading checks.
+    md, readme = breakeven_reading(committed())
+    sub = readme_subsection()
+    assert readme not in sub and md not in sub
+    assert "break-even" not in sub and "dec_breakeven" not in sub
 
 
 # --- v1.112: where a fixed policy beats the decision on both counts ---------------------------

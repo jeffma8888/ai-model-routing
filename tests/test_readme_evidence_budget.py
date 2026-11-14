@@ -48,7 +48,6 @@ PENDING = {
     "LiveCodeBench": 6_194,
     "LLMRouterBench": 8_093,
     "LLM Routing Response Bank": 8_173,
-    "Delegation on AutoBench": 13_715,
     "Delegation on LLMRouterBench": 12_881,
     "Delegation on the LLM Routing Response Bank": 11_204,
 }
@@ -58,8 +57,8 @@ SAME_OR_HIGHER = re.compile(r"#{1,3} ")
 # DESIGN 12.8 v1.344: the ceiling on 12.8 in bytes for each count of PENDING names. The row that removes
 # a PENDING name adds the entry for the new count, the size its trim leaves (v1.344: 98,443 bytes; v1.345,
 # from review, 99,206, its size after the review's clauses; v1.346, row DOC20a, 96,239; v1.347,
-# from review, 96,365).
-DESIGN_12_8_CEILINGS = {10: 96_365}
+# from review, 96,365; for 9 names, v1.348, row DOC19b, 96,312).
+DESIGN_12_8_CEILINGS = {9: 96_312, 10: 96_365}
 
 
 def size(lines):
@@ -166,6 +165,13 @@ def test_delegation_on_tau2_bench_is_trimmed():
     sizes = dict(measure(README.read_text(encoding="utf-8"))[2:])
     assert "Delegation on tau2-bench" not in PENDING
     assert sizes["Delegation on tau2-bench"] <= CAPS["delegation"]
+
+
+def test_delegation_on_autobench_is_trimmed():
+    # Row DOC19b: out of PENDING and at most its cap (13,715 bytes at 0b3e142).
+    sizes = dict(measure(README.read_text(encoding="utf-8"))[2:])
+    assert "Delegation on AutoBench" not in PENDING
+    assert sizes["Delegation on AutoBench"] <= CAPS["delegation"]
 
 
 def test_each_measure_runs_from_its_heading_to_the_next_of_its_level_or_higher():
