@@ -9,7 +9,8 @@ has a time limit of ten times its slowest run, rounded up to whole five minutes,
 retry (v1.152; 25 minutes, restated as 30 at v1.170, as 40 at v1.217, whose basis is the
 slowest run on the `Regenerate` lines in force, as 50 at v1.225, as 55 at v1.268, as 40 at
 v1.301, on the first run of the v1.299 lines, as 50 at v1.302, on the slower of the first
-two, and as 35 at v1.321, on the slower of the first two runs of the v1.317 lines). From v1.278
+two, as 35 at v1.321, on the slower of the first two runs of the v1.317 lines, and as 50 at
+v1.374, on the slowest of the first eight). From v1.278
 the top comment names the rerun subsections (eight, nine from v1.299) in README heading order, on
 lines under 100 columns.
 
@@ -47,10 +48,13 @@ ON = (
     "      - \".github/workflows/evidence.yml\"\n")
 STEP_NAMES = [None, None, "Install", "Regenerate", "Compare"]
 # The job's time limit, by the v1.152 rule: ten times the slowest run, rounded up to a whole
-# five minutes. The v1.321 value: the slowest run on the Regenerate lines in force, from v1.317
-# those with the three response-bank delegation lines, is the slower of the two such runs among
-# the 79 to 2026-11-13 (204 and 206 s from start to last update), run 43439800863, 206 s, so 35,
-# the second value the rule lowered; by the logs the new lines took 9.4 and 10.6 s. At v1.302,
+# five minutes. The v1.374 value: the slowest run on the Regenerate lines in force, from v1.317
+# those with the three response-bank delegation lines, is the slowest of the eight such runs
+# among the 85 to 2026-11-14 (151 to 291 s from start to last update), run 43608998651, 291 s,
+# so 50; by its log its two converter lines took 179.7 s, 105.4 s more than in the v1.321 basis
+# run, most likely the LLMRouterBench download. At v1.321, the slower of the first two such runs
+# (204 and 206 s), run 43439800863, 206 s, so 35, the second value the rule lowered; by the logs
+# the new lines took 9.4 and 10.6 s. At v1.302,
 # on the v1.299 lines (the four response-bank lines), the slower of the two such runs among the
 # 74 to 2026-11-12 (213 and 281 s), run 43363202337, 281 s, so 50; by the log its two converter
 # lines took 76.5 and 32.5 s more than in the first run, most likely the downloads. At v1.301,
@@ -62,9 +66,9 @@ STEP_NAMES = [None, None, "Install", "Regenerate", "Compare"]
 # 42904515973), so 50, its extra time most likely the same download. At v1.217, the one such run
 # then, 213 s, so 40; the four runs of v1.200 to v1.214 (up to 278 s) also ran the converter
 # line twice. At v1.170, 158 s over 45 runs, so 30; at v1.152, 140 s over 40 runs, so 25.
-SLOWEST_RUN_SECONDS = 206
-SLOWEST_RUN_ID = 43439800863
-TIMEOUT_MINUTES = 35
+SLOWEST_RUN_SECONDS = 291
+SLOWEST_RUN_ID = 43608998651
+TIMEOUT_MINUTES = 50
 LIMIT_LINE = f"    timeout-minutes: {TIMEOUT_MINUTES}"
 LIMIT_SENTENCE = (f"The job's time limit of {TIMEOUT_MINUTES} minutes is about ten times its slowest run, "
                   "and a failed download is retried by rerunning the job (DESIGN.md 12.13).")
@@ -598,16 +602,21 @@ def test_the_design_time_limit_bullet_gives_the_value_and_its_basis_run():
     assert len(bullets) == 1
     bullet = bullets[0]
     assert f"sets `timeout-minutes: {TIMEOUT_MINUTES}`" in bullet
+    # v1.374 (review iter-238 must-fix 1): the Tests sentence names the same limit line.
+    assert f"the `runs-on` line and `{LIMIT_LINE}`, in that order" in bullet
     _, marker, rest = bullet.partition(
         "Basis (v1.217, row E17h; restated v1.225, row E17i, v1.268, row CI10, v1.301, row CI11, "
-        "v1.302, row CI12, and v1.321, row CI14): ")
+        "v1.302, row CI12, v1.321, row CI14, and v1.374, row CI15): ")
     assert marker
-    # v1.321: the basis ends before the first history sentence, now the v1.302 one.
-    assert " The v1.302 basis" in rest
-    basis, _, history = rest.partition(" The v1.302 basis")
-    assert (history.index(" The v1.301 basis") < history.index(" The v1.268 basis")
+    # v1.374: the basis ends before the first history sentence, now the v1.321 one.
+    assert " The v1.321 basis" in rest
+    basis, _, history = rest.partition(" The v1.321 basis")
+    assert (history.index(" The v1.302 basis") < history.index(" The v1.301 basis")
+            < history.index(" The v1.268 basis")
             < history.index(" The v1.225 basis")
             < history.index(" The v1.217 basis") < history.index(" The v1.170 basis"))
+    # v1.374 (review iter-238 nit 1): the moved v1.321 basis keeps its run and seconds.
+    assert "it was run 43439800863 on `17ef05b`, which took 206 seconds" in history.partition(" The v1.302 basis")[0]
     assert re.search(rf"run {SLOWEST_RUN_ID} on `[0-9a-f]{{7}}`, which took {SLOWEST_RUN_SECONDS} seconds "
                      "from its start to its last update", basis)
     tenfold = 10 * SLOWEST_RUN_SECONDS

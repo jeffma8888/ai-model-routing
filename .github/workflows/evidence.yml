@@ -32,12 +32,12 @@ defaults:
 # (https://github.com/actions/runner-images/issues/14748), and the pin keeps every run on
 # the image the suite last passed on. To move it, change runs-on here and in ci.yml
 # together, and keep the new label only after a green run on it.
-# The job's time limit of 35 minutes is about ten times its slowest run, and a failed
+# The job's time limit of 50 minutes is about ten times its slowest run, and a failed
 # download is retried by rerunning the job (DESIGN.md 12.13).
 jobs:
   regenerate:
     runs-on: ubuntu-24.04
-    timeout-minutes: 35
+    timeout-minutes: 50
     steps:
       - uses: actions/checkout@v7
         with:
