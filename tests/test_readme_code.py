@@ -129,8 +129,9 @@ def test_readme_python_blocks_run_offline(tmp_path, monkeypatch, capsys):
     check(after, sent, printed, tmp_path)
 
 
-# One imported name, one keyword or the bullet's premise changed in the README text, each
-# in one place: the run fails, so the two tests above would catch the change in README.md.
+# Each case changes the README text in memory in one place (one imported name, one keyword
+# or the second block's premise) and the run then fails, so the same change made in README.md
+# fails test_readme_python_blocks_run_offline.
 MUTANTS = [
     ("Router, Stats, json_validator, load_tasks, report,",
      "Router, Stats, json_validator, load_task, report,", ImportError),
