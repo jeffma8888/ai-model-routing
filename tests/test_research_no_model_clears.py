@@ -54,7 +54,6 @@ SECTION = "LLMRouterBench and the response bank (2026-11-13)"
 # v1.341: how the bullet and the index row name each dataset of the script's DATASETS
 PROSE_NAME = {"AutoBench judges": "the AutoBench judges", "LLM Routing Response Bank": "the LLM Routing Response Bank"}
 COUNT_WORD = {4: "four", 5: "five", 6: "six", 7: "seven", 8: "eight"}
-RED = pytest.mark.xfail(strict=True, reason="v1.341 (row R32): implemented by v1.342")
 CONFIG = {"bars": [0.5, 0.75], "seeds": [0, 1, 2, 3], "flavors": ["cost_effective", "cost_blind"],
           "calibration_fraction": 0.5, "min_samples": 10, "confidence": 0.95}
 
@@ -184,12 +183,10 @@ def _main(nmc, argv):
     return code, out.getvalue(), err.getvalue()
 
 
-@RED
 def test_script_datasets_are_the_six_in_order(nmc):
     assert [(name, rel) for name, rel, _ in nmc.DATASETS] == DATASETS
 
 
-@RED
 def test_main_prints_the_six_reports_in_order(nmc, tmp_path):
     rows = tiny_rows()
     code, out, err = _main(nmc, _tree(tmp_path, rows))
@@ -200,7 +197,6 @@ def test_main_prints_the_six_reports_in_order(nmc, tmp_path):
     assert out == "\n".join(nmc.run({name: outcomes for name, _ in DATASETS}, tmp_path)) + "\n"
 
 
-@RED
 @pytest.mark.parametrize("break_it", ["matrix", "results", "key", "row"])
 def test_main_exits_2_with_one_error_line(nmc, tmp_path, break_it):
     rows = tiny_rows()
@@ -230,7 +226,6 @@ def _blocks(text, lang):
     return re.findall(rf"^```{lang}\n(.*?)^```$", text, flags=re.M | re.S)
 
 
-@RED
 def test_note_quotes_its_commands_and_links():
     note = NOTE.read_text(encoding="utf-8")
     assert note.startswith("# When no model clears the bar\n")
@@ -279,7 +274,6 @@ def test_named_lists_the_names_in_order():
     assert _named(["X", "AutoBench judges", "Y"]) == "X, the AutoBench judges and Y"
 
 
-@RED
 def test_bullet_and_index_row_list_the_script_datasets(nmc):
     names = [name for name, _, _ in nmc.DATASETS]
     count, listed = COUNT_WORD[len(names)], _named(names)
@@ -337,7 +331,6 @@ def output(nmc, tmp_path_factory, llmrouterbench_pinned, response_bank_pinned):
     return "\n".join(nmc.run(outcomes, ROOT)) + "\n"
 
 
-@RED
 def test_output_holds_the_six_datasets_in_order(output):
     heads = [x.split(" (")[0] for x in output.split("\n") if x and not x.startswith(" ")]
     assert heads == [name for name, _ in DATASETS]
@@ -345,7 +338,6 @@ def test_output_holds_the_six_datasets_in_order(output):
         assert f"\n{name} ({rel}): " in "\n" + output
 
 
-@RED
 def test_note_results_block_is_the_script_output(output):
     [text] = _blocks(NOTE.read_text(encoding="utf-8"), "text")
     assert text == COMMAND + "\n" + output
@@ -358,7 +350,6 @@ def test_the_fallback_is_best_on_calibration_on_every_cell_where_no_model_clears
     assert len(heads) >= 10 and all(a == b for a, b in heads)
 
 
-@RED
 def test_the_fallback_is_best_on_calibration_on_both_new_datasets(output):
     for name in ("LLMRouterBench", "LLM Routing Response Bank"):
         block = output[output.index(f"{name} ("):]

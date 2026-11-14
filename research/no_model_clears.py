@@ -1,11 +1,12 @@
-"""When no model clears the bar in `cost_effective`: the 5.3 fallback or the cheapest model (DESIGN 12.8 v1.144).
+"""When no model clears the bar in `cost_effective`: the 5.3 fallback or the cheapest model (DESIGN 12.8 v1.144, v1.341).
 
 Usage:
   python research/no_model_clears.py --routerbench MATRIX.jsonl --autobench MATRIX.jsonl \
-      --judges MATRIX.jsonl --judges-registry MODELS.json --tau2 MATRIX.jsonl
+      --judges MATRIX.jsonl --judges-registry MODELS.json --tau2 MATRIX.jsonl \
+      --llmrouterbench MATRIX.jsonl --response-bank MATRIX.jsonl
 
-Runs `evaluate` (DESIGN 12.3) on the `cost_effective` flavor of the four routing datasets that
-record a cost, with the bars, seeds and options of each committed results file, and prints, per
+Runs `evaluate` (DESIGN 12.3) on the `cost_effective` flavor of the six routing datasets that
+record a cost (LLMRouterBench and the LLM Routing Response Bank from v1.341), with the bars, seeds and options of each committed results file, and prints, per
 bar, the cells on which no model clears and, on them, the held-out success and cost of the
 router's fallback (5.3 `best_available`: the highest calibration bound), of the cheapest model and
 of `best_on_calibration`; then the bar's whole row as routed and with the cheapest model as the
@@ -28,7 +29,9 @@ ROOT = Path(__file__).resolve().parents[1]
 DATASETS = (("RouterBench", "evidence/routerbench/results.json", "routerbench"),
             ("AutoBench", "evidence/autobench-2026/results.json", "autobench"),
             ("AutoBench judges", "evidence/autobench-judges/results.json", "judges"),
-            ("tau2-bench", "evidence/tau2-bench/results.json", "tau2"))
+            ("tau2-bench", "evidence/tau2-bench/results.json", "tau2"),
+            ("LLMRouterBench", "evidence/llmrouterbench/results.json", "llmrouterbench"),
+            ("LLM Routing Response Bank", "evidence/response-bank/results.json", "response_bank"))
 # printed label, 12.3 strategy
 ROWS = (("fallback", "routed"), ("cheapest", "cheapest"), ("best_on_calibration", "best_on_calibration"))
 FLAVOR = "cost_effective"
@@ -116,6 +119,8 @@ def main(argv=None) -> int:
     parser.add_argument("--judges", required=True)
     parser.add_argument("--judges-registry", required=True)
     parser.add_argument("--tau2", required=True)
+    parser.add_argument("--llmrouterbench", required=True)
+    parser.add_argument("--response-bank", required=True)
     parser.add_argument("--root", type=Path, default=ROOT,
                         help="repository root holding evidence/ (default: this checkout)")
     args = parser.parse_args(argv)
