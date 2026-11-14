@@ -65,7 +65,7 @@ Routed rows beat these single models on both counts: `moonshotai/kimi-k2.7-code`
 
 ## Sensitivity
 
-The release's own split, not committed as a file: [research/response-bank-split.md](../../research/response-bank-split.md) calibrates on the release's 256 calibration tasks (`scores_cal.jsonl`) and scores on its 13,059 evaluation tasks, one split in place of the 50 seeded halves of the joined set, at the bars, `min_samples` 30 and confidence 0.95 of [results.json](results.json). Its costs are sums over those 13,059 items, so only the shares of the best single model's cost compare with the committed rows:
+The release's own split, not committed as a file: [research/response-bank-split.md](../../research/response-bank-split.md) calibrates on the release's 256 calibration tasks (`scores_cal.jsonl`) and scores on its 13,059 evaluation tasks, one split in place of the 50 seeded halves of the joined set, at the bars, `min_samples` 30 and confidence 0.95 of [results.json](results.json). Its costs are sums over those 13,059 items, so only the shares of the best single model's cost compare with the committed rows, and a committed `cleared_rate` is the share of its 200 (task, seed) cells that clear, not of the 4 tasks:
 
 - `deepseek/deepseek-v4-pro`, the best single model: held-out success 0.872 at 52.1218 USD; 0.872 in the committed means
 - bar 0.8, `cost_effective`: routed success 0.846 at 10.1420 USD, 0.195 of the best single model's cost, 2 of 4 tasks cleared; in the committed means 0.847 at 0.201 of that model's cost, cleared_rate 0.735

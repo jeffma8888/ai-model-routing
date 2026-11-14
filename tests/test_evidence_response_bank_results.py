@@ -746,10 +746,6 @@ def test_results_md_reading_and_limits_hold_no_link():
 
 SPLIT_NOTE = ROOT / "research" / "response-bank-split.md"
 NOTE_LINK = "[research/response-bank-split.md](../../research/response-bank-split.md)"
-SPLIT_COMMANDS = ("```bash\n"
-                  "python evidence/response-bank/convert.py --out response-bank-matrix.jsonl\n"
-                  "python research/response_bank_split.py --matrix response-bank-matrix.jsonl\n"
-                  "```")
 RESULTS_SECTIONS = ["## Source and licence", "## Results", "## Reading it", "## Sensitivity", "## Regenerate"]
 
 
@@ -769,7 +765,17 @@ def only(pattern, block):
 
 
 def sensitivity_section(block):
-    """RESULTS.md ``## Sensitivity``, from its heading to its bash block, built from the note's block (12.21 v1.378)."""
+    """RESULTS.md ``## Sensitivity``, from its heading to its bash block, built from the note's block (12.21 v1.378).
+
+    v1.380 (review iter-241 should-fix 1 and nit 4): the lead-in says what a committed ``cleared_rate`` is a
+    share of, the tasks times the seeds; the bash block is the convert line of the regenerate block, then
+    the block's own command line.
+    """
+    command = block.split("\n", 1)[0]
+    assert command.startswith("$ python research/"), command
+    convert = [line for line in REGENERATE.splitlines() if "/convert.py " in line]
+    assert len(convert) == 1, convert
+    commands = "```bash\n" + convert[0] + "\n" + command[2:] + "\n```"
     tasks, bars, min_samples, confidence = only(
         r"^LLM Routing Response Bank on the release's own split .*: (\d+) tasks, \d+ models, bars ([\d. ]+), "
         r"min_samples (\d+), confidence ([\d.]+) \(", block)
@@ -812,13 +818,14 @@ def sensitivity_section(block):
             f"one split in place of the {seeds} seeded halves of the joined set, at the bars, `min_samples` "
             f"{min_samples} and confidence {confidence} of [results.json](results.json). Its costs are sums over "
             f"those {evaluation} items, so only the shares of the best single model's cost compare with the "
-            f"committed rows:")
+            f"committed rows, and a committed `cleared_rate` is the share of its {int(tasks) * int(seeds)} "
+            f"(task, seed) cells that clear, not of the {tasks} tasks:")
     closing = (f"So at bar {lowest} every task that clears in `cost_effective` ({cleared} of {tasks}) goes to "
                f"`{cheapest}`, the cheapest single model, on calibration sides of "
                f"{join([sides[t] for t, _ in starred])} items. `cost_blind` gets {blind} at every bar, below the best "
                f"single model's {here}, where the committed means put it at {blind_committed}, above that model, so "
                f"the committed gain needs the larger halves or the mean over seeds, and one split cannot say which.")
-    return "## Sensitivity\n\n" + lead + "\n\n" + "\n".join(bullets) + "\n\n" + closing + "\n\n" + SPLIT_COMMANDS
+    return "## Sensitivity\n\n" + lead + "\n\n" + "\n".join(bullets) + "\n\n" + closing + "\n\n" + commands
 
 
 def test_results_md_sections_in_order():
@@ -839,6 +846,7 @@ def test_sensitivity_builder_on_the_committed_note_block():
         "calibrates on the release's 256 calibration tasks (`scores_cal.jsonl`) and scores on its 13,059 "
         "evaluation tasks, one split in place of the 50 seeded halves",
         "`min_samples` 30 and confidence 0.95 of [results.json](results.json)",
+        "a committed `cleared_rate` is the share of its 200 (task, seed) cells that clear, not of the 4 tasks:",
         "- `deepseek/deepseek-v4-pro`, the best single model: held-out success 0.872 at 52.1218 USD; "
         "0.872 in the committed means",
         "- bar 0.8, `cost_effective`: routed success 0.846 at 10.1420 USD, 0.195 of the best single model's cost, "
@@ -850,7 +858,9 @@ def test_sensitivity_builder_on_the_committed_note_block():
         "it at 0.874, above that model",
     ]:
         assert needle in section, needle
-    assert section.count("\n- ") == 5 and section.endswith(SPLIT_COMMANDS)
+    assert section.count("\n- ") == 5 and section.endswith(
+        "```bash\npython evidence/response-bank/convert.py --out response-bank-matrix.jsonl\n"
+        "python research/response_bank_split.py --matrix response-bank-matrix.jsonl\n```")
     assert section.isascii() and "\u2013" not in section and "\u2014" not in section
 
 

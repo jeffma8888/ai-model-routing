@@ -5,7 +5,7 @@
 - Question: what does the router give on the LLM Routing Response Bank when it calibrates on the release's own 256 calibration tasks (`scores_cal.jsonl`) and is scored on its 13,059 evaluation tasks (`scores_eval.jsonl`), instead of on the seeded halves of the joined set that `evidence/response-bank/results.json` averages over 50 seeds?
 - Short answer: the `cost_effective` result at the lowest bar holds. At 0.8 it gets 0.846 held-out success at 0.195 of the best single model's cost, against 0.847 at 0.201 in the committed means.
 - What does not hold: with 256 calibration items only `livecodebench` and `mmlu_pro` clear 0.8 and no task clears 0.9, and `cost_blind` gets 0.871, below the best single model's 0.872, where the committed means put it at 0.874, above that model.
-- Recommendation: one `## Sensitivity` bullet in `evidence/response-bank/RESULTS.md` with this split's rows; the committed run stays as it is. No spec row yet.
+- Recommendation: a `## Sensitivity` section in `evidence/response-bank/RESULTS.md` (12.21) with this split's rows, which that file now holds; the committed run stays as it is.
 - Its numbers are the output of `research/response_bank_split.py`, in `## Results`.
 
 ## Method
@@ -59,7 +59,7 @@ LLM Routing Response Bank on the release's own split (scores_cal.jsonl calibrate
 
 ## Recommendation
 
-- Add one `## Sensitivity` bullet to `evidence/response-bank/RESULTS.md` (12.21) with this split's `cost_effective` row at 0.8, its `cost_blind` row and the tasks that clear, built from this note's Results block by a test. It is the one held-out test on this dataset whose split the library did not draw, it backs the `cost_effective` result on the authors' own items, and it shows a limit the committed means hide: at 256 calibration items `cost_blind` does not pass the best single model.
+- Add a `## Sensitivity` section to `evidence/response-bank/RESULTS.md` (12.21) with this split's routed rows, the best single model and the tasks that clear, built from this note's Results block by a test; that file now holds it. It is the one held-out test on this dataset whose split the library did not draw, it backs the `cost_effective` result on the authors' own items, and it shows a limit the committed means hide: at 256 calibration items `cost_blind` does not pass the best single model.
 - Keep the committed run as it is: the joined set and the seeded halves give every family but `aime` a calibration half far above `min_samples`, and a mean over 50 seeds, which one split cannot.
 
 ## Limits
