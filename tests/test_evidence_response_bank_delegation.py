@@ -22,6 +22,11 @@ until the file lands. They import 13.13's ``dearer_than_inline``, ``section``, `
 and the cached-file tests share one module-scoped run of the pinned rows.
 
 v1.314 (row E21e) commits ``RESULTS.md`` and removes the markers.
+
+v1.354 (row DOC19d) trims the README subsection to the 12.8 v1.334 size budget, as the 13.14
+README trim bullet (v1.353) specifies: the per-parent block, the third Reading it bullet, the five
+`## Method` bullets and five of the six `## Assumed` bullets leave it, and the tests that required
+them there now require each in RESULTS.md and none of them in the subsection.
 """
 
 import importlib.util
@@ -669,11 +674,21 @@ README_LINKS = (
     "8,000, 64,000 and 200,000",
     "list-price estimate",
 )
-# Each is the start of one RESULTS.md bullet that the README repeats verbatim (12.8 v1.316).
+# Each is the start of one RESULTS.md bullet that the README repeated verbatim (12.8 v1.316). From
+# v1.354 (13.14 v1.353) the README keeps only the one in README_KEPT_LINES, then the link line; every
+# one stays a RESULTS.md line.
 README_METHOD = ("`aime` has 30 items", "Outside `aime`, ", "Inline is blocked on no cell", "Of the ")
 README_ASSUMED = ("The lossless brief", "Every cost is a list price", "A row's input tokens are `usage.input`",
                   "The windows are the vendor pages'", "The vendor pages, opened 2026-11-12",
                   "The limits of `DESIGN.md` 13.8")
+README_KEPT_LINES = ("The lossless brief",)
+LINK_LINE = ("The other limits are in [RESULTS.md](evidence/response-bank-delegation/RESULTS.md#assumed) `## Assumed`, "
+             "and the per-parent rows at bar 0.8 and point 0, the bar 0.9 cost, the pool, the short `aime` halves, the "
+             "`none_clear` cells outside `aime`, why inline is blocked on no cell and the reason counts in the rest of "
+             "that file.")
+TABLE_INTRO = "Means over the 5 parents, columns as in [Delegation on AutoBench](#delegation-on-autobench):"
+REGENERATE_INTRO = ("Regenerate (the converter's download is the one of [LLM Routing Response Bank]"
+                    "(#llm-routing-response-bank), kept in its cache folder after the first run):")
 
 
 def readme_subsection():
@@ -717,39 +732,68 @@ def test_readme_subsection_links_the_sources_and_licence():
     assert "](../" not in sub
 
 
+def readme_reading_it():
+    """The RESULTS.md `## Reading it` bullets, each with its `- `, in order."""
+    reading = [line for line in section(RESULTS_MD.read_text(encoding="utf-8"), "## Reading it").split("\n")
+               if line.startswith("- ")]
+    assert len(reading) == 5 and reading[-1].startswith("- `results.json` is ")
+    return reading
+
+
 def test_readme_subsection_shows_the_counts_tables_and_reading_it(dr):
+    # v1.354 (13.14 v1.353): the whole table, 2,185 bytes as a fenced block, and the first two Reading it
+    # bullets; the per-parent block, which RESULTS.md `## Results` holds, and the other three bullets are
+    # left to RESULTS.md.
     sub = readme_subsection()
     results = json.loads(RESULTS.read_text(encoding="utf-8"))
     assert readme_counts_sentence(results) in sub
     assert sum(task["items"] for task in results["tasks"].values()) == 13_311
     bar = results["config"]["bars"][0]
     assert PARENT_CMD == f"{TABLE_CMD} --bar {bar} --point 0"
-    assert f"```text\n{TABLE_CMD}\n{dr.table(results)}\n```" in sub
-    assert f"```text\n{PARENT_CMD}\n{dr.parent_table(results, bar, 0)}\n```" in sub
-    # the first three Reading it bullets, which the RESULTS.md test builds from the committed file; the
-    # v1.239 bullet on the parents dearer than inline and the size bullet, the last, stay in RESULTS.md
-    reading = [line for line in section(RESULTS_MD.read_text(encoding="utf-8"), "## Reading it").split("\n")
-               if line.startswith("- ")]
-    assert len(reading) == 5 and reading[-1].startswith("- `results.json` is ")
-    for line in reading[:3]:
-        assert f"\n{line}\n" in sub, line
-    for line in reading[3:]:
+    block = f"```text\n{TABLE_CMD}\n{dr.table(results)}\n```\n"
+    assert len(block.encode("utf-8")) == 2_185
+    assert sub.count(f" {TABLE_INTRO}\n\n{block}") == 1
+    assert f"```text\n{PARENT_CMD}\n" not in sub
+    assert dr.parent_table(results, bar, 0).split("\n")[0] not in sub
+    assert "One row per (flavor, parent)" not in sub
+    reading = readme_reading_it()
+    for line in reading[:2]:
+        assert sub.count(f"\n{line}\n") == 1, line
+    for line in reading[2:]:
         assert line[2:] not in sub, line
     assert "`results.json` is " not in sub
 
 
-def test_readme_subsection_repeats_the_results_md_lines():
+def test_readme_subsection_keeps_two_bullets_one_limit_and_a_link_line():
+    """v1.354 (13.14 v1.353): the subsection's only bullets are the first two Reading it ones and the
+    lossless-brief limit, in that order after the table, then the link line and the regenerate
+    paragraph; the link line's anchor is the RESULTS.md `## Assumed` heading."""
     sub = readme_subsection()
-    for start in README_METHOD:
-        assert f"\n{results_md_line(start, '## Method')}\n" in sub, start
-    for start in README_ASSUMED:
-        assert f"\n{results_md_line(start, '## Assumed')}\n" in sub, start
-    # the one repeated line with a link targets the routing RESULTS.md from the repo root
+    reading = readme_reading_it()
+    lossless = results_md_line("The lossless brief", "## Assumed")
+    assert [line for line in sub.splitlines() if line.startswith("- ")] == [reading[0], reading[1], lossless]
+    tail = (f"\n```\n\n{reading[0]}\n{reading[1]}\n\nLimits, as RESULTS.md states them:\n\n{lossless}\n\n"
+            f"{LINK_LINE}\n\n{REGENERATE_INTRO}\n\n```bash\n")
+    assert sub.count(tail) == 1
+    assert sub.index(TABLE_CMD) < sub.index(tail)
+    assert "\n## Assumed\n" in RESULTS_MD.read_text(encoding="utf-8")
+
+
+def test_readme_subsection_repeats_the_results_md_lines():
+    # v1.354 (13.14 v1.353): each is one RESULTS.md line; the subsection keeps only README_KEPT_LINES.
+    sub = readme_subsection()
+    for start, heading in [(m, "## Method") for m in README_METHOD] + [(a, "## Assumed") for a in README_ASSUMED]:
+        line = results_md_line(start, heading)
+        if start in README_KEPT_LINES:
+            assert sub.count(f"\n{line}\n") == 1, start
+        else:
+            assert f"\n- {start}" not in sub, start
+    # The one dropped line with a link: in RESULTS.md relative to its folder, in neither form in the README.
     pool = root_pool_line()
-    assert f"\n{pool}\n" in sub
+    assert pool[2:] not in sub
+    assert results_md_line("The pool is all five", "## Method")[2:] not in sub
+    assert "\n- The pool is all five" not in sub
     limits = sub.index("\nLimits, as RESULTS.md states them:\n")
-    assert sub.index(pool) < limits
-    assert sub.index(results_md_line(README_METHOD[-1], "## Method")) < limits
     assert limits < sub.index(results_md_line(README_ASSUMED[0], "## Assumed"))
 
 
