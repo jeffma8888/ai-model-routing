@@ -56,8 +56,8 @@ SAME_OR_HIGHER = re.compile(r"#{1,3} ")
 # from review, 99,206, its size after the review's clauses; v1.346, row DOC20a, 96,239; v1.347,
 # from review, 96,365; for 9 names, v1.348, row DOC19b, 96,312; for 8 names, v1.350, row DOC19c, 95,933,
 # and v1.352, from review, 96,008; for 7 names, v1.353, row DOC19d, 95,632; for 6 names, v1.355,
-# row DOC19e, 95,561).
-DESIGN_12_8_CEILINGS = {6: 95_561, 7: 95_632, 8: 96_008, 9: 96_312, 10: 96_365}
+# row DOC19e, 95,561, and v1.357, from review, 95,620).
+DESIGN_12_8_CEILINGS = {6: 95_620, 7: 95_632, 8: 96_008, 9: 96_312, 10: 96_365}
 
 
 def size(lines):
