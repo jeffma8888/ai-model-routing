@@ -34,6 +34,13 @@ v1.356 (DESIGN 12.21 v1.355, row DOC19e): the subsection is trimmed to the 12.8 
 the first and third Reading it bullets and the billed-cost limit, then one line that links RESULTS.md
 ``## Reading it``; the tests require every other Reading it bullet and limit, and the Reading it
 phrases of the dropped bullets, in RESULTS.md and absent from the subsection.
+
+v1.378 (DESIGN 12.21, row E22): RESULTS.md gains ``## Sensitivity`` after ``## Reading it``, the
+release's own split of research/response-bank-split.md. A builder makes the whole section from that
+note's Results block, which the R27 pinned run requires to be the script's output, so every number of
+the section comes from the script; the builder refuses a block whose closing paragraph would no longer
+be true. The two tests that read the section were committed before it under strict xfail
+(``AssertionError``), removed by the commit that adds it (v1.379).
 """
 
 import importlib.util
@@ -733,3 +740,138 @@ def test_results_md_reading_and_limits_hold_no_link():
     reading, limits = results_md_bullets()
     for bullet in reading + limits:
         assert "](" not in bullet, bullet
+
+
+# --- v1.378 (DESIGN 12.21, row E22): the release's own split as a Sensitivity section ---
+
+SPLIT_NOTE = ROOT / "research" / "response-bank-split.md"
+NOTE_LINK = "[research/response-bank-split.md](../../research/response-bank-split.md)"
+SPLIT_COMMANDS = ("```bash\n"
+                  "python evidence/response-bank/convert.py --out response-bank-matrix.jsonl\n"
+                  "python research/response_bank_split.py --matrix response-bank-matrix.jsonl\n"
+                  "```")
+RESULTS_SECTIONS = ["## Source and licence", "## Results", "## Reading it", "## Sensitivity", "## Regenerate"]
+
+
+def split_block(text=None):
+    """The one ``text`` block of the R27 note's ``## Results`` (DESIGN 12.21 v1.375)."""
+    text = SPLIT_NOTE.read_text(encoding="utf-8") if text is None else text
+    section = text.split("\n## Results\n", 1)[1].split("\n## ", 1)[0]
+    blocks = re.findall(r"^```text\n(.*?)^```$", section, re.M | re.S)
+    assert len(blocks) == 1, "one text block in the note's ## Results"
+    return blocks[0]
+
+
+def only(pattern, block):
+    found = re.findall(pattern, block, re.M)
+    assert len(found) == 1, pattern
+    return found[0]
+
+
+def sensitivity_section(block):
+    """RESULTS.md ``## Sensitivity``, from its heading to its bash block, built from the note's block (12.21 v1.378)."""
+    tasks, bars, min_samples, confidence = only(
+        r"^LLM Routing Response Bank on the release's own split .*: (\d+) tasks, \d+ models, bars ([\d. ]+), "
+        r"min_samples (\d+), confidence ([\d.]+) \(", block)
+    calibration, evaluation = only(r"^  all +([\d,]+) +([\d,]+)$", block)
+    sides = {t: c for t, c, _e, _h, _b in
+             re.findall(r"^  ([a-z_]+) +([\d,]+) +([\d,]+) +([\d,]+) +(yes|no) +", block, re.M)}
+    assert len(sides) == int(tasks), sides
+    best, here, committed_best, committed, seeds = only(
+        r"^  best single model: (\S+) ([\d.]+) here; (\S+) ([\d.]+) in the committed means over (\d+) seeds$", block)
+    assert best == committed_best, "the best single model differs between the two runs"
+    singles = {m: (sc, c) for m, sc, c in re.findall(r"^    ([a-z0-9.-]+/\S+) +(0\.\d{3}) +(\d+\.\d{4})$", block, re.M)}
+    assert singles.get(best, (None,))[0] == here, best
+    cheapest = min(singles, key=lambda m: (float(singles[m][1]), -float(singles[m][0]), m))
+    lowest = bars.split()[0]
+    rows = re.findall(r"^  (0\.\d+) +(cost_effective|cost_blind) +(.*)$", block, re.M)
+    assert [(b, f) for b, f, _ in rows] == [(b, f) for f in FLAVORS for b in bars.split()], rows
+    bullets = [f"- `{best}`, the best single model: held-out success {here} at {singles[best][1]} USD; "
+               f"{committed} in the committed means"]
+    fields = {}
+    for bar, flavor, rest in rows:
+        f = rest.split()
+        assert len(f) == 9 and f[4] == "of" and f[5] == tasks, rest
+        fields[(bar, flavor)] = f
+        bullets.append(f"- bar {bar}, `{flavor}`: routed success {f[0]} at {f[1]} USD, {f[2]} of the best single "
+                       f"model's cost, {f[3]} of {f[5]} tasks cleared; in the committed means {f[6]} at {f[7]} "
+                       f"of that model's cost, cleared_rate {f[8]}")
+    picks = only(rf"^    {re.escape(lowest)} cost_effective: (.*)$", block).split(", ")
+    starred = [p[:-1].split(" ") for p in picks if p.endswith("*")]
+    cleared = fields[(lowest, "cost_effective")][3]
+    assert starred and len(starred) == int(cleared), (starred, cleared)
+    assert {m for _, m in starred} == {cheapest}, "a task that clears at the lowest bar goes to another model"
+    blind = {fields[(b, "cost_blind")][0] for b in bars.split()}
+    blind_committed = {fields[(b, "cost_blind")][6] for b in bars.split()}
+    assert len(blind) == 1 and len(blind_committed) == 1, "cost_blind differs between bars"
+    (blind,), (blind_committed,) = blind, blind_committed
+    assert float(blind) < float(here), "cost_blind is not below the best single model on this split"
+    assert float(blind_committed) > float(committed), "cost_blind is not above the best single model in the committed means"
+    lead = (f"The release's own split, not committed as a file: {NOTE_LINK} calibrates on the release's "
+            f"{calibration} calibration tasks (`scores_cal.jsonl`) and scores on its {evaluation} evaluation tasks, "
+            f"one split in place of the {seeds} seeded halves of the joined set, at the bars, `min_samples` "
+            f"{min_samples} and confidence {confidence} of [results.json](results.json). Its costs are sums over "
+            f"those {evaluation} items, so only the shares of the best single model's cost compare with the "
+            f"committed rows:")
+    closing = (f"So at bar {lowest} every task that clears in `cost_effective` ({cleared} of {tasks}) goes to "
+               f"`{cheapest}`, the cheapest single model, on calibration sides of "
+               f"{join([sides[t] for t, _ in starred])} items. `cost_blind` gets {blind} at every bar, below the best "
+               f"single model's {here}, where the committed means put it at {blind_committed}, above that model, so "
+               f"the committed gain needs the larger halves or the mean over seeds, and one split cannot say which.")
+    return "## Sensitivity\n\n" + lead + "\n\n" + "\n".join(bullets) + "\n\n" + closing + "\n\n" + SPLIT_COMMANDS
+
+
+@pytest.mark.xfail(strict=True, raises=AssertionError, reason="v1.379 adds the Sensitivity section")
+def test_results_md_sections_in_order():
+    assert re.findall(r"^## .*$", results_md(), re.M) == RESULTS_SECTIONS
+    assert results_md().startswith("# Response-bank results\n")
+
+
+@pytest.mark.xfail(strict=True, raises=AssertionError, reason="v1.379 adds the Sensitivity section")
+def test_results_md_sensitivity_is_the_split_notes_results_block():
+    text = results_md()
+    reading = text.split("\n## Reading it\n", 1)[1].split("\n## ", 1)[0]
+    last = [line for line in reading.splitlines() if line.startswith("- ")][-1]
+    assert text.count(f"\n{last}\n\n{sensitivity_section(split_block())}\n\n## Regenerate\n") == 1
+
+
+def test_sensitivity_builder_on_the_committed_note_block():
+    section = sensitivity_section(split_block())
+    for needle in [
+        "calibrates on the release's 256 calibration tasks (`scores_cal.jsonl`) and scores on its 13,059 "
+        "evaluation tasks, one split in place of the 50 seeded halves",
+        "`min_samples` 30 and confidence 0.95 of [results.json](results.json)",
+        "- `deepseek/deepseek-v4-pro`, the best single model: held-out success 0.872 at 52.1218 USD; "
+        "0.872 in the committed means",
+        "- bar 0.8, `cost_effective`: routed success 0.846 at 10.1420 USD, 0.195 of the best single model's cost, "
+        "2 of 4 tasks cleared; in the committed means 0.847 at 0.201 of that model's cost, cleared_rate 0.735",
+        "- bar 0.9, `cost_blind`: routed success 0.871 at 27.8202 USD, 0.534 of the best single model's cost, "
+        "0 of 4 tasks cleared; in the committed means 0.874 at 2.104 of that model's cost, cleared_rate 0.005",
+        "(2 of 4) goes to `z-ai/glm-5.3-flash`, the cheapest single model, on calibration sides of 88 and 128 items",
+        "`cost_blind` gets 0.871 at every bar, below the best single model's 0.872, where the committed means put "
+        "it at 0.874, above that model",
+    ]:
+        assert needle in section, needle
+    assert section.count("\n- ") == 5 and section.endswith(SPLIT_COMMANDS)
+    assert section.isascii() and "\u2013" not in section and "\u2014" not in section
+
+
+@pytest.mark.parametrize("name, edit, match", [
+    ("cost_blind not below the best single model",
+     lambda b: re.sub(r"(?m)^(  0\.\d +cost_blind +)0\.871", r"\g<1>0.873", b), "not below"),
+    ("a task that clears goes to another model",
+     lambda b: b.replace("livecodebench z-ai/glm-5.3-flash*", "livecodebench deepseek/deepseek-v4-flash*", 1),
+     "another model"),
+    ("cost_blind differs between bars",
+     lambda b: re.sub(r"(?m)^(  0\.9 +cost_blind +)0\.871", r"\g<1>0.870", b), "differs between bars"),
+])
+def test_sensitivity_builder_refuses_a_block_its_closing_would_misread(name, edit, match):
+    block = split_block()
+    changed = edit(block)
+    assert changed != block, name
+    with pytest.raises(AssertionError, match=match):
+        sensitivity_section(changed)
+
+
+def test_readme_response_bank_subsection_names_no_sensitivity():
+    assert "Sensitivity" not in readme_subsection() and "response-bank-split" not in readme_subsection()
