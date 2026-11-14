@@ -119,6 +119,7 @@ With every cost 0, the `cheapest` baseline is the model with the lowest ID, `age
 - A label is the test cases passing for the first sample at the run's own sampling settings, and the runs do not share them: they drew 1, 4 or 10 samples per problem
 - The problems come from LeetCode, AtCoder and Codeforces, so nothing of them is kept but the question id and the contest date
 - With no cost, this matrix says which model clears a bar, never what it costs
+- Routing here is one task, so the router picks one model for all 713 problems, and those are the problems every one of the 67 kept files holds (DESIGN 12.16)
 - Size: the committed file, 175,413 bytes, holds only the summary and the routed per-task rows (DESIGN 12.7)
 
 ## Regenerate

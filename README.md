@@ -660,17 +660,12 @@ Reading it:
 
 - `cost_blind` reaches a held-out success of 0.902 at every bar, the same as `best_on_calibration`: with no cost the router takes the model with the highest Wilson lower bound on the calibration half, and with the same number of calibration problems for every model that is the model with the highest calibration success, so the two pick the same model on every seed. It routes 29 of the 50 seeds to `openai/o4-mini-high` and 21 to `deepseek/deepseek-r1-0528`, at every bar
 - Against single models: always calling `openai/o4-mini-high` reaches 0.909 and always calling `deepseek/deepseek-r1-0528` 0.904; the other 65 of the 67 single models reach less than the routed 0.902. Choosing on half of the problems gives up a little held-out success to the best model in hindsight, which no router knows in advance
-- The bar holds where the best models clear it with room: at bars 0.1 to 0.8 a model clears on every one of the 50 seeds and no cleared seed falls below the bar on held-out
-- Bar violations: 1.000 at bar 0.9 is 9 of the 9 seeds that cleared, against 13 of the 41 seeds that did not clear, and a nominal one-sided 0.025 for the 0.95 Wilson bound. The split cuts one pool of 713 problems in two, so a model's rate on all of them is the mean of its two halves weighted by size, and a calibration half that comes out above it leaves the held-out half below it. On the 9 seeds that cleared bar 0.9 the router took `openai/o4-mini-high`, whose rate on all 713 problems is 0.913: its calibration-half rate was 0.932 to 0.946 and its held-out rate 0.878 to 0.895. Read the rates as resampling estimates for this pool, never as a guarantee (`DESIGN.md` 12.3)
-- The per-item oracle reaches 0.972, against the routed 0.902: on many problems some model passes where the routed one fails, and routing per task cannot pick per problem
 
 Limits:
 
 - The models date from 2023 to 2025 and the 713 problems from 2023-05-07 to 2024-10-05, so many problems predate a model's training data: the contamination LiveCodeBench dates its problems to expose. A later model's rate on old problems can overstate what it does on new ones
-- A label is the test cases passing for the first sample at the run's own sampling settings, and the runs do not share them: they drew 1, 4 or 10 samples per problem
-- The problems come from LeetCode, AtCoder and Codeforces, so nothing of them is kept but the question id and the contest date
-- With no cost, this matrix says which model clears a bar, never what it costs
-- Routing here is one task, so the router picks one model for all 713 problems, and those are the problems every one of the 67 kept files holds (`DESIGN.md` 12.16)
+
+The other Reading it bullets and limits are in [RESULTS.md](evidence/livecodebench/RESULTS.md#reading-it) `## Reading it`: where the bar holds, the bar violations, the per-item oracle, the samples the runs drew, the problem sources, what a matrix with no cost says and the one routing task.
 
 Regenerate (the converter downloads the 67 pinned files, about 1.23 GB, into a cache folder outside the repo; the evaluate step took about 5.5 seconds on one laptop):
 
