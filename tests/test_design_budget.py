@@ -186,22 +186,38 @@ def test_pending_holds_exactly_the_subsections_and_lines_over_their_caps():
 
 
 LISTED = re.compile(r"(1[23]\.\d+) ([\d,]+)(?: bytes)?, ([\d,]+) over \(")
+# How the v1.386 bullet names each long line's size (review iter-245 nit 2: tied to the line).
+LINE_LISTED = {
+    "- Time limit and retries (v1.152, ": re.compile(r"its time-limit bullet, a line of ([\d,]+) bytes"),
+    "- Where routing pays (v1.124): ": re.compile(r"`Where routing pays` bullet, ([\d,]+) bytes"),
+    "- Where delegation pays at a glance (v1.258, row DOC15): ": re.compile(
+        r"`Where delegation pays at a glance`, ([\d,]+), "),
+}
 
 
-def test_pending_sizes_are_the_ones_v1_386_lists():
+def number_of(shown):
+    return int(shown.replace(",", ""))
+
+
+def test_pending_sizes_are_at_most_the_ones_v1_386_lists():
     # The DESIGN 12 `Over a cap at v1.386` bullet gives each subsection over its cap with its size and
-    # excess at 6c79574, and the three long lines' sizes; each PENDING entry is its listed size, whose
-    # excess over the CAPS value of its class is the listed one.
+    # excess at 6c79574, and the three long lines' sizes. Each PENDING entry is at most its listed size,
+    # whose excess over the CAPS value of its class is the listed one, and each PENDING_LINES entry at
+    # most its listed size; so an entry is never raised, and a partial trim (DOC26 in 12.13) may lower
+    # one (review iter-245 should-fix 1).
     bullets = [line for line in DESIGN.read_text(encoding="utf-8").splitlines()
                if line.startswith("- Over a cap at v1.386")]
     assert len(bullets) == 1
-    listed = {number: (int(held.replace(",", "")), int(excess.replace(",", "")))
-              for number, held, excess in LISTED.findall(bullets[0])}
+    listed = {number: (number_of(held), number_of(excess)) for number, held, excess in LISTED.findall(bullets[0])}
     assert len(listed) == 11
     for number, held in PENDING.items():
-        assert listed[number] == (held, held - CAPS[CLASS[number]])
-    for held in PENDING_LINES.values():
-        assert f" {held:,} bytes" in bullets[0] or f", {held:,}, " in bullets[0]
+        listed_size, listed_excess = listed[number]
+        assert held <= listed_size
+        assert listed_excess == listed_size - CAPS[CLASS[number]]
+    assert set(PENDING_LINES) <= set(LINE_LISTED)
+    for opening, held in PENDING_LINES.items():
+        found = LINE_LISTED[opening].findall(bullets[0])
+        assert len(found) == 1 and held <= number_of(found[0])
 
 
 def test_the_measure_is_design_12_8_on_12_8():
