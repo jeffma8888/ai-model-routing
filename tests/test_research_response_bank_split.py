@@ -6,7 +6,7 @@ means of evidence/response-bank/results.json. When the four pinned files are cac
 Results block is compared byte for byte with a fresh run on the converter's rows; on every machine
 the committed columns of that block are rebuilt from the committed file, its split columns from the
 evidence README, and its report is checked on a small hand-made matrix worked out by hand.
-Committed before the script and the note under strict xfail until v1.376.
+Committed before the script and the note under strict xfail, which v1.376 removes.
 """
 
 import ast
@@ -34,9 +34,6 @@ SECTIONS = ["## Facts", "## Method", "## Results", "## Reading it", "## Recommen
 # DESIGN section numbers: the only numbers of the note's prose that are not in the script's output
 ALLOWED = {"5.3", "12.2", "12.3", "12.7", "12.20", "12.21"}
 NUMBER = re.compile(r"(?<![\w.])\d+(?:,\d{3})*(?:\.\d+)?%?")
-RED = pytest.mark.xfail(strict=True, raises=(FileNotFoundError, AssertionError),
-                        reason="research/response_bank_split.py and its note land in v1.376")
-pytestmark = RED
 
 
 def _load():
@@ -142,21 +139,22 @@ def test_split_columns_are_the_evidence_readme_and_the_committed_halves():
     table = dict((t, (int(c.replace(",", "")), int(e.replace(",", ""))))
                  for t, c, e in re.findall(r"^\| `?([a-z_]+)`? \| ([\d,]+) \| ([\d,]+) \| [\d,]+ \|$", readme, re.M))
     assert sorted(table) == sorted(results["tasks"])
-    rows = re.findall(r"^  ([a-z_]+) +(\d+) +(\d+) +(\d+) +(yes|no) +([\d.]+) \((\S+), (\d+) of (\d+)\)$",
+    rows = re.findall(r"^  ([a-z_]+) +([\d,]+) +([\d,]+) +([\d,]+) +(yes|no) +([\d.]+) \((\S+), ([\d,]+) of ([\d,]+)\)$",
                       block, re.M)
     assert [r[0] for r in rows] == sorted(results["tasks"])
     floor = results["config"]["min_samples"]
     for task, cal, held, half, below, _, _, _, n in rows:
-        assert (int(cal), int(held)) == table[task], task
-        assert int(half) == int(results["tasks"][task]["items"] * results["config"]["calibration_fraction"])
-        assert below == ("yes" if int(cal) < floor else "no") and n == cal, task
-    total = re.findall(r"^  all +(\d+) +(\d+)$", block, re.M)
-    assert total == [(str(sum(c for c, _ in table.values())), str(sum(e for _, e in table.values())))]
+        cal, held, half = (int(x.replace(",", "")) for x in (cal, held, half))
+        assert (cal, held) == table[task], task
+        assert half == int(results["tasks"][task]["items"] * results["config"]["calibration_fraction"])
+        assert below == ("yes" if cal < floor else "no") and int(n.replace(",", "")) == cal, task
+    total = re.findall(r"^  all +([\d,]+) +([\d,]+)$", block, re.M)
+    assert total == [(f"{sum(c for c, _ in table.values()):,}", f"{sum(e for _, e in table.values()):,}")]
 
 
 def test_a_task_below_min_samples_never_clears():
     block = results_block(note())
-    below = set(re.findall(r"^  ([a-z_]+) +\d+ +\d+ +\d+ +yes ", block, re.M))
+    below = set(re.findall(r"^  ([a-z_]+) +[\d,]+ +[\d,]+ +[\d,]+ +yes ", block, re.M))
     assert "aime" in below
     picks = re.findall(r"^    0\.\d+ (?:cost_effective|cost_blind): (.*)$", block, re.M)
     assert len(picks) == 4
