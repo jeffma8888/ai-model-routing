@@ -56,8 +56,9 @@ DESIGN = ROOT / "DESIGN.md"
 DESIGN_12_8 = "### 12.8 "
 SAME_OR_HIGHER = re.compile(r"#{1,3} ")
 # DESIGN 12.8 v1.344: the ceiling on 12.8 in bytes for each count of PENDING names. The row that removes
-# a PENDING name adds the entry for the new count, the size its trim leaves (v1.344: 98,443 bytes).
-DESIGN_12_8_CEILINGS = {10: 98_443}
+# a PENDING name adds the entry for the new count, the size its trim leaves (v1.344: 98,443 bytes; v1.345,
+# from review, 99,206, its size after the review's clauses; row DOC20a lowers it).
+DESIGN_12_8_CEILINGS = {10: 99_206}
 
 
 def size(lines):
@@ -130,11 +131,12 @@ def design_problems(text, ceilings=DESIGN_12_8_CEILINGS, pending=PENDING):
         if ceilings[smaller] >= ceilings[larger]:
             found.append(f"the 12.8 ceiling for {smaller} PENDING names, {ceilings[smaller]:,}, is not below "
                          f"the one for {larger}, {ceilings[larger]:,}")
-    count = len(pending)
+    count, got = len(pending), design_12_8(text)
     if count not in ceilings:
-        found.append(f"no 12.8 ceiling for {count} PENDING names: the row that removed a name adds one")
+        # v1.345, from review: the message gives 12.8's size, the entry the trimming row adds.
+        found.append(f"no 12.8 ceiling for {count} PENDING names: the row that removed a name adds one "
+                     f"(12.8 is {got:,} bytes)")
     else:
-        got = design_12_8(text)
         if got > ceilings[count]:
             found.append(f"DESIGN 12.8 is {got:,} bytes, over its ceiling {ceilings[count]:,} for {count} PENDING names")
     return found
@@ -248,7 +250,11 @@ def test_a_broken_12_8_ceiling_table_is_named():
     assert design_problems(text, ceilings={2: 110}, pending={"A": 1, "B": 1}) == [
         "DESIGN 12.8 is 111 bytes, over its ceiling 110 for 2 PENDING names"]
     assert design_problems(text, ceilings={2: 111}, pending={"A": 1}) == [
-        "no 12.8 ceiling for 1 PENDING names: the row that removed a name adds one"]
+        "no 12.8 ceiling for 1 PENDING names: the row that removed a name adds one (12.8 is 111 bytes)"]
+    # Both faults at once: the table and the missing count are named, with the size to set.
+    assert design_problems(text, ceilings={2: 100, 3: 100}, pending={"A": 1}) == [
+        "the 12.8 ceiling for 2 PENDING names, 100, is not below the one for 3, 100",
+        "no 12.8 ceiling for 1 PENDING names: the row that removed a name adds one (12.8 is 111 bytes)"]
     assert design_problems(text, ceilings={1: 111, 2: 111}, pending={"A": 1}) == [
         "the 12.8 ceiling for 1 PENDING names, 111, is not below the one for 2, 111"]
     assert design_problems(text, ceilings={1: 111, 2: 112}, pending={"A": 1}) == []
