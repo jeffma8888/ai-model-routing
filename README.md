@@ -608,18 +608,13 @@ No routed row beats any of the 4 single agents on both counts: against each of t
 Reading it:
 
 - `cost_effective`: At bar 0.3 a model clears on 100 of the 150 (domain, seed) cells, and the router spends 0.144 of the best single agent's cost for a held-out success of 0.547, against 0.612 for that agent (`anthropic/claude-3-7-sonnet-20250219`). Always calling the cheapest agent, `openai/gpt-4.1-mini-2025-04-14`, reaches 0.548 at 3.6044 USD, so at bar 0.3 the router pays 2.5 times as much for no more held-out success
-- Where routing per domain works: On retail at bars 0.3 and 0.4 `cost_effective` routes all 50 seeds to `openai/gpt-4.1-mini-2025-04-14`, for a held-out success of 0.692 at 0.7711 USD, against `cost_blind`'s 0.795 at 18.1069 USD there. The cost at the lowest bars comes from the other two domains: on airline a model clears on 10 of the 50 seeds at bar 0.3 and on none from bar 0.5, and on a cell where no agent clears, the router takes the best agent available on the calibration half, whatever its cost (`DESIGN.md` 12.3)
 - `cost_blind` reaches 0.589 at 0.639 of the best single agent's cost at every bar, against `best_on_calibration`'s 0.578 at 0.492
-- Bar violations: 0.033 at bar 0.4 is 2 of the 60 cells that cleared, 0.061 at bar 0.6 is 3 of the 49 cells that cleared, and 0.083 at bar 0.7 is 1 of the 12 cells that cleared. Read them next to a nominal one-sided 0.025 for the 0.95 Wilson bound on one agent, as resampling estimates for this matrix, never as a guarantee (`DESIGN.md` 12.3)
-- The per-item oracle reaches 0.801 at 7.6369 USD, while the highest routed success of either flavor at any bar is 0.589: a hindsight bound, since routing per domain cannot pick an agent per task
 
 Limits:
 
 - The 4 agents date from 2025, and the costs are those the runs recorded at the prices of their time, not today's list prices
-- The airline and retail tasks are the June 2025 task sets, which the folder's README says differ from the current base tasks ("airline: 29 tasks differ, retail: 114")
-- A model, `openai/gpt-4.1-2025-04-14`, plays the user in every conversation, so a reward is the agent's success with that simulated user, and a failed conversation can be the simulator's fault
-- Routing here is per domain, not per task, and the airline calibration half holds 16 to 35 tasks over the 50 seeds, under `min_samples` 30 on 40 of them, so on those seeds no agent can clear a bar on airline; RESULTS.md has a run that pools all 278 tasks into one task
-- One trial of the 4 is used. The sentence under the tables holds on trials 1 and 3 but not on trial 2, where the `cost_blind` rows beat always calling the strongest agent by a gap in held-out success too small to be evidence of better success ([RESULTS.md](evidence/tau2-bench/RESULTS.md#sensitivity))
+
+The other Reading it bullets and limits are in [RESULTS.md](evidence/tau2-bench/RESULTS.md#reading-it) `## Reading it`: where routing per domain works, the bar violations, the per-item oracle, the June 2025 task sets, the simulated user and the calibration split sizes; its [Sensitivity](evidence/tau2-bench/RESULTS.md#sensitivity) part has the pooled run and trials 1 to 3, and the sentence under the tables holds on trials 1 and 3 but not on trial 2.
 
 Regenerate (the converter downloads the 12 pinned files, about 296 MB, into a cache folder outside the repo; the evaluate step takes well under a second; the sensitivity commands are in RESULTS.md):
 

@@ -44,7 +44,6 @@ PENDING = {
     "RouterBench": 4_731,
     "AutoBench": 5_078,
     "AutoBench judges": 5_691,
-    "tau2-bench": 7_310,
     "LiveCodeBench": 6_194,
 }
 DESIGN = ROOT / "DESIGN.md"
@@ -55,8 +54,9 @@ SAME_OR_HIGHER = re.compile(r"#{1,3} ")
 # from review, 99,206, its size after the review's clauses; v1.346, row DOC20a, 96,239; v1.347,
 # from review, 96,365; for 9 names, v1.348, row DOC19b, 96,312; for 8 names, v1.350, row DOC19c, 95,933,
 # and v1.352, from review, 96,008; for 7 names, v1.353, row DOC19d, 95,632; for 6 names, v1.355,
-# row DOC19e, 95,561, and v1.357, from review, 95,620; for 5 names, v1.358, row DOC19f, 95,429).
-DESIGN_12_8_CEILINGS = {5: 95_429, 6: 95_620, 7: 95_632, 8: 96_008, 9: 96_312, 10: 96_365}
+# row DOC19e, 95,561, and v1.357, from review, 95,620; for 5 names, v1.358, row DOC19f, 95,429;
+# for 4 names, v1.362, row DOC19g, 95,282).
+DESIGN_12_8_CEILINGS = {4: 95_282, 5: 95_429, 6: 95_620, 7: 95_632, 8: 96_008, 9: 96_312, 10: 96_365}
 
 
 def size(lines):
@@ -198,6 +198,13 @@ def test_llmrouterbench_is_trimmed():
     sizes = dict(measure(README.read_text(encoding="utf-8"))[2:])
     assert "LLMRouterBench" not in PENDING
     assert sizes["LLMRouterBench"] <= CAPS["routing"]
+
+
+def test_tau2_bench_is_trimmed():
+    # Row DOC19g: out of PENDING and at most its cap (7,310 bytes at 0b3e142).
+    sizes = dict(measure(README.read_text(encoding="utf-8"))[2:])
+    assert "tau2-bench" not in PENDING
+    assert sizes["tau2-bench"] <= CAPS["routing"]
 
 
 def test_each_measure_runs_from_its_heading_to_the_next_of_its_level_or_higher():

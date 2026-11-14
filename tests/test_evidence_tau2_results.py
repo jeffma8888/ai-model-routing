@@ -9,6 +9,11 @@ bytes, one rebuilds the split sizes and the success span behind the bars, and on
 every sensitivity line in RESULTS.md. The README part (v1.55, DESIGN 12.8) builds the
 `### tau2-bench` subsection's tables, counts, single-agent sentence and Reading it numbers from
 the committed file, and requires each limit phrase it takes from RESULTS.md in both files.
+
+v1.363 (DESIGN 12.15 v1.362, row DOC19g): the subsection is trimmed to the 12.8 size budget. It keeps
+the `cost_effective` and `cost_blind` Reading it bullets and the first limit, then one line that links
+RESULTS.md ``## Reading it`` and ``## Sensitivity``; the tests require the Reading it phrases of the
+dropped bullets and the dropped limit phrases in RESULTS.md and absent from the subsection.
 """
 
 import importlib.util
@@ -277,12 +282,22 @@ HEADINGS = ["RouterBench", "AutoBench", "AutoBench judges", "tau2-bench", "LiveC
             "LLMRouterBench", "LLM Routing Response Bank", "Delegation on AutoBench", "Delegation on tau2-bench",
             "Delegation on LLMRouterBench",
             "Delegation on the LLM Routing Response Bank"]
+# v1.363 (12.15 v1.362): the subsection keeps the first limit phrase, in its one Limits bullet, and the
+# last, in its link line; the other three are in RESULTS.md alone.
 LIMITS = ["date from 2025, and the costs are those the runs recorded at the prices of their time",
-          '("airline: 29 tasks differ, retail: 114")',
-          "plays the user in every conversation",
-          "the airline calibration half holds 16 to 35 tasks over the 50 seeds, under "
-          "`min_samples` 30 on 40 of them",
           "holds on trials 1 and 3 but not on trial 2"]
+DROPPED_LIMITS = ['("airline: 29 tasks differ, retail: 114")',
+                  "plays the user in every conversation",
+                  "the airline calibration half holds 16 to 35 tasks over the 50 seeds, under "
+                  "`min_samples` 30 on 40 of them"]
+LINK_LINE = ("The other Reading it bullets and limits are in [RESULTS.md](evidence/tau2-bench/RESULTS.md#reading-it) "
+             "`## Reading it`: where routing per domain works, the bar violations, the per-item oracle, the June "
+             "2025 task sets, the simulated user and the calibration split sizes; its "
+             "[Sensitivity](evidence/tau2-bench/RESULTS.md#sensitivity) part has the pooled run and trials 1 to "
+             "3, and the sentence under the tables holds on trials 1 and 3 but not on trial 2.")
+REGENERATE_LINE = ("Regenerate (the converter downloads the 12 pinned files, about 296 MB, into a cache folder "
+                   "outside the repo; the evaluate step takes well under a second; the sensitivity commands "
+                   "are in RESULTS.md):")
 
 
 def readme_subsection():
@@ -343,12 +358,52 @@ def test_readme_tau2_tables_counts_and_single_agent_sentence_are_the_committed_r
     assert beats_statement(results) in section
 
 
+def kept_bullets(results):
+    """The two Reading it bullets and the one Limits bullet the subsection keeps (12.15 v1.362),
+    built from the RESULTS.md phrases of the committed file."""
+    phrases = reading_phrases(results)
+    agents = len(results["tasks"]["airline"]["models"])
+    return [f"- `cost_effective`: {phrases[0]}, and the router {phrases[1]}. {phrases[2]}",
+            f"- {phrases[3]}",
+            f"- The {agents} agents {LIMITS[0]}, not today's list prices"]
+
+
 def test_readme_tau2_reading_numbers_are_the_committed_results():
-    section = readme_subsection()
-    phrases = [p for p in reading_phrases(committed()) if not p.startswith("the committed file,")]
-    assert len(phrases) == len(reading_phrases(committed())) - 1
+    # v1.363 (12.15 v1.362): only the phrases of the two kept bullets are in the subsection; the
+    # others, which test_results_md_reading_numbers_are_the_committed_results requires in RESULTS.md,
+    # are not.
+    results, section = committed(), readme_subsection()
+    phrases = [p for p in reading_phrases(results) if not p.startswith("the committed file,")]
+    assert len(phrases) == len(reading_phrases(results)) - 1
+    kept = kept_bullets(results)[:2]
+    shown = [p for p in phrases if p in kept[0] or p in kept[1]]
+    assert shown == phrases[:4], shown
     for phrase in phrases:
-        assert phrase in section, phrase
+        assert (phrase in section) == (phrase in shown), phrase
+
+
+def test_readme_tau2_keeps_two_bullets_one_limit_and_a_link_line():
+    """v1.363 (12.15 v1.362): after its four source bullets the subsection's only bullets are the
+    `cost_effective` and `cost_blind` Reading it bullets and the first limit, then the link line and
+    the regenerate paragraph; the link's anchors are the RESULTS.md `## Reading it` heading, since
+    that file has no `## Caveats` or `## Assumed`, and its `## Sensitivity` heading; each dropped
+    limit phrase is in RESULTS.md alone."""
+    results, section, md = committed(), readme_subsection(), results_md()
+    kept = kept_bullets(results)
+    block = f"Reading it:\n\n{kept[0]}\n{kept[1]}\n\nLimits:\n\n{kept[2]}\n\n{LINK_LINE}\n\n{REGENERATE_LINE}\n\n```bash\n"
+    assert section.count(block) == 1
+    bullets = [line for line in section.splitlines() if line.startswith("- ")]
+    assert len(bullets) == 7 and bullets[4:] == kept
+    assert section.index(beats_statement(results)) < section.index("\nReading it:\n")
+    for heading in ("\n## Reading it\n", "\n## Sensitivity\n"):
+        assert md.count(heading) == 1, heading
+    assert "\n## Caveats\n" not in md and "\n## Assumed\n" not in md
+    for phrase in DROPPED_LIMITS:
+        assert phrase in md and phrase not in section, phrase
+    for start in ("- Where routing per domain works:", "- Bar violations:", "- The per-item oracle",
+                  "- The airline and retail tasks", "- A model, ", "- Routing here is per domain",
+                  "- One trial of the 4"):
+        assert start not in section, start
 
 
 def test_readme_tau2_links_source_licence_limits_and_commands(cv):
