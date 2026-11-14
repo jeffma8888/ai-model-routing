@@ -290,11 +290,14 @@ DROPPED_LIMITS = ['("airline: 29 tasks differ, retail: 114")',
                   "plays the user in every conversation",
                   "the airline calibration half holds 16 to 35 tasks over the 50 seeds, under "
                   "`min_samples` 30 on 40 of them"]
-LINK_LINE = ("The other Reading it bullets and limits are in [RESULTS.md](evidence/tau2-bench/RESULTS.md#reading-it) "
-             "`## Reading it`: where routing per domain works, the bar violations, the per-item oracle, the June "
-             "2025 task sets, the simulated user and the calibration split sizes; its "
-             "[Sensitivity](evidence/tau2-bench/RESULTS.md#sensitivity) part has the pooled run and trials 1 to "
-             "3, and the sentence under the tables holds on trials 1 and 3 but not on trial 2.")
+# v1.364 (review iter-233 nit 1): the link line says what each of the two RESULTS.md parts holds.
+LINK_LINE = ("The other Reading it bullets and limits are in [RESULTS.md](evidence/tau2-bench/RESULTS.md#reading-it): "
+             "its `## Reading it` has where routing per domain works, the bar violations, the per-item oracle, "
+             "the June 2025 task sets, the simulated user and the calibration split sizes, and its "
+             "[Sensitivity](evidence/tau2-bench/RESULTS.md#sensitivity) part the pooled run and trials 1 to 3, "
+             "where the sentence under the tables holds on trials 1 and 3 but not on trial 2.")
+# v1.364 (review iter-233 should-fix 1): the one qualifier of a dropped line that RESULTS.md lacked.
+MOVED = "against a nominal one-sided 0.025 for the 0.95 Wilson bound on one agent."
 REGENERATE_LINE = ("Regenerate (the converter downloads the 12 pinned files, about 296 MB, into a cache folder "
                    "outside the repo; the evaluate step takes well under a second; the sensitivity commands "
                    "are in RESULTS.md):")
@@ -377,6 +380,7 @@ def test_readme_tau2_reading_numbers_are_the_committed_results():
     assert len(phrases) == len(reading_phrases(results)) - 1
     kept = kept_bullets(results)[:2]
     shown = [p for p in phrases if p in kept[0] or p in kept[1]]
+    # A guard on which phrases the kept bullets hold (the first four); the check is the loop below.
     assert shown == phrases[:4], shown
     for phrase in phrases:
         assert (phrase in section) == (phrase in shown), phrase
@@ -398,7 +402,7 @@ def test_readme_tau2_keeps_two_bullets_one_limit_and_a_link_line():
     for heading in ("\n## Reading it\n", "\n## Sensitivity\n"):
         assert md.count(heading) == 1, heading
     assert "\n## Caveats\n" not in md and "\n## Assumed\n" not in md
-    for phrase in DROPPED_LIMITS:
+    for phrase in DROPPED_LIMITS + [MOVED]:
         assert phrase in md and phrase not in section, phrase
     for start in ("- Where routing per domain works:", "- Bar violations:", "- The per-item oracle",
                   "- The airline and retail tasks", "- A model, ", "- Routing here is per domain",

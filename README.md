@@ -614,7 +614,7 @@ Limits:
 
 - The 4 agents date from 2025, and the costs are those the runs recorded at the prices of their time, not today's list prices
 
-The other Reading it bullets and limits are in [RESULTS.md](evidence/tau2-bench/RESULTS.md#reading-it) `## Reading it`: where routing per domain works, the bar violations, the per-item oracle, the June 2025 task sets, the simulated user and the calibration split sizes; its [Sensitivity](evidence/tau2-bench/RESULTS.md#sensitivity) part has the pooled run and trials 1 to 3, and the sentence under the tables holds on trials 1 and 3 but not on trial 2.
+The other Reading it bullets and limits are in [RESULTS.md](evidence/tau2-bench/RESULTS.md#reading-it): its `## Reading it` has where routing per domain works, the bar violations, the per-item oracle, the June 2025 task sets, the simulated user and the calibration split sizes, and its [Sensitivity](evidence/tau2-bench/RESULTS.md#sensitivity) part the pooled run and trials 1 to 3, where the sentence under the tables holds on trials 1 and 3 but not on trial 2.
 
 Regenerate (the converter downloads the 12 pinned files, about 296 MB, into a cache folder outside the repo; the evaluate step takes well under a second; the sensitivity commands are in RESULTS.md):
 
