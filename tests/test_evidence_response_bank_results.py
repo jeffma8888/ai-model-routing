@@ -821,13 +821,11 @@ def sensitivity_section(block):
     return "## Sensitivity\n\n" + lead + "\n\n" + "\n".join(bullets) + "\n\n" + closing + "\n\n" + SPLIT_COMMANDS
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="v1.379 adds the Sensitivity section")
 def test_results_md_sections_in_order():
     assert re.findall(r"^## .*$", results_md(), re.M) == RESULTS_SECTIONS
     assert results_md().startswith("# Response-bank results\n")
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="v1.379 adds the Sensitivity section")
 def test_results_md_sensitivity_is_the_split_notes_results_block():
     text = results_md()
     reading = text.split("\n## Reading it\n", 1)[1].split("\n## ", 1)[0]

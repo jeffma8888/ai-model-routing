@@ -63,6 +63,23 @@ Routed rows beat these single models on both counts: `moonshotai/kimi-k2.7-code`
 - Both splits: the release's 256 calibration and 13,059 evaluation tasks are joined, and the halves here are the library's own, drawn by seed as on every other dataset (DESIGN 12.20). Nothing is dropped: every item has a score from all five models, a response or a `missing` reason in every cell, and one prompt digest across its responses
 - Size: the committed file, 17,451 bytes, holds only the summary and the routed per-task rows (DESIGN 12.7)
 
+## Sensitivity
+
+The release's own split, not committed as a file: [research/response-bank-split.md](../../research/response-bank-split.md) calibrates on the release's 256 calibration tasks (`scores_cal.jsonl`) and scores on its 13,059 evaluation tasks, one split in place of the 50 seeded halves of the joined set, at the bars, `min_samples` 30 and confidence 0.95 of [results.json](results.json). Its costs are sums over those 13,059 items, so only the shares of the best single model's cost compare with the committed rows:
+
+- `deepseek/deepseek-v4-pro`, the best single model: held-out success 0.872 at 52.1218 USD; 0.872 in the committed means
+- bar 0.8, `cost_effective`: routed success 0.846 at 10.1420 USD, 0.195 of the best single model's cost, 2 of 4 tasks cleared; in the committed means 0.847 at 0.201 of that model's cost, cleared_rate 0.735
+- bar 0.9, `cost_effective`: routed success 0.849 at 20.0671 USD, 0.385 of the best single model's cost, 0 of 4 tasks cleared; in the committed means 0.874 at 2.104 of that model's cost, cleared_rate 0.005
+- bar 0.8, `cost_blind`: routed success 0.871 at 27.8202 USD, 0.534 of the best single model's cost, 2 of 4 tasks cleared; in the committed means 0.874 at 2.104 of that model's cost, cleared_rate 0.735
+- bar 0.9, `cost_blind`: routed success 0.871 at 27.8202 USD, 0.534 of the best single model's cost, 0 of 4 tasks cleared; in the committed means 0.874 at 2.104 of that model's cost, cleared_rate 0.005
+
+So at bar 0.8 every task that clears in `cost_effective` (2 of 4) goes to `z-ai/glm-5.3-flash`, the cheapest single model, on calibration sides of 88 and 128 items. `cost_blind` gets 0.871 at every bar, below the best single model's 0.872, where the committed means put it at 0.874, above that model, so the committed gain needs the larger halves or the mean over seeds, and one split cannot say which.
+
+```bash
+python evidence/response-bank/convert.py --out response-bank-matrix.jsonl
+python research/response_bank_split.py --matrix response-bank-matrix.jsonl
+```
+
 ## Regenerate
 
 ```bash
