@@ -29,6 +29,11 @@ take its Reading it and Limits lines from RESULTS.md under one rewrite, and chec
 line and block, the opening-paragraph label and the Layout line. The tests that read the README
 were committed before it under strict xfail (``AssertionError``), removed by the commit that adds
 the subsection (v1.297).
+
+v1.356 (DESIGN 12.21 v1.355, row DOC19e): the subsection is trimmed to the 12.8 size budget. It keeps
+the first and third Reading it bullets and the billed-cost limit, then one line that links RESULTS.md
+``## Reading it``; the tests require every other Reading it bullet and limit, and the Reading it
+phrases of the dropped bullets, in RESULTS.md and absent from the subsection.
 """
 
 import importlib.util
@@ -638,18 +643,48 @@ def test_readme_response_bank_source_counts_and_tables_are_the_committed_results
     assert readme_columns(results) + "\n\n" + readme_tables(results) in section
 
 
+LINK_LINE = ("The other Reading it bullets and limits are in [RESULTS.md](evidence/response-bank/RESULTS.md#reading-it) "
+             "`## Reading it`: the highest bar, the bar violations, the per-item oracle, the `mmlu_pro` share, "
+             "the `missing` cells, the length finishes and the joined splits.")
+
+
 def test_readme_response_bank_reading_and_limits_are_results_md_lines():
+    # v1.356 (12.21 v1.355): the first and third Reading it bullets and the first limit stay, each a
+    # RESULTS.md line under the rewrite; the other seven, and their phrases, are in RESULTS.md alone.
     section = readme_subsection()
     reading, limits = results_md_bullets()
-    block = ("Reading it:\n\n" + "\n".join(to_readme(b) for b in reading) + "\n\nLimits:\n\n"
-             + "\n".join(to_readme(b) for b in limits) + "\n")
-    assert block in section
+    kept, dropped = [reading[0], reading[2], limits[0]], [reading[1], reading[3], reading[4]] + limits[1:]
+    block = (f"Reading it:\n\n{to_readme(kept[0])}\n{to_readme(kept[1])}\n\nLimits:\n\n"
+             f"{to_readme(kept[2])}\n\n{LINK_LINE}\n\n")
+    assert section.count(block) == 1
+    for bullet in dropped:
+        assert bullet[2:] not in section and to_readme(bullet)[2:] not in section, bullet
     phrases = [p for p in reading_phrases(committed()) if not p.startswith("the committed file,")]
     assert len(phrases) == len(reading_phrases(committed())) - 1
+    shown = [p for p in phrases if p in kept[0] or p in kept[1]]
+    assert len(shown) == 8, shown
     for phrase in phrases:
-        assert to_readme(phrase) in section, phrase
-    assert "per family, not per prompt" in section and "DESIGN 1" not in section and "DESIGN 5" not in section
+        assert (to_readme(phrase) in section) == (phrase in shown), phrase
+    assert "per family, not per prompt" not in section and "DESIGN 1" not in section and "DESIGN 5" not in section
     assert "](README.md)" not in section and "](results.json)" not in section and "../" not in section
+
+
+def test_readme_response_bank_keeps_two_bullets_one_limit_and_a_link_line(cv):
+    """v1.356 (12.21 v1.355): after its five source bullets the subsection's only bullets are the first
+    and third Reading it ones and the billed-cost limit, after both tables, then the link line and the
+    regenerate paragraph; the link line's anchor is the RESULTS.md `## Reading it` heading, since that
+    file has no `## Caveats` or `## Assumed`."""
+    section = readme_subsection()
+    reading, limits = results_md_bullets()
+    bullets = [line for line in section.splitlines() if line.startswith("- ")]
+    assert len(bullets) == 8
+    assert bullets[5:] == [to_readme(reading[0]), to_readme(reading[2]), to_readme(limits[0])]
+    assert section.count(f"\n{LINK_LINE}\n\n{regenerate_line(cv)}\n\n```bash\n") == 1
+    last_row = "| Cheapest model on the calibration half, per task |"
+    assert section.count(last_row) == 1 and section.index(last_row) < section.index("\nReading it:\n")
+    text = results_md()
+    assert text.count("\n## Reading it\n") == 1
+    assert "\n## Caveats\n" not in text and "\n## Assumed\n" not in text
 
 
 def test_readme_response_bank_regenerate_label_and_layout(cv):
