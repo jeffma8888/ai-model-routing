@@ -271,5 +271,9 @@ def test_the_cap_is_inclusive_and_the_earlier_lines_are_not_checked():
     assert changelog_problems(head + old + at_cap + "\n") == []
     assert capped_line_problems(head + old + at_cap + "\n") == []
     assert capped_line_problems(head + old + _padded(new, CAP + 1) + "\n") != []
+    wide = at_cap[:-2] + "\u00e9."  # 600 characters, 601 bytes in UTF-8: the cap counts bytes
+    assert (len(wide), len(wide.encode("utf-8"))) == (CAP, CAP + 1)
+    assert capped_line_problems(head + old + wide + "\n") == [
+        f"CHANGELOG.md line {len(HEADER) + 2} (v1.361) is 601 bytes, over the 600-byte cap"]
     assert capped_line_problems(head + "- v1.361 (2026-11-14): CI (12.13, row CI15). One.\n") == []
     assert capped_line_problems(head + "- v1.361 (2026-11-14): code, docs and tests (4.2, 12.8, row E5c). One.\n") == []
