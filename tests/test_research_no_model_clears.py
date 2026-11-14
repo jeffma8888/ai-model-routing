@@ -157,20 +157,31 @@ def test_report_stops_when_the_routed_row_is_not_the_committed_one(nmc, key, del
         nmc.report("tiny", "evidence/tiny/results.json", outcomes_from_rows(rows), record)
 
 
+# the script's matrix options in DATASETS order (v1.343, review iter-222 should-fix 1)
+OPTIONS = ["--routerbench", "--autobench", "--judges", "--tau2", "--llmrouterbench", "--response-bank"]
+
+
+def own_rows(rows, k):
+    """Dataset k's own matrix: its own task names and every cost times k + 1, so a dataset that
+    reads another's matrix gets another routed cost than its committed file's."""
+    return [dict(r, task=f"{r['task']}-d{k}", cost_usd=r["cost_usd"] * (k + 1)) for r in rows]
+
+
 def _tree(tmp_path, rows):
-    for _, rel in DATASETS:
+    argv = ["--root", str(tmp_path)]
+    for k, ((_, rel), option) in enumerate(zip(DATASETS, OPTIONS)):
+        mine = own_rows(rows, k)
         path = tmp_path / rel
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(committed(rows)), encoding="utf-8")
-    matrix = tmp_path / "m.jsonl"
-    matrix.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+        path.write_text(json.dumps(committed(mine)), encoding="utf-8")
+        matrix = tmp_path / f"m{k}.jsonl"
+        matrix.write_text("".join(json.dumps(r) + "\n" for r in mine), encoding="utf-8")
+        argv += [option, str(matrix)]
     registry = tmp_path / "models.json"
     registry.write_text(json.dumps({"models": [
         {"id": m, "family": m, "price_in": 1.0, "price_out": 2.0, "context_window": 100_000}
         for m in ("v/strong", "v/mid", "v/cheap")]}), encoding="utf-8")
-    return ["--root", str(tmp_path), "--routerbench", str(matrix), "--autobench", str(matrix),
-            "--judges", str(matrix), "--judges-registry", str(registry), "--tau2", str(matrix),
-            "--llmrouterbench", str(matrix), "--response-bank", str(matrix)]
+    return argv + ["--judges-registry", str(registry)]
 
 
 def _main(nmc, argv):
@@ -185,16 +196,31 @@ def _main(nmc, argv):
 
 def test_script_datasets_are_the_six_in_order(nmc):
     assert [(name, rel) for name, rel, _ in nmc.DATASETS] == DATASETS
+    assert ["--" + option.replace("_", "-") for _, _, option in nmc.DATASETS] == OPTIONS
 
 
 def test_main_prints_the_six_reports_in_order(nmc, tmp_path):
     rows = tiny_rows()
     code, out, err = _main(nmc, _tree(tmp_path, rows))
     assert (code, err) == (0, "")
-    outcomes = outcomes_from_rows(rows)
-    blocks = [nmc.report(name, rel, outcomes, committed(rows)) for name, rel in DATASETS]
+    outcomes = {name: outcomes_from_rows(own_rows(rows, k)) for k, (name, _) in enumerate(DATASETS)}
+    blocks = [nmc.report(name, rel, outcomes[name], committed(own_rows(rows, k)))
+              for k, (name, rel) in enumerate(DATASETS)]
     assert out == "\n\n".join("\n".join(b) for b in blocks) + "\n"
-    assert out == "\n".join(nmc.run({name: outcomes for name, _ in DATASETS}, tmp_path)) + "\n"
+    assert out == "\n".join(nmc.run(outcomes, tmp_path)) + "\n"
+    for k, (name, rel) in enumerate(DATASETS):
+        assert f"{name} ({rel}): 2 tasks, 3 models" in out and f"by task: easy-d{k} " in out
+
+
+@pytest.mark.parametrize("a, b", list(zip(OPTIONS, OPTIONS[1:])))
+def test_main_reads_each_matrix_for_its_own_option(nmc, tmp_path, a, b):
+    """Two options swapped: a dataset reads the other's matrix, whose routed cost is not its committed one."""
+    argv = _tree(tmp_path, tiny_rows())
+    i, j = argv.index(a) + 1, argv.index(b) + 1
+    argv[i], argv[j] = argv[j], argv[i]
+    code, out, err = _main(nmc, argv)
+    assert (code, out) == (2, "")
+    assert err.startswith("error: ") and err.endswith("is not the committed one\n") and err.count("\n") == 1
 
 
 @pytest.mark.parametrize("break_it", ["matrix", "results", "key", "row"])
@@ -208,8 +234,8 @@ def test_main_exits_2_with_one_error_line(nmc, tmp_path, break_it):
     elif break_it == "key":
         (tmp_path / DATASETS[1][1]).write_text(json.dumps({"summary": []}), encoding="utf-8")
     else:
-        (tmp_path / "m.jsonl").write_text(json.dumps({"task": "t", "item": "i", "model": "m"}) + "\n",
-                                          encoding="utf-8")
+        (tmp_path / "m5.jsonl").write_text(json.dumps({"task": "t", "item": "i", "model": "m"}) + "\n",
+                                           encoding="utf-8")
     code, out, err = _main(nmc, argv)
     assert (code, out) == (2, "")
     assert err.startswith("error: ") and err.count("\n") == 1

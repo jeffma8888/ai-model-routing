@@ -1,4 +1,4 @@
-"""When no model clears the bar in `cost_effective`: the 5.3 fallback or the cheapest model (DESIGN 12.8 v1.144, v1.341).
+"""When no model clears the bar in `cost_effective`: the 5.3 fallback or the cheapest model (DESIGN 12.8 v1.144).
 
 Usage:
   python research/no_model_clears.py --routerbench MATRIX.jsonl --autobench MATRIX.jsonl \
@@ -6,10 +6,11 @@ Usage:
       --llmrouterbench MATRIX.jsonl --response-bank MATRIX.jsonl
 
 Runs `evaluate` (DESIGN 12.3) on the `cost_effective` flavor of the six routing datasets that
-record a cost (LLMRouterBench and the LLM Routing Response Bank from v1.341), with the bars, seeds and options of each committed results file, and prints, per
-bar, the cells on which no model clears and, on them, the held-out success and cost of the
-router's fallback (5.3 `best_available`: the highest calibration bound), of the cheapest model and
-of `best_on_calibration`; then the bar's whole row as routed and with the cheapest model as the
+record a cost (LLMRouterBench and the LLM Routing Response Bank from v1.341), with the bars,
+seeds and options of each committed results file, and prints, per bar, the cells on which no
+model clears and, on them, the held-out success and cost of the router's fallback (5.3
+`best_available`: the highest calibration bound), of the cheapest model and of
+`best_on_calibration`; then the bar's whole row as routed and with the cheapest model as the
 fallback. The as-routed row must be the committed results file's. Standard library and the
 model_routing package. Read by research/no-model-clears.md. Exit 0, or 2 with one `error: ...`
 line on a missing or unreadable file, a row `load_outcomes` refuses, a missing key or a routed
