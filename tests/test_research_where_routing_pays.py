@@ -1,5 +1,9 @@
 """research/where-routing-pays.md and research/where_routing_pays.py (DESIGN 12.8 v1.124, v1.166, v1.303).
 
+v1.384 (row DOC27, DESIGN 12.21 Seeds in the README): the README Limitations bullet's third sentence
+and the note's seeds bullet are built from the Results blocks of the two seeds notes, the one bullet
+of the note whose numbers are not in the script's output.
+
 The script reads only the committed routing results files, six since v1.166 and seven since v1.303, so
 the note's Results block is
 compared byte for byte with a fresh run on every machine, CI included. Its report is also checked
@@ -17,6 +21,7 @@ from pathlib import Path
 import pytest
 
 from model_routing.stats import wilson_lower_bound
+from test_research_response_bank_seeds import LRB_NOTE, NOTE as RB_SEEDS_NOTE, blind_seeds, seeds_block
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "research" / "where_routing_pays.py"
@@ -99,6 +104,8 @@ def test_prose_numbers_are_in_the_output(output):
     # a code span holds a model ID, a path or a name, whose digits are not a claim (review iter-115)
     prose = re.sub(r"`[^`\n]*`", "", prose)
     known = set(NUMBER.findall(output)) | ALLOWED
+    # v1.384: the seeds bullet, built whole below from the two seeds notes
+    prose = prose.replace(seeds_bullet() + "\n", "")
     stray = sorted(set(NUMBER.findall(prose)) - known)
     assert not stray, stray
 
@@ -410,6 +417,75 @@ WORDS = {2: "two", 5: "five", 6: "six", 7: "seven"}
 ARTICLE = {"LLM Routing Response Bank": "the "}
 
 
+def seed_counts(lrb_block=None, rb_block=None):
+    """v1.384 (DESIGN 12.21 Seeds in the README): (n, above, below) for the response bank's
+    `cost_blind` lines, from the two seeds notes' Results blocks, which must give the committed seed
+    count n; LLMRouterBench's must be above on all n and the response bank's on more than half and
+    fewer than all."""
+    lrb = blind_seeds(seeds_block(LRB_NOTE) if lrb_block is None else lrb_block)
+    rb = blind_seeds(seeds_block(RB_SEEDS_NOTE) if rb_block is None else rb_block)
+    seeds = {len(committed(rel)["config"]["seeds"]) for rel in FILES[5:]}
+    assert seeds == {lrb[0], rb[0]}, ("the seed counts differ", seeds, lrb, rb)
+    n = lrb[0]
+    assert lrb[1] == n, "LLMRouterBench's cost_blind gain does not hold on every seed"
+    assert n / 2 < rb[1] < n, "the response bank's cost_blind gain does not hold on most seeds and fail on the rest"
+    return rb
+
+
+SEEDS_LEAD = "- Seed by seed: "
+
+
+def seeds_bullet(lrb_block=None, rb_block=None):
+    """v1.384: the last bullet of the seventh-file section, its numbers from the two seeds notes."""
+    n, above, below = seed_counts(lrb_block, rb_block)
+    return (SEEDS_LEAD + "this gain, like every held-out number here, is a mean over the seeds, and "
+            "[response-bank-seeds.md](response-bank-seeds.md) finds `cost_blind` routing above the best single "
+            f"model on {above} of the {n} seeds' own halves and below it on {below}, while on LLMRouterBench it "
+            f"is above on all {n} ([llmrouterbench-seeds.md](llmrouterbench-seeds.md)), so here routing passes "
+            "that model on most splits of the items, not on every one")
+
+
+LRB_ALL = "above on 50, equal on 0, below on 0 of 50 seeds"
+RB_MOST = "above on 42, equal on 0, below on 8 of 50 seeds"
+
+
+@pytest.mark.parametrize("which, old, new, match", [
+    ("lrb", LRB_ALL, "above on 49, equal on 0, below on 1 of 50 seeds", "LLMRouterBench's cost_blind gain"),
+    ("rb", RB_MOST, "above on 50, equal on 0, below on 0 of 50 seeds", "the response bank's cost_blind gain"),
+    ("rb", RB_MOST, "above on 25, equal on 0, below on 25 of 50 seeds", "the response bank's cost_blind gain"),
+    ("rb", RB_MOST, "above on 42, equal on 0, below on 7 of 49 seeds", "the seed counts differ"),
+])
+def test_seed_counts_fail_on_a_block_the_sentences_would_misread(which, old, new, match):
+    blocks = {"lrb": seeds_block(LRB_NOTE), "rb": seeds_block(RB_SEEDS_NOTE)}
+    assert seed_counts(blocks["lrb"], blocks["rb"]) == (50, 42, 8)
+    assert old in blocks[which]
+    blocks[which] = blocks[which].replace(old, new)
+    with pytest.raises(AssertionError, match=match):
+        seed_counts(blocks["lrb"], blocks["rb"])
+
+
+@pytest.mark.xfail(strict=True, reason="v1.385 lands the note wording (row DOC27)")
+def test_the_seventh_file_section_ends_with_the_seeds_bullet():
+    bullets = [x for x in section(note(), BANK).splitlines() if x.startswith("- ")]
+    assert bullets[-1] == seeds_bullet()
+    assert sum(x.startswith(SEEDS_LEAD) for x in note().splitlines()) == 1
+
+
+@pytest.mark.xfail(strict=True, reason="v1.385 lands the note wording (row DOC27)")
+def test_the_limits_bullet_on_means_links_both_seeds_notes():
+    bullets = [x for x in section(note(), "## Limits").splitlines()
+               if x.startswith("- Every held-out number here is a mean over the seeds of a results file; ")]
+    assert len(bullets) == 1
+    assert "](llmrouterbench-seeds.md)" in bullets[0] and "](response-bank-seeds.md) the response bank's" in bullets[0]
+
+
+@pytest.mark.xfail(strict=True, reason="v1.385 completes the sentence (row DOC27)")
+def test_the_halves_bullet_is_a_whole_sentence():
+    """v1.385: the seventh-file bullet on halves ended `whose half is` from v1.304 to v1.384."""
+    bullets = [x for x in section(note(), BANK).splitlines() if x.startswith("- The halves are large but for one task")]
+    assert len(bullets) == 1 and not bullets[0].endswith(" is"), bullets
+
+
 def limitations_bullet(wrp):
     """README Limitations bullet 2 (v1.166; v1.303, one sentence on the seven files again), its counts,
     dataset names and the cost of each passing dataset's passing rows built from the files."""
@@ -433,11 +509,24 @@ def limitations_bullet(wrp):
         passing.append(f"{ARTICLE.get(name, '')}{name} {cost}")
     n, k = len(wrp.DATASETS), len(passing)
     assert (n, k) == (7, 2), (n, passing)
+    # v1.384: the third sentence is said of the cost_blind rows, which pass at every bar on both
+    assert [p.split(" at ")[0] for p in passing] == ["LLMRouterBench", "the LLM Routing Response Bank"], passing
+    for rel in FILES[5:]:
+        results = committed(rel)
+        config = results["config"]
+        best = wrp.best_single(results, config["bars"][0], config["flavors"][0])
+        assert all(wrp.summary_row(results, bar, "cost_blind", "routed")["success"] > best["success"]
+                   for bar in config["bars"]), rel
+    seeds, above, _below = seed_counts()
     return ("- Routing per task pays in held-out success only where tasks differ in their best model and "
             f"each task's calibration half can tell the models apart. Of the {WORDS[n]} routing datasets "
             f"above, {WORDS[k]} have a routed row above the best single model's held-out success, "
             f"{passing[0]} and {passing[1]}; on the other {WORDS[n - k]}, routing pays at most in cost, at a "
-            "bar below that success ([research/where-routing-pays.md](research/where-routing-pays.md))")
+            "bar below that success ([research/where-routing-pays.md](research/where-routing-pays.md)). "
+            f"The `cost_blind` gain of each is a mean over {seeds} seeds: on LLMRouterBench it holds on all "
+            f"{seeds}, on the LLM Routing Response Bank on {above}, so there routing passes that model on most "
+            "splits of its items, not on every one ([research/llmrouterbench-seeds.md]"
+            "(research/llmrouterbench-seeds.md), [research/response-bank-seeds.md](research/response-bank-seeds.md))")
 
 
 def test_limitations_bullet_fails_on_a_passing_row_between_half_and_twice(wrp, monkeypatch):
@@ -458,6 +547,7 @@ def test_limitations_bullet_fails_on_a_passing_row_between_half_and_twice(wrp, m
         limitations_bullet(wrp)
 
 
+@pytest.mark.xfail(strict=True, reason="v1.385 lands the README wording (row DOC27)")
 def test_readme_limitations_and_the_index_say_where_routing_passes(wrp):
     readme = README.read_text(encoding="utf-8")
     limits = readme.split("\n## Limitations and non-goals (v1)\n", 1)[1].split("\n## ", 1)[0]

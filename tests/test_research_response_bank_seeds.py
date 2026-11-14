@@ -413,6 +413,56 @@ def test_research_index_lists_the_note():
     assert sum(x.startswith("- `research/response-bank-seeds.md` ") for x in index) == 1
 
 
+# --- the counts other files quote (DESIGN 12.21 v1.384, row DOC27) ------------------------------
+
+def seeds_block(path):
+    """The one `text` block of a seeds note, research/response-bank-seeds.md or
+    research/llmrouterbench-seeds.md, for the tests of the README and of where-routing-pays.md."""
+    [text] = _blocks(path.read_text(encoding="utf-8"), "text")
+    return text
+
+
+def blind_seeds(block):
+    """(seeds, above, below) of the `cost_blind routed:` bar lines of a seeds note's Results block,
+    either dataset's; a ValueError when the block has no such lines or they differ between bars."""
+    lines = block.rstrip("\n").split("\n")
+    if lines.count("cost_blind routed:") != 1:
+        raise ValueError("not one cost_blind routed: line")
+    start = lines.index("cost_blind routed:") + 1
+    _match(SIGNS, lines[-1])
+    rows = [_match(LINE, x) for x in lines[start:-1]]
+    if not rows or not all(r["label"].startswith("  bar ") for r in rows):
+        raise ValueError("no cost_blind bar lines")
+    counts = {(int(r["seeds"]), int(r["above"]), int(r["below"])) for r in rows}
+    if len(counts) != 1:
+        raise ValueError("the cost_blind seed counts differ between bars")
+    return counts.pop()
+
+
+def test_blind_seeds_of_both_notes():
+    assert blind_seeds(seeds_block(NOTE)) == (50, 42, 8)
+    assert blind_seeds(seeds_block(LRB_NOTE)) == (50, 50, 0)
+
+
+@pytest.mark.parametrize("old, new, message", [
+    ("cost_blind routed:", "cost_blind routed", "not one cost_blind routed: line"),
+    ("  bar 0.9: above on 42, equal on 0, below on 8 of 50 seeds; gap lowest -0.0032, median +0.0026, highest "
+     "+0.0059, mean +0.0022; cost over the best single model's 0.958 to 2.327\n  seeds whose gap has one sign at "
+     "every bar: 50 of 50",
+     "  bar 0.9: above on 41, equal on 0, below on 9 of 50 seeds; gap lowest -0.0032, median +0.0026, highest "
+     "+0.0059, mean +0.0022; cost over the best single model's 0.958 to 2.327\n  seeds whose gap has one sign at "
+     "every bar: 50 of 50",
+     "the cost_blind seed counts differ between bars"),
+    ("  seeds whose gap has one sign at every bar: 50 of 50", "  seeds whose gap has one sign: 50 of 50",
+     "not a line the note reads"),
+])
+def test_blind_seeds_refuses_a_block_it_would_misread(old, new, message):
+    text = seeds_block(NOTE)
+    assert text.count(old) == 1, old
+    with pytest.raises(ValueError, match="^" + re.escape(message)):
+        blind_seeds(text.replace(old, new))
+
+
 # --- the pinned files, only when already cached (one session read, tests/conftest.py) -------------
 
 @pytest.fixture(scope="module")

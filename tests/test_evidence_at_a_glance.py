@@ -15,6 +15,10 @@ figures read from their committed results blocks, so it runs in CI where the pin
 v1.328 (row R29): the per-item note reruns the response bank too, so the delegation paragraph's
 cut is the one of its five blocks and `on the datasets of the first three, ` goes; the tests that
 read the paragraph or the note's blocks were strict xfails until v1.329 landed the block.
+
+v1.384 (row DOC27, DESIGN 12.21 Seeds in the README): the response-bank bullet says its `cost_blind`
+gain and cost ratio are means over the committed seeds and that the gain holds on most of them, a
+claim checked on the Results block of research/response-bank-seeds.md, which gives the count.
 """
 
 import copy
@@ -26,6 +30,8 @@ import re
 from pathlib import Path
 
 import pytest
+
+from test_research_response_bank_seeds import NOTE as SEEDS_NOTE, blind_seeds, seeds_block
 
 ROOT = Path(__file__).resolve().parents[1]
 README = ROOT / "README.md"
@@ -194,12 +200,17 @@ def llmrouterbench_bullet(results):
             "model's held-out success")
 
 
-def response_bank_bullet(results):
+def response_bank_bullet(results, block=None):
     """v1.296 (DESIGN 12.8): at the lowest bar cost_effective reaches a held-out success at a share of
     the best single model's cost (12.7) and costs less than the cheapest single model (12.15) for more
     success at 3 decimals; cost_blind passes the best model's success at 3 decimals at every bar, at
-    more than twice its cost."""
+    more than twice its cost. v1.384 (12.21 Seeds in the README): both in the mean over the committed
+    seeds, and on most of them by the seeds note's `block`, which holds the committed seeds."""
     config = results["config"]
+    n = len(config["seeds"])
+    seeds, above, _below = blind_seeds(seeds_block(SEEDS_NOTE) if block is None else block)
+    assert seeds == n, "the seeds note's seeds are not the committed file's"
+    assert n / 2 < above < n, "cost_blind is not above on most seeds and below on the rest"
     first = (config["bars"][0], config["flavors"][0])
     models = [r for r in results["summary"]
               if (r["bar"], r["flavor"]) == first and r["strategy"].startswith("model:")]
@@ -217,8 +228,9 @@ def response_bank_bullet(results):
             f"reaches held-out success {low['success']:.3f} at {low['cost_usd'] / best['cost_usd']:.3f} of "
             f"the cost of the best single model, `{best['strategy'][len('model:'):]}`, and costs less than "
             f"always calling the cheapest model, `{cheapest['strategy'][len('model:'):]}`, for more held-out "
-            "success; `cost_blind` routing passes the best single model's held-out success at every bar, "
-            "but at more than twice its cost")
+            "success; `cost_blind` routing passes the best single model's held-out success at every bar in "
+            f"the mean over {n} seeds, and on most of them ([seed by seed](research/response-bank-seeds.md)), "
+            "but at more than twice its cost in the mean")
 
 
 def delegation_bullet(results):
@@ -375,6 +387,7 @@ def evidence_section():
 
 # --- the README ------------------------------------------------------------------------------
 
+@pytest.mark.xfail(strict=True, reason="v1.385 lands the README wording (row DOC27)")
 def test_readme_opens_the_evidence_section_with_the_glance_list():
     intro = evidence_section().split("\n### ", 1)[0]
     paragraphs = intro.strip("\n").split("\n\n")
@@ -731,8 +744,28 @@ def test_the_response_bank_bullet_is_built_from_the_committed_file():
                       "routing reaches held-out success 0.847 at 0.201 of the cost of the best single model, "
                       "`deepseek/deepseek-v4-pro`, and costs less than always calling the cheapest model, "
                       "`z-ai/glm-5.3-flash`, for more held-out success; `cost_blind` routing passes the best "
-                      "single model's held-out success at every bar, but at more than twice its cost")
+                      "single model's held-out success at every bar in the mean over 50 seeds, and on most of "
+                      "them ([seed by seed](research/response-bank-seeds.md)), but at more than twice its cost "
+                      "in the mean")
     assert len(RESULT_VALUE.findall(bullet)) == 2
+
+
+SEEDS_42 = "above on 42, equal on 0, below on 8 of 50 seeds"
+
+
+@pytest.mark.parametrize("new, match", [
+    ("above on 50, equal on 0, below on 0 of 50 seeds", "cost_blind is not above on most seeds"),
+    ("above on 25, equal on 0, below on 25 of 50 seeds", "cost_blind is not above on most seeds"),
+    ("above on 42, equal on 0, below on 7 of 49 seeds", "the seeds note's seeds are not the committed file's"),
+])
+def test_a_seeds_block_that_breaks_the_glance_claim_fails_its_bullet(new, match):
+    """v1.384: the bullet's `on most of them` needs more than half the committed seeds and fewer
+    than all; each case edits every line of the note's block that gives cost_blind's line."""
+    block = seeds_block(SEEDS_NOTE)
+    assert block.count(SEEDS_42) == 4
+    response_bank_bullet(response_bank(), block)
+    with pytest.raises(AssertionError, match=match):
+        response_bank_bullet(response_bank(), block.replace(SEEDS_42, new))
 
 
 @pytest.mark.parametrize("change, match", [
@@ -749,6 +782,7 @@ def test_a_file_that_breaks_a_response_bank_claim_fails_its_bullet(change, match
         response_bank_bullet(results)
 
 
+@pytest.mark.xfail(strict=True, reason="v1.385 lands the README wording (row DOC27)")
 def test_the_glance_list_holds_the_response_bank_bullet_after_llmrouterbench():
     lines = evidence_section().split("\n### ", 1)[0].splitlines()
     bullet = response_bank_bullet(response_bank())
