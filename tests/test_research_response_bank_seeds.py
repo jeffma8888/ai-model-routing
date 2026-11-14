@@ -197,9 +197,9 @@ def built_sections(block):
         raise ValueError("cost_blind at both bars, best_on_calibration and cost_effective at the higher bar differ")
     if not (int(blind["equal"]) == 0 and 0 < int(blind["below"]) < int(blind["above"])):
         raise ValueError("cost_blind is not above on most seeds and below on the rest")
-    if not (float(blind["lowest"]) < 0 < float(blind["median"])
+    if not (float(blind["lowest"]) < 0 < float(blind["median"]) and float(blind["mean"]) > 0
             and max(abs(float(blind["lowest"])), abs(float(blind["highest"]))) < 0.01):
-        raise ValueError("the cost_blind gaps are not a few thousandths either side of 0 with a positive median")
+        raise ValueError("the cost_blind gaps are not a few thousandths either side of 0 with a positive median and mean")
     if not (float(blind["low"]) < 1 and float(blind["high"]) > 2):
         raise ValueError("the cost_blind cost ratio does not run from under 1 to over 2")
     if not (cb_signs["signs"] == cb_signs["seeds"] and cb_signs["cells"] == cb_signs["all"]):
@@ -311,18 +311,73 @@ def test_every_other_number_of_the_prose_is_a_section_number():
     assert sorted(n for n in set(NUMBER.findall(_prose(note))) if n not in ALLOWED) == []
 
 
-@pytest.mark.parametrize("old, new", [
-    ("above on 42, equal on 0, below on 8", "above on 8, equal on 0, below on 42"),
-    ("gap lowest -0.0032", "gap lowest +0.0001"),
-    ("0.958 to 2.327", "1.058 to 2.327"),
-    ("bar 0.8: above on 0, equal on 0, below on 50", "bar 0.8: above on 1, equal on 0, below on 49"),
-    ("one sign at every bar: 8 of 50", "one sign at every bar: 9 of 50"),
-])
-def test_builder_refuses_a_block_it_would_misread(old, new):
+# Each case breaks one condition alone (review iter-242 should-fix 1 and 2): its edits, each
+# (old, new, count) with count -1 for every copy, and the start of the message of the check it hits,
+# the first that fails, so a deleted clause fails its case. The first three change one of the four
+# equal lines alone: `cost_effective` at bar 0.9 (the first copy), `cost_blind` at bar 0.9 (the
+# last bar line) and `best_on_calibration`.
+CB_09 = "  bar 0.9: above on 42, equal on 0, below on 8 of 50 seeds; gap lowest -0.0032"
+CB_END = "0.958 to 2.327\n  seeds whose gap has one sign at every bar: 50 of 50"  # the last cost_blind bar line's end
+REFUSALS = [
+    ([(CB_09, CB_09[:-1] + "3", 1)], "cost_blind at both bars, best_on_calibration and cost_effective"),
+    ([(CB_END, CB_END.replace("2.327", "2.328"), 1)], "cost_blind at both bars, best_on_calibration and cost_effective"),
+    ([("(every bar and flavor): above on 42", "(every bar and flavor): above on 43", 1),
+      ("(every bar and flavor): above on 43, equal on 0, below on 8", "(every bar and flavor): above on 42, equal on 1, below on 7", 1)],
+     "cost_blind at both bars, best_on_calibration and cost_effective"),
+    ([("above on 42, equal on 0, below on 8", "above on 41, equal on 1, below on 8", -1)],
+     "cost_blind is not above on most seeds"),
+    ([("above on 42, equal on 0, below on 8", "above on 8, equal on 0, below on 42", -1),
+      ("one sign at every bar: 8 of 50", "one sign at every bar: 42 of 50", -1)], "cost_blind is not above on most seeds"),
+    ([("gap lowest -0.0032", "gap lowest +0.0001", -1)], "the cost_blind gaps are not"),
+    ([("median +0.0026", "median -0.0026", -1)], "the cost_blind gaps are not"),
+    ([("mean +0.0022", "mean -0.0022", -1)], "the cost_blind gaps are not"),
+    ([("highest +0.0059", "highest +0.0159", -1)], "the cost_blind gaps are not"),
+    ([("0.958 to 2.327", "1.058 to 2.327", -1)], "the cost_blind cost ratio"),
+    ([("0.958 to 2.327", "0.958 to 1.927", -1)], "the cost_blind cost ratio"),
+    ([("one sign at every bar: 50 of 50", "one sign at every bar: 49 of 50", -1)], "cost_blind does not keep"),
+    ([("routed to one model at every bar: 200 of 200", "routed to one model at every bar: 199 of 200", -1)],
+     "cost_blind does not keep"),
+    ([("bar 0.8: above on 0, equal on 0, below on 50", "bar 0.8: above on 1, equal on 0, below on 49", -1)],
+     "cost_effective at the lower bar"),
+    ([("highest -0.0203", "highest +0.0003", -1)], "cost_effective at the lower bar"),
+    ([("0.174 to 0.241", "0.174 to 1.241", -1)], "cost_effective at the lower bar"),
+    ([("one sign at every bar: 8 of 50", "one sign at every bar: 9 of 50", -1)], "the cost_effective seeds of one sign"),
+]
+
+
+def test_builder_builds_the_note_s_block():
     [text] = _blocks(_note(), "text")
-    assert old in text
-    with pytest.raises(ValueError):
-        built_sections(text.replace(old, new))
+    assert set(built_sections(text)) == set(BUILT)
+
+
+@pytest.mark.parametrize("edits, message", REFUSALS)
+def test_builder_refuses_a_block_it_would_misread(edits, message):
+    [text] = _blocks(_note(), "text")
+    for old, new, count in edits:
+        assert text.count(old) >= 1 if count == -1 else text.count(old) >= count, old
+        text = text.replace(old, new, count)
+    with pytest.raises(ValueError, match="^" + re.escape(message)):
+        built_sections(text)
+
+
+def test_the_llmrouterbench_claims_hold_on_that_note_s_block():
+    """Facts bullet 1 and Reading it bullet 4 speak of LLMRouterBench (review iter-242 should-fix 4):
+    there `best_on_calibration`, `cost_blind` at every bar and `cost_effective` at the highest bar
+    are above on every seed, and each `cost_blind` line's lowest gap is more than half its mean."""
+    [text] = _blocks(LRB_NOTE.read_text(encoding="utf-8"), "text")
+    lines = text.rstrip("\n").split("\n")
+    boc = LINE.match(lines[3])
+    assert boc and boc["label"] == "best_on_calibration (every bar and flavor)"
+    ce = lines.index("cost_effective routed:")
+    cb = lines.index("cost_blind routed:")
+    blind = [LINE.match(x) for x in lines[cb + 1:-1]]
+    highest_ce = LINE.match(lines[cb - 2])
+    assert len(blind) == cb - ce - 2 and all(blind) and highest_ce
+    for row in [boc, highest_ce] + blind:
+        assert row["above"] == row["seeds"], row["label"]
+    for row in blind:
+        assert float(row["lowest"]) > float(row["mean"]) / 2 > 0, row["label"]
+    assert "the same rows pass it on every seed" in built_sections(_blocks(_note(), "text")[0])["Facts"][0]
 
 
 # --- the LLMRouterBench note and the index ----------------------------------------------------
@@ -336,10 +391,25 @@ def test_llmrouterbench_note_no_longer_calls_it_the_one_such_dataset():
     assert sum("](response-bank-seeds.md)" in x for x in limits.split("\n")) == 1
 
 
+def index_row(block):
+    """The research/README.md row, its numbers built from the Results block (review iter-242
+    should-fix 5); `built_sections` first, so its checks hold for the row's sentences too."""
+    built_sections(block)
+    head, _best, _boc, bars, flavors = parse(block)
+    blind = flavors["cost_blind"][0][bars[0]]
+    return ("| [response-bank-seeds.md](response-bank-seeds.md) | Does the response-bank gain over the best single model "
+            "hold on each seed, or only in the mean over seeds that the committed results give? (Short answer: only in "
+            "the mean and on most seeds. `cost_blind` routing at both bars and `best_on_calibration` pass that model on "
+            f"{blind['above']} of the {head['seeds']} seeds' own halves and fall below it on {blind['below']}, by a few "
+            f"thousandths either way, while `cost_effective` routing at bar {bars[0]} is below it on every seed; the note "
+            "recommends saying in the README that the response-bank gain is a mean. Its numbers are the output of "
+            "[llmrouterbench_seeds.py](llmrouterbench_seeds.py) with `--dataset response-bank`) |")
+
+
 def test_research_index_lists_the_note():
     index = INDEX.read_text(encoding="utf-8").split("\n")
     rows = [x for x in index if x.startswith("| [response-bank-seeds.md](response-bank-seeds.md) | ")]
-    assert len(rows) == 1 and "[llmrouterbench_seeds.py](llmrouterbench_seeds.py)" in rows[0]
+    assert rows == [index_row(_blocks(_note(), "text")[0])]
     assert sum(x.startswith("- `research/response-bank-seeds.md` ") for x in index) == 1
 
 
@@ -362,7 +432,9 @@ def test_note_results_block_is_the_script_output(output):
 
 def test_means_over_seeds_are_the_committed_rows(lrs, response_bank_pinned):
     """Rebuilt here, apart from the script's own check: each row's per-seed pooled success and cost,
-    averaged over the seeds, is the committed summary row at every bar and flavor."""
+    averaged over the seeds, is the committed summary row at every bar and flavor. Independent of the
+    script's code, not of its method: it pools the same `evaluate` cells the same way (review iter-242
+    should-fix 6)."""
     code, _stdout, _stderr, rows = response_bank_pinned
     assert code == 0
     record = json.loads((ROOT / RESULTS).read_text(encoding="utf-8"))
