@@ -13,6 +13,12 @@ committed file, the 12.11 defaults and the evidence README counts. v1.29 compare
 the header and the Caveats of RESULTS.md as whole paragraphs, and, on the cached files, checks
 seed by seed that the routed judge is the one 5.3 picks from the calibration-half Wilson lower
 bounds, which is what the "highest lower bound" bullets say.
+
+v1.369 (DESIGN 12.12 v1.368, row DOC19i): the subsection is trimmed to the 12.8 size budget. It
+keeps its first two Reading it bullets and its cost limit, then one line that links RESULTS.md
+``## Caveats``; the tests require the dropped oracle and price bullets in RESULTS.md and absent
+from the subsection, and the two facts of the dropped limits that RESULTS.md lacked, that the
+judges are models and the kept and dropped answer counts, in its whole Caveats list.
 """
 
 import hashlib
@@ -68,7 +74,16 @@ HEADINGS = ["RouterBench", "AutoBench", "AutoBench judges", "tau2-bench", "LiveC
             "LLMRouterBench", "LLM Routing Response Bank", "Delegation on AutoBench", "Delegation on tau2-bench",
             "Delegation on LLMRouterBench",
             "Delegation on the LLM Routing Response Bank"]
-RESULTS_LINK = "([AutoBench results](../autobench-2026/RESULTS.md))"
+# v1.369 (12.12 v1.368): the line after the kept limit that links the rest of RESULTS.md.
+LINK_LINE = ("The other limits are in [RESULTS.md](evidence/autobench-judges/RESULTS.md#caveats) `## Caveats` "
+             "(the committee label, the candidates with the kept and dropped answer counts, answers to one "
+             "question), and the other Reading it bullets in its `## Reading it` (the bars where some seeds or "
+             "none clear, `cost_blind`, the per-answer oracle, the price).")
+REGENERATE_LINE = ("Regenerate (the dataset downloads into a cache folder outside the repo; the sensitivity "
+                   "commands are in RESULTS.md):")
+# v1.369: the starts of the README lines the trim drops and of the RESULTS.md bullets never in the README.
+DROPPED_STARTS = ("- At bar ", "- `cost_blind` routes", "- The oracle, ", "- The two costliest",
+                  "- The label is", "- The 5 candidates", "- Answers to the same question")
 
 
 def load(name, path):
@@ -200,21 +215,28 @@ def header_paragraph(results):
 
 
 def caveats(results, jm):
-    """The whole RESULTS.md Caveats list (DESIGN 12.12, v1.29)."""
+    """The whole RESULTS.md Caveats list (DESIGN 12.12, v1.29; v1.368 adds `which are models` and the
+    kept and dropped counts of the evidence README, the two facts of the dropped README limits)."""
     k = len(results["tasks"][only_task(results)]["models"])
     assert k == jm.DEFAULT_SIZE and jm.DEFAULT_ANSWER_TOKENS == "visible"
+    by_candidate, missing, kept, scored = evidence_counts()
+    assert kept == f"{results['tasks'][only_task(results)]['items']:,}", kept
     cv = jm.convert
     return "\n".join("- " + c for c in [
         "The label is a committee label, not a human gold label: a judge succeeds when it agrees "
-        "with the other judges on the same answer. A judge that always grades as the committee "
-        "does scores 1.0 whether or not the committee is right, and a judge that is right where "
+        "with the other judges, which are models, on the same answer. A judge that always grades "
+        "as the committee does scores 1.0 whether or not the committee is right, and a judge that "
+        "is right where "
         "the committee is wrong scores lower",
         "The cost is a list-price estimate at the pool's list prices, never a billed cost: a "
         "judge call is assumed to read the question, the visible answer and a "
         f"{jm.DEFAULT_RUBRIC_TOKENS}-token rubric, and to write a {jm.DEFAULT_GRADE_TOKENS}-token "
         "grade (DESIGN 12.11)",
         f"The {k} candidates are the pool judges whose set keeps the most answers, not the best "
-        "or the cheapest judges; a judge outside them is not compared here",
+        f"or the cheapest judges; a judge outside them is not compared here. {kept} of the {scored} "
+        f"scored answers are kept: the converter drops the {by_candidate} answered by a candidate, "
+        f"since no model grades its own answer, and the {missing} that some candidate did not "
+        "grade, so every candidate grades every item",
         "Answers to the same question are separate items, so a seed's split can put answers to "
         "one question in both halves",
         "Data: CC-BY-4.0, Autobench, Autobench Router Benchmark 2026, "
@@ -494,18 +516,10 @@ def readme_tables(results):
     return "\n".join(lines) + "\n"
 
 
-def readme_price(results):
-    """The RESULTS.md price bullet with its link pointed at the README `#autobench`."""
-    text = price(results)
-    if LUNA in text:
-        assert text.count(RESULTS_LINK) == 1
-        text = text.replace(RESULTS_LINK, "([AutoBench](#autobench))")
-    return text
-
-
 def readme_reading_it(results):
-    """Four of the RESULTS.md Reading it bullets (DESIGN 12.8, v1.28)."""
-    return [all_clear(results), violations(results), oracle(results), readme_price(results)]
+    """The two RESULTS.md Reading it bullets the subsection keeps, its first two (12.12 v1.368; v1.28
+    to v1.368 four, with the oracle and the price)."""
+    return [all_clear(results), violations(results)]
 
 
 def counts_sentence(results, tolerance):
@@ -530,24 +544,13 @@ def evidence_counts():
 
 
 def limits(results, jm):
-    by_candidate, missing, kept, scored = evidence_counts()
-    assert kept == f"{results['tasks']['all']['items']:,}", kept
-    k = len(results["tasks"]["all"]["models"])
+    """The one README limit the subsection keeps, on where each cost comes from (12.12 v1.368); the
+    committee-label, candidates and same-question limits are RESULTS.md caveats 1, 3 and 4."""
     return [
-        "- The label is agreement with the other judges, which are models, not a human gold "
-        "label: a judge that always grades as the committee does scores 1.0 "
-        "whether or not the committee is right",
         "- Each cost is an estimate at the pool's list prices, never a billed cost: a judge call "
         "is assumed to read the question, the visible answer and a "
         f"{jm.DEFAULT_RUBRIC_TOKENS}-token rubric and to write a {jm.DEFAULT_GRADE_TOKENS}-token "
-        "grade",
-        f"- The {k} candidates are the pool judges whose set keeps the most answers, chosen for "
-        f"that and not for quality or price. {kept} of the {scored} scored answers are kept: the "
-        f"converter drops the {by_candidate} answered by a candidate, since no model grades its "
-        f"own answer, and the {missing} that some candidate did not grade, so every candidate "
-        "grades every item",
-        "- Answers to the same question are separate items, so a seed's split can put answers "
-        "to one question in both halves"]
+        "grade"]
 
 
 def test_readme_judges_tables_are_the_committed_results():
@@ -561,7 +564,7 @@ def test_readme_judges_counts_and_reading_it_are_the_committed_results(jm):
     assert "\nReading it:\n\n" + "".join(f"- {b}\n" for b in bullets) + "\n" in section
     assert all("../" not in b for b in bullets)
     text = results_md()
-    for b in bullets[:3]:
+    for b in bullets:
         assert "- " + b + "\n" in text, b
 
 
@@ -616,11 +619,32 @@ def test_readme_judges_helpers_follow_the_numbers():
     assert [line for line in tables.split("\n") if "| 0.6 | `cost_blind` |" in line][0] \
         .endswith(" | - |")
     assert "counted wrong, when none does |" in readme_tables(committed())
-    for r in fake["summary"]:
-        if r["strategy"] == f"model:{LUNA}":
-            r["cost_usd"] = 0.0
-    assert "#autobench" not in readme_price(fake)
-    assert "([AutoBench](#autobench))" in readme_price(committed())
+
+
+def test_readme_judges_keeps_two_bullets_one_limit_and_a_link_line(jm):
+    """v1.369 (12.12 v1.368): after its four source bullets the subsection's only bullets are its
+    first two Reading it bullets and the cost limit, then the link line, whose anchor is the RESULTS.md
+    `## Caveats` heading, and the regenerate paragraph; the dropped oracle and price bullets are
+    RESULTS.md Reading it bullets and absent from the subsection, and the dropped limits' facts are in
+    the whole RESULTS.md Caveats list, which test_results_md_intro_header_and_caveats_are_whole_paragraphs
+    builds with the two facts it gained."""
+    results, section, md = committed(), judges_subsection(), results_md()
+    kept = [f"- {b}" for b in readme_reading_it(results)] + limits(results, jm)
+    block = (f"Reading it:\n\n{kept[0]}\n{kept[1]}\n\nLimits:\n\n{kept[2]}\n\n{LINK_LINE}\n\n"
+             f"{REGENERATE_LINE}\n\n```bash\n")
+    assert section.count(block) == 1
+    bullets = [line for line in section.splitlines() if line.startswith("- ")]
+    assert len(bullets) == 7 and bullets[4:] == kept
+    assert md.count("\n## Caveats\n") == 1 and md.count("\n## Reading it\n") == 1
+    for bullet in (oracle(results), price(results)):
+        assert md.count("\n- " + bullet + "\n") == 1, bullet
+    assert "the other judges, which are models, on the same answer" in prose(md)["caveats"]
+    by_candidate, missing, kept_items, scored = evidence_counts()
+    assert f"{kept_items} of the {scored} scored answers are kept" in prose(md)["caveats"]
+    for start in DROPPED_STARTS:
+        assert not any(line.startswith(start) for line in section.splitlines()), start
+    for needle in ("#autobench)", "costliest", "hindsight bound", "human gold label", by_candidate, missing):
+        assert needle not in section, needle
 
 
 # --- the pinned files, only when already cached ---------------------------------------------

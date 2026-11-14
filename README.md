@@ -549,15 +549,12 @@ Reading it:
 
 - At bars 0.6 and 0.7 every seed clears and `cost_effective` routes all 50 seeds to `deepseek/deepseek-v4-flash-0731`, the cheapest candidate: held-out success 0.816 at 0.518 of the cost of the best single judge, `tencent/hy3` (0.835 at 0.1192 USD)
 - There is one task, so each rate counts seeds: `cost_effective` at bar 0.8, 0.071, is 2 of the 28 seeds that cleared; `cost_blind` at bar 0.8, 0.036, is 1 of the 28 seeds that cleared. Read them next to a nominal one-sided 0.025 for a 95% Wilson bound on one judge, as a resampling estimate for this matrix and never as a guarantee (DESIGN 12.3)
-- The oracle, 0.957 at 0.0832 USD, takes on each held-out answer the cheapest candidate that agrees with the committee, or, where none agrees (0.043 of the held-out answers), the cheapest candidate on that answer, counted wrong: a hindsight bound, next to 0.835 for the best single judge
-- The two costliest candidates agree with the committee least: `meta/muse-glimmer-30b` (0.599 at 0.3234 USD) and `openai/gpt-5.6-luna` (0.642 at 0.2105 USD), so a higher price did not buy more agreement. `openai/gpt-5.6-luna` is the answer model of the dataset card's headline, which no commercial router beat on quality and cost together ([AutoBench](#autobench))
 
 Limits:
 
-- The label is agreement with the other judges, which are models, not a human gold label: a judge that always grades as the committee does scores 1.0 whether or not the committee is right
 - Each cost is an estimate at the pool's list prices, never a billed cost: a judge call is assumed to read the question, the visible answer and a 400-token rubric and to write a 200-token grade
-- The 5 candidates are the pool judges whose set keeps the most answers, chosen for that and not for quality or price. 756 of the 4,933 scored answers are kept: the converter drops the 1,252 answered by a candidate, since no model grades its own answer, and the 2,925 that some candidate did not grade, so every candidate grades every item
-- Answers to the same question are separate items, so a seed's split can put answers to one question in both halves
+
+The other limits are in [RESULTS.md](evidence/autobench-judges/RESULTS.md#caveats) `## Caveats` (the committee label, the candidates with the kept and dropped answer counts, answers to one question), and the other Reading it bullets in its `## Reading it` (the bars where some seeds or none clear, `cost_blind`, the per-answer oracle, the price).
 
 Regenerate (the dataset downloads into a cache folder outside the repo; the sensitivity commands are in RESULTS.md):
 

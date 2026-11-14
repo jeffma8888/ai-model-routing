@@ -56,9 +56,9 @@ Reasoning tokens. With `--answer-tokens output` the judge is charged for reading
 
 ## Caveats
 
-- The label is a committee label, not a human gold label: a judge succeeds when it agrees with the other judges on the same answer. A judge that always grades as the committee does scores 1.0 whether or not the committee is right, and a judge that is right where the committee is wrong scores lower
+- The label is a committee label, not a human gold label: a judge succeeds when it agrees with the other judges, which are models, on the same answer. A judge that always grades as the committee does scores 1.0 whether or not the committee is right, and a judge that is right where the committee is wrong scores lower
 - The cost is a list-price estimate at the pool's list prices, never a billed cost: a judge call is assumed to read the question, the visible answer and a 400-token rubric, and to write a 200-token grade (DESIGN 12.11)
-- The 5 candidates are the pool judges whose set keeps the most answers, not the best or the cheapest judges; a judge outside them is not compared here
+- The 5 candidates are the pool judges whose set keeps the most answers, not the best or the cheapest judges; a judge outside them is not compared here. 756 of the 4,933 scored answers are kept: the converter drops the 1,252 answered by a candidate, since no model grades its own answer, and the 2,925 that some candidate did not grade, so every candidate grades every item
 - Answers to the same question are separate items, so a seed's split can put answers to one question in both halves
 - Data: CC-BY-4.0, Autobench, Autobench Router Benchmark 2026, https://huggingface.co/datasets/AutoBench/router-benchmark-2026-10 at revision 43755180be7d8097068982d7a3f37fc04cd15379. Pinned files, sha256 values, the citation the card asks for and what the converter drops are in the [evidence README](../autobench-2026/README.md)
 
