@@ -9,8 +9,9 @@ has a time limit of ten times its slowest run, rounded up to whole five minutes,
 retry (v1.152; 25 minutes, restated as 30 at v1.170, as 40 at v1.217, whose basis is the
 slowest run on the `Regenerate` lines in force, as 50 at v1.225, as 55 at v1.268, as 40 at
 v1.301, on the first run of the v1.299 lines, as 50 at v1.302, on the slower of the first
-two, as 35 at v1.321, on the slower of the first two runs of the v1.317 lines, and as 50 at
-v1.374, on the slowest of the first eight). From v1.278
+two, as 35 at v1.321, on the slower of the first two runs of the v1.317 lines, as 50 at
+v1.374, on the slowest of the first eight, and as 60 at v1.395, on the slowest of the first
+eleven). From v1.278
 the top comment names the rerun subsections (eight, nine from v1.299) in README heading order, on
 lines under 100 columns.
 
@@ -29,6 +30,7 @@ WORKFLOW = ROOT / ".github" / "workflows" / "evidence.yml"
 CI = ROOT / ".github" / "workflows" / "ci.yml"
 README = ROOT / "README.md"
 DESIGN = ROOT / "DESIGN.md"
+CHANGELOG = ROOT / "CHANGELOG.md"
 LLMROUTERBENCH = ROOT / "evidence" / "llmrouterbench" / "convert.py"
 ROUTERBENCH_CONVERT = ROOT / "evidence" / "routerbench" / "convert.py"
 EVIDENCE = "## Evidence: held-out results on public data\n"
@@ -48,13 +50,16 @@ ON = (
     "      - \".github/workflows/evidence.yml\"\n")
 STEP_NAMES = [None, None, "Install", "Regenerate", "Compare"]
 # The job's time limit, by the v1.152 rule: ten times the slowest run, rounded up to a whole
-# five minutes. The v1.374 value: the slowest run on the Regenerate lines in force, from v1.317
-# those with the three response-bank delegation lines, is the slowest of the eight such runs
-# among the 85 to 2026-11-14 (151 to 291 s from start to last update), run 43608998651, 291 s,
-# so 50; by its log its two converter lines took 179.7 s, 105.4 s more than in the v1.321 basis
-# run, most likely the LLMRouterBench download. At v1.321, the slower of the first two such runs
-# (204 and 206 s), run 43439800863, 206 s, so 35, the second value the rule lowered; by the logs
-# the new lines took 9.4 and 10.6 s. At v1.302,
+# five minutes. The v1.395 value: the slowest run on the Regenerate lines in force, from v1.317
+# those with the three response-bank delegation lines, is the slowest of the eleven such runs
+# among the 88 to 2026-11-14 (151 to 338 s from start to last update), run 43689201551, 338 s,
+# so 60; by its log the first lines of its six converters took 268.8 s, 47.3 s more than in the
+# v1.374 basis run, 33.3 s of it the LiveCodeBench line and 9.4 s the tau2-bench line, most
+# likely their downloads. At v1.374, the slowest of the first eight such runs (151 to 291 s),
+# run 43608998651, 291 s, so 50; by its log its two converter lines took 179.7 s, 105.4 s more
+# than in the v1.321 basis run, most likely the LLMRouterBench download. At v1.321, the slower
+# of the first two such runs (204 and 206 s), run 43439800863, 206 s, so 35, the second value
+# the rule lowered; by the logs the new lines took 9.4 and 10.6 s. At v1.302,
 # on the v1.299 lines (the four response-bank lines), the slower of the two such runs among the
 # 74 to 2026-11-12 (213 and 281 s), run 43363202337, 281 s, so 50; by the log its two converter
 # lines took 76.5 and 32.5 s more than in the first run, most likely the downloads. At v1.301,
@@ -66,15 +71,20 @@ STEP_NAMES = [None, None, "Install", "Regenerate", "Compare"]
 # 42904515973), so 50, its extra time most likely the same download. At v1.217, the one such run
 # then, 213 s, so 40; the four runs of v1.200 to v1.214 (up to 278 s) also ran the converter
 # line twice. At v1.170, 158 s over 45 runs, so 30; at v1.152, 140 s over 40 runs, so 25.
-SLOWEST_RUN_SECONDS = 291
-SLOWEST_RUN_ID = 43608998651
+SLOWEST_RUN_SECONDS = 338
+SLOWEST_RUN_ID = 43689201551
 # v1.391 (row DOC26): the versions of the DESIGN 12.13 time-limit bullet's history pointer, whose
 # CHANGELOG.md lines hold the earlier bases, and those bases' runs, which the bullet no longer names.
 TIME_LIMIT_HISTORY = ("v1.152, v1.168, v1.170, v1.215, v1.217, v1.218, v1.225, v1.226, v1.268, v1.299, v1.301, "
-                      "v1.302, v1.317, v1.321, v1.374")
-EARLIER_BASIS_RUNS = ("43439800863", "43433217023", "43363202337", "43357001972", "43054947572", "42904515973",
-                      "42883099079", "42717985363", "42445989566")
-TIMEOUT_MINUTES = 50
+                      "v1.302, v1.317, v1.321, v1.374, v1.395")
+EARLIER_BASIS_RUNS = ("43608998651", "43439800863", "43433217023", "43363202337", "43357001972", "43054947572",
+                      "42904515973", "42883099079", "42717985363", "42445989566")
+# Review iter-249 nit 4 (v1.395, row CI16): the CHANGELOG.md half of the v1.391 rule. The restating
+# version ends the history pointer, and its line names the new basis run and the one it replaces,
+# each with its seconds; the replaced run is the first of EARLIER_BASIS_RUNS.
+RESTATING_VERSION = "v1.395"
+REPLACED_BASIS = ("v1.374", 43608998651, 291)
+TIMEOUT_MINUTES = 60
 LIMIT_LINE = f"    timeout-minutes: {TIMEOUT_MINUTES}"
 LIMIT_SENTENCE = (f"The job's time limit of {TIMEOUT_MINUTES} minutes is about ten times its slowest run, "
                   "and a failed download is retried by rerunning the job (DESIGN.md 12.13).")
@@ -612,7 +622,7 @@ def test_the_design_time_limit_bullet_gives_the_value_and_its_basis_run():
     assert f"the `runs-on` line and `{LIMIT_LINE}`, in that order" in bullet
     _, marker, rest = bullet.partition(
         "Basis (v1.217, row E17h; restated v1.225, row E17i, v1.268, row CI10, v1.301, row CI11, "
-        "v1.302, row CI12, v1.321, row CI14, and v1.374, row CI15): ")
+        "v1.302, row CI12, v1.321, row CI14, v1.374, row CI15, and v1.395, row CI16): ")
     assert marker
     # v1.391 (row DOC26): the basis ends at the one history pointer; the earlier bases, their runs and
     # where their time went are in CHANGELOG.md, so the bullet holds no history sentence and none of
@@ -638,6 +648,22 @@ def test_the_design_time_limit_bullet_gives_the_value_and_its_basis_run():
     assert f"so a run on these lines over {6 * TIMEOUT_MINUTES} seconds restates the value" in basis
     assert 5 * math.ceil(10 * 6 * TIMEOUT_MINUTES / 60 / 5) == TIMEOUT_MINUTES
     assert 5 * math.ceil(10 * (6 * TIMEOUT_MINUTES + 1) / 60 / 5) == TIMEOUT_MINUTES + 5
+
+
+def test_the_restating_changelog_line_names_the_new_basis_and_the_one_it_replaces():
+    versions = TIME_LIMIT_HISTORY.split(", ")
+    version, run, seconds = REPLACED_BASIS
+    assert versions[-1] == RESTATING_VERSION and version in versions[:-1]
+    assert EARLIER_BASIS_RUNS[0] == str(run) and str(SLOWEST_RUN_ID) not in EARLIER_BASIS_RUNS
+    lines = [line for line in CHANGELOG.read_text(encoding="utf-8").split("\n")
+             if line.startswith(f"- {RESTATING_VERSION} (")]
+    assert len(lines) == 1
+    line = lines[0]
+    old_minutes = 5 * math.ceil(10 * seconds / 60 / 5)
+    assert f"`timeout-minutes` goes from {old_minutes} to {TIMEOUT_MINUTES}, " in line
+    assert f"ten times the {SLOWEST_RUN_SECONDS} seconds of run {SLOWEST_RUN_ID} on `" in line
+    assert f"The {version} basis it replaces is the {seconds} seconds of run {run} on `" in line
+    assert f"over {6 * TIMEOUT_MINUTES} seconds restates it" in line
 
 
 @pytest.mark.parametrize("name", sorted(TIME_LIMIT_MUTANTS))

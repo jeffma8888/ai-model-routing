@@ -398,7 +398,7 @@ POINTERS = {
     "- Size budget (v1.334, row DOC19): ": "v1.334 to v1.373",
     "  - 12.8 shrinks with each trim (v1.344, row DOC20): ": "v1.344 to v1.372, v1.386, v1.388, v1.389",
     "- Time limit and retries (v1.152, ": ("v1.152, v1.168, v1.170, v1.215, v1.217, v1.218, v1.225, v1.226, v1.268, "
-                                           "v1.299, v1.301, v1.302, v1.317, v1.321, v1.374"),
+                                           "v1.299, v1.301, v1.302, v1.317, v1.321, v1.374, v1.395"),
     "Purpose: a reader can see the twelve results files of the `Compare` step below ":
         "v1.55, v1.65, v1.80, v1.84, v1.168, v1.200, v1.299",
     "- The workflow `.github/workflows/evidence.yml`, `name: evidence`, ":
