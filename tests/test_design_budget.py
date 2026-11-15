@@ -646,5 +646,9 @@ def test_12_13_states_its_contract_as_it_is_and_holds_no_growth_history():
                   "(11 from v1.139)", "In run 42814244636", "In run 43008722362", "three to v1.54"):
         assert words not in joined, words
     heading = [line for line in text.splitlines() if line.startswith("### 12.13 ")]
-    assert len(heading) == 1 and "time limit v1.152, its value v1.374;" in heading[0]
+    # v1.397 (row E23c): the heading names no entry a bullet of 12.13 opens with, and ends with the ledger line
+    assert len(heading) == 1 and heading[0].endswith("; ledger hand-off v1.397)")
+    for words in ("pinned runner v1.49", "Python versions v1.118", "token permissions v1.137", "time limit v1.152",
+                  "one run of a repeated line v1.215", "no cache between runs v1.251"):
+        assert words not in heading[0], words
     assert "restated" not in heading[0] and "(history: " not in heading[0]

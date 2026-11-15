@@ -507,7 +507,8 @@ MUTANTS = {
         "evidence/llmrouterbench-delegation/results.json ", 1),
     # v1.397: the ledger hand-off file, last in command order, and its line, the last Regenerate line
     "the compare step without the ledger hand-off": lambda t: t.replace(
-        " evidence/ledger-handoff/results.json\n", "\n", 1),
+        "evidence/response-bank-delegation/results.json evidence/ledger-handoff/results.json\n",
+        "evidence/response-bank-delegation/results.json\n", 1),
     "the ledger line dropped": lambda t: with_lines(t, lambda ls: ls[:-1]),
     # v1.299: the response-bank file, directly after the LLMRouterBench one
     "the compare step without the response bank": lambda t: t.replace(
