@@ -68,6 +68,12 @@ STEP_NAMES = [None, None, "Install", "Regenerate", "Compare"]
 # line twice. At v1.170, 158 s over 45 runs, so 30; at v1.152, 140 s over 40 runs, so 25.
 SLOWEST_RUN_SECONDS = 291
 SLOWEST_RUN_ID = 43608998651
+# v1.391 (row DOC26): the versions of the DESIGN 12.13 time-limit bullet's history pointer, whose
+# CHANGELOG.md lines hold the earlier bases, and those bases' runs, which the bullet no longer names.
+TIME_LIMIT_HISTORY = ("v1.152, v1.168, v1.170, v1.215, v1.217, v1.218, v1.225, v1.226, v1.268, v1.299, v1.301, "
+                      "v1.302, v1.317, v1.321, v1.374")
+EARLIER_BASIS_RUNS = ("43439800863", "43433217023", "43363202337", "43357001972", "43054947572", "42904515973",
+                      "42883099079", "42717985363", "42445989566")
 TIMEOUT_MINUTES = 50
 LIMIT_LINE = f"    timeout-minutes: {TIMEOUT_MINUTES}"
 LIMIT_SENTENCE = (f"The job's time limit of {TIMEOUT_MINUTES} minutes is about ten times its slowest run, "
@@ -608,15 +614,18 @@ def test_the_design_time_limit_bullet_gives_the_value_and_its_basis_run():
         "Basis (v1.217, row E17h; restated v1.225, row E17i, v1.268, row CI10, v1.301, row CI11, "
         "v1.302, row CI12, v1.321, row CI14, and v1.374, row CI15): ")
     assert marker
-    # v1.374: the basis ends before the first history sentence, now the v1.321 one.
-    assert " The v1.321 basis" in rest
-    basis, _, history = rest.partition(" The v1.321 basis")
-    assert (history.index(" The v1.302 basis") < history.index(" The v1.301 basis")
-            < history.index(" The v1.268 basis")
-            < history.index(" The v1.225 basis")
-            < history.index(" The v1.217 basis") < history.index(" The v1.170 basis"))
-    # v1.374 (review iter-238 nit 1): the moved v1.321 basis keeps its run and seconds.
-    assert "it was run 43439800863 on `17ef05b`, which took 206 seconds" in history.partition(" The v1.302 basis")[0]
+    # v1.391 (row DOC26): the basis ends at the one history pointer; the earlier bases, their runs and
+    # where their time went are in CHANGELOG.md, so the bullet holds no history sentence and none of
+    # the earlier basis runs (v1.152 to v1.321), and a restatement moves the basis it replaces there.
+    basis, pointer, _ = rest.partition(f" (history: CHANGELOG.md {TIME_LIMIT_HISTORY}). ")
+    assert pointer and bullet.count("(history: CHANGELOG.md ") == 1
+    assert not re.search(r"The v1\.\d+ basis (?:was|is)|Where the time went", bullet)
+    for run in EARLIER_BASIS_RUNS:
+        assert run not in bullet, run
+    assert ("A change of the value states its new basis in this bullet in the same commit, and the basis it "
+            "replaces goes to that commit's CHANGELOG.md line, its version joining this bullet's history pointer, "
+            "never to a history sentence here (v1.391, row DOC26)") in basis
+    assert len(bullet.encode("utf-8")) <= 6_000
     assert re.search(rf"run {SLOWEST_RUN_ID} on `[0-9a-f]{{7}}`, which took {SLOWEST_RUN_SECONDS} seconds "
                      "from its start to its last update", basis)
     tenfold = 10 * SLOWEST_RUN_SECONDS

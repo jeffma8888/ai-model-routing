@@ -27,6 +27,10 @@ it gives, so a pointer that is moved, changed or added without an entry fails.
 Research notes out of 12.8 (v1.390, row DOC21o): the seven research-note bullets of 12.8, with the README
 sub-bullet of the first, are 12.22, a research-notes spec with a cap of 40,000 bytes, in the same order
 (RESEARCH_NOTES); 12.8 holds none of them and leaves PENDING, and the `## 12.` total is 300,000 bytes.
+
+The time-limit line (v1.391, row DOC26): the 12.13 time-limit bullet keeps its contract and puts its earlier
+bases behind one history pointer (POINTERS), so it is at most LINE_CAP and PENDING_LINES is empty; 12.13
+stays in PENDING at the smaller size the trim leaves, for DOC21c.
 """
 import re
 from pathlib import Path
@@ -68,7 +72,7 @@ CLASS = {number: kind for kind, numbers in GROUPS.items() for number in numbers}
 # (12.8 DOC21b, split into DOC21m to DOC21o, the last of which, v1.390, removed it at 45,002 bytes, 12.13 DOC21c, 13.8 DOC21d, 13.10 DOC21e, 13.9 DOC21f, 12.21 DOC21g, 12.17 DOC21h,
 # 12.14 DOC21i, 13.12 DOC21j, 13.14 DOC21k, 13.11 DOC21l).
 PENDING = {
-    "12.13": 51_685,
+    "12.13": 40_061,  # 51,685 at v1.386; DOC26 (v1.391) trimmed its time-limit bullet
     "13.8": 40_244,
     "13.10": 37_657,
     "13.9": 39_997,
@@ -79,11 +83,10 @@ PENDING = {
     "13.14": 25_202,
     "13.11": 16_853,
 }
-# The lines over LINE_CAP, by their opening text, and their sizes when DOC21a landed: the 12.13 time
-# limit (DOC26); DOC21m (v1.388) brought the two 12.8 bullets, 8,660 and 6,027 bytes, under LINE_CAP.
-PENDING_LINES = {
-    "- Time limit and retries (v1.152, ": 17_019,
-}
+# The lines over LINE_CAP, by their opening text, and their sizes when DOC21a landed: none left. DOC21m
+# (v1.388) brought the two 12.8 bullets, 8,660 and 6,027 bytes, under LINE_CAP, and DOC26 (v1.391) the
+# 12.13 time-limit bullet, 17,019 bytes.
+PENDING_LINES = {}
 SECTION_END = re.compile(r"#{1,2} ")
 HEADING = re.compile(r"#{1,3} ")
 SUBSECTION = re.compile(r"### (\d+)\.(\d+) ")
@@ -361,7 +364,8 @@ POINTER_ITEM = re.compile(r"v(\d+\.\d+)(?: to v(\d+\.\d+))?")
 CHANGELOG_LINE = re.compile(r"^- v(\d+\.\d+) \(", re.M)
 # Each pointer a trim wrote, by the opening of the line that holds it, and the list it gives: the
 # versions the sentences it dropped name (DOC21m: four of the seven research-note bullets of 12.8, in 12.22
-# from v1.390; DOC21n: thirteen lines of its dataset-subsection bullets; DOC21o: two lines of its size budget clause).
+# from v1.390; DOC21n: thirteen lines of its dataset-subsection bullets; DOC21o: two lines of its size budget clause;
+# DOC26: the 12.13 time-limit bullet, tests/test_evidence_workflow.py TIME_LIMIT_HISTORY).
 POINTERS = {
     "  - README.md and research/README.md (v1.124, v1.166, v1.303): ": "v1.124, v1.164, v1.166, v1.296, v1.303",
     "- Where delegation pays at a glance (v1.258, row DOC15): ": "v1.258, v1.315, v1.316, v1.322, v1.323, v1.328",
@@ -383,6 +387,8 @@ POINTERS = {
     "- Delegation on the LLM Routing Response Bank (v1.316, row E21d): ": "v1.258, v1.316, v1.317, v1.323, v1.324",
     "- Size budget (v1.334, row DOC19): ": "v1.334 to v1.373",
     "  - 12.8 shrinks with each trim (v1.344, row DOC20): ": "v1.344 to v1.372, v1.386, v1.388, v1.389",
+    "- Time limit and retries (v1.152, ": ("v1.152, v1.168, v1.170, v1.215, v1.217, v1.218, v1.225, v1.226, v1.268, "
+                                           "v1.299, v1.301, v1.302, v1.317, v1.321, v1.374"),
 }
 
 
@@ -433,8 +439,22 @@ def test_each_pointer_version_has_its_own_changelog_line():
                     "1.65", "1.80", "1.84", "1.32", "1.167", "1.168", "1.92", "1.336", "1.337", "1.200", "1.299",
                     "1.317", "1.324", "1.334", "1.335", "1.344", "1.345", "1.346", "1.347", "1.348", "1.350", "1.352",
                     "1.353", "1.355", "1.357", "1.358", "1.362", "1.365", "1.368", "1.370", "1.372", "1.373", "1.386",
-                    "1.388", "1.389"):  # 1.388: review iter-248 nit 2
+                    "1.388", "1.389",  # 1.388: review iter-248 nit 2
+                    # DOC26 (v1.391): every version the 12.13 time-limit bullet named through v1.390.
+                    "1.152", "1.170", "1.214", "1.215", "1.217", "1.218", "1.225", "1.226", "1.251", "1.268",
+                    "1.301", "1.302", "1.321", "1.374"):
         assert f"\n- v{version} (" in changelog, version
+
+
+def test_the_time_limit_bullet_is_under_the_line_cap_with_one_pointer():
+    # DOC26 (v1.391): the 12.13 time-limit bullet, 17,019 bytes at v1.386, is at most LINE_CAP and out of
+    # PENDING_LINES, with one history pointer, the one POINTERS gives it.
+    opening = "- Time limit and retries (v1.152, "
+    found = [(got, line) for _, got, line in measure(DESIGN.read_text(encoding="utf-8"))[2] if line.startswith(opening)]
+    assert len(found) == 1
+    got, line = found[0]
+    assert got <= LINE_CAP and opening not in PENDING_LINES and PENDING_LINES == {}
+    assert POINTER.findall(line) == [POINTERS[opening]]
 
 
 TINY_LOG = "- v1.1 (2026-01-01): a\n- v1.2 (2026-01-02): b\n- v1.4 (2026-01-04): d\n"
