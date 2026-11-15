@@ -10,6 +10,7 @@ every attempt is the same error after three calls.
 import hashlib
 import importlib.util
 import io
+import time
 import urllib.parse
 import urllib.request
 from pathlib import Path
@@ -85,22 +86,26 @@ class Broken:
         raise self.error
 
 
-def serve(monkeypatch, served, failures):
-    """A urlopen whose first len(failures) calls fail, each with its failure (raised at the open, or
-    mid-read for a Broken), and whose later calls serve `served` by URL; returns the URLs asked for."""
+def serve(monkeypatch, served, failures, url_failures=None):
+    """A urlopen whose first len(failures) calls for the first URL of `served` (or, with
+    `url_failures`, for each URL it maps) fail, each with its failure (raised at the open, or
+    mid-read for a Broken), and whose later calls serve `served` by URL; returns the calls, each its
+    URL, or (URL, timeout) for a timeout other than 60, with a ("sleep", seconds) entry for any
+    pause, since the attempts follow one another at once (review iter-266 should-fix 3 and nit 5)."""
+    pending = {url: list(fs) for url, fs in (url_failures or {next(iter(served)): failures}).items()}
     calls = []
 
     def urlopen(url, timeout=None):
-        calls.append(url)
-        assert timeout == 60
-        if len(calls) <= len(failures):
-            failure = failures[len(calls) - 1]
+        calls.append(url if timeout == 60 else (url, timeout))
+        if pending.get(url):
+            failure = pending[url].pop(0)
             if isinstance(failure, Broken):
                 return failure
             raise failure
         return io.BytesIO(served[url])
 
     monkeypatch.setattr(urllib.request, "urlopen", urlopen)
+    monkeypatch.setattr(time, "sleep", lambda seconds: calls.append(("sleep", seconds)))
     return calls
 
 
@@ -132,6 +137,18 @@ def test_a_download_that_fails_twice_is_retried_and_kept(key, kind, monkeypatch,
     assert calls == [first] * 3 + list(served)[1:]
     assert dest.read_bytes() == BODY  # the third attempt rewrote the part file from its first byte
     assert not list(cache.rglob("*.part"))
+
+
+def test_each_file_has_its_own_three_attempts(monkeypatch, tmp_path):
+    # Review iter-266 nit 6: 12.9 downloads two files, so a count shared across files, or a retry of
+    # the first file alone, fails here: each of the two fails twice and is kept on its third attempt.
+    mod, cache, served, dest, first = setup("autobench", monkeypatch, tmp_path)
+    second = list(served)[1]
+    failures = {url: [TimeoutError("The read operation timed out"), ConnectionResetError("reset")] for url in served}
+    calls = serve(monkeypatch, served, [], url_failures=failures)
+    mod.fetch(cache)
+    assert calls == [first] * 3 + [second] * 3
+    assert dest.read_bytes() == BODY and not list(cache.rglob("*.part"))
 
 
 @pytest.mark.parametrize("key", list(SCRIPTS))
@@ -192,7 +209,10 @@ def test_design_states_the_retry_rule():
     for phrase in ("Retries (v1.406, row CI23): each of the six `fetch` functions tries a missing file up to "
                    "`ATTEMPTS = 3` times, at once",
                    "each attempt rewriting `<name>.part` from its first byte",
-                   "a download that fails `verify` or a `BaseException` is never retried",
+                   "a download that fails `verify` (bytes unlike the pin mean the source moved, while a short read "
+                   "raises and is retried) or a `BaseException` is never retried",
                    "run 43751236072 on `937399a`"):
         assert phrase in bullets[0], phrase
     assert "Retries: none in the converters" not in bullets[0]
+    # Review iter-266 must-fix 1: 12.18 and 12.20 said their fetch had no retry.
+    assert "with no retry" not in DESIGN.read_text(encoding="utf-8")
