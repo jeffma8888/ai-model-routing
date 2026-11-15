@@ -198,6 +198,10 @@ TIERED = [
     # C = 60,000, over: the brief 800 * 9; the next call adds 500 at 3, and C's tier is the
     # call's, so no dearer re-read of C
     (60_000, 0.0072 + 0.00043 + 0.0015),
+    # C = 49,400, under, though C + W = 50,200 is over: the decision turn reads C alone, so
+    # the brief is 800 * 4, not 800 * 9 plus a dearer re-read of C; the next call adds 500 and
+    # reads 49,900, under: 500 * 1 (review iter-265 should-fix 1)
+    (49_400, 0.0032 + 0.00043 + 0.0005),
 ]
 
 
