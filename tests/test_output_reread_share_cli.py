@@ -146,7 +146,7 @@ def test_design_states_the_flag_in_13_7_and_the_evaluator_in_13_1():
                  "the 13.9 evaluator keeps 1.0, since a point has no key for it",
                  "so every committed delegation result re-reads each S_out whole"):
         assert term in s13_1, term
-    for term in ("[--cached-read-ratio X] [--output-reread-share X] [--flavor",
+    for term in ("[--cached-read-ratio X] [--output-reread-share X] [--",  # v1.409 adds a flag
                  "`--output-reread-share` (v1.408, default 1.0) passes `output_reread_share` (13.1) "
                  "as a float",
                  "`>= 1`, from v1.41, a `--cached-read-ratio` and, from v1.408, an "
