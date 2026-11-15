@@ -73,6 +73,7 @@ STEP_NAMES = [None, None, "Install", "Regenerate", "Compare"]
 # line twice. At v1.170, 158 s over 45 runs, so 30; at v1.152, 140 s over 40 runs, so 25.
 SLOWEST_RUN_SECONDS = 338
 SLOWEST_RUN_ID = 43689201551
+SLOWEST_RUN_SHA = "2c31a98"  # review iter-254 nit 3
 # v1.391 (row DOC26): the versions of the DESIGN 12.13 time-limit bullet's history pointer, whose
 # CHANGELOG.md lines hold the earlier bases, and those bases' runs, which the bullet no longer names.
 TIME_LIMIT_HISTORY = ("v1.152, v1.168, v1.170, v1.215, v1.217, v1.218, v1.225, v1.226, v1.268, v1.299, v1.301, "
@@ -83,7 +84,7 @@ EARLIER_BASIS_RUNS = ("43608998651", "43439800863", "43433217023", "43363202337"
 # version ends the history pointer, and its line names the new basis run and the one it replaces,
 # each with its seconds; the replaced run is the first of EARLIER_BASIS_RUNS.
 RESTATING_VERSION = "v1.395"
-REPLACED_BASIS = ("v1.374", 43608998651, 291)
+REPLACED_BASIS = ("v1.374", 43608998651, 291, "6f572b4")
 TIMEOUT_MINUTES = 60
 LIMIT_LINE = f"    timeout-minutes: {TIMEOUT_MINUTES}"
 LIMIT_SENTENCE = (f"The job's time limit of {TIMEOUT_MINUTES} minutes is about ten times its slowest run, "
@@ -639,7 +640,7 @@ def test_the_design_time_limit_bullet_gives_the_value_and_its_basis_run():
     # Review iter-249 should-fix 1: the lines in force name both additions to the v1.215 lines.
     assert ("v1.215, from v1.299 with the four `### LLM Routing Response Bank` lines after the `### LLMRouterBench` "
             "ones and from v1.317 with the three `### Delegation on the LLM Routing Response Bank` lines") in basis
-    assert re.search(rf"run {SLOWEST_RUN_ID} on `[0-9a-f]{{7}}`, which took {SLOWEST_RUN_SECONDS} seconds "
+    assert re.search(rf"run {SLOWEST_RUN_ID} on `{SLOWEST_RUN_SHA}`, which took {SLOWEST_RUN_SECONDS} seconds "
                      "from its start to its last update", basis)
     tenfold = 10 * SLOWEST_RUN_SECONDS
     assert f"{tenfold:,} seconds is {tenfold / 60:.1f} minutes, so {TIMEOUT_MINUTES}." in basis
@@ -652,7 +653,7 @@ def test_the_design_time_limit_bullet_gives_the_value_and_its_basis_run():
 
 def test_the_restating_changelog_line_names_the_new_basis_and_the_one_it_replaces():
     versions = TIME_LIMIT_HISTORY.split(", ")
-    version, run, seconds = REPLACED_BASIS
+    version, run, seconds, sha = REPLACED_BASIS
     assert versions[-1] == RESTATING_VERSION and version in versions[:-1]
     assert EARLIER_BASIS_RUNS[0] == str(run) and str(SLOWEST_RUN_ID) not in EARLIER_BASIS_RUNS
     lines = [line for line in CHANGELOG.read_text(encoding="utf-8").split("\n")
@@ -661,8 +662,8 @@ def test_the_restating_changelog_line_names_the_new_basis_and_the_one_it_replace
     line = lines[0]
     old_minutes = 5 * math.ceil(10 * seconds / 60 / 5)
     assert f"`timeout-minutes` goes from {old_minutes} to {TIMEOUT_MINUTES}, " in line
-    assert f"ten times the {SLOWEST_RUN_SECONDS} seconds of run {SLOWEST_RUN_ID} on `" in line
-    assert f"The {version} basis it replaces is the {seconds} seconds of run {run} on `" in line
+    assert f"ten times the {SLOWEST_RUN_SECONDS} seconds of run {SLOWEST_RUN_ID} on `{SLOWEST_RUN_SHA}`, " in line
+    assert f"The {version} basis it replaces is the {seconds} seconds of run {run} on `{sha}`, " in line
     assert f"over {6 * TIMEOUT_MINUTES} seconds restates it" in line
 
 
