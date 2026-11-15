@@ -406,7 +406,7 @@ POINTERS = {
     "- Token permissions (v1.137): ": "v1.138, v1.139",
     "- Python versions (v1.118): ": "v1.117, v1.118, v1.119",
     "- Steps, in this order: ": "v1.48, v1.54, v1.55, v1.64, v1.65, v1.80, v1.84, v1.168, v1.200, v1.299",
-    "- RouterBench stays out: ": "v1.55, v1.65, v1.80, v1.168, v1.200, v1.299, v1.316",
+    "- RouterBench stays out: ": "v1.55, v1.65, v1.80, v1.168, v1.200, v1.299",  # review iter-251 must-fix 1
     "- LiveCodeBench is rerun (v1.65) ": "v1.65",
     "- LLMRouterBench is rerun (v1.168, row E16d): ": "v1.152, v1.167, v1.168, v1.169, v1.170",
     "- LLMRouterBench delegation is rerun (v1.200, row E17d): ": (
@@ -415,7 +415,7 @@ POINTERS = {
         "v1.297, v1.299, v1.301, v1.302, v1.317, v1.321",
     "- Response-bank delegation is rerun (v1.316, row E21d; the 13.14 Workflow bullet): ": "v1.218, v1.316, v1.321",
     "- One run of a repeated line (v1.215, row CI8): ":
-        "v1.200, v1.217, v1.225, v1.268, v1.299, v1.301, v1.302, v1.316, v1.317, v1.321",
+        "v1.200, v1.217, v1.225, v1.268, v1.299, v1.301, v1.302, v1.317, v1.321",  # review iter-251 must-fix 2
     "- README: the evidence section's opening paragraph (12.8) ":
         "v1.47, v1.48, v1.55, v1.65, v1.80, v1.84, v1.168, v1.200, v1.298, v1.299",
     "- Tests, in `tests/test_evidence_workflow.py` (standard library only, so they run in CI): ":
@@ -617,6 +617,21 @@ def test_12_13_states_its_contract_as_it_is_and_holds_no_growth_history():
     assert f"each of {len(workflow.MUTANTS)} broken workflows fails the check" in joined
     commands, run = workflow.expected_commands(workflow.readme()), workflow.regenerate_commands(workflow.readme())
     assert f"so the README holds {len(commands)} rerun commands and `Regenerate` runs {len(run)}." in joined
+    # Review iter-251 should-fix 2: the other counts, each from the list or file it counts.
+    import test_ci_permissions as permissions
+    import test_ci_pythons as pythons
+    words = {6: "6", 10: "ten", 11: "eleven", 12: "12", 14: "14"}
+    blocks = sum(workflow.BLOCKS.get(name, 1) for name in workflow.SUBSECTIONS)
+    assert blocks == len(workflow.SUBSECTIONS) + 1  # two blocks in `### Delegation on tau2-bench`
+    for shown in (f"a command in one of the {words[blocks]} README regenerate blocks the workflow reruns",
+                  f"names the {words[len(workflow.SUBSECTIONS)]} subsections whose commands it reruns",
+                  f"then the {words[len(workflow.SUBSECTIONS)]} names in README heading order",
+                  f"the README holds those {words[len(workflow.SUBSECTIONS)]} `### ` headings in that order",
+                  f"check it on {words[len(workflow.RUN_ONCE_CASES)]} hand-built lists",
+                  f"each of {words[len(workflow.RUNNER_MUTANTS)]} broken pairs fails it",
+                  f"each of {words[len(pythons.MUTANTS)]} broken variants of those four files fails the check",
+                  f"each of {len(permissions.MUTANTS)} broken pairs fails with the one problem it names"):
+        assert shown in joined, shown
     # The steps bullet names every rerun subsection, in order, the response-bank delegation one too.
     steps = [line for line in body if line.startswith("- Steps, in this order: ")]
     assert len(steps) == 1
