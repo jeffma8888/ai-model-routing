@@ -149,7 +149,8 @@ def test_design_states_the_flag_in_13_7_and_the_evaluator_in_13_1():
     for term in ("[--cached-read-ratio X] [--output-reread-share X] [--flavor",
                  "`--output-reread-share` (v1.408, default 1.0) passes `output_reread_share` (13.1) "
                  "as a float",
-                 "from v1.408, an `--output-reread-share` that is not a number in [0, 1], `nan` and "
+                 "`>= 1`, from v1.41, a `--cached-read-ratio` and, from v1.408, an "
+                 "`--output-reread-share` that is not a number in [0, 1], `nan` and "
                  "`inf` included"):
         assert term in s13_7, term
 
@@ -190,11 +191,11 @@ def limitations_bullet():
 def test_readme_limitations_name_the_over_statement_and_the_share():
     (d20, d50, d100), ratios = medians()
     s, c = ratios["single"], ratios["chain"]
-    # the whole-history ratio falls with depth, as the sentence's "the more" says
+    # the whole-history ratio falls with depth, as the sentence's "increasingly" says
     assert float(s[0]) > float(s[1]) > float(s[2])
     sentence = (
         "For a model whose history keeps each reply and drops its reasoning, that over-states the "
-        "re-reads, the more the more calls come before each one: on the ledger runs "
+        "re-reads, increasingly as more calls come before each one: on the ledger runs "
         "([research/ledger-cost-model.md](research/ledger-cost-model.md)) measured prompt tokens "
         f"over those the rule predicts are a median {s[0]}, {s[1]} and {s[2]} on the whole-history "
         f"path at depths {d20}, {d50} and {d100} and {c[0]}, {c[1]} and {c[2]} on the chain. "
