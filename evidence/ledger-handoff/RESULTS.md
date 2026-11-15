@@ -41,11 +41,11 @@ Reading it:
 
 - In aggregate, continuation success is not lower from a note: from a note of budget 100, 300 or 900 tokens, 79, 77 and 80 of the 100 items keep every continued step `inc_ok` and 58, 59 and 60 every step `abs_ok`, against 73 and 54 with the history
 - Per item a note loses some of what the history keeps: on all `abs_ok`, `note_100` loses 9 and gains 13, `note_300` loses 8 and gains 13 and `note_900` loses 5 and gains 11; on all `inc_ok` they lose 9, 11 and 7 and gain 15, 15 and 14. So these runs show no aggregate loss from a short note, not a zero loss
-- The balance a note states equals the balance after the 12 steps it follows on 100, 99 and 100 of the items
+- The balance a note states equals the balance the conversation stated at its twelfth step on 100, 99 and 100 of the items. That stated balance is the model's, right or wrong, so this counts what a note carries forward, not correct balances
 - The continued steps read a median of 7,840.5 to 8,412.5 prompt tokens from a note against 30,827 with the history; in each note arm the note's own call read a median of 5,093 prompt tokens, the 12 steps of history
 
 ## Limits
 
-- A synthetic ledger task and one open model in every role, one run per item at temperature 0.7 (the run settings), so the delegate is never cheaper per token than the parent and none is chosen from a pool
+- A synthetic ledger task and one open model in every role, one run per item at temperature 0.7 (the run settings), so the delegate is never cheaper per token than the parent and none is chosen from a pool; with one run of 100 items per arm, the arms differ by a few items, which ranks no note budget above another
 - The hand-off is serial: a successor takes over from a note and no parent reads a result back, so these runs measure what a brief carries forward, not the cost or the success of a delegate whose result a parent reads
 - No price: the registry (`model_routing/data/models.json`) has no row for `openai/gpt-oss-20b`, so neither flavor's cost is computed here; the token counts per kind let a reader apply any price

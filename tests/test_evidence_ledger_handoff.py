@@ -98,7 +98,7 @@ def sample():
     """Synthetic records: depth 9 first in each file (one item), then depth 5 (three items)."""
     single = [run(9, 0, 0, [(100, 10)]), run(5, 0, 1, [(10, 1), (20, 2)]), run(5, 1, 1, [(40, 4)]),
               run(5, 2, 0, [(50, 5), (60, 6)])]
-    chain = [run(9, 0, 0, [(50, 5)], []), run(5, 0, 1, [(5, 1)], [(7, 3, 9)]), run(5, 1, 0, [(6, 1)], []),
+    chain = [run(9, 0, 0, [(50, 5)], []), run(5, 0, 0, [(5, 1)], [(7, 3, 9)]), run(5, 1, 0, [(6, 1)], []),
              run(5, 2, 1, [(7, 2)], [(11, 4, 12), (13, 5, 14)])]
     ok, inc_only, none, off_on, lose = [(1, 1), (1, 1)], [(1, 1), (1, 0)], [(1, 0), (0, 0)], [(0, 0), (1, 0)], [(0, 0), (0, 0)]
     handoff = [
@@ -126,7 +126,7 @@ def write(root, data):
 
 
 EXPECTED_DEPTHS = [
-    {"depth": 5, "items": 3, "final_ok": {"single": 2, "chain": 2}, "chain_lost": 1, "chain_gained": 1,
+    {"depth": 5, "items": 3, "final_ok": {"single": 2, "chain": 1}, "chain_lost": 2, "chain_gained": 1,
      "median_prompt_tokens": {"single": 40.0, "chain": 8.0}, "median_completion_tokens": {"single": 4.0, "chain": 10.0},
      "median_notes": 1.0, "median_note_tokens": 11.0},
     {"depth": 9, "items": 1, "final_ok": {"single": 0, "chain": 0}, "chain_lost": 0, "chain_gained": 0,
@@ -227,11 +227,12 @@ def test_fetch_bad_download_leaves_no_part(lh, monkeypatch, tmp_path):
     assert not list(tmp_path.iterdir())
 
 
-def test_fetch_wraps_download_errors_as_oserror(lh, monkeypatch, tmp_path):
+@pytest.mark.parametrize("error", [RuntimeError, ValueError])
+def test_fetch_wraps_download_errors_as_oserror(lh, monkeypatch, tmp_path, error):
     fake_files(monkeypatch, lh, {"data/ledger/a.jsonl": b"good"})
 
     def boom(url, timeout=None):
-        raise RuntimeError("no network")
+        raise error("no network")
 
     monkeypatch.setattr(lh.urllib.request, "urlopen", boom)
     with pytest.raises(OSError, match="data/ledger/a.jsonl: download failed: no network"):
@@ -375,6 +376,15 @@ def test_committed_results_numbers():
     assert [arms[a]["all_abs_ok"] for a in ARMS] == [54, 58, 59, 60]
     assert [(arms[a]["abs_ok_lost"], arms[a]["abs_ok_gained"]) for a in ARMS[1:]] == [(9, 13), (8, 13), (5, 11)]
     assert [arms[a]["note_balance_kept"] for a in ARMS[1:]] == [100, 99, 100]
+    assert [(arms[a]["inc_ok_lost"], arms[a]["inc_ok_gained"]) for a in ARMS[1:]] == [(9, 15), (11, 15), (7, 14)]
+    medians = [(rows[d]["median_prompt_tokens"]["single"], rows[d]["median_prompt_tokens"]["chain"],
+                rows[d]["median_completion_tokens"]["single"], rows[d]["median_completion_tokens"]["chain"],
+                rows[d]["median_notes"], rows[d]["median_note_tokens"]) for d in rows]
+    assert medians == [(87471.0, 38006.0, 762.5, 1608.0, 3.0, 163.0), (517315.0, 101419.0, 2339.0, 4729.0, 9.0, 176.0),
+                       (2029808.0, 206613.0, 10262.0, 10057.0, 19.0, 174.0)]
+    assert [arms[a]["median_prompt_tokens"] for a in ARMS] == [30827.0, 7840.5, 8077.0, 8412.5]
+    assert [(arms[a]["median_note_tokens"], arms[a]["median_note_prompt_tokens"]) for a in ARMS[1:]] == [
+        (137.0, 5093.0), (180.5, 5093.0), (249.5, 5093.0)]
 
 
 def test_committed_results_rebuild_from_the_pinned_files(lh, tmp_path):

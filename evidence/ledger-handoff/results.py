@@ -74,9 +74,7 @@ def fetch(cache_dir=None) -> Path:
                 with urllib.request.urlopen(BASE_URL + path, timeout=TIMEOUT) as resp, open(part, "wb") as out:
                     for block in iter(lambda: resp.read(1 << 20), b""):
                         out.write(block)
-            except ValueError:
-                raise
-            except Exception as exc:
+            except Exception as exc:  # a ValueError from urlopen included: every download error names its path
                 raise OSError(f"{path}: download failed: {exc}") from exc
             verify(part, size, sha256)
             part.replace(dest)
