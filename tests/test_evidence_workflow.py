@@ -626,6 +626,9 @@ def test_the_design_time_limit_bullet_gives_the_value_and_its_basis_run():
             "replaces goes to that commit's CHANGELOG.md line, its version joining this bullet's history pointer, "
             "never to a history sentence here (v1.391, row DOC26)") in basis
     assert len(bullet.encode("utf-8")) <= 6_000
+    # Review iter-249 should-fix 1: the lines in force name both additions to the v1.215 lines.
+    assert ("v1.215, from v1.299 with the four `### LLM Routing Response Bank` lines after the `### LLMRouterBench` "
+            "ones and from v1.317 with the three `### Delegation on the LLM Routing Response Bank` lines") in basis
     assert re.search(rf"run {SLOWEST_RUN_ID} on `[0-9a-f]{{7}}`, which took {SLOWEST_RUN_SECONDS} seconds "
                      "from its start to its last update", basis)
     tenfold = 10 * SLOWEST_RUN_SECONDS

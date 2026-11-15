@@ -72,7 +72,7 @@ CLASS = {number: kind for kind, numbers in GROUPS.items() for number in numbers}
 # (12.8 DOC21b, split into DOC21m to DOC21o, the last of which, v1.390, removed it at 45,002 bytes, 12.13 DOC21c, 13.8 DOC21d, 13.10 DOC21e, 13.9 DOC21f, 12.21 DOC21g, 12.17 DOC21h,
 # 12.14 DOC21i, 13.12 DOC21j, 13.14 DOC21k, 13.11 DOC21l).
 PENDING = {
-    "12.13": 40_061,  # 51,685 at v1.386; DOC26 (v1.391) trimmed its time-limit bullet
+    "12.13": 40_233,  # 51,685 at v1.386; DOC26 (v1.391) trimmed its time-limit bullet
     "13.8": 40_244,
     "13.10": 37_657,
     "13.9": 39_997,
@@ -453,7 +453,7 @@ def test_the_time_limit_bullet_is_under_the_line_cap_with_one_pointer():
     found = [(got, line) for _, got, line in measure(DESIGN.read_text(encoding="utf-8"))[2] if line.startswith(opening)]
     assert len(found) == 1
     got, line = found[0]
-    assert got <= LINE_CAP and opening not in PENDING_LINES and PENDING_LINES == {}
+    assert got <= LINE_CAP and opening not in PENDING_LINES  # review iter-249 nit 3
     assert POINTER.findall(line) == [POINTERS[opening]]
 
 
