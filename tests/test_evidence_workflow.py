@@ -675,6 +675,23 @@ def test_the_design_time_limit_bullet_gives_the_value_and_its_basis_run():
     assert f"so a run on these lines over {6 * TIMEOUT_MINUTES} seconds restates the value" in basis
     assert 5 * math.ceil(10 * 6 * TIMEOUT_MINUTES / 60 / 5) == TIMEOUT_MINUTES
     assert 5 * math.ceil(10 * (6 * TIMEOUT_MINUTES + 1) / 60 / 5) == TIMEOUT_MINUTES + 5
+    # v1.400 (row T9, review iter-258 should-fix 1): the seconds, runs and minutes of the Tests, band and
+    # comment sentences are the constants', so a restatement that leaves one stale fails, and the basis
+    # names one count of the runs it read in both places it gives it.
+    assert (f"By the rule {6 * TIMEOUT_MINUTES + 1} to {6 * (TIMEOUT_MINUTES + 5)} seconds gives "
+            f"{TIMEOUT_MINUTES + 5}, so a run on these lines over {6 * TIMEOUT_MINUTES} seconds") in basis
+    assert f"ends, after the runner sentences, with the sentence `{LIMIT_SENTENCE}` Tests in " in bullet
+    tests = bullet.split(" Tests in `tests/test_evidence_workflow.py` require ", 1)[1]
+    for pinned in (f"ten times the recorded {SLOWEST_RUN_SECONDS} seconds rounded up to whole five minutes "
+                   "and under 360,",
+                   f"the run {SLOWEST_RUN_ID} and its {SLOWEST_RUN_SECONDS} seconds in one clause (v1.218), "
+                   f"the arithmetic to {TIMEOUT_MINUTES} and",
+                   f"six times the value in seconds ({6 * TIMEOUT_MINUTES}),",
+                   f"each of {len(TIME_LIMIT_MUTANTS)} broken workflows fails the time-limit check it names",
+                   f"raised by a minute (to {TIMEOUT_MINUTES + 1}), set to 360,"):
+        assert pinned in tests, pinned
+    counts = re.findall(r"\b[Oo]f the ([\d,]+) runs\b", bullet)
+    assert len(counts) == 2 and counts[0] == counts[1], counts
 
 
 def test_the_restating_changelog_line_names_the_new_basis_and_the_one_it_replaces():
