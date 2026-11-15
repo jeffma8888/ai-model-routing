@@ -27,7 +27,7 @@ SECTIONS = ["## Facts", "## The rule", "## Method", "## Results", "## Reading it
 PROSE = ("## Reading it", "## Recommendation")
 # DESIGN section numbers the prose may name, which are no figures of the block
 REFERENCES = {"12.22", "13.1", "13.2", "13.15"}
-NUMBER = re.compile(r"(?<![\w.])\d[\d,]*(?:\.\d+)?")
+NUMBER = re.compile(r"(?<![\w.])\d+(?:,\d{3})*(?:\.\d+)?")  # thousands commas, never a trailing one
 BULLET = "- The 13.2 re-read rule against measured tokens (v1.402, row R37): "
 
 
