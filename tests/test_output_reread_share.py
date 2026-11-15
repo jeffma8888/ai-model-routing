@@ -18,6 +18,7 @@ and 9 over 50,000 input tokens, and the delegate ``s/small`` at 0.1 and 0.4.
 
 import inspect
 import math
+from pathlib import Path
 
 import pytest
 
@@ -25,6 +26,7 @@ from model_routing import Model, PriceTier, Registry, Router, Stats, Task
 from model_routing import delegation
 from model_routing.router import CONTEXT_TOO_SMALL
 
+ROOT = Path(__file__).resolve().parents[1]
 TASK = "review"
 S_IN, S_OUT = 2000, 500
 COUNTS = {"fiction/cheap": (70, 100), "fiction/mid": (95, 100), "fiction/best": (99, 100)}
@@ -83,8 +85,7 @@ def test_the_signature_takes_the_share_after_cached_read_ratio():
 
 
 def test_design_states_the_share_in_13_1_and_13_2():
-    text = (inspect.getfile(delegation).rsplit("model_routing", 1)[0] + "DESIGN.md")
-    design = open(text, encoding="utf-8").read()
+    design = (ROOT / "DESIGN.md").read_text(encoding="utf-8")
     s13_1 = design[design.index("### 13.1 Inputs"):design.index("### 13.2 ")]
     s13_2 = design[design.index("### 13.2 "):design.index("### 13.3 ")]
     assert "cached_read_ratio=1.0, output_reread_share=1.0, generator_model=None" in s13_1
@@ -92,7 +93,8 @@ def test_design_states_the_share_in_13_1_and_13_2():
     assert "checked after `cached_read_ratio`" in s13_1
     assert "- v1.404, output re-reads (13.1, row D11a):" in s13_2
     for term in ("`w_out * sigma * S_out`", "`K * (S_in + sigma * S_out)`",
-                 "A = K * S_in + (K - 1) * sigma * S_out", "B, R and every read of C keep their sizes",
+                 "A = K * S_in + (K - 1) * sigma * S_out",
+                 "B, R and every read of C keep their sizes",
                  "sigma = 1.0 gives every v1.403 cost bit for bit"):
         assert term in s13_2, term
 

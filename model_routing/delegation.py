@@ -77,23 +77,26 @@ def _count(name: str, value) -> int:
 
 
 def _call_costs(model, calls: int, context: int, charged: float, s_in: int,
-                s_out: int) -> List[float]:
+                s_out: int, share: float = 1) -> List[float]:
     """Each of ``calls`` work calls priced at its own tier (13.2 v1.219).
 
-    Call j reads ``context + j * s_in + (j - 1) * s_out``, which sets its tier, and pays that
-    tier's prices on ``charged + j * s_in + (j - 1) * s_out`` input and ``s_out`` output tokens.
+    Call j reads ``context + j * s_in + (j - 1) * share * s_out``, which sets its tier, and pays
+    that tier's prices on ``charged + j * s_in + (j - 1) * share * s_out`` input and ``s_out``
+    output tokens; ``share`` is the re-read share sigma (v1.404).
     """
-    return _listed_call_costs(model, context, charged, [s_in] * calls, [s_out] * calls)
+    return _listed_call_costs(model, context, charged, [s_in] * calls, [s_out] * calls, share)
 
 
 def _listed_call_costs(model, context: int, charged: float, ins: Sequence[int],
-                       outs: Sequence[int]) -> List[float]:
+                       outs: Sequence[int], share: float = 1) -> List[float]:
     """Work calls of their own sizes, each priced at its own tier (13.2 v1.219, 13.9 v1.222).
 
-    Call j reads ``context`` plus ``ins[:j + 1]`` and ``outs[:j]``, which sets its tier, and pays
-    that tier's prices on ``charged`` plus those tokens and on ``outs[j]`` output tokens. The
-    tokens added so far are a running integer sum, so with equal sizes it is the integer
-    ``j * s_in + (j - 1) * s_out`` of ``_call_costs`` and each cost the same float.
+    Call j reads ``context`` plus ``ins[:j + 1]`` and ``share`` times each of ``outs[:j]``,
+    which sets its tier, and pays that tier's prices on ``charged`` plus those tokens and on
+    ``outs[j]`` output tokens. The tokens added so far are a running sum, of integers with the
+    int share 1 that 13.9 passes, so with equal sizes it is the integer
+    ``j * s_in + (j - 1) * s_out`` of ``_call_costs`` and each cost the same float; a float
+    share (v1.404) adds ``share * s_out``, the same value at 1.0.
     """
     costs = []
     added = 0
@@ -101,26 +104,26 @@ def _listed_call_costs(model, context: int, charged: float, ins: Sequence[int],
         added += s_in
         price_in, price_out = _tier_prices(model, context + added)
         costs.append(((charged + added) * price_in + s_out * price_out) / 1_000_000)
-        added += s_out
+        added += share * s_out
     return costs
 
 
 def _work_cost(model, k: int, base_reads: float, s_in: int, s_out: int, context: int,
-               charged: float) -> float:
+               charged: float, share: float = 1) -> float:
     """List cost of K work calls (13.2).
 
-    Call j reads the path's base context, the j inputs and the j - 1 outputs so far,
-    and writes ``s_out``. On a model without tiers the K calls are one ``Model.base_cost``
-    of their totals, ``base_reads + w_in * s_in + w_out * s_out`` read and ``K * s_out``
-    written, with w_in = K(K + 1) / 2 and w_out = K(K - 1) / 2 (v1.38); ``base_reads`` is the
-    base context times the calls charged for it. On a model with tiers they are the
-    ``math.fsum`` of the calls, each at its own tier, over base ``context`` of which
-    ``charged`` is paid (v1.219).
+    Call j reads the path's base context, the j inputs and ``share`` times each of the
+    j - 1 outputs so far (v1.404), and writes ``s_out``. On a model without tiers the K
+    calls are one ``Model.base_cost`` of their totals, ``base_reads + w_in * s_in +
+    w_out * share * s_out`` read and ``K * s_out`` written, with w_in = K(K + 1) / 2 and
+    w_out = K(K - 1) / 2 (v1.38); ``base_reads`` is the base context times the calls charged
+    for it. On a model with tiers they are the ``math.fsum`` of the calls, each at its own
+    tier, over base ``context`` of which ``charged`` is paid (v1.219).
     """
     if model.price_tiers:
-        return fsum(_call_costs(model, k, context, charged, s_in, s_out))
+        return fsum(_call_costs(model, k, context, charged, s_in, s_out, share))
     w_in, w_out = k * (k + 1) // 2, k * (k - 1) // 2
-    return model.base_cost(base_reads + w_in * s_in + w_out * s_out, k * s_out)
+    return model.base_cost(base_reads + w_in * s_in + w_out * share * s_out, k * s_out)
 
 
 def _shared(parent, c: int, rho: float, added_in: int, added_out: int = 0) -> float:
@@ -146,7 +149,9 @@ class _WorkCallsRouter(Router):
     is priced at its K calls at its own 5.2 sizes on the original task.
     """
 
-    def __init__(self, router: Router, task: Task, brief_tokens: int, work_calls: int):
+    def __init__(self, router: Router, task: Task, brief_tokens: int, work_calls: int,
+                 share: float = 1):
+        # rule 5 checks the last call with every earlier output whole, whatever the share
         last_call = replace(task, expected_input_tokens=brief_tokens
                             + work_calls * task.expected_input_tokens
                             + (work_calls - 1) * task.expected_output_tokens)
@@ -154,13 +159,14 @@ class _WorkCallsRouter(Router):
         self._task = task
         self._brief_tokens = brief_tokens
         self._work_calls = work_calls
+        self._share = share
 
     def _list_cost(self, task: Task, model) -> float:
         # ``task`` is the last-call copy, whose expected input is only for rule 5; a model
         # without token counts is priced at the original task's expected sizes
         d_in, d_out = _sizes(self.stats, self._task, model.id)
         k, b = self._work_calls, self._brief_tokens
-        return _work_cost(model, k, k * b, d_in, d_out, b, b)
+        return _work_cost(model, k, k * b, d_in, d_out, b, b, self._share)
 
 
 def _briefed_stats(stats: Stats, task_name: str, brief_tokens: int) -> Stats:
@@ -190,6 +196,7 @@ def decide_delegation(router: Router, task_name: str, parent_model: str,
                       brief_tokens: int, result_tokens: int, carry_turns: int = 0,
                       work_calls: int = 1, inline_separate_call: bool = True,
                       cached_read_ratio: float = 1.0,
+                      output_reread_share: float = 1.0,
                       generator_model: Optional[str] = None,
                       exclude_models: Iterable[str] = ()) -> DelegationDecision:
     """The logic of :meth:`Router.decide_delegation` (DESIGN 13.1 to 13.5)."""
@@ -210,6 +217,9 @@ def decide_delegation(router: Router, task_name: str, parent_model: str,
     rho = cached_read_ratio
     if isinstance(rho, bool) or not isinstance(rho, (int, float)) or not 0 <= rho <= 1:
         raise ValueError(f"cached_read_ratio must be a number from 0 to 1, got {rho!r}")
+    sigma = output_reread_share
+    if isinstance(sigma, bool) or not isinstance(sigma, (int, float)) or not 0 <= sigma <= 1:
+        raise ValueError(f"output_reread_share must be a number from 0 to 1, got {sigma!r}")
     parent = router.registry.get(parent_model)
     generator_family = None
     if generator_model is not None:
@@ -222,18 +232,20 @@ def decide_delegation(router: Router, task_name: str, parent_model: str,
     # with the work at the sizes of the model doing it (v1.33) and K calls long (v1.38);
     # folded work takes only the last call into the next one, which re-reads C anyway;
     # the work calls' reads of C are priced at rho times the list input price (v1.41);
-    # a tiered model pays each call at its own tier (v1.219)
+    # a tiered model pays each call at its own tier (v1.219); every re-read of an
+    # output is sigma of it, never the output written or a context check (v1.404)
     if inline_separate_call:
-        inline_cost = (_work_cost(parent, k, k * c * rho, p_in, p_out, c, c * rho)
-                       + (1 + t) * _shared(parent, c, rho, k * (p_in + p_out)))
+        inline_cost = (_work_cost(parent, k, k * c * rho, p_in, p_out, c, c * rho, sigma)
+                       + (1 + t) * _shared(parent, c, rho, k * (p_in + sigma * p_out)))
     elif parent.price_tiers:
         # the K-th work call is the parent's next call, a shared call (v1.219)
-        inline_cost = (fsum(_call_costs(parent, k - 1, c, c * rho, p_in, p_out)
-                            + [_shared(parent, c, rho, k * p_in + (k - 1) * p_out, p_out)])
-                       + t * _shared(parent, c, rho, k * (p_in + p_out)))
+        inline_cost = (fsum(_call_costs(parent, k - 1, c, c * rho, p_in, p_out, sigma)
+                            + [_shared(parent, c, rho, k * p_in + (k - 1) * sigma * p_out,
+                                       p_out)])
+                       + t * _shared(parent, c, rho, k * (p_in + sigma * p_out)))
     else:
-        inline_cost = (_work_cost(parent, k, (k - 1) * c * rho, p_in, p_out, c, c * rho)
-                       + t * parent.base_cost(k * (p_in + p_out), 0))
+        inline_cost = (_work_cost(parent, k, (k - 1) * c * rho, p_in, p_out, c, c * rho, sigma)
+                       + t * parent.base_cost(k * (p_in + sigma * p_out), 0))
 
     # 13.4: the first rule that applies blocks inline
     block = None
@@ -252,7 +264,7 @@ def decide_delegation(router: Router, task_name: str, parent_model: str,
         sub = Router(router.registry, {task.name: briefed},
                      _briefed_stats(router.stats, task.name, b), router.priors)
     else:
-        sub = _WorkCallsRouter(router, task, b, k)
+        sub = _WorkCallsRouter(router, task, b, k, sigma)
     route: Optional[RouteDecision] = None
     failed: Optional[NoModelClearsBar] = None
     try:
@@ -266,7 +278,7 @@ def decide_delegation(router: Router, task_name: str, parent_model: str,
         delegate = router.registry.get(route.primary)
         d_in, d_out = _sizes(router.stats, task, delegate.id)
         delegate_cost = (_shared(parent, c, rho, 0, b)
-                         + _work_cost(delegate, k, k * b, d_in, d_out, b, b)
+                         + _work_cost(delegate, k, k * b, d_in, d_out, b, b, sigma)
                          + (1 + t) * _shared(parent, c, rho, b + r))
         delegate_lb = next(x.quality_lb for x in route.candidates
                            if x.model_id == route.primary)
