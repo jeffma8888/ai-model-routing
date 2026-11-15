@@ -169,7 +169,8 @@ MUTANTS = {
 
 def test_the_mutant_count_is_the_one_design_states():
     assert len(MUTANTS) == 14
-    assert "each of 14 broken variants (10 to v1.119) of those four files fails the check" in texts()["design"]
+    # v1.392 (row DOC21c): the count is stated as it is, its history behind the bullet's pointer.
+    assert "each of 14 broken variants of those four files fails the check" in texts()["design"]
 
 
 @pytest.mark.parametrize("name", sorted(MUTANTS))

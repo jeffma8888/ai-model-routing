@@ -30,7 +30,12 @@ sub-bullet of the first, are 12.22, a research-notes spec with a cap of 40,000 b
 
 The time-limit line (v1.391, row DOC26): the 12.13 time-limit bullet keeps its contract and puts its earlier
 bases behind one history pointer (POINTERS), so it is at most LINE_CAP and PENDING_LINES is empty; 12.13
-stays in PENDING at the smaller size the trim leaves, for DOC21c.
+stayed in PENDING at the smaller size the trim left, for DOC21c.
+
+The rest of 12.13 (v1.392, row DOC21c): each changed line of 12.13 keeps its contract in force, stated from
+the workflow and the tests as they are, and its history behind one pointer (POINTERS), so 12.13 is at most
+its workflow cap and leaves PENDING; the heading keeps one tag per clause, and the restatements of the time
+limit it dropped are in the time-limit bullet's pointer.
 """
 import re
 from pathlib import Path
@@ -69,10 +74,10 @@ CAPS = {
 }
 CLASS = {number: kind for kind, numbers in GROUPS.items() for number in numbers}
 # The subsections over their caps and their sizes when DOC21a landed; each trim row removes its number
-# (12.8 DOC21b, split into DOC21m to DOC21o, the last of which, v1.390, removed it at 45,002 bytes, 12.13 DOC21c, 13.8 DOC21d, 13.10 DOC21e, 13.9 DOC21f, 12.21 DOC21g, 12.17 DOC21h,
+# (12.8 DOC21b, split into DOC21m to DOC21o, the last of which, v1.390, removed it at 45,002 bytes, 12.13 DOC26
+# then DOC21c, which removed it, v1.392, 13.8 DOC21d, 13.10 DOC21e, 13.9 DOC21f, 12.21 DOC21g, 12.17 DOC21h,
 # 12.14 DOC21i, 13.12 DOC21j, 13.14 DOC21k, 13.11 DOC21l).
 PENDING = {
-    "12.13": 40_233,  # 51,685 at v1.386; DOC26 (v1.391) trimmed its time-limit bullet
     "13.8": 40_244,
     "13.10": 37_657,
     "13.9": 39_997,
@@ -198,7 +203,9 @@ def test_pending_holds_exactly_the_subsections_and_lines_over_their_caps():
 
 
 LISTED = re.compile(r"(1[23]\.\d+) ([\d,]+)(?: bytes)?, ([\d,]+) over \(")
-# How the v1.386 bullet names each long line's size (review iter-245 nit 2: tied to the line).
+# How the v1.386 bullet names each long line's size (review iter-245 nit 2: tied to the line). PENDING_LINES
+# is empty from v1.391, so these are read for no entry now; they stay as the form a pending line's listed
+# size takes, and a line over LINE_CAP later is a new problem, never a PENDING_LINES entry (v1.392).
 LINE_LISTED = {
     "- Time limit and retries (v1.152, ": re.compile(r"its time-limit bullet, a line of ([\d,]+) bytes"),
     "- Where routing pays (v1.124): ": re.compile(r"`Where routing pays` bullet, ([\d,]+) bytes"),
@@ -365,7 +372,8 @@ CHANGELOG_LINE = re.compile(r"^- v(\d+\.\d+) \(", re.M)
 # Each pointer a trim wrote, by the opening of the line that holds it, and the list it gives: the
 # versions the sentences it dropped name (DOC21m: four of the seven research-note bullets of 12.8, in 12.22
 # from v1.390; DOC21n: thirteen lines of its dataset-subsection bullets; DOC21o: two lines of its size budget clause;
-# DOC26: the 12.13 time-limit bullet, tests/test_evidence_workflow.py TIME_LIMIT_HISTORY).
+# DOC26: the 12.13 time-limit bullet, tests/test_evidence_workflow.py TIME_LIMIT_HISTORY; DOC21c: the
+# other sixteen lines of 12.13 it changed, its heading holding no pointer).
 POINTERS = {
     "  - README.md and research/README.md (v1.124, v1.166, v1.303): ": "v1.124, v1.164, v1.166, v1.296, v1.303",
     "- Where delegation pays at a glance (v1.258, row DOC15): ": "v1.258, v1.315, v1.316, v1.322, v1.323, v1.328",
@@ -389,6 +397,29 @@ POINTERS = {
     "  - 12.8 shrinks with each trim (v1.344, row DOC20): ": "v1.344 to v1.372, v1.386, v1.388, v1.389",
     "- Time limit and retries (v1.152, ": ("v1.152, v1.168, v1.170, v1.215, v1.217, v1.218, v1.225, v1.226, v1.268, "
                                            "v1.299, v1.301, v1.302, v1.317, v1.321, v1.374"),
+    "Purpose: a reader can see the twelve results files of the `Compare` step below ":
+        "v1.55, v1.65, v1.80, v1.84, v1.168, v1.200, v1.299",
+    "- The workflow `.github/workflows/evidence.yml`, `name: evidence`, ":
+        "v1.54, v1.55, v1.65, v1.80, v1.84, v1.168, v1.200, v1.299",
+    "- Runner (v1.49): ": "v1.48, v1.49",
+    "- No cache between runs (v1.251, row CI9): ": "v1.225, v1.226, v1.268, v1.301, v1.302, v1.317, v1.321",
+    "- Token permissions (v1.137): ": "v1.138, v1.139",
+    "- Python versions (v1.118): ": "v1.117, v1.118, v1.119",
+    "- Steps, in this order: ": "v1.48, v1.54, v1.55, v1.64, v1.65, v1.80, v1.84, v1.168, v1.200, v1.299",
+    "- RouterBench stays out: ": "v1.55, v1.65, v1.80, v1.168, v1.200, v1.299, v1.316",
+    "- LiveCodeBench is rerun (v1.65) ": "v1.65",
+    "- LLMRouterBench is rerun (v1.168, row E16d): ": "v1.152, v1.167, v1.168, v1.169, v1.170",
+    "- LLMRouterBench delegation is rerun (v1.200, row E17d): ": (
+        "v1.168, v1.170, v1.200, v1.214, v1.215, v1.217, v1.225, v1.268, v1.299, v1.301, v1.302, v1.317, v1.321"),
+    "- LLM Routing Response Bank is rerun (v1.298, row E20f; the lines v1.299): ":
+        "v1.297, v1.299, v1.301, v1.302, v1.317, v1.321",
+    "- Response-bank delegation is rerun (v1.316, row E21d; the 13.14 Workflow bullet): ": "v1.218, v1.316, v1.321",
+    "- One run of a repeated line (v1.215, row CI8): ":
+        "v1.200, v1.217, v1.225, v1.268, v1.299, v1.301, v1.302, v1.316, v1.317, v1.321",
+    "- README: the evidence section's opening paragraph (12.8) ":
+        "v1.47, v1.48, v1.55, v1.65, v1.80, v1.84, v1.168, v1.200, v1.298, v1.299",
+    "- Tests, in `tests/test_evidence_workflow.py` (standard library only, so they run in CI): ":
+        "v1.84, v1.85, v1.152, v1.168, v1.200, v1.215, v1.251, v1.278, v1.299",
 }
 
 
@@ -442,7 +473,10 @@ def test_each_pointer_version_has_its_own_changelog_line():
                     "1.388", "1.389",  # 1.388: review iter-248 nit 2
                     # DOC26 (v1.391): every version the 12.13 time-limit bullet named through v1.390.
                     "1.152", "1.170", "1.214", "1.215", "1.217", "1.218", "1.225", "1.226", "1.251", "1.268",
-                    "1.301", "1.302", "1.321", "1.374"):
+                    "1.301", "1.302", "1.321", "1.374",
+                    # DOC21c (v1.392): the versions the other changed lines of 12.13 named, not listed above.
+                    "1.47", "1.49", "1.54", "1.64", "1.85", "1.117", "1.118", "1.119", "1.138", "1.139", "1.169",
+                    "1.278", "1.297", "1.298"):
         assert f"\n- v{version} (" in changelog, version
 
 
@@ -566,3 +600,32 @@ def test_the_12_8_size_budget_clause_holds_no_history():
     for words in ("0b3e142", "DOC19a to DOC19k", "from review", "This clause changes no README text",
                   "for 10 names", "v1.346 and v1.347"):
         assert not [line[:60] for line in clause if words in line], words
+
+
+# --- the rest of 12.13 (DESIGN 12 v1.392, row DOC21c) ---------------------------------------------
+
+def test_12_13_states_its_contract_as_it_is_and_holds_no_growth_history():
+    import test_evidence_workflow as workflow
+    text = DESIGN.read_text(encoding="utf-8")
+    body = subsection_body(text, "12.13")
+    joined = "\n".join(body)
+    assert "12.13" not in PENDING and dict(measure(text)[1])["12.13"] <= CAPS["workflow"]
+    # The counts are the ones the workflow and its tests hold now.
+    compare = [line for line in workflow.workflow_text().splitlines() if "git diff --exit-code --" in line]
+    assert len(compare) == 1 and compare[0].count(" evidence/") == 12
+    assert body[0].startswith("Purpose: a reader can see the twelve results files of the `Compare` step below ")
+    assert f"each of {len(workflow.MUTANTS)} broken workflows fails the check" in joined
+    commands, run = workflow.expected_commands(workflow.readme()), workflow.regenerate_commands(workflow.readme())
+    assert f"so the README holds {len(commands)} rerun commands and `Regenerate` runs {len(run)}." in joined
+    # The steps bullet names every rerun subsection, in order, the response-bank delegation one too.
+    steps = [line for line in body if line.startswith("- Steps, in this order: ")]
+    assert len(steps) == 1
+    at = [steps[0].index(f"`### {name}`") for name in workflow.SUBSECTIONS]
+    assert at == sorted(at)
+    # The history sentences the trim dropped (v1.391 text) are behind the pointers.
+    for words in ("When v1.65 was written", "On one laptop", "Expected time", "Measured (v1.301", "(10 to v1.119)",
+                  "(11 from v1.139)", "In run 42814244636", "In run 43008722362", "three to v1.54"):
+        assert words not in joined, words
+    heading = [line for line in text.splitlines() if line.startswith("### 12.13 ")]
+    assert len(heading) == 1 and "time limit v1.152, its value v1.374;" in heading[0]
+    assert "restated" not in heading[0] and "(history: " not in heading[0]

@@ -652,6 +652,7 @@ def test_a_time_limit_mutant_fails_on_the_check_it_names(name):
                                   "the compare step without llmrouterbench delegation",
                                   "the compare step without pooled.json",
                                   "the compare step without the response bank",
+                                  "the compare step without the response-bank delegation",  # v1.392, row DOC21c
                                   "the compare step without variants.json"])
 def test_a_compare_mutant_fails_on_the_compare_line_alone(name):
     # v1.85 review: a mutant that broke a Regenerate line instead would pass the test below.
