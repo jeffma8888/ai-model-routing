@@ -56,7 +56,7 @@ ON = (
 STEP_NAMES = [None, None, "Install", "Regenerate", "Compare"]
 # The job's time limit, by the v1.152 rule: ten times the slowest run, rounded up to a whole
 # five minutes. The v1.398 value: the slowest run on the Regenerate lines in force, from v1.397
-# those with the ledger hand-off line last, is the one such run among the 91 to 2026-11-15,
+# those with the ledger hand-off line last, is the one run on them so far among the 91 to 2026-11-15,
 # run 43702821166, 149 s from start to last update, so 25; by its log the first lines of its six
 # converters took 80.3 s, 188.5 s less than in the v1.395 basis run, 119.0 s of it the
 # LLMRouterBench line, most likely the downloads, and the ledger line 0.9 s. At v1.395, the
@@ -840,4 +840,5 @@ def test_the_workflow_reruns_the_ledger_handoff_line_last():
     spec = design.split("\n### 13.15 ", 1)[1].split("\n## ", 1)[0]
     bullets = [line for line in spec.split("\n") if line.startswith("- Workflow (v1.397, row E23c): ")]
     assert len(bullets) == 1 and f"`{LEDGER_LINE}`" in bullets[0]
-    assert "which restated it at v1.398 (12.13, v1.218)" in bullets[0]
+    # Review iter-257 must-fix 1: the sentence states the rule in force, in the present tense.
+    assert "basis starts again from the first run on them, measured at v1.398 (12.13, v1.218)" in bullets[0]
