@@ -12,8 +12,8 @@ slowest run on the `Regenerate` lines in force, as 50 at v1.225, as 55 at v1.268
 v1.301, on the first run of the v1.299 lines, as 50 at v1.302, on the slower of the first
 two, as 35 at v1.321, on the slower of the first two runs of the v1.317 lines, as 50 at
 v1.374, on the slowest of the first eight, as 60 at v1.395, on the slowest of the first
-eleven, as 25 at v1.398, on the first run of the v1.397 lines, and as 30 at v1.399, on the
-slower of the first two). From v1.278
+eleven, as 25 at v1.398, on the first run of the v1.397 lines, as 30 at v1.399, on the slower
+of the first two, and as 60 at v1.401, on the slowest run on main whatever its lines). From v1.278
 the top comment names the rerun subsections (eight, nine from v1.299) in README heading order, on
 lines under 100 columns.
 
@@ -56,8 +56,12 @@ ON = (
     "      - \".github/workflows/evidence.yml\"\n")
 STEP_NAMES = [None, None, "Install", "Regenerate", "Compare"]
 # The job's time limit, by the v1.152 rule: ten times the slowest run, rounded up to a whole
-# five minutes. The v1.399 value: the slowest run on the Regenerate lines in force, from v1.397
-# those with the ledger hand-off line last, is the slower of the two such runs among the 92 to
+# five minutes. The v1.401 value (row CI21): the slowest run of the workflow on main, whatever
+# its Regenerate lines, a line change keeping the value, is run 43689201551 on 2c31a98 among the
+# 93 to 2026-11-15 (all on main, all successful), 338 s, so 60; by its log the first lines of its
+# six converters took 268.8 s (it ran before the ledger line). At v1.399, the slowest run on the
+# Regenerate lines in force, from v1.397
+# those with the ledger hand-off line last, was the slower of the two such runs among the 92 to
 # 2026-11-15 (149 and 178 s from start to last update), run 43707930726, 178 s, so 30; by its
 # log the first lines of its six converters took 114.6 s, 34.3 s more than in the v1.398 basis
 # run, 26.3 s of it the LiveCodeBench line, most likely the downloads, and the ledger line 1.3 s.
@@ -84,21 +88,22 @@ STEP_NAMES = [None, None, "Install", "Regenerate", "Compare"]
 # 42904515973), so 50, its extra time most likely the same download. At v1.217, the one such run
 # then, 213 s, so 40; the four runs of v1.200 to v1.214 (up to 278 s) also ran the converter
 # line twice. At v1.170, 158 s over 45 runs, so 30; at v1.152, 140 s over 40 runs, so 25.
-SLOWEST_RUN_SECONDS = 178
-SLOWEST_RUN_ID = 43707930726
-SLOWEST_RUN_SHA = "1e228d2"  # review iter-254 nit 3
+SLOWEST_RUN_SECONDS = 338
+SLOWEST_RUN_ID = 43689201551
+SLOWEST_RUN_SHA = "2c31a98"  # review iter-254 nit 3
 # v1.391 (row DOC26): the versions of the DESIGN 12.13 time-limit bullet's history pointer, whose
 # CHANGELOG.md lines hold the earlier bases, and those bases' runs, which the bullet no longer names.
 TIME_LIMIT_HISTORY = ("v1.152, v1.168, v1.170, v1.215, v1.217, v1.218, v1.225, v1.226, v1.268, v1.299, v1.301, "
-                      "v1.302, v1.317, v1.321, v1.374, v1.395, v1.398, v1.399")
-EARLIER_BASIS_RUNS = ("43702821166", "43689201551", "43608998651", "43439800863", "43433217023", "43363202337",
+                      "v1.302, v1.317, v1.321, v1.374, v1.395, v1.398, v1.399, v1.401")
+# v1.401 (row CI21): 43689201551, the v1.395 basis, is the basis again, so it leaves this list.
+EARLIER_BASIS_RUNS = ("43707930726", "43702821166", "43608998651", "43439800863", "43433217023", "43363202337",
                       "43357001972", "43054947572", "42904515973", "42883099079", "42717985363", "42445989566")
 # Review iter-249 nit 4 (v1.395, row CI16): the CHANGELOG.md half of the v1.391 rule. The restating
 # version ends the history pointer, and its line names the new basis run and the one it replaces,
 # each with its seconds; the replaced run is the first of EARLIER_BASIS_RUNS.
-RESTATING_VERSION = "v1.399"
-REPLACED_BASIS = ("v1.398", 43702821166, 149, "6b8f227")
-TIMEOUT_MINUTES = 30
+RESTATING_VERSION = "v1.401"
+REPLACED_BASIS = ("v1.399", 43707930726, 178, "1e228d2")
+TIMEOUT_MINUTES = 60
 LIMIT_LINE = f"    timeout-minutes: {TIMEOUT_MINUTES}"
 LIMIT_SENTENCE = (f"The job's time limit of {TIMEOUT_MINUTES} minutes is about ten times its slowest run, "
                   "and a failed download is retried by rerunning the job (DESIGN.md 12.13).")
@@ -649,7 +654,7 @@ def test_the_design_time_limit_bullet_gives_the_value_and_its_basis_run():
     _, marker, rest = bullet.partition(
         "Basis (v1.217, row E17h; restated v1.225, row E17i, v1.268, row CI10, v1.301, row CI11, "
         "v1.302, row CI12, v1.321, row CI14, v1.374, row CI15, v1.395, row CI16, v1.398, row CI18, "
-        "and v1.399, row CI19): ")
+        "v1.399, row CI19, and v1.401, row CI21): ")
     assert marker
     # v1.391 (row DOC26): the basis ends at the one history pointer; the earlier bases, their runs and
     # where their time went are in CHANGELOG.md, so the bullet holds no history sentence and none of
@@ -663,23 +668,28 @@ def test_the_design_time_limit_bullet_gives_the_value_and_its_basis_run():
             "replaces goes to that commit's CHANGELOG.md line, its version joining this bullet's history pointer, "
             "never to a history sentence here (v1.391, row DOC26)") in basis
     assert len(bullet.encode("utf-8")) <= 6_000
-    # Review iter-249 should-fix 1: the lines in force name both additions to the v1.215 lines.
-    assert ("v1.215, from v1.299 with the four `### LLM Routing Response Bank` lines after the `### LLMRouterBench` "
-            "ones and from v1.317 with the three `### Delegation on the LLM Routing Response Bank` lines") in basis
+    # v1.401 (row CI21): the basis is the slowest run on main whatever its lines, so the bullet names no
+    # line set, a change of the lines keeps the value, and the bullet says why an overstated limit is cheap.
+    assert basis.startswith("the slowest run of this workflow on `main`, whatever `Regenerate` lines it ran "
+                            "(v1.401, row CI21). ")
+    assert "a change of the lines keeps the value and its basis" in basis
+    assert "it only bounds a stalled download, far under GitHub's 360-minute default" in basis
+    for gone in ("lines in force", "on these lines", "starts the basis again", "`### "):
+        assert gone not in bullet, gone
     assert re.search(rf"run {SLOWEST_RUN_ID} on `{SLOWEST_RUN_SHA}`, which took {SLOWEST_RUN_SECONDS} seconds "
                      "from its start to its last update", basis)
     tenfold = 10 * SLOWEST_RUN_SECONDS
     assert f"{tenfold:,} seconds is {tenfold / 60:.1f} minutes, so {TIMEOUT_MINUTES}." in basis
     # v1.225: the run length past which the rule gives more than the value in force, six times
     # the value in seconds, so the next restatement is named in step with the value.
-    assert f"so a run on these lines over {6 * TIMEOUT_MINUTES} seconds restates the value" in basis
+    assert f"so a run over {6 * TIMEOUT_MINUTES} seconds restates the value (v1.225), and no run lowers it" in basis
     assert 5 * math.ceil(10 * 6 * TIMEOUT_MINUTES / 60 / 5) == TIMEOUT_MINUTES
     assert 5 * math.ceil(10 * (6 * TIMEOUT_MINUTES + 1) / 60 / 5) == TIMEOUT_MINUTES + 5
     # v1.400 (row T9, review iter-258 should-fix 1): the seconds, runs and minutes of the Tests, band and
     # comment sentences are the constants', so a restatement that leaves one stale fails, and the basis
     # names one count of the runs it read in both places it gives it.
     assert (f"By the rule {6 * TIMEOUT_MINUTES + 1} to {6 * (TIMEOUT_MINUTES + 5)} seconds gives "
-            f"{TIMEOUT_MINUTES + 5}, so a run on these lines over {6 * TIMEOUT_MINUTES} seconds") in basis
+            f"{TIMEOUT_MINUTES + 5}, so a run over {6 * TIMEOUT_MINUTES} seconds") in basis
     assert f"ends, after the runner sentences, with the sentence `{LIMIT_SENTENCE}` Tests in " in bullet
     tests = bullet.split(" Tests in `tests/test_evidence_workflow.py` require ", 1)[1]
     for pinned in (f"ten times the recorded {SLOWEST_RUN_SECONDS} seconds rounded up to whole five minutes "
@@ -688,7 +698,9 @@ def test_the_design_time_limit_bullet_gives_the_value_and_its_basis_run():
                    f"the arithmetic to {TIMEOUT_MINUTES} and",
                    f"six times the value in seconds ({6 * TIMEOUT_MINUTES}),",
                    f"each of {len(TIME_LIMIT_MUTANTS)} broken workflows fails the time-limit check it names",
-                   f"raised by a minute (to {TIMEOUT_MINUTES + 1}), set to 360,"):
+                   f"raised by a minute (to {TIMEOUT_MINUTES + 1}), set to 360,",
+                   "(v1.401, row CI21) the rule to name no line set, a line change to keep the value and the "
+                   "replaced basis run to be the faster"):
         assert pinned in tests, pinned
     counts = re.findall(r"\b[Oo]f the ([\d,]+) runs\b", bullet)
     assert len(counts) == 2 and counts[0] == counts[1], counts
@@ -699,6 +711,7 @@ def test_the_restating_changelog_line_names_the_new_basis_and_the_one_it_replace
     version, run, seconds, sha = REPLACED_BASIS
     assert versions[-1] == RESTATING_VERSION and version in versions[:-1]
     assert EARLIER_BASIS_RUNS[0] == str(run) and str(SLOWEST_RUN_ID) not in EARLIER_BASIS_RUNS
+    assert seconds < SLOWEST_RUN_SECONDS  # v1.401 (row CI21): no run lowers the value
     lines = [line for line in CHANGELOG.read_text(encoding="utf-8").split("\n")
              if line.startswith(f"- {RESTATING_VERSION} (")]
     assert len(lines) == 1
@@ -856,12 +869,13 @@ def test_the_workflow_reruns_the_ledger_handoff_line_last():
     assert f"each of {len(MUTANTS)} broken workflows fails the check, the seven `Compare` mutants" in section
     assert "then (v1.397) the regenerate line of `evidence/ledger-handoff/RESULTS.md` (13.15)" in section
     assert "thirteen files from `evidence/autobench-2026/results.json` to `evidence/ledger-handoff/results.json`" in section
-    # v1.399 (row CI19): the basis is the slower of the first two runs on the v1.397 lines.
-    assert (f"all successful, two run the v1.397 lines; the slower is run {SLOWEST_RUN_ID} on "
+    # v1.401 (row CI21): the basis is the slowest run on main, whatever its lines.
+    assert (f"all successful and all on `main`; the slowest is run {SLOWEST_RUN_ID} on "
             f"`{SLOWEST_RUN_SHA}`, "
             in section)
     spec = design.split("\n### 13.15 ", 1)[1].split("\n## ", 1)[0]
     bullets = [line for line in spec.split("\n") if line.startswith("- Workflow (v1.397, row E23c): ")]
     assert len(bullets) == 1 and f"`{LEDGER_LINE}`" in bullets[0]
-    # Review iter-257 must-fix 1: the sentence states the rule in force, in the present tense.
-    assert "basis starts again from the first run on them, measured at v1.398 (12.13, v1.218)" in bullets[0]
+    # Review iter-257 must-fix 1: the sentence states the rule in force, in the present tense (v1.401).
+    assert ("The line keeps the time limit and its basis, the slowest run of the workflow on `main` "
+            "whatever its lines (12.13, v1.401)") in bullets[0]
