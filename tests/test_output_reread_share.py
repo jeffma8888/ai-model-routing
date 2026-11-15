@@ -99,22 +99,74 @@ def test_design_states_the_share_in_13_1_and_13_2():
         assert term in s13_2, term
 
 
+def prices(model, tokens):
+    """A model's prices for a call that reads ``tokens``: the fixtures' one tier is t/long's."""
+    if model.price_tiers and tokens > 50_000:
+        return 3.0, 9.0
+    return model.price_in, model.price_out
+
+
+def v1403_costs(router, decision, k, fold, t, rho, c, b=300, r=200):
+    """(inline, delegate) as v1.403 prices them, written from DESIGN 13.2 v1.38, v1.41 and
+    v1.219 apart from the code, each expression evaluated left to right as the spec writes it."""
+    p = router.registry.get(decision.parent)
+    d = router.registry.get(decision.route.primary)
+    w_in, w_out = k * (k + 1) // 2, k * (k - 1) // 2
+
+    def per_call(model, calls, base, charged):
+        costs = []
+        for j in range(1, calls + 1):
+            added = j * S_IN + (j - 1) * S_OUT
+            price_in, price_out = prices(model, base + added)
+            costs.append(((charged + added) * price_in + S_OUT * price_out) / 1_000_000)
+        return costs
+
+    def k_calls(model, base_reads, base, charged):
+        if model.price_tiers:
+            return math.fsum(per_call(model, k, base, charged))
+        return model.base_cost(base_reads + w_in * S_IN + w_out * S_OUT, k * S_OUT)
+
+    def shared(added_in, added_out=0):
+        if not p.price_tiers:
+            return p.base_cost(added_in, added_out)
+        price_in, price_out = prices(p, c + added_in)
+        return (added_in * price_in + c * rho * (price_in - prices(p, c)[0])
+                + added_out * price_out) / 1_000_000
+
+    delegate = shared(0, b) + k_calls(d, k * b, b, b) + (1 + t) * shared(b + r)
+    if not fold:
+        inline = k_calls(p, k * c * rho, c, c * rho) + (1 + t) * shared(k * (S_IN + S_OUT))
+    elif p.price_tiers:
+        inline = (math.fsum(per_call(p, k - 1, c, c * rho)
+                            + [shared(k * S_IN + (k - 1) * S_OUT, S_OUT)])
+                  + t * shared(k * (S_IN + S_OUT)))
+    else:
+        inline = (p.base_cost((k - 1) * c * rho + w_in * S_IN + w_out * S_OUT, k * S_OUT)
+                  + t * p.base_cost(k * (S_IN + S_OUT), 0))
+    return inline, delegate
+
+
 # every combination the v1.403 code prices differently: both registries, both flavors, one call
-# and several, a separate and a folded inline call, carried turns and a cached read ratio
+# and several, a separate and a folded inline call, carried turns, a cached read ratio (float and
+# int) and a context that takes t/long's calls over its threshold
 GRID = [(tiered, flavor, k, fold, t, rho, c)
         for tiered in (False, True) for flavor in FLAVORS for k in (1, 2, 3)
-        for fold in (True, False) for t in (0, 2) for rho in (1.0, 0.25)
+        for fold in (True, False) for t in (0, 2) for rho in (1.0, 1, 0.25, 0)
         for c in (20_000, 45_600)]
 
 
 @pytest.mark.parametrize("tiered,flavor,k,fold,t,rho,c", GRID)
-def test_one_gives_the_default_bit_for_bit(tiered, flavor, k, fold, t, rho, c):
+def test_one_gives_the_v1_403_costs_bit_for_bit(tiered, flavor, k, fold, t, rho, c):
     router, parent = (tiered_router(), "t/long") if tiered else (plain_router(), "fiction/mid")
     work = {"context_tokens": c, "work_calls": k, "inline_separate_call": not fold,
             "carry_turns": t, "cached_read_ratio": rho}
-    default = decide(router, parent, flavor, **work).to_dict()
-    assert decide(router, parent, flavor, output_reread_share=1.0, **work).to_dict() == default
-    assert decide(router, parent, flavor, output_reread_share=1, **work).to_dict() == default
+    default = decide(router, parent, flavor, **work)
+    inline, delegate = v1403_costs(router, default, k, fold, t, rho, c)
+    assert default.inline_cost_usd == inline
+    assert default.delegate_cost_usd == delegate
+    for share in (1.0, 1):
+        assert decide(router, parent, flavor, output_reread_share=share, **work).to_dict() \
+            == default.to_dict()
 
 
 # (work, inline_cost_usd, delegate_cost_usd) with parent fiction/mid and delegate fiction/mid
