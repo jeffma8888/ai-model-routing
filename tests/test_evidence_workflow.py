@@ -7,7 +7,7 @@ evidence/ledger-handoff/RESULTS.md (DESIGN 13.15), which has no README subsectio
 fails when a committed results file changes (DESIGN 12.13, v1.30),
 and both workflows run on one pinned runner image with a dated comment (v1.49), and the job
 has a time limit of ten times its slowest run, rounded up to whole five minutes, with no download
-retry (v1.152; 25 minutes, restated as 30 at v1.170, as 40 at v1.217, whose basis is the
+retry (v1.152; 25 minutes, restated as 30 at v1.170, as 40 at v1.217, whose basis was the
 slowest run on the `Regenerate` lines in force, as 50 at v1.225, as 55 at v1.268, as 40 at
 v1.301, on the first run of the v1.299 lines, as 50 at v1.302, on the slower of the first
 two, as 35 at v1.321, on the slower of the first two runs of the v1.317 lines, as 50 at
@@ -56,12 +56,12 @@ ON = (
     "      - \".github/workflows/evidence.yml\"\n")
 STEP_NAMES = [None, None, "Install", "Regenerate", "Compare"]
 # The job's time limit, by the v1.152 rule: ten times the slowest run, rounded up to a whole
-# five minutes. The v1.401 value (row CI21): the slowest run of the workflow on main, whatever
-# its Regenerate lines, a line change keeping the value, is run 43689201551 on 2c31a98 among the
-# 93 to 2026-11-15 (all on main, all successful), 338 s, so 60; by its log the first lines of its
-# six converters took 268.8 s (it ran before the ledger line). At v1.399, the slowest run on the
-# Regenerate lines in force, from v1.397
-# those with the ledger hand-off line last, was the slower of the two such runs among the 92 to
+# five minutes. The v1.401 value (row CI21): the slowest successful run of the workflow on main,
+# whatever its Regenerate lines, a line change keeping the value, is run 43689201551 on 2c31a98
+# among the 93 to 2026-11-15 (all on main, all successful), 338 s, so 60; by its log the first
+# lines of its six converters took 268.8 s (it ran before the ledger line). At v1.399, the
+# slowest run on the Regenerate lines in force, from v1.397 those with the ledger hand-off line
+# last, was the slower of the two such runs among the 92 to
 # 2026-11-15 (149 and 178 s from start to last update), run 43707930726, 178 s, so 30; by its
 # log the first lines of its six converters took 114.6 s, 34.3 s more than in the v1.398 basis
 # run, 26.3 s of it the LiveCodeBench line, most likely the downloads, and the ledger line 1.3 s.
@@ -81,7 +81,7 @@ STEP_NAMES = [None, None, "Install", "Regenerate", "Compare"]
 # 74 to 2026-11-12 (213 and 281 s), run 43363202337, 281 s, so 50; by the log its two converter
 # lines took 76.5 and 32.5 s more than in the first run, most likely the downloads. At v1.301,
 # the one such run then, 213 s (run 43357001972), so 40, the first value
-# the rule lowered (a change of the lines starts the basis again, v1.218). At v1.268, the
+# the rule lowered (a change of the lines then started the basis again, v1.218). At v1.268, the
 # slowest of the 11 runs of the v1.215 lines (121 to 312 s), 312 s (run 43054947572), so 55; its
 # converter line took 178.7 s by the log, most likely the LLMRouterBench download again. At
 # v1.225, the slowest of the four such runs then (213, 219, 290 and 275 s), 290 s (run
@@ -670,7 +670,8 @@ def test_the_design_time_limit_bullet_gives_the_value_and_its_basis_run():
     assert len(bullet.encode("utf-8")) <= 6_000
     # v1.401 (row CI21): the basis is the slowest run on main whatever its lines, so the bullet names no
     # line set, a change of the lines keeps the value, and the bullet says why an overstated limit is cheap.
-    assert basis.startswith("the slowest run of this workflow on `main`, whatever `Regenerate` lines it ran "
+    # Review iter-261 should-fix 2: a failed or cancelled run is no basis, so the limit stays under 360.
+    assert basis.startswith("the slowest successful run of this workflow on `main`, whatever `Regenerate` lines it ran "
                             "(v1.401, row CI21). ")
     assert "a change of the lines keeps the value and its basis" in basis
     assert "it only bounds a stalled download, far under GitHub's 360-minute default" in basis
@@ -870,12 +871,12 @@ def test_the_workflow_reruns_the_ledger_handoff_line_last():
     assert "then (v1.397) the regenerate line of `evidence/ledger-handoff/RESULTS.md` (13.15)" in section
     assert "thirteen files from `evidence/autobench-2026/results.json` to `evidence/ledger-handoff/results.json`" in section
     # v1.401 (row CI21): the basis is the slowest run on main, whatever its lines.
-    assert (f"all successful and all on `main`; the slowest is run {SLOWEST_RUN_ID} on "
+    assert (f"all successful and all on `main`, the slowest is run {SLOWEST_RUN_ID} on "
             f"`{SLOWEST_RUN_SHA}`, "
             in section)
     spec = design.split("\n### 13.15 ", 1)[1].split("\n## ", 1)[0]
     bullets = [line for line in spec.split("\n") if line.startswith("- Workflow (v1.397, row E23c): ")]
     assert len(bullets) == 1 and f"`{LEDGER_LINE}`" in bullets[0]
     # Review iter-257 must-fix 1: the sentence states the rule in force, in the present tense (v1.401).
-    assert ("The line keeps the time limit and its basis, the slowest run of the workflow on `main` "
+    assert ("The line keeps the time limit and its basis, the slowest successful run of the workflow on `main` "
             "whatever its lines (12.13, v1.401)") in bullets[0]
