@@ -399,7 +399,7 @@ POINTERS = {
     "  - 12.8 shrinks with each trim (v1.344, row DOC20): ": "v1.344 to v1.372, v1.386, v1.388, v1.389",
     "- Time limit and retries (v1.152, ": ("v1.152, v1.168, v1.170, v1.215, v1.217, v1.218, v1.225, v1.226, v1.268, "
                                            "v1.299, v1.301, v1.302, v1.317, v1.321, v1.374, v1.395"),
-    "Purpose: a reader can see the twelve results files of the `Compare` step below ":
+    "Purpose: a reader can see the thirteen results files of the `Compare` step below ":
         "v1.55, v1.65, v1.80, v1.84, v1.168, v1.200, v1.299",
     "- The workflow `.github/workflows/evidence.yml`, `name: evidence`, ":
         "v1.54, v1.55, v1.65, v1.80, v1.84, v1.168, v1.200, v1.299",
@@ -614,11 +614,13 @@ def test_12_13_states_its_contract_as_it_is_and_holds_no_growth_history():
     assert "12.13" not in PENDING and dict(measure(text)[1])["12.13"] <= CAPS["workflow"]
     # The counts are the ones the workflow and its tests hold now.
     compare = [line for line in workflow.workflow_text().splitlines() if "git diff --exit-code --" in line]
-    assert len(compare) == 1 and compare[0].count(" evidence/") == 12
-    assert body[0].startswith("Purpose: a reader can see the twelve results files of the `Compare` step below ")
+    assert len(compare) == 1 and compare[0].count(" evidence/") == 13  # the ledger file from v1.397
+    assert body[0].startswith("Purpose: a reader can see the thirteen results files of the `Compare` step below ")
     assert f"each of {len(workflow.MUTANTS)} broken workflows fails the check" in joined
     commands, run = workflow.expected_commands(workflow.readme()), workflow.regenerate_commands(workflow.readme())
-    assert f"so the README holds {len(commands)} rerun commands and `Regenerate` runs {len(run)}." in joined
+    # v1.397 (row E23c): after the README commands it runs, the ledger RESULTS.md line
+    assert run[-1] == workflow.ledger_command() and run[-1] not in commands
+    assert f"so the README holds {len(commands)} rerun commands and `Regenerate` runs {len(run) - 1} of them." in joined
     # Review iter-251 should-fix 2: the other counts, each from the list or file it counts.
     import test_ci_permissions as permissions
     import test_ci_pythons as pythons

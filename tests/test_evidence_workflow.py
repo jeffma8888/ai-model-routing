@@ -2,7 +2,8 @@
 subsections, from v1.55 the tau2-bench one, from v1.65 the LiveCodeBench one, from v1.80 the tau2-bench
 delegation one, from v1.84 its pooled run, from v1.168 the LLMRouterBench one, from v1.200 the
 LLMRouterBench delegation one and from v1.299 the LLM Routing Response Bank one on GitHub (from
-v1.215 running a repeated line once) and
+v1.215 running a repeated line once), from v1.397 last the one regenerate line of
+evidence/ledger-handoff/RESULTS.md (DESIGN 13.15), which has no README subsection, and
 fails when a committed results file changes (DESIGN 12.13, v1.30),
 and both workflows run on one pinned runner image with a dated comment (v1.49), and the job
 has a time limit of ten times its slowest run, rounded up to whole five minutes, with no download
@@ -33,6 +34,10 @@ DESIGN = ROOT / "DESIGN.md"
 CHANGELOG = ROOT / "CHANGELOG.md"
 LLMROUTERBENCH = ROOT / "evidence" / "llmrouterbench" / "convert.py"
 ROUTERBENCH_CONVERT = ROOT / "evidence" / "routerbench" / "convert.py"
+# v1.397 (row E23c): the ledger hand-off results have no README subsection; their one regenerate
+# line, read from their RESULTS.md, runs after the README commands (DESIGN 13.15 Workflow bullet).
+LEDGER_NOTES = "evidence/ledger-handoff/RESULTS.md"
+LEDGER_LINE = "python evidence/ledger-handoff/results.py --out evidence/ledger-handoff/results.json"
 EVIDENCE = "## Evidence: held-out results on public data\n"
 SUBSECTIONS = ("AutoBench", "AutoBench judges", "tau2-bench", "LiveCodeBench", "LLMRouterBench",
                "LLM Routing Response Bank", "Delegation on AutoBench", "Delegation on tau2-bench",
@@ -144,7 +149,7 @@ REPEAT_PROBLEM = "the top comment does not give the repeated-line rule"
 # v1.278 (row T4): the top comment names the rerun subsections in README heading order, and every
 # line above `on:` is under 100 columns; the comment checks join its lines, so a reflow is safe.
 SUBSECTION_LIST = ("Reruns the regenerate commands of the README subsections "
-                   + ", ".join(SUBSECTIONS[:-1]) + f" and {SUBSECTIONS[-1]}, which")
+                   + ", ".join(SUBSECTIONS[:-1]) + f" and {SUBSECTIONS[-1]}, and the one of {LEDGER_NOTES}, which")
 SUBSECTION_PROBLEM = "the top comment does not name the rerun subsections in README heading order"
 WIDTH = 100
 WIDTH_PROBLEM = f"a line above on: is {WIDTH} columns or wider"
@@ -175,8 +180,15 @@ def run_once(commands):
     return run
 
 
+def ledger_command():
+    """The command of the one `- Regenerate (...)` bullet of the ledger hand-off RESULTS.md (v1.397)."""
+    found = re.findall(r"^- Regenerate \(.*\): `([^`]+)`$", (ROOT / LEDGER_NOTES).read_text(encoding="utf-8"), re.M)
+    assert len(found) == 1
+    return found[0]
+
+
 def regenerate_commands(text):
-    return run_once(expected_commands(text))
+    return run_once(expected_commands(text) + [ledger_command()])
 
 
 def out_paths(commands):
@@ -195,7 +207,7 @@ def routerbench_size():
 
 
 def readme_sentence(text):
-    paths = out_paths(expected_commands(text))
+    paths = out_paths(regenerate_commands(text))
     named = ", ".join(f"`{p}`" for p in paths[:-1]) + f" or `{paths[-1]}`"
     return (
         "On GitHub, the `evidence` workflow "
@@ -203,7 +215,7 @@ def readme_sentence(text):
         "regenerate commands of the AutoBench, AutoBench judges, tau2-bench, LiveCodeBench, "
         "LLMRouterBench, LLM Routing Response Bank and "
         "delegation "
-        "subsections, "
+        "subsections and of the ledger hand-off results below, "
         f"downloading the pinned files, and fails if {named} changes by a byte; RouterBench "
         f"is left out of it, since its source is a {routerbench_size():,}-byte pickle that "
         "needs pandas and its evaluate step takes about 70 seconds.")
@@ -410,14 +422,14 @@ def test_the_hand_built_list_count_is_the_one_design_states():
 def test_regenerate_leaves_out_the_two_repeated_converter_lines():
     commands = expected_commands(readme())
     run = regenerate_commands(readme())
-    assert len(commands) == 45 and len(run) == 43
+    assert len(commands) == 45 and len(run) == 44 and run[-1] == ledger_command()
     left_out = []
     for repeated, script in ((REPEATED, "llmrouterbench-delegation"), (RB_REPEATED, "response-bank-delegation")):
         assert commands.count(repeated) == 2 and run.count(repeated) == 1
         second = len(commands) - 1 - commands[::-1].index(repeated)
         assert commands[second + 1].startswith(f"python evidence/{script}/results.py --matrix")
         left_out.append(second)
-    assert run == [c for k, c in enumerate(commands) if k not in left_out]
+    assert run == [c for k, c in enumerate(commands) if k not in left_out] + [ledger_command()]
 
 
 def test_the_rerun_subsections_are_in_readme_heading_order():
@@ -491,8 +503,12 @@ MUTANTS = {
         "evidence/tau2-bench-delegation/pooled.json ", 1),
     # v1.316: the response-bank delegation file, now last in command order
     "the compare step without the response-bank delegation": lambda t: t.replace(
-        "evidence/llmrouterbench-delegation/results.json evidence/response-bank-delegation/results.json\n",
-        "evidence/llmrouterbench-delegation/results.json\n", 1),
+        "evidence/llmrouterbench-delegation/results.json evidence/response-bank-delegation/results.json ",
+        "evidence/llmrouterbench-delegation/results.json ", 1),
+    # v1.397: the ledger hand-off file, last in command order, and its line, the last Regenerate line
+    "the compare step without the ledger hand-off": lambda t: t.replace(
+        " evidence/ledger-handoff/results.json\n", "\n", 1),
+    "the ledger line dropped": lambda t: with_lines(t, lambda ls: ls[:-1]),
     # v1.299: the response-bank file, directly after the LLMRouterBench one
     "the compare step without the response bank": lambda t: t.replace(
         "evidence/llmrouterbench/results.json evidence/response-bank/results.json ",
@@ -565,7 +581,7 @@ TIME_LIMIT_MUTANTS = {
 
 
 def test_the_mutant_count_is_the_one_design_states():
-    assert len(MUTANTS) == 32
+    assert len(MUTANTS) == 34
     assert len(CACHE_MUTANTS) == 2 and set(CACHE_MUTANTS) <= set(MUTANTS)
     assert len(TIME_LIMIT_MUTANTS) == 5 and set(TIME_LIMIT_MUTANTS) <= set(MUTANTS)
     assert len(REPEAT_MUTANTS) == 2 and set(REPEAT_MUTANTS) <= set(MUTANTS)
@@ -679,6 +695,7 @@ def test_a_time_limit_mutant_fails_on_the_check_it_names(name):
                                   "the compare step without llmrouterbench delegation",
                                   "the compare step without pooled.json",
                                   "the compare step without the response bank",
+                                  "the compare step without the ledger hand-off",  # v1.397, row E23c
                                   "the compare step without the response-bank delegation",  # v1.392, row DOC21c
                                   "the compare step without variants.json"])
 def test_a_compare_mutant_fails_on_the_compare_line_alone(name):
@@ -788,8 +805,32 @@ def test_the_workflow_reruns_the_response_bank_delegation_block():
     at = run.index(RB_DELEGATION_LINE)
     assert run[at - 1] == ("python evidence/delegation/results.py --table "
                            "evidence/llmrouterbench-delegation/results.json --bar 0.1 --point 0")
-    assert run[at + 1:] == RB_TABLES
+    assert run[at + 1:at + 3] == RB_TABLES
     assert run.count("python evidence/response-bank/convert.py --out response-bank-matrix.jsonl") == 1
     compare = text.split("      - name: Compare\n", 1)[1].split("\n", 1)[0]
     assert compare.endswith(" evidence/llmrouterbench-delegation/results.json "
-                            "evidence/response-bank-delegation/results.json")
+                            "evidence/response-bank-delegation/results.json evidence/ledger-handoff/results.json")
+
+
+def test_the_workflow_reruns_the_ledger_handoff_line_last():
+    # v1.397 (row E23c, DESIGN 13.15 Workflow bullet)
+    assert ledger_command() == LEDGER_LINE
+    text = workflow_text()
+    run = [line.strip() for line in regenerate_lines(text)[1]]
+    assert run[-1] == LEDGER_LINE and run[-3:-1] == RB_TABLES and run.count(LEDGER_LINE) == 1
+    compare = text.split("      - name: Compare\n", 1)[1].split("\n", 1)[0]
+    assert compare.endswith(" evidence/response-bank-delegation/results.json evidence/ledger-handoff/results.json")
+    assert (ROOT / "evidence" / "ledger-handoff" / "results.json").is_file()
+    ci_text = CI.read_text(encoding="utf-8")
+    assert problems(MUTANTS["the ledger line dropped"](text), readme(), ci_text) == [
+        "Regenerate is not the README commands in order"]
+    design = DESIGN.read_text(encoding="utf-8")
+    section = design.split("\n### 12.13 ", 1)[1].split("\n### ", 1)[0]
+    assert f"each of {len(MUTANTS)} broken workflows fails the check, the seven `Compare` mutants" in section
+    assert "then (v1.397) the regenerate line of `evidence/ledger-handoff/RESULTS.md` (13.15)" in section
+    assert "thirteen files from `evidence/autobench-2026/results.json` to `evidence/ledger-handoff/results.json`" in section
+    assert "eleven run the v1.317 lines (none yet the v1.397 ones, v1.218)" in section
+    spec = design.split("\n### 13.15 ", 1)[1].split("\n## ", 1)[0]
+    bullets = [line for line in spec.split("\n") if line.startswith("- Workflow (v1.397, row E23c): ")]
+    assert len(bullets) == 1 and f"`{LEDGER_LINE}`" in bullets[0]
+    assert "which restates it (12.13, v1.218)" in bullets[0]
