@@ -86,7 +86,8 @@ def test_design_states_w_in_13_1_and_13_2():
     assert "- `brief_output_tokens` (W, v1.405, default None, meaning B):" in s13_1
     for term in ("W replaces B in the brief's output charge alone, `P.cost(0, B)` in 13.2 and "
                  "`B * out(C)` on a tiered parent",
-                 "so W moves `delegate_cost_usd` only, never `inline_cost_usd`",
+                 "so of the two costs W moves `delegate_cost_usd` alone, and through it the 13.5 "
+                 "rows that compare them, never `inline_cost_usd`",
                  "checked after `output_reread_share`",
                  "W = B gives the None costs bit for bit"):
         assert term in s13_1, term
@@ -184,7 +185,8 @@ def test_w_gives_the_hand_computed_delegate_cost(work, delegate):
     assert decision.route.primary == "fiction/mid"
     assert decision.delegate_cost_usd == approx(delegate)
     unset = {key: value for key, value in work.items() if key != "brief_output_tokens"}
-    assert decision.inline_cost_usd == decide(plain_router(), "fiction/mid", **unset).inline_cost_usd
+    assert decision.inline_cost_usd \
+        == decide(plain_router(), "fiction/mid", **unset).inline_cost_usd
 
 
 # (C, delegate_cost_usd) with parent t/long and delegate s/small, K = 1, T = 0, B = 300, R = 200,

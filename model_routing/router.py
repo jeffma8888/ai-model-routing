@@ -165,6 +165,7 @@ class Router:
                           work_calls: int = 1, inline_separate_call: bool = True,
                           cached_read_ratio: float = 1.0,
                           output_reread_share: float = 1.0,
+                          brief_output_tokens: Optional[int] = None,
                           generator_model: Optional[str] = None,
                           exclude_models: Iterable[str] = ()):
         """Decide whether ``parent_model`` does the work inline or delegates it.
@@ -179,9 +180,13 @@ class Router:
         read and all output stay at list price (DESIGN 13.2). ``output_reread_share`` is
         the share of each work call's output that later calls re-read, for a model whose
         history drops its reasoning; it scales those re-reads on both paths and never a
-        written output or a context check (DESIGN 13.1, 13.2). Raises
+        written output or a context check (DESIGN 13.1, 13.2). ``brief_output_tokens`` is
+        what the call that writes the brief outputs, by default ``brief_tokens``; it prices
+        that output alone, while every read of the brief keeps ``brief_tokens`` (DESIGN
+        13.1). Raises
         ``KeyError`` for an unknown task, parent or generator, ``ValueError`` for an
-        unknown flavor, an invalid token count, ``work_calls`` below 1 or a
+        unknown flavor, an invalid token count (``brief_output_tokens`` included, unless
+        None), ``work_calls`` below 1 or a
         ``cached_read_ratio`` or ``output_reread_share`` that is not a number from 0
         to 1, and
         :class:`NoModelClearsBar` when neither path is allowed (DESIGN section 13).
@@ -194,6 +199,7 @@ class Router:
                                  inline_separate_call=inline_separate_call,
                                  cached_read_ratio=cached_read_ratio,
                                  output_reread_share=output_reread_share,
+                                 brief_output_tokens=brief_output_tokens,
                                  generator_model=generator_model,
                                  exclude_models=exclude_models)
 

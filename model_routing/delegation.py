@@ -197,6 +197,7 @@ def decide_delegation(router: Router, task_name: str, parent_model: str,
                       work_calls: int = 1, inline_separate_call: bool = True,
                       cached_read_ratio: float = 1.0,
                       output_reread_share: float = 1.0,
+                      brief_output_tokens: Optional[int] = None,
                       generator_model: Optional[str] = None,
                       exclude_models: Iterable[str] = ()) -> DelegationDecision:
     """The logic of :meth:`Router.decide_delegation` (DESIGN 13.1 to 13.5)."""
@@ -220,6 +221,8 @@ def decide_delegation(router: Router, task_name: str, parent_model: str,
     sigma = output_reread_share
     if isinstance(sigma, bool) or not isinstance(sigma, (int, float)) or not 0 <= sigma <= 1:
         raise ValueError(f"output_reread_share must be a number from 0 to 1, got {sigma!r}")
+    # 13.1 v1.405: what the decision turn writes for the brief, B unless stated
+    w = b if brief_output_tokens is None else _count("brief_output_tokens", brief_output_tokens)
     parent = router.registry.get(parent_model)
     generator_family = None
     if generator_model is not None:
@@ -277,7 +280,7 @@ def decide_delegation(router: Router, task_name: str, parent_model: str,
     if route is not None:
         delegate = router.registry.get(route.primary)
         d_in, d_out = _sizes(router.stats, task, delegate.id)
-        delegate_cost = (_shared(parent, c, rho, 0, b)
+        delegate_cost = (_shared(parent, c, rho, 0, w)
                          + _work_cost(delegate, k, k * b, d_in, d_out, b, b, sigma)
                          + (1 + t) * _shared(parent, c, rho, b + r))
         delegate_lb = next(x.quality_lb for x in route.candidates
