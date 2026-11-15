@@ -29,6 +29,7 @@ SHA256 = "b79f8cde1a6f029c2efa663a3a3b6f7748defb22341fe59f328cebef6648c8f1"
 URL = f"https://huggingface.co/datasets/NPULH/LLMRouterBench/resolve/{REVISION}/{FILE}"
 ROOT = "bench-release"
 TIMEOUT = 60
+ATTEMPTS = 3  # tries per missing file, at once (DESIGN.md 12.13 v1.406)
 # the model folders of the performance-cost pool (the GitHub README's second setting), ascending
 POOL = (
     "claude-sonnet-4",
@@ -253,14 +254,17 @@ def fetch(cache_dir=None) -> Path:
         return dest
     part = dest.with_name(dest.name + ".part")
     try:
-        try:
-            with urllib.request.urlopen(URL, timeout=TIMEOUT) as resp, open(part, "wb") as out:
-                for block in iter(lambda: resp.read(1 << 20), b""):
-                    out.write(block)
-        except ValueError:
-            raise
-        except Exception as exc:
-            raise OSError(f"{FILE}: download failed: {exc}") from exc
+        for attempt in range(1, ATTEMPTS + 1):
+            try:
+                with urllib.request.urlopen(URL, timeout=TIMEOUT) as resp, open(part, "wb") as out:
+                    for block in iter(lambda: resp.read(1 << 20), b""):
+                        out.write(block)
+                break
+            except ValueError:
+                raise
+            except Exception as exc:
+                if attempt == ATTEMPTS:
+                    raise OSError(f"{FILE}: download failed: {exc}") from exc
         verify(part, SIZE, SHA256)
         part.replace(dest)
     finally:

@@ -25,6 +25,7 @@ LICENCE = "MIT"
 BASE_URL = f"https://raw.githubusercontent.com/LiveCodeBench/submissions/{REVISION}/"
 TASK = "code_generation"
 TIMEOUT = 60
+ATTEMPTS = 3  # tries per missing file, at once (DESIGN.md 12.13 v1.406)
 # "<folder>/<file name>": (bytes, sha256), in ascending path order
 FILES = {
     'Claude-3-Haiku/Scenario.codegeneration_10_0.2_eval_all.json': (21175537, 'd4dde49c99058f4fac9e9faeb739c59e3024b062d29c1fa8a875a92ef5e15edb'),
@@ -246,14 +247,17 @@ def fetch(cache_dir=None) -> Path:
         dest.parent.mkdir(parents=True, exist_ok=True)
         part = dest.with_name(dest.name + ".part")
         try:
-            try:
-                with urllib.request.urlopen(BASE_URL + urllib.parse.quote(name), timeout=TIMEOUT) as resp, open(part, "wb") as out:
-                    for block in iter(lambda: resp.read(1 << 20), b""):
-                        out.write(block)
-            except ValueError:
-                raise
-            except Exception as exc:
-                raise OSError(f"{name}: download failed: {exc}") from exc
+            for attempt in range(1, ATTEMPTS + 1):
+                try:
+                    with urllib.request.urlopen(BASE_URL + urllib.parse.quote(name), timeout=TIMEOUT) as resp, open(part, "wb") as out:
+                        for block in iter(lambda: resp.read(1 << 20), b""):
+                            out.write(block)
+                    break
+                except ValueError:
+                    raise
+                except Exception as exc:
+                    if attempt == ATTEMPTS:
+                        raise OSError(f"{name}: download failed: {exc}") from exc
             verify(part, size, sha256)
             part.replace(dest)
         finally:

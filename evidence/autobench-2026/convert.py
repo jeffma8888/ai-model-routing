@@ -28,6 +28,7 @@ DATASET = "AutoBench/router-benchmark-2026-10"
 REVISION = "43755180be7d8097068982d7a3f37fc04cd15379"
 BASE_URL = f"https://huggingface.co/datasets/{DATASET}/resolve/{REVISION}/"
 SUMS = "SHA256SUMS"
+ATTEMPTS = 3  # tries per missing file, at once (DESIGN.md 12.13 v1.406)
 # name -> (bytes, sha256); these pins are the trust root, SHA256SUMS is a second check.
 FILES = {
     "matrix.csv": (1899644, "56d7a5c0a586364c8a0c0d5d737d0a4fde2a311a806b93beee38300e668ba28c"),
@@ -90,9 +91,17 @@ def fetch(cache_dir=None) -> Path:
         cache.mkdir(parents=True, exist_ok=True)
         part = cache / (name + ".part")
         try:
-            with urllib.request.urlopen(BASE_URL + name, timeout=60) as response, part.open("wb") as out:
-                for chunk in iter(lambda: response.read(1 << 20), b""):
-                    out.write(chunk)
+            for attempt in range(1, ATTEMPTS + 1):
+                try:
+                    with urllib.request.urlopen(BASE_URL + name, timeout=60) as response, part.open("wb") as out:
+                        for chunk in iter(lambda: response.read(1 << 20), b""):
+                            out.write(chunk)
+                    break
+                except ValueError:
+                    raise
+                except Exception:
+                    if attempt == ATTEMPTS:
+                        raise
             verify(part, size, sha)
         except BaseException:
             part.unlink(missing_ok=True)

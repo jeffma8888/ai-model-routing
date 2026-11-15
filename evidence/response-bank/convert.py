@@ -28,6 +28,7 @@ FILES = {
 MODELS = ("deepseek-v4-flash", "deepseek-v4-pro", "glm-5-3-flash", "glm-5.3", "kimi-k2.7-code")
 VENDORS = (("deepseek-", "deepseek"), ("glm-", "z-ai"), ("kimi-", "moonshotai"))
 TIMEOUT = 60
+ATTEMPTS = 3  # tries per missing file, at once (DESIGN.md 12.13 v1.406)
 _ID = re.compile(r"[a-z0-9][a-z0-9._-]*")
 _GLM_VERSION = re.compile(r"^glm-(\d+)-(\d+)(?=-|$)")
 _SHA256 = re.compile(r"[0-9a-f]{64}")
@@ -240,14 +241,17 @@ def fetch(cache_dir=None) -> dict:
             continue
         part = dest.with_name(name + ".part")
         try:
-            try:
-                with urllib.request.urlopen(url(name), timeout=TIMEOUT) as resp, open(part, "wb") as f:
-                    for block in iter(lambda: resp.read(1 << 20), b""):
-                        f.write(block)
-            except ValueError:
-                raise
-            except Exception as exc:
-                raise OSError(f"{name}: download failed: {exc}") from exc
+            for attempt in range(1, ATTEMPTS + 1):
+                try:
+                    with urllib.request.urlopen(url(name), timeout=TIMEOUT) as resp, open(part, "wb") as f:
+                        for block in iter(lambda: resp.read(1 << 20), b""):
+                            f.write(block)
+                    break
+                except ValueError:
+                    raise
+                except Exception as exc:
+                    if attempt == ATTEMPTS:
+                        raise OSError(f"{name}: download failed: {exc}") from exc
             verify(part, size, sha256)
             part.replace(dest)
         finally:

@@ -26,6 +26,7 @@ BASE_URL = f"https://raw.githubusercontent.com/akshitanchan/attention-handoff-ta
 LICENCE = "CC BY 4.0 (data and config), MIT (code)"
 MODEL = "openai/gpt-oss-20b"
 TIMEOUT = 60
+ATTEMPTS = 3  # tries per missing file, at once (DESIGN.md 12.13 v1.406)
 MAX_COUNT = 2**63 - 1  # the largest signed 64-bit integer
 # repository path: (bytes, sha256), each sha256 the one SHA256SUMS lists at REVISION, in path order
 FILES = {
@@ -70,12 +71,15 @@ def fetch(cache_dir=None) -> Path:
             continue
         part = dest.with_name(dest.name + ".part")
         try:
-            try:
-                with urllib.request.urlopen(BASE_URL + path, timeout=TIMEOUT) as resp, open(part, "wb") as out:
-                    for block in iter(lambda: resp.read(1 << 20), b""):
-                        out.write(block)
-            except Exception as exc:  # a ValueError from urlopen included: every download error names its path
-                raise OSError(f"{path}: download failed: {exc}") from exc
+            for attempt in range(1, ATTEMPTS + 1):
+                try:
+                    with urllib.request.urlopen(BASE_URL + path, timeout=TIMEOUT) as resp, open(part, "wb") as out:
+                        for block in iter(lambda: resp.read(1 << 20), b""):
+                            out.write(block)
+                    break
+                except Exception as exc:  # a ValueError from urlopen included: every download error names its path
+                    if attempt == ATTEMPTS:
+                        raise OSError(f"{path}: download failed: {exc}") from exc
             verify(part, size, sha256)
             part.replace(dest)
         finally:
