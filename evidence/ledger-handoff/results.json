@@ -1,0 +1,151 @@
+{
+  "source": {
+    "repo": "https://github.com/akshitanchan/attention-handoff-tax",
+    "revision": "d891b4eb92abf039431be850646830b486f9e5af",
+    "licence": "CC BY 4.0 (data and config), MIT (code)",
+    "files": {
+      "config/ledger/config_decomposed.json": {
+        "bytes": 427,
+        "sha256": "910f1b73f19c5027d70f5d2082c222ee2b625b2a6bfdbf8dd322de4f58219dca"
+      },
+      "config/ledger/config_handoff.json": {
+        "bytes": 424,
+        "sha256": "bb57bd79b2488e938719b917db888c5bdac5bf6d8597d5e0a084e17b266a4d90"
+      },
+      "config/ledger/config_single.json": {
+        "bytes": 423,
+        "sha256": "7829ba29b1f8396d328d61d8d1ec44abcd74832d67048e439c79cd41af644418"
+      },
+      "data/ledger/decomposed.jsonl": {
+        "bytes": 6227860,
+        "sha256": "3f88ba82edea7da4a78e06b7859ee49e8da8d2f2ff1a99e2ac2a09332819f39a"
+      },
+      "data/ledger/handoff.jsonl": {
+        "bytes": 1005220,
+        "sha256": "b146c4adc0a21b1ca4658a6a6b65d1d5840357a5db0b224570389203bb1f9cc9"
+      },
+      "data/ledger/single.jsonl": {
+        "bytes": 4187684,
+        "sha256": "f7554b7be15e8706b923852202552369d633f02ab536a7644c473ffb5e2c7d4b"
+      }
+    }
+  },
+  "model": "openai/gpt-oss-20b",
+  "depths": [
+    {
+      "depth": 20,
+      "items": 100,
+      "final_ok": {
+        "single": 49,
+        "chain": 64
+      },
+      "chain_lost": 18,
+      "chain_gained": 33,
+      "median_prompt_tokens": {
+        "single": 87471.0,
+        "chain": 38006.0
+      },
+      "median_completion_tokens": {
+        "single": 762.5,
+        "chain": 1608.0
+      },
+      "median_notes": 3.0,
+      "median_note_tokens": 163.0
+    },
+    {
+      "depth": 50,
+      "items": 100,
+      "final_ok": {
+        "single": 4,
+        "chain": 18
+      },
+      "chain_lost": 3,
+      "chain_gained": 17,
+      "median_prompt_tokens": {
+        "single": 517315.0,
+        "chain": 101419.0
+      },
+      "median_completion_tokens": {
+        "single": 2339.0,
+        "chain": 4729.0
+      },
+      "median_notes": 9.0,
+      "median_note_tokens": 176.0
+    },
+    {
+      "depth": 100,
+      "items": 100,
+      "final_ok": {
+        "single": 0,
+        "chain": 10
+      },
+      "chain_lost": 0,
+      "chain_gained": 10,
+      "median_prompt_tokens": {
+        "single": 2029808.0,
+        "chain": 206613.0
+      },
+      "median_completion_tokens": {
+        "single": 10262.0,
+        "chain": 10057.0
+      },
+      "median_notes": 19.0,
+      "median_note_tokens": 174.0
+    }
+  ],
+  "probe": {
+    "items": 100,
+    "pre_steps": 12,
+    "steps": 5,
+    "arms": [
+      {
+        "arm": "history",
+        "all_inc_ok": 73,
+        "all_abs_ok": 54,
+        "median_prompt_tokens": 30827.0
+      },
+      {
+        "arm": "note_100",
+        "note_budget": 100,
+        "all_inc_ok": 79,
+        "all_abs_ok": 58,
+        "inc_ok_lost": 9,
+        "inc_ok_gained": 15,
+        "abs_ok_lost": 9,
+        "abs_ok_gained": 13,
+        "note_balance_kept": 100,
+        "median_prompt_tokens": 7840.5,
+        "median_note_tokens": 137.0,
+        "median_note_prompt_tokens": 5093.0
+      },
+      {
+        "arm": "note_300",
+        "note_budget": 300,
+        "all_inc_ok": 77,
+        "all_abs_ok": 59,
+        "inc_ok_lost": 11,
+        "inc_ok_gained": 15,
+        "abs_ok_lost": 8,
+        "abs_ok_gained": 13,
+        "note_balance_kept": 99,
+        "median_prompt_tokens": 8077.0,
+        "median_note_tokens": 180.5,
+        "median_note_prompt_tokens": 5093.0
+      },
+      {
+        "arm": "note_900",
+        "note_budget": 900,
+        "all_inc_ok": 80,
+        "all_abs_ok": 60,
+        "inc_ok_lost": 7,
+        "inc_ok_gained": 14,
+        "abs_ok_lost": 5,
+        "abs_ok_gained": 11,
+        "note_balance_kept": 100,
+        "median_prompt_tokens": 8412.5,
+        "median_note_tokens": 249.5,
+        "median_note_prompt_tokens": 5093.0
+      }
+    ]
+  }
+}
