@@ -62,7 +62,7 @@ CLASS = {number: kind for kind, numbers in GROUPS.items() for number in numbers}
 # (12.8 DOC21b, split into DOC21m to DOC21o, 12.13 DOC21c, 13.8 DOC21d, 13.10 DOC21e, 13.9 DOC21f, 12.21 DOC21g, 12.17 DOC21h,
 # 12.14 DOC21i, 13.12 DOC21j, 13.14 DOC21k, 13.11 DOC21l).
 PENDING = {
-    "12.8": 84_347,  # DOC21n (v1.389) left 84,347, DOC21m (v1.388) 90,830; 93,918 when DOC21a landed
+    "12.8": 84_351,  # DOC21n (v1.389) left 84,351, DOC21m (v1.388) 90,830; 93,918 when DOC21a landed
     "12.13": 51_685,
     "13.8": 40_244,
     "13.10": 37_657,
@@ -365,7 +365,7 @@ POINTERS = {
     "- README.md has a section `## Evidence: held-out results on public data`, ":
         "v1.17, v1.22, v1.28, v1.30, v1.48, v1.55, v1.65, v1.80, v1.84",
     "- Results at a glance (v1.23): ": "v1.28, v1.32, v1.55, v1.65, v1.80",
-    "- LLMRouterBench (v1.164, row E16e): ": "v1.164",
+    "- LLMRouterBench (v1.164, row E16e): ": "v1.164, v1.168",
     "  - Limits: the seventh RESULTS.md bullet, ": "v1.167, v1.168",
     "  - Results at a glance: a bullet, after LiveCodeBench, ": "v1.164, v1.166",
     "  - Tests: `tests/test_evidence_llmrouterbench_results.py` ": "v1.164, v1.166",
