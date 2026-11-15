@@ -87,6 +87,28 @@ def test_chain_prediction_by_hand():
     assert mod.predict(record, False, 10, reply=False) == 100 + 115 + 131 + 148
 
 
+def test_a_chain_of_three_contexts_by_hand():
+    mod = load()
+    record = {"L": 5, "item": 3,
+              "steps": [step(100, 5, 1, 1), step(999, 6, 1, 2), step(120, 7, 2, 3), step(130, 8, 2, 4),
+                        step(999, 9, 3, 5)],
+              "notes": [{"after_t": 2, "prompt_tokens": 50, "completion_tokens": 9, "note_tokens": 4},
+                        {"after_t": 3, "prompt_tokens": 60, "completion_tokens": 9, "note_tokens": 4}]}
+    assert [[s["t"] for s in steps] for steps, _ in mod.contexts(record, True)] == [[1, 2], [3], [4, 5]]
+    # context 1: 100, 115, note 121; context 2, one step: 120, note 120 + 0 * 10 + 7 = 127;
+    # context 3 starts again from 130: 130, 130 + 10 + 8
+    assert mod.predict(record, True, 10, reply=False) == 100 + 115 + 121 + 120 + 127 + 130 + 148
+    assert mod.predict(record, True, 10, reply=True) == 100 + 114 + 119 + 120 + 125 + 130 + 146
+    assert mod.measured(record, True) == 100 + 999 + 120 + 130 + 999 + 50 + 60
+
+
+def test_every_highest_ratio_in_the_block_is_below_one():
+    # the prose says the rule over-predicts every item, on both rules' ratios as on the 13.2 one
+    found = re.findall(r"highest (\d+\.\d+)\)", block(NOTE.read_text(encoding="utf-8")))
+    assert len(found) == 12
+    assert all(float(value) < 1 for value in found)
+
+
 @pytest.mark.parametrize("after_t, message", [(9, "no later step"), (4, "no step after the last note")])
 def test_a_note_that_splits_no_context_is_refused(after_t, message):
     mod = load()

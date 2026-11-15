@@ -130,7 +130,9 @@ def main(argv=None) -> int:
         for records in (single, chain):
             for record in records.values():
                 for call in record["steps"]:
-                    conv._int(call, "reasoning_tokens", f"L={record['L']} item={record['item']}", 0)
+                    value = call.get("reasoning_tokens")
+                    if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+                        raise ValueError(f"L={record['L']} item={record['item']}: reasoning_tokens is not an int of at least 0")
         print("\n".join(report(single, chain, k)))
     except (ValueError, OSError) as exc:
         print(f"error: {exc}", file=sys.stderr)
