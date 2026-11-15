@@ -62,7 +62,7 @@ CLASS = {number: kind for kind, numbers in GROUPS.items() for number in numbers}
 # (12.8 DOC21b, split into DOC21m to DOC21o, 12.13 DOC21c, 13.8 DOC21d, 13.10 DOC21e, 13.9 DOC21f, 12.21 DOC21g, 12.17 DOC21h,
 # 12.14 DOC21i, 13.12 DOC21j, 13.14 DOC21k, 13.11 DOC21l).
 PENDING = {
-    "12.8": 90_830,  # DOC21m (v1.388) left 90,830; 93,918 when DOC21a landed
+    "12.8": 84_347,  # DOC21n (v1.389) left 84,347, DOC21m (v1.388) 90,830; 93,918 when DOC21a landed
     "12.13": 51_685,
     "13.8": 40_244,
     "13.10": 37_657,
@@ -355,12 +355,27 @@ POINTER = re.compile(r"\(history: CHANGELOG\.md (v\d[^)]*)\)")
 POINTER_ITEM = re.compile(r"v(\d+\.\d+)(?: to v(\d+\.\d+))?")
 CHANGELOG_LINE = re.compile(r"^- v(\d+\.\d+) \(", re.M)
 # Each pointer a trim wrote, by the opening of the line that holds it, and the list it gives: the
-# versions the sentences it dropped name (DOC21m: four of the seven research-note bullets of 12.8).
+# versions the sentences it dropped name (DOC21m: four of the seven research-note bullets of 12.8; DOC21n:
+# thirteen lines of its dataset-subsection bullets).
 POINTERS = {
     "  - README.md and research/README.md (v1.124, v1.166, v1.303): ": "v1.124, v1.164, v1.166, v1.296, v1.303",
     "- Where delegation pays at a glance (v1.258, row DOC15): ": "v1.258, v1.315, v1.316, v1.322, v1.323, v1.328",
     "- Fallback on a failed check, on LLMRouterBench (v1.181): ": "v1.181 to v1.184",
     "- Below-bar fallback, on LLMRouterBench (v1.191): ": "v1.191, v1.201",
+    "- README.md has a section `## Evidence: held-out results on public data`, ":
+        "v1.17, v1.22, v1.28, v1.30, v1.48, v1.55, v1.65, v1.80, v1.84",
+    "- Results at a glance (v1.23): ": "v1.28, v1.32, v1.55, v1.65, v1.80",
+    "- LLMRouterBench (v1.164, row E16e): ": "v1.164",
+    "  - Limits: the seventh RESULTS.md bullet, ": "v1.167, v1.168",
+    "  - Results at a glance: a bullet, after LiveCodeBench, ": "v1.164, v1.166",
+    "  - Tests: `tests/test_evidence_llmrouterbench_results.py` ": "v1.164, v1.166",
+    "- Delegation on tau2-bench (v1.80): ": "v1.92, v1.336, v1.337",
+    "- Delegation on LLMRouterBench (v1.200, row E17d): ": "v1.200, v1.316",
+    "- LLM Routing Response Bank (v1.296, row E20e): ": "v1.296, v1.299",
+    "  - Limits: the sixth RESULTS.md bullet, ": "v1.296, v1.299",
+    "  - Results at a glance: a seventh bullet, ": "v1.166, v1.303",
+    "  - Tests: `tests/test_evidence_response_bank_results.py` ": "v1.296",
+    "- Delegation on the LLM Routing Response Bank (v1.316, row E21d): ": "v1.258, v1.316, v1.317, v1.323, v1.324",
 }
 
 
@@ -407,7 +422,9 @@ def test_each_pointer_version_has_its_own_changelog_line():
     # By hand, without the parser: each version the trimmed sentences named opens a CHANGELOG.md line.
     changelog = CHANGELOG.read_text(encoding="utf-8")
     for version in ("1.124", "1.164", "1.166", "1.296", "1.303", "1.258", "1.315", "1.316", "1.322", "1.323",
-                    "1.328", "1.181", "1.184", "1.191", "1.201"):
+                    "1.328", "1.181", "1.184", "1.191", "1.201", "1.17", "1.22", "1.28", "1.30", "1.48", "1.55",
+                    "1.65", "1.80", "1.84", "1.32", "1.167", "1.168", "1.92", "1.336", "1.337", "1.200", "1.299",
+                    "1.317", "1.324"):
         assert f"\n- v{version} (" in changelog, version
 
 
