@@ -922,12 +922,13 @@ def test_design_specifies_the_delegation_pointer():
     bullets = [line for line in section.splitlines()
                if line.startswith("- Where delegation pays at a glance (v1.258, row DOC15): ")]
     assert len(bullets) == 1
+    # v1.388 (row DOC21m): the bullet's history is in CHANGELOG.md, behind its pointer, which
+    # tests/test_design_budget.py `POINTERS` checks.
     for phrase in ("`research/where-delegation-pays.md`", "`research/per-item-delegation.md`", "`All five files`",
                    "`= delegate`", "`better`", "`size rule` `cost / decision`", "13.5 row 3", "`success - decision`",
                    "two significant figures", "fifth and last paragraph", "(v1.323, row R28)",
-                   "(v1.328, row R29)", "the last four glance bullets"):
-        # v1.388 (row DOC21m): the bullet's history is in CHANGELOG.md, behind its pointer, which
-        # tests/test_design_budget.py `POINTERS` checks.
+                   "(v1.328, row R29)", "the last four glance bullets",
+                   "on the datasets of the four delegation bullets above: "):
         assert phrase in bullets[0], phrase
     assert "then (v1.258) a blank line and the one paragraph of the where-delegation-pays-at-a-glance bullet " \
            "below, and by nothing else." in section

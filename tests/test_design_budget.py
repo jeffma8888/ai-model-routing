@@ -13,7 +13,8 @@ Each subsection number has a class in CLASS, and each class a cap in CAPS; a num
 fails, as does a ``###`` line of a section that is no ``### 12.N`` or ``### 13.N`` heading of that
 section. A subsection in PENDING, the eleven over their caps at v1.386, is held at most its size when
 DOC21a landed (the sizes at 6c79574 that v1.386 lists, which v1.386 and v1.387 leave unchanged)
-or the smaller size a part of its trim leaves (v1.388), never required at most its cap, and must stay over its cap: the row that trims it removes its number.
+or the smaller size a part of its trim leaves (v1.388),
+never required at most its cap, and must stay over its cap: the row that trims it removes its number.
 Each line of the two sections is at most LINE_CAP bytes but the ones PENDING_LINES names by their
 opening text, each held at most its size and required to stay over LINE_CAP; an opening must open
 exactly one line. The section totals, SECTION_CAPS, are required once PENDING is empty.
@@ -58,10 +59,10 @@ CAPS = {
 }
 CLASS = {number: kind for kind, numbers in GROUPS.items() for number in numbers}
 # The subsections over their caps and their sizes when DOC21a landed; each trim row removes its number
-# (12.8 DOC21b, 12.13 DOC21c, 13.8 DOC21d, 13.10 DOC21e, 13.9 DOC21f, 12.21 DOC21g, 12.17 DOC21h,
+# (12.8 DOC21b, split into DOC21m to DOC21o, 12.13 DOC21c, 13.8 DOC21d, 13.10 DOC21e, 13.9 DOC21f, 12.21 DOC21g, 12.17 DOC21h,
 # 12.14 DOC21i, 13.12 DOC21j, 13.14 DOC21k, 13.11 DOC21l).
 PENDING = {
-    "12.8": 90_846,  # DOC21m (v1.388) left 90,846; 93,918 when DOC21a landed
+    "12.8": 90_830,  # DOC21m (v1.388) left 90,830; 93,918 when DOC21a landed
     "12.13": 51_685,
     "13.8": 40_244,
     "13.10": 37_657,
@@ -376,6 +377,9 @@ def pointer_problems(text, changelog, pointers=POINTERS):
                 if parts is None:
                     found.append(f"line {number}: history pointer item `{item}` is no `vX.Y` or `vX.Y to vX.Z`")
                     continue
+                low, high = parts.groups()
+                if high is not None and tuple(map(int, high.split("."))) <= tuple(map(int, low.split("."))):
+                    found.append(f"line {number}: history pointer range `{item}` does not rise")
                 for version in parts.groups():
                     if version is not None and version not in logged:
                         found.append(f"line {number}: history pointer names v{version}, which has no CHANGELOG.md line")
@@ -430,10 +434,16 @@ TINY_POINTERS = {"- A (v1.1): ": "v1.1, v1.2", "- B (v1.4): ": "v1.1 to v1.4"}
      "line 4, `- A (v1.1):`, holds the history pointers [], not ['v1.1, v1.2']"),
     ("\ne\n", "\n- C (v1.2): c (history: CHANGELOG.md v1.2)\n", TINY_POINTERS,
      "line 8 holds a history pointer that POINTERS lacks"),
+    ("v1.1 to v1.4)", "v1.4 to v1.1)", {**TINY_POINTERS, "- B (v1.4): ": "v1.4 to v1.1"},
+     "line 5: history pointer range `v1.4 to v1.1` does not rise"),
+    ("\ne\n", "\n- A (v1.1): again\n", TINY_POINTERS,
+     ("POINTERS names `- A (v1.1):`, which opens 2 lines of sections 12 and 13, not one",
+      "line 4 holds a history pointer that POINTERS lacks")),
     ("", "", {**TINY_POINTERS, "- Z (v1.9): ": "v1.9"},
      "POINTERS names `- Z (v1.9):`, which opens 0 lines of sections 12 and 13, not one"),
 ])
 def test_a_broken_history_pointer_is_named(old, new, pointers, message):
     text = TINY.replace(old, new, 1) if old else TINY
     assert old == "" or TINY.count(old) == 1
-    assert pointer_problems(text, TINY_LOG, pointers) == ([] if message is None else [message])
+    expected = [] if message is None else list(message) if isinstance(message, tuple) else [message]
+    assert pointer_problems(text, TINY_LOG, pointers) == expected
