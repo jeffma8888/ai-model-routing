@@ -140,7 +140,7 @@ def test_design_states_the_flag_in_13_7_and_the_evaluator_in_13_1():
                  "`--brief-output-tokens` (v1.409, default unset, meaning B) passes "
                  "`brief_output_tokens` (13.1) as an integer, and with it unset the CLI prints "
                  "what v1.408 printed, byte for byte",
-                 "a token option (`--brief-output-tokens` among them from v1.409) that is not an "
+                 "a token option (from v1.409 `--brief-output-tokens` included) that is not an "
                  "integer `>= 0`"):
         assert term in s13_7, term
 
@@ -153,18 +153,20 @@ NOTE_CALL = re.compile(r"a note's call wrote a median of (\d+\.\d) completion to
 
 
 def note_call_medians():
-    """Per depth, the median completion tokens of a note's call and the median note size, from
-    the note's Results block."""
+    """The depths and, per depth, the median completion tokens of a note's call and the median
+    note size, from the note's Results block (review iter-269 nit 4: the depths too)."""
     text = NOTE.read_text(encoding="utf-8")
     block = text.split("\n## Results\n", 1)[1].split("```text\n", 1)[1].split("\n```", 1)[0]
+    depths = [int(m[1]) for m in (re.fullmatch(r"depth (\d+), \d+ items", line)
+                                  for line in block.splitlines()) if m]
     found = [NOTE_CALL.search(line) for line in block.splitlines()]
     pairs = [(float(m[1]), float(m[2])) for m in found if m]
-    assert len(pairs) == 3  # depths 20, 50 and 100
-    return pairs
+    assert len(depths) == len(pairs) >= 2  # one note-call line per depth
+    return depths, pairs
 
 
 def test_design_13_15_says_the_ledger_runs_keep_w_at_b():
-    pairs = note_call_medians()
+    depths, pairs = note_call_medians()
     written = sorted(p[0] for p in pairs)
     notes = sorted(p[1] for p in pairs)
     # every note's call writes more than its note, so W = B under-charges it here
@@ -174,7 +176,8 @@ def test_design_13_15_says_the_ledger_runs_keep_w_at_b():
     sentence = (
         "So no result here sets 13.1's W from the note calls' measured completion tokens (a "
         f"median {written[0]:.1f} to {written[-1]:.1f} for notes of {notes[0]:.1f} to "
-        f"{notes[-1]:.1f} at depths 20 to 100, `research/ledger-cost-model.md`): every committed "
+        f"{notes[-1]:.1f} at depths {min(depths)} to {max(depths)}, `research/ledger-cost-model.md`): "
+        "every committed "
         "delegation result keeps W = B (13.1, v1.409, row D12)")
     assert s13_15.count(sentence) == 1
     assert "never as a decision's outcome. " + sentence in s13_15

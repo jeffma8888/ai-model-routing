@@ -112,7 +112,7 @@ def _build_parser() -> argparse.ArgumentParser:
                     help="share of each work call's output that later calls re-read, "
                          "from 0 to 1 (default 1.0, the whole output)")
     dg.add_argument("--brief-output-tokens", type=int, default=None,
-                    help="tokens the call that writes the brief outputs, its reasoning "
+                    help="output tokens of the call that writes the brief, its reasoning "
                          "included (default: the --brief-tokens value)")
     dg.add_argument("--fold-inline", action="store_true",
                     help="inline work goes into the parent's next call, not a call of its own")
