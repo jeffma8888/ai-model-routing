@@ -545,6 +545,7 @@ RESEARCH_NOTES = (
     "- Seed by seed on LLMRouterBench (v1.177): ",
     "- Fallback on a failed check, on LLMRouterBench (v1.181): ",
     "- Below-bar fallback, on LLMRouterBench (v1.191): ",
+    "- The 13.2 re-read rule against measured tokens (v1.402, row R37): ",
 )
 
 
