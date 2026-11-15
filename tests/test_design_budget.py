@@ -36,6 +36,8 @@ The rest of 12.13 (v1.392, row DOC21c): each changed line of 12.13 keeps its con
 the workflow and the tests as they are, and its history behind one pointer (POINTERS), so 12.13 is at most
 its workflow cap and leaves PENDING; the heading keeps one tag per clause, and the restatements of the time
 limit it dropped are in the time-limit bullet's pointer.
+
+The ledger runs (v1.394, row E23): 13.15, the ledger hand-off converter, is a converter.
 """
 import re
 from pathlib import Path
@@ -52,7 +54,7 @@ LINE_CAP = 6_000
 # The class of each subsection number (DESIGN 12 v1.386 Caps bullet; research notes v1.390) and the cap of each class.
 GROUPS = {
     "contract": ("12.1", "12.2", "12.3", "12.4", "12.5", "13.1", "13.2", "13.3", "13.4", "13.5", "13.6", "13.7"),
-    "converter": ("12.6", "12.9", "12.11", "12.14", "12.16", "12.18", "12.20", "13.11"),
+    "converter": ("12.6", "12.9", "12.11", "12.14", "12.16", "12.18", "12.20", "13.11", "13.15"),
     "routing results": ("12.7", "12.10", "12.12", "12.15", "12.17", "12.19", "12.21"),
     "delegation results": ("13.10", "13.12", "13.13", "13.14"),
     "README evidence": ("12.8",),
@@ -188,7 +190,7 @@ def test_the_class_table_names_every_heading_once_in_order():
     numbers = [number for number, _ in subsections]
     by_number = sorted(CLASS, key=lambda n: tuple(int(part) for part in n.split(".")))
     assert numbers == by_number
-    assert len(CLASS) == sum(len(group) for group in GROUPS.values()) == 36
+    assert len(CLASS) == sum(len(group) for group in GROUPS.values()) == 37  # 36 before 13.15 (v1.394)
     assert set(GROUPS) == set(CAPS)
     assert strays == []
 
