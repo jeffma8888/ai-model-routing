@@ -12,11 +12,16 @@ line); a line is measured without its newline. On 12.8 this is tests/test_readme
 Each subsection number has a class in CLASS, and each class a cap in CAPS; a number CLASS lacks
 fails, as does a ``###`` line of a section that is no ``### 12.N`` or ``### 13.N`` heading of that
 section. A subsection in PENDING, the eleven over their caps at v1.386, is held at most its size when
-DOC21a landed (the sizes at 6c79574 that v1.386 lists, which v1.386 and v1.387 leave unchanged),
-never required at most its cap, and must stay over its cap: the row that trims it removes its number.
+DOC21a landed (the sizes at 6c79574 that v1.386 lists, which v1.386 and v1.387 leave unchanged)
+or the smaller size a part of its trim leaves (v1.388), never required at most its cap, and must stay over its cap: the row that trims it removes its number.
 Each line of the two sections is at most LINE_CAP bytes but the ones PENDING_LINES names by their
 opening text, each held at most its size and required to stay over LINE_CAP; an opening must open
 exactly one line. The section totals, SECTION_CAPS, are required once PENDING is empty.
+
+History pointers (v1.388, row DOC21m): each ``(history: CHANGELOG.md ...)`` pointer of the two sections
+lists ``vX.Y`` and ``vX.Y to vX.Z`` items joined by ``, ``, each version (both ends of a range) with a
+CHANGELOG.md line, and POINTERS names, by the opening of its line, each pointer a trim wrote with the list
+it gives, so a pointer that is moved, changed or added without an entry fails.
 """
 import re
 from pathlib import Path
@@ -56,7 +61,7 @@ CLASS = {number: kind for kind, numbers in GROUPS.items() for number in numbers}
 # (12.8 DOC21b, 12.13 DOC21c, 13.8 DOC21d, 13.10 DOC21e, 13.9 DOC21f, 12.21 DOC21g, 12.17 DOC21h,
 # 12.14 DOC21i, 13.12 DOC21j, 13.14 DOC21k, 13.11 DOC21l).
 PENDING = {
-    "12.8": 93_918,
+    "12.8": 90_846,  # DOC21m (v1.388) left 90,846; 93,918 when DOC21a landed
     "12.13": 51_685,
     "13.8": 40_244,
     "13.10": 37_657,
@@ -69,11 +74,9 @@ PENDING = {
     "13.11": 16_853,
 }
 # The lines over LINE_CAP, by their opening text, and their sizes when DOC21a landed: the 12.13 time
-# limit (DOC26) and two 12.8 bullets (DOC21b).
+# limit (DOC26); DOC21m (v1.388) brought the two 12.8 bullets, 8,660 and 6,027 bytes, under LINE_CAP.
 PENDING_LINES = {
     "- Time limit and retries (v1.152, ": 17_019,
-    "- Where routing pays (v1.124): ": 8_660,
-    "- Where delegation pays at a glance (v1.258, row DOC15): ": 6_027,
 }
 SECTION_END = re.compile(r"#{1,2} ")
 HEADING = re.compile(r"#{1,3} ")
@@ -342,3 +345,95 @@ def test_a_text_without_one_section_line_each_is_an_error():
         measure("# T\n## 13. U\n")
     with pytest.raises(ValueError, match="has 2 `## 13.` lines, not one"):
         measure("# T\n## 12. S\n## 13. U\n## 13. U\n")
+
+
+# --- history pointers (DESIGN 12 v1.388, row DOC21m) ----------------------------------------------
+
+CHANGELOG = ROOT / "CHANGELOG.md"
+POINTER = re.compile(r"\(history: CHANGELOG\.md (v\d[^)]*)\)")
+POINTER_ITEM = re.compile(r"v(\d+\.\d+)(?: to v(\d+\.\d+))?")
+CHANGELOG_LINE = re.compile(r"^- v(\d+\.\d+) \(", re.M)
+# Each pointer a trim wrote, by the opening of the line that holds it, and the list it gives: the
+# versions the sentences it dropped name (DOC21m: four of the seven research-note bullets of 12.8).
+POINTERS = {
+    "  - README.md and research/README.md (v1.124, v1.166, v1.303): ": "v1.124, v1.164, v1.166, v1.296, v1.303",
+    "- Where delegation pays at a glance (v1.258, row DOC15): ": "v1.258, v1.315, v1.316, v1.322, v1.323, v1.328",
+    "- Fallback on a failed check, on LLMRouterBench (v1.181): ": "v1.181 to v1.184",
+    "- Below-bar fallback, on LLMRouterBench (v1.191): ": "v1.191, v1.201",
+}
+
+
+def pointer_problems(text, changelog, pointers=POINTERS):
+    """What breaks the history pointers of sections 12 and 13 of `text` against `changelog`."""
+    _, _, lines, _ = measure(text)
+    logged = set(CHANGELOG_LINE.findall(changelog))
+    found, held = [], {}
+    for number, _, line in lines:
+        for listed in POINTER.findall(line):
+            held.setdefault(number, []).append(listed)
+            for item in listed.split(", "):
+                parts = POINTER_ITEM.fullmatch(item)
+                if parts is None:
+                    found.append(f"line {number}: history pointer item `{item}` is no `vX.Y` or `vX.Y to vX.Z`")
+                    continue
+                for version in parts.groups():
+                    if version is not None and version not in logged:
+                        found.append(f"line {number}: history pointer names v{version}, which has no CHANGELOG.md line")
+    named = set()
+    for opening, listed in pointers.items():
+        at = [number for number, _, line in lines if line.startswith(opening)]
+        if len(at) != 1:
+            found.append(f"POINTERS names `{opening.strip()}`, which opens {len(at)} lines of sections 12 and 13, "
+                         "not one")
+            continue
+        named.add(at[0])
+        if held.get(at[0]) != [listed]:
+            found.append(f"line {at[0]}, `{opening.strip()}`, holds the history pointers {held.get(at[0], [])}, "
+                         f"not [{listed!r}]")
+    for number in sorted(set(held) - named):
+        found.append(f"line {number} holds a history pointer that POINTERS lacks")
+    return found
+
+
+def test_each_history_pointer_names_logged_versions_where_its_trim_put_it():
+    assert pointer_problems(DESIGN.read_text(encoding="utf-8"), CHANGELOG.read_text(encoding="utf-8")) == []
+
+
+def test_each_pointer_version_has_its_own_changelog_line():
+    # By hand, without the parser: each version the trimmed sentences named opens a CHANGELOG.md line.
+    changelog = CHANGELOG.read_text(encoding="utf-8")
+    for version in ("1.124", "1.164", "1.166", "1.296", "1.303", "1.258", "1.315", "1.316", "1.322", "1.323",
+                    "1.328", "1.181", "1.184", "1.191", "1.201"):
+        assert f"\n- v{version} (" in changelog, version
+
+
+TINY_LOG = "- v1.1 (2026-01-01): a\n- v1.2 (2026-01-02): b\n- v1.4 (2026-01-04): d\n"
+TINY = ("# T\n## 12. S\n### 12.1 A\n- A (v1.1): a (history: CHANGELOG.md v1.1, v1.2)\n"
+         "- B (v1.4): b (history: CHANGELOG.md v1.1 to v1.4)\n## 13. D\n### 13.1 E\ne\n## 14. N\n")
+TINY_POINTERS = {"- A (v1.1): ": "v1.1, v1.2", "- B (v1.4): ": "v1.1 to v1.4"}
+
+
+@pytest.mark.parametrize("old, new, pointers, message", [
+    ("", "", TINY_POINTERS, None),
+    ("\ne\n", "\n- T (v1.4): the form `(history: CHANGELOG.md vX.Y to vX.Z)`\n", TINY_POINTERS, None),
+    ("v1.1, v1.2)", "v1.1, v1.3)", {**TINY_POINTERS, "- A (v1.1): ": "v1.1, v1.3"},
+     "line 4: history pointer names v1.3, which has no CHANGELOG.md line"),
+    ("v1.1 to v1.4)", "v1.1 to v1.5)", {**TINY_POINTERS, "- B (v1.4): ": "v1.1 to v1.5"},
+     "line 5: history pointer names v1.5, which has no CHANGELOG.md line"),
+    ("v1.1 to v1.4)", "v1.3 to v1.4)", {**TINY_POINTERS, "- B (v1.4): ": "v1.3 to v1.4"},
+     "line 5: history pointer names v1.3, which has no CHANGELOG.md line"),
+    ("v1.1, v1.2)", "v1.1 and v1.2)", {**TINY_POINTERS, "- A (v1.1): ": "v1.1 and v1.2"},
+     "line 4: history pointer item `v1.1 and v1.2` is no `vX.Y` or `vX.Y to vX.Z`"),
+    ("v1.1, v1.2)", "v1.1)", TINY_POINTERS,
+     "line 4, `- A (v1.1):`, holds the history pointers ['v1.1'], not ['v1.1, v1.2']"),
+    (" (history: CHANGELOG.md v1.1, v1.2)", "", TINY_POINTERS,
+     "line 4, `- A (v1.1):`, holds the history pointers [], not ['v1.1, v1.2']"),
+    ("\ne\n", "\n- C (v1.2): c (history: CHANGELOG.md v1.2)\n", TINY_POINTERS,
+     "line 8 holds a history pointer that POINTERS lacks"),
+    ("", "", {**TINY_POINTERS, "- Z (v1.9): ": "v1.9"},
+     "POINTERS names `- Z (v1.9):`, which opens 0 lines of sections 12 and 13, not one"),
+])
+def test_a_broken_history_pointer_is_named(old, new, pointers, message):
+    text = TINY.replace(old, new, 1) if old else TINY
+    assert old == "" or TINY.count(old) == 1
+    assert pointer_problems(text, TINY_LOG, pointers) == ([] if message is None else [message])
