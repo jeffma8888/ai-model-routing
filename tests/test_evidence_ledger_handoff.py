@@ -6,6 +6,10 @@ six pinned files (two run settings checks, ``single.jsonl`` and ``decomposed.jso
 ``(L, item)``, and the ``handoff.jsonl`` probe with its four arms), the committed results file and
 RESULTS.md, except one, which rebuilds the committed file from the pinned files only when all six are
 already in the default cache and skips otherwise (CI never downloads them).
+
+DESIGN 13.15 v1.396 (row E23b): the README evidence opening ends with a paragraph built from the committed
+results file, its sixth and last before the first ``###``; ``readme_paragraph`` builds it and refuses a file
+that would make its ``but`` or ``yet`` one-sided.
 """
 
 import ast
@@ -25,6 +29,8 @@ SCRIPT = FOLDER / "results.py"
 RESULTS = FOLDER / "results.json"
 RESULTS_MD = FOLDER / "RESULTS.md"
 DESIGN = ROOT / "DESIGN.md"
+README = ROOT / "README.md"
+EVIDENCE = "## Evidence: held-out results on public data"
 REVISION = "d891b4eb92abf039431be850646830b486f9e5af"
 REPO_URL = "https://github.com/akshitanchan/attention-handoff-tax"
 MODEL = "openai/gpt-oss-20b"
@@ -456,3 +462,116 @@ def test_sample_is_not_mutated_by_build(lh, tmp_path):
     before = copy.deepcopy(data)
     lh.build(write(tmp_path, data))
     assert data == before
+
+
+# --- the README paragraph (DESIGN 13.15 v1.396, row E23b) -------------------------------------
+
+LINK = "[evidence/ledger-handoff/RESULTS.md](evidence/ledger-handoff/RESULTS.md)"
+
+
+def listed(values, last="and"):
+    """Values in file order, joined by `, ` and, before the last, ` and ` (or `last`), integers with commas."""
+    words = [f"{value:,}" for value in values]
+    return words[0] if len(words) == 1 else ", ".join(words[:-1]) + f" {last} " + words[-1]
+
+
+def readme_paragraph(results):
+    """The sixth and last paragraph of the README evidence opening, built from a ledger results file."""
+    depths, probe = results["depths"], results["probe"]
+    items = {row["items"] for row in depths}
+    if len(items) != 1:
+        raise ValueError("the depths differ in items")
+    history, notes = probe["arms"][0], probe["arms"][1:]
+    if history["arm"] != "history":
+        raise ValueError("the first probe arm is not `history`")
+    if not any(row["chain_lost"] for row in depths):
+        raise ValueError("no depth has a chain loss, so `but loses` is one-sided")
+    if not any(arm["inc_ok_lost"] for arm in notes):
+        raise ValueError("no note arm loses an `inc_ok` item, so `yet loses` is one-sided")
+    return (f"Whether work survives a hand-off to a fresh context, measured with `{results['model']}` in every role "
+            f"and not priced: {LINK} sets a chain of fresh contexts linked by notes, a surrogate for a sub-agent "
+            "hand-off and not that hand-off, against one context holding the whole history, on "
+            f"{items.pop():,} ledger items at each depth. The chain solves "
+            f"{listed(row['final_ok']['chain'] for row in depths)} against "
+            f"{listed(row['final_ok']['single'] for row in depths)} at depths of "
+            f"{listed(row['depth'] for row in depths)} steps, but loses "
+            f"{listed(row['chain_lost'] for row in depths)} of the items the one context solves. In its probe of "
+            f"{probe['items']:,} items {probe['pre_steps']:,} steps in, continuing {probe['steps']:,} steps from a "
+            f"note of budget {listed((arm['note_budget'] for arm in notes), 'or')} tokens keeps every continued step "
+            f"`inc_ok` on {listed(arm['all_inc_ok'] for arm in notes)} items against {history['all_inc_ok']:,} with "
+            f"the history, yet loses {listed(arm['inc_ok_lost'] for arm in notes)} of the items the history keeps "
+            f"and gains {listed(arm['inc_ok_gained'] for arm in notes)}")
+
+
+def opening_paragraphs():
+    readme = README.read_text(encoding="utf-8")
+    assert readme.count("\n" + EVIDENCE + "\n") == 1
+    section = readme.split("\n" + EVIDENCE + "\n", 1)[1].split("\n## ", 1)[0]
+    return section.split("\n### ", 1)[0].strip("\n").split("\n\n")
+
+
+def test_listed_joins_in_order():
+    assert listed([7]) == "7"
+    assert listed([1, 2]) == "1 and 2"
+    assert listed([1000, 2, 3]) == "1,000, 2 and 3"
+    assert listed([100, 300, 900], "or") == "100, 300 or 900"
+
+
+def test_readme_ends_the_evidence_opening_with_the_ledger_paragraph():
+    paragraphs = opening_paragraphs()
+    assert len(paragraphs) == 6, paragraphs[4:]
+    assert paragraphs[5] == readme_paragraph(committed())
+
+
+def test_readme_paragraph_states_the_committed_numbers():
+    text = readme_paragraph(committed())
+    for needle in (f"`{MODEL}`", "a surrogate for a sub-agent hand-off and not that hand-off", "on 100 ledger items",
+                   "The chain solves 64, 18 and 10 against 49, 4 and 0 at depths of 20, 50 and 100 steps",
+                   "but loses 18, 3 and 0 of the items", "In its probe of 100 items 12 steps in, continuing 5 steps",
+                   "budget 100, 300 or 900 tokens", "`inc_ok` on 79, 77 and 80 items against 73 with the history",
+                   "yet loses 9, 11 and 7 of the items the history keeps and gains 15, 15 and 14"):
+        assert needle in text, needle
+    assert "lossless" not in text.lower()
+
+
+def test_readme_paragraph_link_resolves():
+    assert LINK in readme_paragraph(committed())
+    assert RESULTS_MD.is_file()
+
+
+def test_readme_paragraph_follows_the_file():
+    got = copy.deepcopy(committed())
+    got["depths"][1]["final_ok"]["chain"] = 1234
+    got["probe"]["arms"].append(dict(got["probe"]["arms"][-1], note_budget=2700, all_inc_ok=81, inc_ok_lost=6,
+                                     inc_ok_gained=13))
+    text = readme_paragraph(got)
+    assert "The chain solves 64, 1,234 and 10 against" in text
+    assert "budget 100, 300, 900 or 2,700 tokens" in text
+    assert "on 79, 77, 80 and 81 items" in text and "loses 9, 11, 7 and 6" in text and "gains 15, 15, 14 and 13" in text
+
+
+@pytest.mark.parametrize("change, message", [
+    (lambda r: r["depths"][2].update(items=99), "differ in items"),
+    (lambda r: r["probe"]["arms"].reverse(), "first probe arm"),
+    (lambda r: [row.update(chain_lost=0) for row in r["depths"]], "`but loses`"),
+    (lambda r: [arm.update(inc_ok_lost=0) for arm in r["probe"]["arms"][1:]], "`yet loses`"),
+])
+def test_readme_paragraph_refuses_a_one_sided_file(change, message):
+    got = copy.deepcopy(committed())
+    change(got)
+    with pytest.raises(ValueError, match=message):
+        readme_paragraph(got)
+
+
+def test_design_specifies_the_readme_paragraph():
+    spec = design_13_15()
+    bullets = [line for line in spec.splitlines() if line.startswith("- README (v1.396, row E23b): ")]
+    assert len(bullets) == 1
+    for needle in ("the sixth and last before the first `###` (12.8)", "a surrogate for a sub-agent hand-off",
+                   "{chain `final_ok`}", "{`chain_lost`}", "{`inc_ok_lost`}", "{`inc_ok_gained`}", "` or ` for the budgets",
+                   "never reading as a lossless hand-off", "one-sided", "8,000-byte cap"):
+        assert needle in bullets[0], needle
+    assert "Not in the `evidence` workflow yet (row E23c)" in spec
+    text = DESIGN.read_text(encoding="utf-8")
+    section = text.split("\n### 12.8 ", 1)[1].split("\n### ", 1)[0]
+    assert "then (v1.396) a blank line and the 13.15 README paragraph, and by nothing else." in section

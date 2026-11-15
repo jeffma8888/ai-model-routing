@@ -390,8 +390,9 @@ def evidence_section():
 def test_readme_opens_the_evidence_section_with_the_glance_list():
     intro = evidence_section().split("\n### ", 1)[0]
     paragraphs = intro.strip("\n").split("\n\n")
-    # v1.258: a fifth paragraph, the delegation pointer, is checked below
-    assert len(paragraphs) == 5, paragraphs[1:]
+    # v1.258: a fifth paragraph, the delegation pointer, is checked below; v1.396: a sixth and last, the ledger
+    # hand-off paragraph, is checked in tests/test_evidence_ledger_handoff.py
+    assert len(paragraphs) == 6, paragraphs[1:]
     assert not paragraphs[0].startswith(("- ", "Results at a glance"))
     assert "\n\n".join(paragraphs[1:3]) + "\n" == glance(committed())
     # v1.124: one paragraph after the bullets links the note on where routing pays
@@ -928,18 +929,19 @@ def test_design_specifies_the_delegation_pointer():
     # tests/test_design_budget.py `POINTERS` checks.
     for phrase in ("`research/where-delegation-pays.md`", "`research/per-item-delegation.md`", "`All five files`",
                    "`= delegate`", "`better`", "`size rule` `cost / decision`", "13.5 row 3", "`success - decision`",
-                   "two significant figures", "fifth and last paragraph", "(v1.323, row R28)",
+                   "two significant figures", "the fifth paragraph before the first `###`", "(v1.323, row R28)",
                    "(v1.328, row R29)", "the last four glance bullets",
                    "on the datasets of the four delegation bullets above: "):
         assert phrase in bullets[0], phrase
     assert "then (v1.258) a blank line and the one paragraph of the where-delegation-pays-at-a-glance bullet " \
-           "of 12.22, and by nothing else." in section
+           "of 12.22, then (v1.396) a blank line and the 13.15 README paragraph, and by nothing else." in section
+    assert "fifth and last paragraph" not in bullets[0]
 
 
 def test_the_delegation_pointer_follows_the_routing_one():
     intro = evidence_section().split("\n### ", 1)[0]
     paragraphs = intro.strip("\n").split("\n\n")
-    assert len(paragraphs) == 5, paragraphs[3:]
+    assert len(paragraphs) == 6, paragraphs[3:]
     assert paragraphs[3] == POINTER
     assert paragraphs[4] == delegation_pointer(*notes())
 

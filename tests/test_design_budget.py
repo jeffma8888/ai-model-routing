@@ -572,7 +572,7 @@ def test_the_research_notes_are_12_22_and_12_8_holds_none():
     assert len(glance) == 1
     assert ("then (v1.124) a blank line and the one paragraph of the where-routing-pays bullet of 12.22, then "
             "(v1.258) a blank line and the one paragraph of the where-delegation-pays-at-a-glance bullet of 12.22, "
-            "and by nothing else.") in glance[0]
+            "then (v1.396) a blank line and the 13.15 README paragraph, and by nothing else.") in glance[0]
     assert "12.8" not in PENDING and dict(measure(text)[1])["12.8"] <= CAPS["README evidence"]
 
 
