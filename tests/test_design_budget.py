@@ -433,7 +433,7 @@ def test_each_pointer_version_has_its_own_changelog_line():
                     "1.65", "1.80", "1.84", "1.32", "1.167", "1.168", "1.92", "1.336", "1.337", "1.200", "1.299",
                     "1.317", "1.324", "1.334", "1.335", "1.344", "1.345", "1.346", "1.347", "1.348", "1.350", "1.352",
                     "1.353", "1.355", "1.357", "1.358", "1.362", "1.365", "1.368", "1.370", "1.372", "1.373", "1.386",
-                    "1.389"):
+                    "1.388", "1.389"):  # 1.388: review iter-248 nit 2
         assert f"\n- v{version} (" in changelog, version
 
 
@@ -505,8 +505,8 @@ def test_the_research_notes_are_12_22_and_12_8_holds_none():
     body = subsection_body(text, "12.22")
     assert body[0].startswith("Purpose: the research-note bullets 12.8 held through v1.389, in the same order "
                               "(12 v1.390): ")
-    assert body[0].endswith(" A `12.8 vX.Y` reference to one of them, in this file, a test or a research note, "
-                            "names its bullet here.")
+    assert body[0].endswith(" A reference to one of them as 12.8, `12.8 vX.Y` or `12.8` alone, in this file, a "
+                            "test or a research note, names its bullet here.")  # review iter-248 nit 1
     assert len(body) == len(RESEARCH_NOTES) + 2 and body[-1] == ""
     for line, opening in zip(body[1:-1], RESEARCH_NOTES):
         assert line.startswith(opening), (line[:60], opening)
