@@ -88,7 +88,8 @@ def test_design_states_the_share_in_13_1_and_13_2():
     design = (ROOT / "DESIGN.md").read_text(encoding="utf-8")
     s13_1 = design[design.index("### 13.1 Inputs"):design.index("### 13.2 ")]
     s13_2 = design[design.index("### 13.2 "):design.index("### 13.3 ")]
-    assert "cached_read_ratio=1.0, output_reread_share=1.0, generator_model=None" in s13_1
+    assert ("cached_read_ratio=1.0, output_reread_share=1.0, brief_output_tokens=None, "
+            "generator_model=None") in s13_1  # v1.405 adds brief_output_tokens (row D11b)
     assert "- `output_reread_share` (sigma, v1.404, default 1.0):" in s13_1
     assert "checked after `cached_read_ratio`" in s13_1
     assert "- v1.404, output re-reads (13.1, row D11a):" in s13_2
