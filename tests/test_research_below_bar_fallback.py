@@ -409,7 +409,8 @@ def test_the_research_index_and_the_check_fallback_note_link_the_note():
 
 def test_design_specifies_the_note():
     design = (ROOT / "DESIGN.md").read_text(encoding="utf-8")
-    section = design.split("\n### 12.8 ", 1)[1].split("\n### ", 1)[0]
+    # DESIGN 12 v1.390 (row DOC21o): the research-note bullets of 12.8 are 12.22.
+    section = design.split("\n### 12.22 ", 1)[1].split("\n## ", 1)[0].split("\n### ", 1)[0]
     bullets = [x for x in section.split("\n") if x.startswith("- Below-bar fallback, on LLMRouterBench (v1.191): ")]
     assert len(bullets) == 1
     for words in ("`research/below-bar-fallback.md`", "`research/below_bar_fallback.py`",

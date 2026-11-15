@@ -54,8 +54,8 @@ SAME_OR_HIGHER = re.compile(r"#{1,3} ")
 # for 4 names, v1.362, row DOC19g, 95,282; for 3 names, v1.365, row DOC19h, 95,193; for 2 names,
 # v1.368, row DOC19i, 94,685; for 1 name, v1.370, row DOC19j, 94,563; for 0 names, v1.372, row DOC19k,
 # 94,335; lowered to the size each part of the DESIGN 12 v1.386 trim leaves, v1.388, row DOC21m,
-# 90,830, and v1.389, row DOC21n, 84,351).
-DESIGN_12_8_CEILINGS = {0: 84_351, 1: 94_563, 2: 94_685, 3: 95_193, 4: 95_282, 5: 95_429, 6: 95_620, 7: 95_632, 8: 96_008,
+# 90,830, v1.389, row DOC21n, 84,351, and v1.390, row DOC21o, 45,002, the entry in force).
+DESIGN_12_8_CEILINGS = {0: 45_002, 1: 94_563, 2: 94_685, 3: 95_193, 4: 95_282, 5: 95_429, 6: 95_620, 7: 95_632, 8: 96_008,
                         9: 96_312, 10: 96_365}
 
 
@@ -329,3 +329,14 @@ def test_a_broken_12_8_ceiling_table_is_named():
     assert design_problems(text, ceilings={1: 111, 2: 111}, pending={"A": 1}) == [
         "the 12.8 ceiling for 1 PENDING names, 111, is not below the one for 2, 111"]
     assert design_problems(text, ceilings={1: 111, 2: 112}, pending={"A": 1}) == []
+
+
+def test_the_12_8_clause_states_the_ceiling_in_force():
+    # DESIGN 12.8 v1.390 (row DOC21o): the shrink bullet gives the entry for 0 names, the one in force.
+    text = DESIGN.read_text(encoding="utf-8")
+    lines = [line for line in text.splitlines() if line.startswith("  - 12.8 shrinks with each trim (v1.344, row DOC20): ")]
+    assert len(lines) == 1
+    stated = re.findall(r"The entry in force, for 0 names, is this section's size after v1\.390 \(row DOC21o\), "
+                        r"([\d,]+) bytes; ", lines[0])
+    assert len(stated) == 1 and int(stated[0].replace(",", "")) == DESIGN_12_8_CEILINGS[0]
+    assert PENDING == {} and design_12_8(text) <= DESIGN_12_8_CEILINGS[0] <= 50_000

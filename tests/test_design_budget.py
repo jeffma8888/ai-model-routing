@@ -23,6 +23,10 @@ History pointers (v1.388, row DOC21m): each ``(history: CHANGELOG.md ...)`` poin
 lists ``vX.Y`` and ``vX.Y to vX.Z`` items joined by ``, ``, each version (both ends of a range) with a
 CHANGELOG.md line, and POINTERS names, by the opening of its line, each pointer a trim wrote with the list
 it gives, so a pointer that is moved, changed or added without an entry fails.
+
+Research notes out of 12.8 (v1.390, row DOC21o): the seven research-note bullets of 12.8, with the README
+sub-bullet of the first, are 12.22, a research-notes spec with a cap of 40,000 bytes, in the same order
+(RESEARCH_NOTES); 12.8 holds none of them and leaves PENDING, and the `## 12.` total is 300,000 bytes.
 """
 import re
 from pathlib import Path
@@ -34,9 +38,9 @@ from test_readme_evidence_budget import design_12_8
 ROOT = Path(__file__).resolve().parents[1]
 DESIGN = ROOT / "DESIGN.md"
 SECTIONS = ("12", "13")
-SECTION_CAPS = {"12": 260_000, "13": 185_000}
+SECTION_CAPS = {"12": 300_000, "13": 185_000}  # 12 v1.390; 260,000 at v1.386
 LINE_CAP = 6_000
-# The class of each subsection number (DESIGN 12 v1.386 Caps bullet) and the cap of each class.
+# The class of each subsection number (DESIGN 12 v1.386 Caps bullet; research notes v1.390) and the cap of each class.
 GROUPS = {
     "contract": ("12.1", "12.2", "12.3", "12.4", "12.5", "13.1", "13.2", "13.3", "13.4", "13.5", "13.6", "13.7"),
     "converter": ("12.6", "12.9", "12.11", "12.14", "12.16", "12.18", "12.20", "13.11"),
@@ -46,6 +50,7 @@ GROUPS = {
     "workflow": ("12.13",),
     "limits and test status": ("13.8",),
     "delegation evaluator": ("13.9",),
+    "research notes": ("12.22",),
 }
 CAPS = {
     "contract": 16_000,
@@ -56,13 +61,13 @@ CAPS = {
     "workflow": 25_000,
     "limits and test status": 20_000,
     "delegation evaluator": 25_000,
+    "research notes": 40_000,
 }
 CLASS = {number: kind for kind, numbers in GROUPS.items() for number in numbers}
 # The subsections over their caps and their sizes when DOC21a landed; each trim row removes its number
-# (12.8 DOC21b, split into DOC21m to DOC21o, 12.13 DOC21c, 13.8 DOC21d, 13.10 DOC21e, 13.9 DOC21f, 12.21 DOC21g, 12.17 DOC21h,
+# (12.8 DOC21b, split into DOC21m to DOC21o, the last of which, v1.390, removed it at 45,002 bytes, 12.13 DOC21c, 13.8 DOC21d, 13.10 DOC21e, 13.9 DOC21f, 12.21 DOC21g, 12.17 DOC21h,
 # 12.14 DOC21i, 13.12 DOC21j, 13.14 DOC21k, 13.11 DOC21l).
 PENDING = {
-    "12.8": 84_351,  # DOC21n (v1.389) left 84,351, DOC21m (v1.388) 90,830; 93,918 when DOC21a landed
     "12.13": 51_685,
     "13.8": 40_244,
     "13.10": 37_657,
@@ -175,7 +180,7 @@ def test_the_class_table_names_every_heading_once_in_order():
     numbers = [number for number, _ in subsections]
     by_number = sorted(CLASS, key=lambda n: tuple(int(part) for part in n.split(".")))
     assert numbers == by_number
-    assert len(CLASS) == sum(len(group) for group in GROUPS.values()) == 35
+    assert len(CLASS) == sum(len(group) for group in GROUPS.values()) == 36
     assert set(GROUPS) == set(CAPS)
     assert strays == []
 
@@ -272,7 +277,7 @@ def small(twelve="", thirteen="", opening=""):
 
 
 SMALL = {"12.1": "contract", "12.2": "converter", "12.3": "README evidence",
-         **{f"12.{n}": "contract" for n in range(4, 21)},
+         **{f"12.{n}": "contract" for n in range(4, 23)},
          **{f"13.{n}": "delegation results" for n in range(1, 10)}}
 LONG = "- Long (v1.1): "
 HELD = {"12.3": 50_001}
@@ -325,18 +330,18 @@ def test_at_each_cap_and_size_the_budget_holds():
 
 
 def test_the_section_totals_wait_for_an_empty_pending():
-    # Sixteen 16,000-byte contract subsections and one of 3,986 make `## 12.` 14 + 256,000 + 3,986 =
-    # 260,000 bytes, at its cap; one byte more is over it, but only once PENDING is empty.
-    twelve = "".join(sub(f"12.{n}", 16_000) for n in range(4, 20)) + sub("12.20", 3_986)
+    # Eighteen 16,000-byte contract subsections and one of 11,986 make `## 12.` 14 + 288,000 + 11,986 =
+    # 300,000 bytes, at its cap (v1.390); one byte more is over it, but only once PENDING is empty.
+    twelve = "".join(sub(f"12.{n}", 16_000) for n in range(4, 22)) + sub("12.22", 11_986)
     # Eight 22,000-byte delegation results subsections and one of 8,984 make `## 13.` 16 + 176,000 +
     # 8,984 = 185,000 bytes, at its cap.
     thirteen = "".join(sub(f"13.{n}", 22_000) for n in range(1, 9)) + sub("13.9", 8_984)
     at_caps = small(twelve, thirteen)
-    assert measure(at_caps)[0] == {"12": 260_000, "13": 185_000}
+    assert measure(at_caps)[0] == {"12": 300_000, "13": 185_000} == SECTION_CAPS
     assert problems(at_caps, classes=SMALL, pending={}, pending_lines={}) == []
     over = small(twelve + "\n", thirteen + "\n")
     assert problems(over, classes=SMALL, pending={}, pending_lines={}) == [
-        "`## 12.` is 260,001 bytes, over 260,000", "`## 13.` is 185,001 bytes, over 185,000"]
+        "`## 12.` is 300,001 bytes, over 300,000", "`## 13.` is 185,001 bytes, over 185,000"]
     held = small(twelve + "\n" + sub("12.3", 50_001), thirteen + "\n")
     assert problems(held, classes=SMALL, pending=HELD, pending_lines={}) == []
 
@@ -355,8 +360,8 @@ POINTER = re.compile(r"\(history: CHANGELOG\.md (v\d[^)]*)\)")
 POINTER_ITEM = re.compile(r"v(\d+\.\d+)(?: to v(\d+\.\d+))?")
 CHANGELOG_LINE = re.compile(r"^- v(\d+\.\d+) \(", re.M)
 # Each pointer a trim wrote, by the opening of the line that holds it, and the list it gives: the
-# versions the sentences it dropped name (DOC21m: four of the seven research-note bullets of 12.8; DOC21n:
-# thirteen lines of its dataset-subsection bullets).
+# versions the sentences it dropped name (DOC21m: four of the seven research-note bullets of 12.8, in 12.22
+# from v1.390; DOC21n: thirteen lines of its dataset-subsection bullets; DOC21o: two lines of its size budget clause).
 POINTERS = {
     "  - README.md and research/README.md (v1.124, v1.166, v1.303): ": "v1.124, v1.164, v1.166, v1.296, v1.303",
     "- Where delegation pays at a glance (v1.258, row DOC15): ": "v1.258, v1.315, v1.316, v1.322, v1.323, v1.328",
@@ -376,6 +381,8 @@ POINTERS = {
     "  - Results at a glance: a seventh bullet, ": "v1.166, v1.303",
     "  - Tests: `tests/test_evidence_response_bank_results.py` ": "v1.296",
     "- Delegation on the LLM Routing Response Bank (v1.316, row E21d): ": "v1.258, v1.316, v1.317, v1.323, v1.324",
+    "- Size budget (v1.334, row DOC19): ": "v1.334 to v1.373",
+    "  - 12.8 shrinks with each trim (v1.344, row DOC20): ": "v1.344 to v1.372, v1.386, v1.388, v1.389",
 }
 
 
@@ -424,7 +431,9 @@ def test_each_pointer_version_has_its_own_changelog_line():
     for version in ("1.124", "1.164", "1.166", "1.296", "1.303", "1.258", "1.315", "1.316", "1.322", "1.323",
                     "1.328", "1.181", "1.184", "1.191", "1.201", "1.17", "1.22", "1.28", "1.30", "1.48", "1.55",
                     "1.65", "1.80", "1.84", "1.32", "1.167", "1.168", "1.92", "1.336", "1.337", "1.200", "1.299",
-                    "1.317", "1.324"):
+                    "1.317", "1.324", "1.334", "1.335", "1.344", "1.345", "1.346", "1.347", "1.348", "1.350", "1.352",
+                    "1.353", "1.355", "1.357", "1.358", "1.362", "1.365", "1.368", "1.370", "1.372", "1.373", "1.386",
+                    "1.389"):
         assert f"\n- v{version} (" in changelog, version
 
 
@@ -464,3 +473,76 @@ def test_a_broken_history_pointer_is_named(old, new, pointers, message):
     assert old == "" or TINY.count(old) == 1
     expected = [] if message is None else list(message) if isinstance(message, tuple) else [message]
     assert pointer_problems(text, TINY_LOG, pointers) == expected
+
+
+# --- research notes out of 12.8 (DESIGN 12 v1.390, row DOC21o) ------------------------------------
+
+# The opening of each line of the seven research-note bullets, the first with its README sub-bullet, in
+# their order in 12.22.
+RESEARCH_NOTES = (
+    "- Where routing pays (v1.124): ",
+    "  - README.md and research/README.md (v1.124, v1.166, v1.303): ",
+    "- Where delegation pays at a glance (v1.258, row DOC15): ",
+    "- When no model clears (v1.144; six datasets from v1.341, row R32): ",
+    "- Per-task ceiling on RouterBench (v1.146): ",
+    "- Seed by seed on LLMRouterBench (v1.177): ",
+    "- Fallback on a failed check, on LLMRouterBench (v1.181): ",
+    "- Below-bar fallback, on LLMRouterBench (v1.191): ",
+)
+
+
+def subsection_body(text, number):
+    """The lines of `### number` after its heading line, through the line before the next heading."""
+    lines = text.splitlines()
+    starts = [i for i, line in enumerate(lines) if line.startswith(f"### {number} ")]
+    assert len(starts) == 1, number
+    upto = next((j for j in range(starts[0] + 1, len(lines)) if HEADING.match(lines[j])), len(lines))
+    return lines[starts[0] + 1:upto]
+
+
+def test_the_research_notes_are_12_22_and_12_8_holds_none():
+    text = DESIGN.read_text(encoding="utf-8")
+    body = subsection_body(text, "12.22")
+    assert body[0].startswith("Purpose: the research-note bullets 12.8 held through v1.389, in the same order "
+                              "(12 v1.390): ")
+    assert body[0].endswith(" A `12.8 vX.Y` reference to one of them, in this file, a test or a research note, "
+                            "names its bullet here.")
+    assert len(body) == len(RESEARCH_NOTES) + 2 and body[-1] == ""
+    for line, opening in zip(body[1:-1], RESEARCH_NOTES):
+        assert line.startswith(opening), (line[:60], opening)
+    twelve_eight = subsection_body(text, "12.8")
+    assert [line[:60] for line in twelve_eight if line.startswith(RESEARCH_NOTES)] == []
+    glance = [line for line in twelve_eight if line.startswith("- Results at a glance (v1.23): ")]
+    assert len(glance) == 1
+    assert ("then (v1.124) a blank line and the one paragraph of the where-routing-pays bullet of 12.22, then "
+            "(v1.258) a blank line and the one paragraph of the where-delegation-pays-at-a-glance bullet of 12.22, "
+            "and by nothing else.") in glance[0]
+    assert "12.8" not in PENDING and dict(measure(text)[1])["12.8"] <= CAPS["README evidence"]
+
+
+def test_the_12_opening_gives_the_research_notes_cap_and_the_12_total():
+    opening = DESIGN.read_text(encoding="utf-8").split("\n## 12. ", 1)[1].split("\n### ", 1)[0].splitlines()
+    caps = [line for line in opening if line.startswith("- Caps, each a ceiling ")]
+    assert len(caps) == 1
+    assert "; the research notes 12.22 40,000 (v1.390, row DOC21o);" in caps[0]
+    assert "`## 12.` 300,000 (v1.390) and `## 13.` 185,000." in caps[0]
+    assert (CAPS["research notes"], SECTION_CAPS["12"], SECTION_CAPS["13"]) == (40_000, 300_000, 185_000)
+    moved = [line for line in opening if line.startswith("- Research notes out of 12.8 (v1.390, row DOC21o): ")]
+    assert len(moved) == 1
+    for words in ("are 12.22, a research-notes spec with a cap of 40,000 bytes, in the same order",
+                  "The `## 12.` total is 300,000 bytes: the 260,000 of v1.386 counted these bullets inside the "
+                  "50,000 of 12.8, and they now have a cap of their own, 40,000"):
+        assert words in moved[0], words
+
+
+def test_the_12_8_size_budget_clause_holds_no_history():
+    # v1.390: the 0b3e142 sizes, the DOC19a to DOC19k plan and the ceilings' history are in CHANGELOG.md,
+    # behind the clause's two pointers (POINTERS).
+    body = subsection_body(DESIGN.read_text(encoding="utf-8"), "12.8")
+    start = [i for i, line in enumerate(body) if line.startswith("- Size budget (v1.334, row DOC19): ")]
+    assert len(start) == 1
+    clause = body[start[0]:]
+    assert clause[-1] == "" and all(line.startswith("  - ") for line in clause[1:-1]) and len(clause) == 10
+    for words in ("0b3e142", "DOC19a to DOC19k", "from review", "This clause changes no README text",
+                  "for 10 names", "v1.346 and v1.347"):
+        assert not [line[:60] for line in clause if words in line], words

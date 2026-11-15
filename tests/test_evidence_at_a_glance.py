@@ -919,7 +919,9 @@ def notes():
 def test_design_specifies_the_delegation_pointer():
     text = DESIGN.read_text(encoding="utf-8")
     section = text.split("\n### 12.8 ", 1)[1].split("\n### ", 1)[0]
-    bullets = [line for line in section.splitlines()
+    # v1.390 (row DOC21o): the research-note bullets, this one among them, are 12.22.
+    notes = text.split("\n### 12.22 ", 1)[1].split("\n## ", 1)[0].split("\n### ", 1)[0]
+    bullets = [line for line in notes.splitlines()
                if line.startswith("- Where delegation pays at a glance (v1.258, row DOC15): ")]
     assert len(bullets) == 1
     # v1.388 (row DOC21m): the bullet's history is in CHANGELOG.md, behind its pointer, which
@@ -931,7 +933,7 @@ def test_design_specifies_the_delegation_pointer():
                    "on the datasets of the four delegation bullets above: "):
         assert phrase in bullets[0], phrase
     assert "then (v1.258) a blank line and the one paragraph of the where-delegation-pays-at-a-glance bullet " \
-           "below, and by nothing else." in section
+           "of 12.22, and by nothing else." in section
 
 
 def test_the_delegation_pointer_follows_the_routing_one():
