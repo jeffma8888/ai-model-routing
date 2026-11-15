@@ -390,7 +390,8 @@ def readme_paragraph():
     return ("In numbers, with C, B, R and T the `--context-tokens`, `--brief-tokens`, `--result-tokens` and "
             "`--carry-turns` values and `p_out / p_in` the parent's output price over its input price: for work in a "
             "call of its own (no `--fold-inline`), in one work call (`--work-calls 1`) with full-price reads of the "
-            "context (no `--cached-read-ratio`), from a parent with stats for the task that the router does not "
+            "context (no `--cached-read-ratio`) and the brief's output charged at its size (no "
+            "`--brief-output-tokens`), from a parent with stats for the task that the router does not "  # v1.409
             "exclude as a delegate and with no `price_tiers` in `models.json`, `cost_effective` delegates whenever "
             "`C - B - (1 + T) * (B + R)` is above `B * p_out / p_in`, whatever the size of the work itself, since "
             f"that call re-reads the parent's whole context. At a {b:,}-token brief and result and `--carry-turns {t}`, "

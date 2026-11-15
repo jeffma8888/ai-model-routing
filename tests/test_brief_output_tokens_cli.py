@@ -128,8 +128,14 @@ def test_design_states_the_flag_in_13_7_and_the_evaluator_in_13_1():
     for term in ("The CLI passes it from v1.409 (`--brief-output-tokens`, 13.7, row D12)",
                  "the 13.9 evaluator keeps W = B, since a point has no key for it",
                  "and so does every committed delegation result, the ledger runs of 13.15 "
-                 "included (its decision (2))"):
+                 "included (its decision (2))",
+                 "README `### Inline or sub-agent`'s condition (13.8 v1.256) names the flag among "
+                 "its preconditions (no `--brief-output-tokens`), since at W above B its "
+                 "`B * p_out / p_in` is `W * p_out / p_in`"):
         assert term in s13_1, term
+    # the README paragraph itself is built and checked by tests/test_research_delegation_reasons.py
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    assert readme.count("the brief's output charged at its size (no `--brief-output-tokens`)") == 1
     for term in ("[--output-reread-share X] [--brief-output-tokens N] [--flavor",
                  "`--brief-output-tokens` (v1.409, default unset, meaning B) passes "
                  "`brief_output_tokens` (13.1) as an integer, and with it unset the CLI prints "
