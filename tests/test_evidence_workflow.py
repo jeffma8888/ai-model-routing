@@ -7,13 +7,14 @@ evidence/ledger-handoff/RESULTS.md (DESIGN 13.15), which has no README subsectio
 fails when a committed results file changes (DESIGN 12.13, v1.30),
 and both workflows run on one pinned runner image with a dated comment (v1.49), and the job
 has a time limit of ten times its slowest run, rounded up to whole five minutes, with no download
-retry (v1.152; 25 minutes, restated as 30 at v1.170, as 40 at v1.217, whose basis was the
+retry until v1.406 (v1.152; 25 minutes, restated as 30 at v1.170, as 40 at v1.217, whose basis was the
 slowest run on the `Regenerate` lines in force, as 50 at v1.225, as 55 at v1.268, as 40 at
 v1.301, on the first run of the v1.299 lines, as 50 at v1.302, on the slower of the first
 two, as 35 at v1.321, on the slower of the first two runs of the v1.317 lines, as 50 at
 v1.374, on the slowest of the first eight, as 60 at v1.395, on the slowest of the first
 eleven, as 25 at v1.398, on the first run of the v1.397 lines, as 30 at v1.399, on the slower
-of the first two, and as 60 at v1.401, on the slowest run on main whatever its lines). From v1.278
+of the first two, as 60 at v1.401, on the slowest run on main whatever its lines, and as 65 at
+v1.407, on a rerun, counted by its latest attempt). From v1.278
 the top comment names the rerun subsections (eight, nine from v1.299) in README heading order, on
 lines under 100 columns.
 
@@ -56,10 +57,15 @@ ON = (
     "      - \".github/workflows/evidence.yml\"\n")
 STEP_NAMES = [None, None, "Install", "Regenerate", "Compare"]
 # The job's time limit, by the v1.152 rule: ten times the slowest run, rounded up to a whole
-# five minutes. The v1.401 value (row CI21): the slowest successful run of the workflow on main,
-# whatever its Regenerate lines, a line change keeping the value, is run 43689201551 on 2c31a98
-# among the 93 to 2026-11-15 (all on main, all successful), 338 s, so 60; by its log the first
-# lines of its six converters took 268.8 s (it ran before the ledger line). At v1.399, the
+# five minutes. The v1.407 value (row CI22): the slowest successful run of the workflow on main,
+# whatever its Regenerate lines, a run that was rerun counting by its latest attempt from that
+# attempt's start, is run 43751236072 on 937399a among the 97 to 2026-11-15 (all on main, all
+# successful by their latest attempt), 371 s on attempt 2, so 65; by its log the first lines of
+# its six converters took 299.7 s, 30.9 s more than in the v1.401 basis run, 65.0 s more on the
+# LLMRouterBench line, and the ledger line 1.5 s. At v1.401 (row CI21), with a line change
+# keeping the value, run 43689201551 on 2c31a98 among the 93 then (all on main, all
+# successful), 338 s, so 60; by its log the first lines of its six converters took 268.8 s (it
+# ran before the ledger line). At v1.399, the
 # slowest run on the Regenerate lines in force, from v1.397 those with the ledger hand-off line
 # last, was the slower of the two such runs among the 92 to
 # 2026-11-15 (149 and 178 s from start to last update), run 43707930726, 178 s, so 30; by its
@@ -88,22 +94,26 @@ STEP_NAMES = [None, None, "Install", "Regenerate", "Compare"]
 # 42904515973), so 50, its extra time most likely the same download. At v1.217, the one such run
 # then, 213 s, so 40; the four runs of v1.200 to v1.214 (up to 278 s) also ran the converter
 # line twice. At v1.170, 158 s over 45 runs, so 30; at v1.152, 140 s over 40 runs, so 25.
-SLOWEST_RUN_SECONDS = 338
-SLOWEST_RUN_ID = 43689201551
-SLOWEST_RUN_SHA = "2c31a98"  # review iter-254 nit 3
+SLOWEST_RUN_SECONDS = 371
+SLOWEST_RUN_ID = 43751236072
+SLOWEST_RUN_SHA = "937399a"  # review iter-254 nit 3
+# v1.407 (row CI22): the attempt of the basis run whose time counts, its latest; above 1, a rerun.
+SLOWEST_RUN_ATTEMPT = 2
 # v1.391 (row DOC26): the versions of the DESIGN 12.13 time-limit bullet's history pointer, whose
 # CHANGELOG.md lines hold the earlier bases, and those bases' runs, which the bullet no longer names.
 TIME_LIMIT_HISTORY = ("v1.152, v1.168, v1.170, v1.215, v1.217, v1.218, v1.225, v1.226, v1.268, v1.299, v1.301, "
-                      "v1.302, v1.317, v1.321, v1.374, v1.395, v1.398, v1.399, v1.401")
-# v1.401 (row CI21): 43689201551, the v1.395 basis, is the basis again, so it leaves this list.
-EARLIER_BASIS_RUNS = ("43707930726", "43702821166", "43608998651", "43439800863", "43433217023", "43363202337",
-                      "43357001972", "43054947572", "42904515973", "42883099079", "42717985363", "42445989566")
+                      "v1.302, v1.317, v1.321, v1.374, v1.395, v1.398, v1.399, v1.401, v1.407")
+# v1.401 (row CI21): 43689201551, the v1.395 basis, was the basis again and left this list; v1.407
+# (row CI22) replaces it, so it comes back first.
+EARLIER_BASIS_RUNS = ("43689201551", "43707930726", "43702821166", "43608998651", "43439800863",
+                      "43433217023", "43363202337", "43357001972", "43054947572", "42904515973",
+                      "42883099079", "42717985363", "42445989566")
 # Review iter-249 nit 4 (v1.395, row CI16): the CHANGELOG.md half of the v1.391 rule. The restating
 # version ends the history pointer, and its line names the new basis run and the one it replaces,
 # each with its seconds; the replaced run is the first of EARLIER_BASIS_RUNS.
-RESTATING_VERSION = "v1.401"
-REPLACED_BASIS = ("v1.399", 43707930726, 178, "1e228d2")
-TIMEOUT_MINUTES = 60
+RESTATING_VERSION = "v1.407"
+REPLACED_BASIS = ("v1.401", 43689201551, 338, "2c31a98")
+TIMEOUT_MINUTES = 65
 LIMIT_LINE = f"    timeout-minutes: {TIMEOUT_MINUTES}"
 LIMIT_SENTENCE = (f"The job's time limit of {TIMEOUT_MINUTES} minutes is about ten times its slowest run, "
                   "and a failed download is retried by rerunning the job (DESIGN.md 12.13).")
@@ -654,7 +664,7 @@ def test_the_design_time_limit_bullet_gives_the_value_and_its_basis_run():
     _, marker, rest = bullet.partition(
         "Basis (v1.217, row E17h; restated v1.225, row E17i, v1.268, row CI10, v1.301, row CI11, "
         "v1.302, row CI12, v1.321, row CI14, v1.374, row CI15, v1.395, row CI16, v1.398, row CI18, "
-        "v1.399, row CI19, and v1.401, row CI21): ")
+        "v1.399, row CI19, v1.401, row CI21, and v1.407, row CI22): ")
     assert marker
     # v1.391 (row DOC26): the basis ends at the one history pointer; the earlier bases, their runs and
     # where their time went are in CHANGELOG.md, so the bullet holds no history sentence and none of
@@ -679,6 +689,15 @@ def test_the_design_time_limit_bullet_gives_the_value_and_its_basis_run():
         assert gone not in bullet, gone
     assert re.search(rf"run {SLOWEST_RUN_ID} on `{SLOWEST_RUN_SHA}`, which took {SLOWEST_RUN_SECONDS} seconds "
                      "from its start to its last update", basis)
+    # v1.407 (row CI22): a run that was rerun counts by its latest attempt, timed from that attempt's
+    # start, and the basis names the attempt when it is a rerun.
+    assert ("(v1.401, row CI21). A run that was rerun counts by its latest attempt, the one `gh run list` "
+            "reports, from that attempt's start, since a rerun downloads every file again (v1.407, row CI22). "
+            ) in basis
+    assert "all on `main` and all successful by their latest attempt, the slowest is " in basis
+    rerun = f"to its last update (attempt {SLOWEST_RUN_ATTEMPT}, a rerun; its `regenerate` job "
+    assert (rerun in basis) == (SLOWEST_RUN_ATTEMPT > 1), rerun
+    assert SLOWEST_RUN_ATTEMPT > 1 or "a rerun; its" not in basis
     tenfold = 10 * SLOWEST_RUN_SECONDS
     assert f"{tenfold:,} seconds is {tenfold / 60:.1f} minutes, so {TIMEOUT_MINUTES}." in basis
     # v1.225: the run length past which the rule gives more than the value in force, six times
@@ -701,7 +720,8 @@ def test_the_design_time_limit_bullet_gives_the_value_and_its_basis_run():
                    f"each of {len(TIME_LIMIT_MUTANTS)} broken workflows fails the time-limit check it names",
                    f"raised by a minute (to {TIMEOUT_MINUTES + 1}), set to 360,",
                    "(v1.401, row CI21) the rule to name no line set, a line change to keep the value and the "
-                   "replaced basis run to be the faster"):
+                   "replaced basis run to be the faster, and (v1.407, row CI22) a rerun to count by its latest "
+                   "attempt;"):
         assert pinned in tests, pinned
     counts = re.findall(r"\b[Oo]f the ([\d,]+) runs\b", bullet)
     assert len(counts) == 2 and counts[0] == counts[1], counts
@@ -870,8 +890,9 @@ def test_the_workflow_reruns_the_ledger_handoff_line_last():
     assert f"each of {len(MUTANTS)} broken workflows fails the check, the seven `Compare` mutants" in section
     assert "then (v1.397) the regenerate line of `evidence/ledger-handoff/RESULTS.md` (13.15)" in section
     assert "thirteen files from `evidence/autobench-2026/results.json` to `evidence/ledger-handoff/results.json`" in section
-    # v1.401 (row CI21): the basis is the slowest run on main, whatever its lines.
-    assert (f"all successful and all on `main`, the slowest is run {SLOWEST_RUN_ID} on "
+    # v1.401 (row CI21): the basis is the slowest run on main, whatever its lines; v1.407 (row CI22),
+    # by its latest attempt.
+    assert (f"all on `main` and all successful by their latest attempt, the slowest is run {SLOWEST_RUN_ID} on "
             f"`{SLOWEST_RUN_SHA}`, "
             in section)
     spec = design.split("\n### 13.15 ", 1)[1].split("\n## ", 1)[0]
