@@ -13,7 +13,7 @@ The 13.1 inputs named below are those of `Router.decide_delegation`: the context
 - Who&When records 689 hand-off messages in 57 of its 58 hand-crafted multi-agent logs, but without token counts, and every log was picked because it failed
 - MAD (CC-BY-4.0) has the most traces, 1,642 over 7 multi-agent frameworks, but each trace is free text, with no structured success label or token counts
 - A fifth candidate, read on 2026-11-12 ([its own section](#agentssci-protocol-routing-2026-11-12)): AgentsSci's protocol-routing data (CC-BY-4.0) pairs one direct answer with three protocols that spend more calls of the same solver (one of self-correction, two multi-agent) on 15,088 (setting, problem) rows, which measures escalation, not a hand-off: no brief or result is recorded, and per-item tokens cover one of its ten settings
-- A search on 2026-11-14 ([its own section](#a-fresh-search-for-paired-inline-and-delegated-runs-2026-11-14)) finds two releases that run the same work inline and through a sub-agent on the same items, each with a program-checked success label per path: the Attention Tax, Handoff Tax ledger runs (data CC BY 4.0), one open model on a synthetic ledger task, 300 items with per-call token counts and the hand-off notes recorded, where the hand-off path solves more items at every depth on far fewer prompt tokens and a 100-item probe finds a short note loses nothing measurable against the full history; and the TokenSave runs (CC-BY-4.0), 12 code-search questions with a per-run cost, where a sub-agent on the parent's own model costs more than working inline. It recommends a converter for the ledger runs
+- A search on 2026-11-14 ([its own section](#a-fresh-search-for-paired-inline-and-delegated-runs-2026-11-14)) finds two releases that run the same work two ways on the same items, each with a program-checked success label per path: the Attention Tax, Handoff Tax ledger runs (data CC BY 4.0), one open model on a synthetic ledger task, 300 items done in one context and as a serial chain of fresh contexts linked by notes (a successor takes over; no parent reads a result back), with per-call token counts, where the chain solves more items at every depth on far fewer prompt tokens and a 100-item probe shows no aggregate loss from a short note against the full history, though items are lost and gained both ways; and the TokenSave runs (CC-BY-4.0), 12 code-search questions worked inline and through sub-agents with a per-run cost, where a sub-agent on the parent's own model costs more than working inline. It recommends a converter for the ledger runs (row E23)
 - So the delegation evidence keeps its stated grid. The section after the four candidates says what the smallest dataset that could test the assumption would have to record
 
 ## Candidates
@@ -165,27 +165,28 @@ Question: has a public release since the searches above run one piece of work bo
 
 - Hugging Face dataset search, newest first: `https://huggingface.co/api/datasets?search=<term>&sort=lastModified&direction=-1&limit=60` for `multi-agent` (60 results), `single-agent` (14), `subagent` (32), `sub-agent` (32), `delegation` (17), `orchestrator` (43) and `agent-traces` (60). Each dataset whose name or card fits the question was read through `https://huggingface.co/api/datasets/<id>` and its card
 - arXiv, newest first: `https://export.arxiv.org/api/query?search_query=<query>&sortBy=submittedDate&sortOrder=descending&max_results=60` for `abs:subagent`, `abs:"sub-agent" AND abs:delegat*` (no result), `abs:"single-agent" AND abs:"multi-agent" AND abs:cost` and `abs:"multi-agent" AND abs:"single agent" AND abs:tokens`: 58 distinct papers published from 2026-10-01. For the three whose abstract compares paths on the same items and gives their token ratio, the full text at `https://arxiv.org/html/<id>v1` was searched for GitHub, Hugging Face, Zenodo and OSF links; a fourth names its repository in its arXiv comment
-- GitHub repository search (`gh search repos`, by last update), six queries with no repository found: `multi-agent dual-control tau2`, `single-agent multi-agent trajectories ledgers`, `subagent inline delegation benchmark`, `agent architecture SOP cost success`, `single agent vs multi-agent financial review memos` and `subagent traces dataset`; then the GitHub API for the two repositories the papers link
+- GitHub repository search, `https://api.github.com/search/repositories?q=<query>&sort=updated` (through `gh search repos`), six queries with no repository found: `multi-agent dual-control tau2`, `single-agent multi-agent trajectories ledgers`, `subagent inline delegation benchmark`, `agent architecture SOP cost success`, `single agent vs multi-agent financial review memos` and `subagent traces dataset`; then the GitHub API for the two repositories the papers link
 - Revisions are those the Hugging Face or GitHub API returned on 2026-11-14. Files were downloaded outside the repo and read with the standard-library `json` and `csv` modules; nothing from them is committed
 
 ### Candidates
 
 | Release | Revision | Licence | Items and models | Same items on both paths | Success per path | Size per path |
 |---|---|---|---|---|---|---|
-| Attention Tax, Handoff Tax ledger runs | d891b4e | data CC BY 4.0, code MIT | 300 (depth, item) pairs and a 100-item hand-off probe; one model, `openai/gpt-oss-20b` | yes | yes, `final_ok` per item | yes, prompt, completion and reasoning tokens per call |
+| Attention Tax, Handoff Tax ledger runs | d891b4e | data CC BY 4.0, code MIT | 300 (depth, item) pairs, one context against a serial chain of fresh contexts, and a 100-item hand-off probe; one model, `openai/gpt-oss-20b` | yes | yes, `final_ok` per item | yes, prompt, completion and reasoning tokens per call |
 | TokenSave sub-agent runs | 33c600a, 0e36e9e | CC-BY-4.0 | 12 questions, 3 runs per path; `anthropic/claude-opus-5.5`, `anthropic/claude-haiku-5.5` | yes | yes, `recall` per run | cost and output tokens per run, no input tokens |
 | Dual-control tau2-bench runs | 41c2f6c | data CC BY 4.0, code MIT | 7,950 conversations of six models, by its README | yes, by its README | yes, by its README | yes, by its README; the data is not downloadable yet |
-| MultiAgent-Entropy raw data | cc0de80 | MIT | 44,781 rows by its card; Qwen3 and Llama-3.1 open models | yes | yes | the base model's answer tokens and all agents' tokens; not read whole |
+| MultiAgent-Entropy raw data | cc0de80 | MIT | 44,781 rows by its card; Qwen3, Llama-3.1 and Llama-3.2 open models | yes | yes | the base model's answer tokens and all agents' tokens; not read whole |
 
-### 1. The Attention Tax, Handoff Tax ledger runs (closest: the same work both ways, one model)
+### 1. The Attention Tax, Handoff Tax ledger runs (closest: the same work in one context and as a serial chain of fresh contexts, one model)
 
 - URL: https://github.com/akshitanchan/attention-handoff-tax, the code and data of https://arxiv.org/abs/2610.06069 (v1 submitted 2026-10-05; its arXiv comment names the repository)
 - Revision: d891b4eb92abf039431be850646830b486f9e5af (committed 2026-10-04), the default branch's HEAD by the GitHub API
 - Licence: the LICENSE file gives MIT for the code and CC BY 4.0 for `data/`, `config/` and `results/`; the API's licence field reads `NOASSERTION`, since the file holds both
 - Files read: `data/ledger/single.jsonl` (4,187,684 bytes), `data/ledger/decomposed.jsonl` (6,227,860) and `data/ledger/handoff.jsonl` (1,005,220), each with the sha256 the repository's `SHA256SUMS` lists, and the three `config/ledger/*.json` run settings
 - The task: an item is a list of L ledger transactions with one model call per transaction; each call's record holds its output, the balance and the flags `fmt_ok`, `inc_ok` and `abs_ok`, and each item `final_ok` and `all_inc_ok` (the paper's abstract scores step-level and final-balance accuracy). The run settings give 100 items per depth, depths 20, 50 and 100, `m` 5, `s` 300, temperature 0.7 and `openai/gpt-oss-20b` at low reasoning effort in every call
-- The two paths: `single` makes each step's call with the whole history so far in its prompt; `decomposed` makes the same steps, writes a note every five steps (`notes`, each a call of its own with its `text` and its `note_tokens`), and the later steps read the note in place of the history. The 300 (depth, item) keys of the two files are the same
-- The probe, `handoff.jsonl`: 100 items, 12 steps of history each, then 5 more steps four ways, with the history (`history`) or from a note of budget 100, 300 or 900 tokens. That is the matched control [the smallest dataset](#what-the-smallest-dataset-that-could-test-the-lossless-brief-would-record) asks for, with one model as writer and reader: the same continued work, once with the full context and once with a brief in its place
+- The two paths: `single` makes each step's call with the whole history so far in its prompt; `decomposed` runs each chunk of five steps in a fresh conversation that starts from a note the previous chunk's conversation wrote (`notes`, each a call of its own with its `text` and its `note_tokens`; `code/ledger_experiment.py` at that revision: "the fresh agent starts from the balance stated in the handoff note"). The 300 (depth, item) keys of the two files are the same
+- So the hand-off is serial: a successor takes over the work from a note, and no parent resumes to read a result back. It is a surrogate for the `DESIGN.md` 13 hand-off, a parent writing a brief to a delegate and reading its result, not that hand-off itself
+- The probe, `handoff.jsonl`: 100 items, 12 steps of history each, then 5 more steps four ways: in the same conversation (`history`), or in a fresh conversation started from a note of budget 100, 300 or 900 tokens that the first conversation wrote. That is close to the matched control [the smallest dataset](#what-the-smallest-dataset-that-could-test-the-lossless-brief-would-record) asks for, the same continued work once with the full context and once with a brief in its place, with one model as writer and reader, but for a successor rather than a delegate whose result a parent reads
 - Counts, from this command in the repository's root folder at that revision:
 
 ```python
@@ -204,12 +205,18 @@ for L in (20, 50, 100):
           "prompt", st.median(tot(r, "prompt_tokens") for r in s), st.median(tot(r, "prompt_tokens") for r in d),
           "completion", st.median(tot(r, "completion_tokens") for r in s), st.median(tot(r, "completion_tokens") for r in d),
           "notes", st.median(len(r["notes"]) for r in d), st.median(n["note_tokens"] for r in d for n in r["notes"]))
+H = read("data/ledger/handoff.jsonl")
+ok = lambda y, f: all(t[f] for t in y["steps"])
 for c in ("history", "note_100", "note_300", "note_900"):
-    x = [r["conditions"][c] for r in read("data/ledger/handoff.jsonl")]
-    print(c, len(x), "all inc_ok", sum(all(t["inc_ok"] for t in y["steps"]) for y in x),
-          "all abs_ok", sum(all(t["abs_ok"] for t in y["steps"]) for y in x),
+    x = [r["conditions"][c] for r in H]
+    print(c, len(x), "all inc_ok", sum(ok(y, "inc_ok") for y in x), "all abs_ok", sum(ok(y, "abs_ok") for y in x),
           "prompt", st.median(sum(t["prompt_tokens"] for t in y["steps"]) for y in x),
           "note", st.median(y["note_tokens"] for y in x) if c != "history" else "-")
+    if c != "history":
+        h = [r["conditions"]["history"] for r in H]
+        print(" ", c, "abs_ok lost", sum(ok(a, "abs_ok") > ok(b, "abs_ok") for a, b in zip(h, x)),
+              "gained", sum(ok(a, "abs_ok") < ok(b, "abs_ok") for a, b in zip(h, x)),
+              "note balance kept", sum(r["conditions"][c]["note_balance"] == r["pre"][-1]["balance"] for r in H))
 ```
 
 ```text
@@ -218,12 +225,15 @@ for c in ("history", "note_100", "note_300", "note_900"):
 100 100 ok 0 10 lost 0 gained 10 prompt 2029808.0 206613.0 completion 10262.0 10057.0 notes 19.0 174.0
 history 100 all inc_ok 73 all abs_ok 54 prompt 30827.0 note -
 note_100 100 all inc_ok 79 all abs_ok 58 prompt 7840.5 note 137.0
+  note_100 abs_ok lost 9 gained 13 note balance kept 100
 note_300 100 all inc_ok 77 all abs_ok 59 prompt 8077.0 note 180.5
+  note_300 abs_ok lost 8 gained 13 note balance kept 99
 note_900 100 all inc_ok 80 all abs_ok 60 prompt 8412.5 note 249.5
+  note_900 abs_ok lost 5 gained 11 note balance kept 100
 ```
 
 - Reading it: the hand-off path solves more items at every depth (64 against 49 at depth 20, 18 against 4 at 50, 10 against 0 at 100) and loses 18, 3 and 0 of the items the single path solves. Its median prompt tokens per item are 38,006 against 87,471, 101,419 against 517,315 and 206,613 against 2,029,808. Its median completion tokens are higher at depths 20 and 50 (1,608 against 762.5 and 4,729 against 2,339), the notes' own calls, and about level at 100 (10,057 against 10,262). The median note is 163 to 176 tokens
-- In the probe a note loses nothing measurable against the history: from a note of budget 100, 300 or 900 tokens, 79, 77 and 80 of the 100 items keep every continued step `inc_ok`, against 73 with the history, at a median of 7,840.5 to 8,412.5 prompt tokens over the five steps against 30,827
+- In the probe aggregate continuation success is not lower from a note: from a note of budget 100, 300 or 900 tokens, 79, 77 and 80 of the 100 items keep every continued step `inc_ok` and 58, 59 and 60 every step `abs_ok`, against 73 and 54 with the history, at a median of 7,840.5 to 8,412.5 prompt tokens over the five steps against 30,827. Per item it is not lossless: the three note arms lose 9, 8 and 5 of the 54 items the history keeps all `abs_ok` and gain 13, 13 and 11, and the balance a note states equals the twelfth history step's balance on 100, 99 and 100 of the items. So these runs show no aggregate loss from a short note, not a zero loss; the repository's `code/analyse_ledger.py` measures a note's balance preservation apart from the context load
 - Limits: a synthetic task and one open model in every role, so the delegate is never cheaper per token than the parent and no delegate is chosen from a pool; no price is recorded, and the model has no row in `model_routing/data/models.json`
 
 ### 2. TokenSave sub-agent runs (the same questions inline and delegated, 12 questions)
@@ -232,38 +242,39 @@ note_900 100 all inc_ok 80 all abs_ok 60 prompt 8412.5 note 249.5
 - Licence: CC-BY-4.0 (each card and its API tag)
 - Files read: `claude-subagent-effort.csv` (43,177 bytes, sha256 5d44619d07a3f95164bbb392b667e3c08303e8318532a4ac47fd9f041c340fe5) and `claude-subagent-model-by-version.csv` (28,730 bytes, sha256 b5432409b3db03ac34e99078a8c840f4378ffd9a045cbd95db473d93848f6958)
 - What a row records: one headless run of a coding-agent CLI, read and search tools only, on one of 12 "find every place" code-search questions in 6 open-source repositories (card), with `recall` (the share of the question's key items its answer names, 151 key items over the 12 questions, scored by a program on file and function or class), `api_cost_usd`, `output_tokens`, `subagent_calls` and `subagent_models`. No input token count; the second file splits the cost by model
-- The paths: in the first file, condition `C0` is the question alone and `C1` to `C3` add an instruction to search with sub-agents at three effort settings, with `anthropic/claude-opus-5.5` or `anthropic/claude-haiku-5.5` as the parent (`claude-opus-5-5` and `claude-haiku-5-5` in the files) and each sub-agent on the parent's own model, 3 runs per question; in the second, parts `B` (the default setting) and `D` (the setting that moves the sub-agent to Haiku 5.5) run the same 12 questions 3 times with an Opus 5.5 parent
+- The paths: in the first file, condition `C0` is the question alone and `C1` to `C3` add an instruction to search with sub-agents at three effort settings, with `anthropic/claude-opus-5.5` or `anthropic/claude-haiku-5.5` as the parent (`claude-opus-5-5` and `claude-haiku-5-5` in the files, which the command maps to those IDs) and each sub-agent on the parent's own model, 3 runs per question; in the second, parts `B` (the default setting) and `D` (the setting that moves the sub-agent to Haiku 5.5) run the same 12 questions 3 times with an Opus 5.5 parent
 - Counts, from this command in the folder holding the two files:
 
 ```python
 import csv, statistics as st
 e = list(csv.DictReader(open("claude-subagent-effort.csv")))
 v = list(csv.DictReader(open("claude-subagent-model-by-version.csv")))
+ID = {"claude-opus-5-5": "anthropic/claude-opus-5.5", "claude-haiku-5-5": "anthropic/claude-haiku-5.5"}
 cost = lambda x: round(st.mean(float(r["api_cost_usd"]) for r in x), 6)
 for m in ("claude-opus-5-5", "claude-haiku-5-5"):
     inline = {(r["question"], r["rep"]): r for r in e if r["model"] == m and r["condition"] == "C0"}
     for c in ("C0", "C1", "C2", "C3"):
         x = [r for r in e if r["model"] == m and r["condition"] == c]
         cheaper = sum(float(r["api_cost_usd"]) < float(inline[r["question"], r["rep"]]["api_cost_usd"]) for r in x)
-        print(m, c, len(x), "sub-agent runs", sum(int(r["subagent_calls"]) > 0 for r in x),
+        print(ID[m], c, len(x), "sub-agent runs", sum(int(r["subagent_calls"]) > 0 for r in x),
               "recall 1", sum(float(r["recall"]) == 1 for r in x), "cost", cost(x), "cheaper than inline", cheaper)
 for p, s in (("B", ""), ("D", "CLAUDE_CODE_SUBAGENT_MODEL=haiku; CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1")):
     x = [r for r in v if r["part"] == p and r["setting"] == s]
-    print(p, len(x), "questions", len({r["question"] for r in x}), "sub-agent", sorted({r["subagent_models"] for r in x}),
+    print(p, len(x), "questions", len({r["question"] for r in x}), "sub-agent", sorted({ID[r["subagent_models"]] for r in x}),
           "recall 1", sum(float(r["recall"]) == 1 for r in x), "cost", cost(x))
 ```
 
 ```text
-claude-opus-5-5 C0 36 sub-agent runs 0 recall 1 35 cost 0.158908 cheaper than inline 0
-claude-opus-5-5 C1 36 sub-agent runs 36 recall 1 34 cost 0.386112 cheaper than inline 0
-claude-opus-5-5 C2 36 sub-agent runs 36 recall 1 33 cost 0.509315 cheaper than inline 0
-claude-opus-5-5 C3 36 sub-agent runs 36 recall 1 36 cost 0.482508 cheaper than inline 0
-claude-haiku-5-5 C0 36 sub-agent runs 0 recall 1 31 cost 0.005603 cheaper than inline 0
-claude-haiku-5-5 C1 36 sub-agent runs 36 recall 1 31 cost 0.009771 cheaper than inline 1
-claude-haiku-5-5 C2 36 sub-agent runs 36 recall 1 32 cost 0.010505 cheaper than inline 1
-claude-haiku-5-5 C3 36 sub-agent runs 36 recall 1 33 cost 0.012075 cheaper than inline 0
-B 36 questions 12 sub-agent ['claude-opus-5-5'] recall 1 36 cost 0.379338
-D 36 questions 12 sub-agent ['claude-haiku-5-5'] recall 1 36 cost 0.153385
+anthropic/claude-opus-5.5 C0 36 sub-agent runs 0 recall 1 35 cost 0.158908 cheaper than inline 0
+anthropic/claude-opus-5.5 C1 36 sub-agent runs 36 recall 1 34 cost 0.386112 cheaper than inline 0
+anthropic/claude-opus-5.5 C2 36 sub-agent runs 36 recall 1 33 cost 0.509315 cheaper than inline 0
+anthropic/claude-opus-5.5 C3 36 sub-agent runs 36 recall 1 36 cost 0.482508 cheaper than inline 0
+anthropic/claude-haiku-5.5 C0 36 sub-agent runs 0 recall 1 31 cost 0.005603 cheaper than inline 0
+anthropic/claude-haiku-5.5 C1 36 sub-agent runs 36 recall 1 31 cost 0.009771 cheaper than inline 1
+anthropic/claude-haiku-5.5 C2 36 sub-agent runs 36 recall 1 32 cost 0.010505 cheaper than inline 1
+anthropic/claude-haiku-5.5 C3 36 sub-agent runs 36 recall 1 33 cost 0.012075 cheaper than inline 0
+B 36 questions 12 sub-agent ['anthropic/claude-opus-5.5'] recall 1 36 cost 0.379338
+D 36 questions 12 sub-agent ['anthropic/claude-haiku-5.5'] recall 1 36 cost 0.153385
 ```
 
 - Reading it: with an Opus 5.5 parent, 35 of the 36 inline runs find every key item at a mean of 0.158908 USD; with sub-agents on Opus 5.5, 34, 33 and 36 do at 0.386112 to 0.509315, and no delegated run costs less than its inline pair (the same question and run number); with a Haiku 5.5 sub-agent under the same parent (part `D`), 36 of 36 do at 0.153385, about the inline cost. With a Haiku 5.5 parent, 31 of 36 inline runs find every item at 0.005603, and 31 to 33 delegated runs at 0.009771 to 0.012075, 2 of the 108 delegated runs costing less than their inline pair
@@ -278,16 +289,16 @@ D 36 questions 12 sub-agent ['claude-haiku-5-5'] recall 1 36 cost 0.153385
 
 ### Read and set aside
 
-- AgenticFinLab/multiagent-entropy-rawdata (https://huggingface.co/datasets/AgenticFinLab/multiagent-entropy-rawdata at cc0de80449f720b745af3e1e2ff7308999e9902f, last modified 2026-06-09, MIT; the raw data of https://arxiv.org/abs/2602.04234): its card gives `merged_datasets/master.csv` (140,640,059 bytes by the API) 44,781 rows of 254 columns, and its first 6,000 bytes, read with an HTTP range request, name per (dataset, model, sample, architecture) `is_finally_correct`, `base_model_is_finally_correct`, `base_model_answer_token_count` and `sample_all_agents_token_count`. Its card lists the architectures `single` and six multi-agent ones, each row naming one `model_name`, and Qwen3 0.6B to 14B, Llama-3.1 3B and 8B and RL-trained models, none in the registry. So the same items, a success per path and a token count per path, but, as in AgentsSci, one model spending more calls on the whole problem, and no column name in the bytes read is a brief or a result. Not read whole
-- the-illusion-of-multi-agent-advantages/smfr-dataset (a2ee35176d4889791d45147934b198a2559f9406, 2026-11-06, CC-BY-4.0): 604 synthetic stock-trading reasoning problems with answers and a worked chain of thought (card), no model outputs
-- suad240176/masrs-multi-agent-evaluation-results (544166425cc9e91a9ab770920db3230397b37e6a, 2026-10-19, MIT): a thesis package, 60 clinical scenarios answered by a single retrieval baseline and by a multi-agent system, scored by ROUGE, F1 and Likert ratings with total tokens per system (card), so no program-checked success label
-- rmems/delegation-planning-trajectories (9cca2794ad70df336492ba0a2dfd73fa300cbf4b, 2026-10-22, Apache-2.0): tagged `synthetic`; plans, sub-agent claims and planner checks, with no inline run and no token count (its card's schema)
-- UdeM-Mila-Subagents/swesmith-multi-agent-trajectories (c7a5bb923b8fc0bf5be532f584b1c8c59587665b, 2026-05-01): no card and no licence tag, one data file of 493,205,559 bytes; not read, as HAL was not
+- AgenticFinLab/multiagent-entropy-rawdata (https://huggingface.co/datasets/AgenticFinLab/multiagent-entropy-rawdata at cc0de80449f720b745af3e1e2ff7308999e9902f, last modified 2026-06-09, MIT; the raw data of https://arxiv.org/abs/2602.04234): its card gives `merged_datasets/master.csv` (140,640,059 bytes by the API) 44,781 rows of 254 columns, and its first 6,000 bytes, read with an HTTP range request, name per (dataset, model, sample, architecture) `is_finally_correct`, `base_model_is_finally_correct`, `base_model_answer_token_count` and `sample_all_agents_token_count`. Its card lists the architectures `single` and six multi-agent ones, each row naming one `model_name`, and its supported-model list names Qwen3 0.6B to 14B, Llama-3.2-3B-Instruct, Llama-3.1-8B-Instruct and RL-trained models, none in the registry. So the same items, a success per path and a token count per path, but, as in AgentsSci, one model spending more calls on the whole problem, and no column name in the bytes read is a brief or a result. Not read whole
+- the-illusion-of-multi-agent-advantages/smfr-dataset (https://huggingface.co/datasets/the-illusion-of-multi-agent-advantages/smfr-dataset at a2ee35176d4889791d45147934b198a2559f9406, 2026-11-06, CC-BY-4.0): 604 synthetic stock-trading reasoning problems with answers and a worked chain of thought (card), no model outputs, so no model and no path
+- suad240176/masrs-multi-agent-evaluation-results (https://huggingface.co/datasets/suad240176/masrs-multi-agent-evaluation-results at 544166425cc9e91a9ab770920db3230397b37e6a, 2026-10-19, MIT): a thesis package, 60 clinical scenarios answered by a single retrieval baseline and by a multi-agent system, scored by ROUGE, F1 and Likert ratings with total tokens per system (card), its models not named in the card: the same items and a size per path, but no program-checked success label
+- rmems/delegation-planning-trajectories (https://huggingface.co/datasets/rmems/delegation-planning-trajectories at 9cca2794ad70df336492ba0a2dfd73fa300cbf4b, 2026-10-22, Apache-2.0): 7 records generated by a program, with no model, by its card; plans, sub-agent claims and planner checks, with no inline run and no token count (its card's schema)
+- UdeM-Mila-Subagents/swesmith-multi-agent-trajectories (https://huggingface.co/datasets/UdeM-Mila-Subagents/swesmith-multi-agent-trajectories at c7a5bb923b8fc0bf5be532f584b1c8c59587665b, 2026-05-01): no card and no licence tag, one data file of 493,205,559 bytes, its item count and models not stated; not read, as HAL was not
 - Papers since 2026-10-01 that compare paths on the same items but name no per-item release: https://arxiv.org/abs/2611.12953 (four architectures of one model on 13 enterprise procedures, the coordinated arms at 1.4 to 4.7 times the single agent's tokens by its abstract; its full text links only a multi-agent framework) and https://arxiv.org/abs/2610.27488 (one agent against a team of three of the same model on 300 synthetic memos with four models, the team at 2.2 to 2.4 times the tokens; its full text links no data)
 
 ### Recommendation (2026-11-14)
 
-- A converter for the ledger runs: of the two releases found that run the same work inline and through a hand-off on the same items, the only one with enough items for the evaluator's seeded split (100 per depth), per-call token counts on both paths and the brief recorded, and with a probe that measures a brief's loss against the full context, which the committed delegation evidence assumes is zero. Its data is CC BY 4.0, the licence of AutoBench and AgentsSci, which asks for attribution only, so no licence question is open. It would set measured paths beside the 13.9 grid; it cannot test a cheaper delegate or the `cost_effective` choice of a delegate model, since one model fills every role, and its cost needs a list price for `openai/gpt-oss-20b`, which the registry lacks
+- A converter for the ledger runs (row E23): of the two releases found that run the same work two ways on the same items, the only one with enough items for the evaluator's seeded split (100 per depth), per-call token counts on both paths and the note recorded, and with a probe that compares a note against the full context, where the committed delegation evidence assumes a brief loses nothing. Its hand-off is serial, so the converter would report its paths as a surrogate beside the 13.9 grid, measured for a successor rather than a delegate whose result a parent reads, and would state the probe's paired losses and gains without calling the note lossless. Its data is CC BY 4.0, the licence of AutoBench and AgentsSci, which asks for attribution only, so no licence question is open. It would set measured paths beside the 13.9 grid; it cannot test a cheaper delegate or the `cost_effective` choice of a delegate model, since one model fills every role, and its cost needs a list price for `openai/gpt-oss-20b`, which the registry lacks
 - No converter for the TokenSave runs: 12 questions are too few for the evaluator's split. What they show is the other side of the decision: with a parent context that starts fresh, a sub-agent on the parent's own model cost less than its inline pair in 2 of the 216 pairs, while the runs finding every key item went from 35 inline to 33 to 36 with an Opus 5.5 parent and from 31 to 31 to 33 with a Haiku 5.5 parent; a Haiku 5.5 sub-agent under an Opus 5.5 parent cost about what inline work did
 - Read the dual-control runs once `data/download.sh` names a Zenodo record: they would pair a single-agent and a multi-agent system of six models on tau2-bench tasks with per-call usage
-- The Summary's finding changes: two releases now run the same work inline and through a sub-agent, the ledger runs with one open model on a synthetic task and the TokenSave runs on 12 questions, so the delegation evidence keeps its stated grid and the lossless-brief caveat until a converter reports them
+- The Summary's finding changes: two releases now run the same work two ways on the same items, the ledger runs in one context and as a serial chain of fresh contexts with one open model on a synthetic task, and the TokenSave runs inline and through sub-agents on 12 questions, so the delegation evidence keeps its stated grid and the lossless-brief caveat until a converter reports them
