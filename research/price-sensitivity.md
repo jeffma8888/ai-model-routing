@@ -60,7 +60,7 @@ bar 0.8: committed routed success 0.6060, cost 154.0269; per model and factor, t
 
 - The more models clear a bar, the more the pick turns on the price order, so a price error moves the most picks at the lowest bar; at the highest bar the pick turns on which models clear, and a price error reorders few of them
 - A moved pick need not lose success: the router picked the cheapest clearing model by the recorded prices, and a wrong price makes it take another clearing model, which may score better or worse on the held-out half. Halving `deepseek/deepseek-v3-0324`'s price takes it on 177 cells at about the same cost and a gap of -0.0236; halving `openai/gpt-5`'s takes a stronger, dearer model on 50 cells, +0.0182 for 1.829 times the cost, a trade a caller who wants it makes with a higher bar or `cost_blind`, not with a wrong price
-- No cost ratio is below 1.000, and the highest are 1.829 at bar 0.1 and 1.002 at bar 0.8: where some model clears, the committed pick is the cheapest clearing model at the recorded calibration costs, so a pick that a wrong price moves costs more on the calibration half, and here the held-out half follows it
+- No cost ratio is below 1.000, and the highest are 1.829 at bar 0.1 and 1.002 at bar 0.8: where some model clears, the committed pick is the cheapest clearing model at the recorded calibration costs, so a pick that a wrong price moves costs no less on the calibration half, more unless two models tie there, and here the held-out half follows it
 - So a stale price is cheap to carry at a high bar, and at a low one it can cost a gap of -0.0236 or 1.829 times the bill, depending on which model it belongs to
 
 ## Recommendation
