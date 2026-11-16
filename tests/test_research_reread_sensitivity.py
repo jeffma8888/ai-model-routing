@@ -909,6 +909,10 @@ def test_the_design_bullet_is_in_12_22():
                    "or with `tau2-bench` or `tau2-bench-pooled` (v1.416) the 13.12 run",
                    "pricing each call's re-read of an earlier output at sigma"):
         assert phrase in bullet[0], phrase
+    # it points to the 13.1 clause that specifies the README Limitations sentence linking the note
+    # (v1.423, row DOC35), as the price-error bullet points to 9 v1.417
+    assert bullet[0].endswith("; README Limitations links it (13.1 v1.420)")
+    assert bullet[0].count("README Limitations") == 1
 
 
 # README Limitations: the note's bounds after the brief's-output sentence (v1.420, row DOC33)
