@@ -196,7 +196,7 @@ tau2-bench pooled, base grid (`evidence/tau2-bench-delegation/pooled.json`): 7,2
 ## Recommendation
 
 - Keep a registry's prices current for delegation as for routing: on AutoBench and LLMRouterBench one wrong price moves up to about half of a bar's `cost_effective` delegation decisions, far more than either input [reread-sensitivity.md](reread-sensitivity.md) varies, and raises the bill, on AutoBench by far more than those inputs move it and on LLMRouterBench by about as little, so refresh a model's row when its vendor changes a price, as [price-sensitivity.md](price-sensitivity.md) recommends for routing; on the Response Bank it moves a few decisions of one task and leaves the bill over each bar's cells unchanged at three decimals, and on tau2-bench, where neither input the re-read note varies moves a cell, it moves up to about a fifth of a bar's cells per domain and raises the bill, so how far a wrong price reaches depends on the dataset, and a small effect on one is no bound on another
-- Every committed delegation results file is now measured, and no one bound holds across the four delegation datasets: a README Limitations line on a stale price in a delegation decision should link this note and give the range, from a few cells of one task to about half of a bar's cells, rather than one figure; the README's routing sentence on a stale price stays as it is
+- Every committed delegation results file is now measured, and no one bound holds across the four delegation datasets: README Limitations' prices bullet links this note and gives the range, from a few cells of one task to about half of a bar's cells, rather than one figure, right after its routing sentence on a stale price, which stays as it is
 
 ## Limits
 
