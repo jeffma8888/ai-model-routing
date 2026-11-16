@@ -16,6 +16,12 @@ the tie-break (the first run in model, then factor, order) is run, and the hand 
 cell to a delegate (review iter-285 nit 8). The note's LLMRouterBench block is compared with the script's output
 on the pinned file when it is cached (the session fixture `llmrouterbench_pinned` of tests/conftest.py), and its
 Facts bullets are built from that block.
+
+v1.426 (row R39c) adds `--dataset response-bank`, checked as `--dataset llmrouterbench` is: the same hand matrix on
+a root whose committed 13.14 files are its run, at the 13.14 bars, against the same brute force. The note's Response
+Bank block is compared with the script's output on the pinned files when they are cached (the session fixture
+`response_bank_pinned` of tests/conftest.py), its Facts bullets are built from that block, and its Facts, Reading
+it and Recommendation claims are checked against it and the re-read note's Response Bank block.
 """
 
 import contextlib
@@ -39,10 +45,13 @@ INDEX = ROOT / "research" / "README.md"
 DESIGN = ROOT / "DESIGN.md"
 FOLDER = ROOT / "evidence" / "delegation"
 LRB = ROOT / "evidence" / "llmrouterbench-delegation"
+RB = ROOT / "evidence" / "response-bank-delegation"
 COMMAND = ("$ python research/delegation_price_sensitivity.py --matrix autobench-tokens.jsonl"
            " --registry autobench-pool.json")
 LRB_COMMAND = ("$ python research/delegation_price_sensitivity.py --dataset llmrouterbench"
                " --matrix llmrouterbench-matrix.jsonl")
+RB_COMMAND = ("$ python research/delegation_price_sensitivity.py --dataset response-bank"
+              " --matrix response-bank-matrix.jsonl")
 REGENERATE = [
     "python -m pip install -e .",
     "python evidence/autobench-2026/convert.py --out autobench-tokens.jsonl --task-by all --tokens"
@@ -50,18 +59,22 @@ REGENERATE = [
     COMMAND[2:],
     "python evidence/llmrouterbench/convert.py --out llmrouterbench-matrix.jsonl",
     LRB_COMMAND[2:],
+    "python evidence/response-bank/convert.py --out response-bank-matrix.jsonl",
+    RB_COMMAND[2:],
 ]
 SECTIONS = ["Facts", "Method", "Results", "Reading it", "Recommendation", "Limits", "Regenerate"]
 BULLET = "- A price error in a delegation decision, on AutoBench (v1.424, row R39): "
-ALLOWED = {"12.22", "13.2", "13.5", "13.9", "13.10", "13.13"}
+ALLOWED = {"12.22", "13.2", "13.5", "13.9", "13.10", "13.13", "13.14"}
 NUMBER = re.compile(r"(?<![\w.])[+-]?\d+(?:,\d{3})*(?:\.\d+)?%?")
 FACTORS = (0.5, 2.0)
 TITLE = ("One model's list price halved or doubled on the AutoBench 2026 delegation results: each cell re-decided "
          "with that model's input and output prices times 0.5 or 2.0, both picks scored at the committed prices")
 LRB_TITLE = TITLE.replace("AutoBench 2026", "LLMRouterBench")
+RB_TITLE = TITLE.replace("AutoBench 2026", "LLM Routing Response Bank")
 REREAD = ROOT / "research" / "reread-sensitivity.md"
 REREAD_COMMAND = "$ python research/reread_sensitivity.py --matrix autobench-tokens.jsonl --registry autobench-pool.json"
 REREAD_LRB_COMMAND = "$ python research/reread_sensitivity.py --dataset llmrouterbench --matrix llmrouterbench-matrix.jsonl"
+REREAD_RB_COMMAND = "$ python research/reread_sensitivity.py --dataset response-bank --matrix response-bank-matrix.jsonl"
 HEADER = ("  flavor          bar  runs moving  most changed / cells  share  to inline  success gap  cost ratio  "
           "all cost ratio  by")
 
@@ -94,6 +107,11 @@ def dr():
 @pytest.fixture(scope="module")
 def lrb():
     return _load("research_delegation_price_lrb_results", LRB / "results.py")
+
+
+@pytest.fixture(scope="module")
+def rb():
+    return _load("research_delegation_price_rb_results", RB / "results.py")
 
 
 def _rows():
@@ -153,14 +171,16 @@ def _lrb_rows():
     return rows
 
 
-def _lrb_root(tmp_path, lrb, rows, registry):
-    """A root whose committed 13.13 files are the run on `rows`; the 13.13 script reads its base points from the
-    13.10 script beside it, so that is copied too."""
+def _lrb_root(tmp_path, lrb, rows, registry, target=LRB):
+    """A root whose committed 13.13 files (or, with `target` RB, 13.14 files) are the run on `rows`; the 13.13
+    script reads its base points from the 13.10 script beside it, and the 13.14 script reads those and the 13.13
+    `select_rows`, so those are copied too."""
     root = tmp_path / "root"
-    for source in (FOLDER, LRB):
+    for source in dict.fromkeys((FOLDER, LRB, target)):
         folder = root / "evidence" / source.name
         folder.mkdir(parents=True)
         (folder / "results.py").write_text((source / "results.py").read_text(encoding="utf-8"), encoding="utf-8")
+    folder = root / "evidence" / target.name
     _registry_file(folder / "registry.json", registry)
     kept, _dropped = lrb.select_rows(rows, [m.id for m in registry.models])
     (folder / "results.json").write_text(json.dumps(lrb.run(kept, registry), indent=2) + "\n", encoding="utf-8")
@@ -354,6 +374,35 @@ def test_the_llmrouterbench_hand_matrix_moves_cells_of_both_tasks(lrb_hand):
     assert all(v["most"] == 0 for k, v in _table(lrb_hand[5]).items() if k[1] == "cost_blind")
 
 
+@pytest.fixture(scope="module")
+def rb_hand(ps, rb, tmp_path_factory):
+    rows, registry = _lrb_rows(), Registry([P, D, E])
+    root, matrix = _lrb_root(tmp_path_factory.mktemp("rb"), rb, rows, registry, RB)
+    code, out, err = _main(ps, ["--dataset", "response-bank", "--matrix", str(matrix), "--root", str(root)])
+    return rows, registry, root, matrix, code, out, err
+
+
+def test_response_bank_report_on_a_hand_matrix_is_the_brute_force(rb, rb_hand):
+    rows, registry, _, _, code, out, err = rb_hand
+    assert (code, err) == (0, "")
+    want = [RB_TITLE] + _expected(_kept(rows, registry), registry, rb, "base", "results.json",
+                                  "LLM Routing Response Bank", "evidence/response-bank-delegation")
+    assert out.split("\n") == want + [""]
+
+
+def test_the_response_bank_hand_matrix_moves_cells_of_both_tasks(rb_hand):
+    out = rb_hand[5].split("\n")
+    assert out[1].startswith("LLM Routing Response Bank, base grid (`evidence/response-bank-delegation/results.json`): "
+                             "4,800 cells, 2 tasks, 2 bars, 2 flavors, 4 points, 3 parents, 50 seeds, 3 models, so 6 "
+                             "runs; ")
+    line = next(x for x in out if x.startswith("  changed cells by task, all 6 runs: "))
+    counts = [x.rsplit(" ", 1) for x in line.split(": ", 1)[1].split(", ")]
+    assert [t for t, _ in counts] == ["t", "u"] and all(int(n.replace(",", "")) > 0 for _, n in counts), line
+    table = _table(rb_hand[5])
+    assert all(v["moving"] > 0 for k, v in table.items() if k[1] == "cost_effective")
+    assert all(v["most"] == 0 for k, v in table.items() if k[1] == "cost_blind")
+
+
 def test_a_hand_matrix_run_moves_a_committed_inline_cell_to_a_delegate(ps, lrb_hand):
     """The report counts the changed cells whose new mode is inline; this checks the other way round on the hand
     matrix, from `picks` itself (review iter-285 nit 8)."""
@@ -400,7 +449,7 @@ def test_the_most_names_the_first_tied_run_in_model_then_factor_order(ps, hand, 
     assert per_model == {"v/d": (0, 0, 3, 3), "v/e": (3, 3, 0, 0), "v/p": (2, 2, 0, 0)}
 
 
-def test_the_dataset_and_registry_options_exit_2_together(ps, hand, lrb_hand):
+def test_the_dataset_and_registry_options_exit_2_together(ps, hand, lrb_hand, rb_hand):
     _, _, root, matrix, pool = hand[:5]
     code, out, err = _main(ps, ["--matrix", str(matrix), "--root", str(root)])
     assert (code, out, err) == (2, "", "error: --dataset autobench needs --registry\n")
@@ -408,9 +457,14 @@ def test_the_dataset_and_registry_options_exit_2_together(ps, hand, lrb_hand):
     code, out, err = _main(ps, ["--dataset", "llmrouterbench", "--matrix", str(l_matrix), "--registry", str(pool),
                                 "--root", str(l_root)])
     assert (code, out, err) == (2, "", "error: --registry is only used with --dataset autobench\n")
-    with pytest.raises(ValueError, match="^dataset must be one of autobench, llmrouterbench, got 'response-bank'$"):
-        ps.run(l_matrix, None, l_root, "response-bank")
-    assert ps.DATASETS == ("autobench", "llmrouterbench")
+    _, _, r_root, r_matrix = rb_hand[:4]
+    code, out, err = _main(ps, ["--dataset", "response-bank", "--matrix", str(r_matrix), "--registry", str(pool),
+                                "--root", str(r_root)])
+    assert (code, out, err) == (2, "", "error: --registry is only used with --dataset autobench\n")
+    with pytest.raises(ValueError, match="^dataset must be one of autobench, llmrouterbench, response-bank, got "
+                                         "'tau2-bench'$"):
+        ps.run(l_matrix, None, l_root, "tau2-bench")
+    assert ps.DATASETS == ("autobench", "llmrouterbench", "response-bank")
 
 
 def test_scaled_changes_one_models_prices_only(ps):
@@ -445,7 +499,7 @@ def test_script_is_standard_library_and_model_routing():
 TABLE_LINE = (r"  (cost_\w+) +(0\.\d) +(\d+) / (\d+) +([\d,]+) / ([\d,]+) +([\d.]+)% +([\d,]+) +(\S+) +(\S+) +(\S+)  "
               r"(-|\S+ times (?:0\.5|2\.0))$")
 MODEL_LINE = r"  (\S+): times 0\.5 changes ([\d,]+) cells \(([\d,]+) to inline\), times 2\.0 changes ([\d,]+) \(([\d,]+) to inline\)$"
-GRID_LINE = (r"(?:AutoBench 2026|LLMRouterBench), (base|variants) grid \(`evidence/[\w-]+/\w+\.json`\): ([\d,]+) "
+GRID_LINE = (r"(?:AutoBench 2026|LLMRouterBench|LLM Routing Response Bank), (base|variants) grid \(`evidence/[\w-]+/\w+\.json`\): ([\d,]+) "
              r"cells, (?:\d+ tasks, )?(\d+) bars, (\d+) flavors, (\d+) points, (\d+) parents, (\d+) seeds, (\d+) "
              r"models, so (\d+) runs; ")
 TASK_LINE = r"  changed cells by task, all \d+ runs: (.+)$"
@@ -579,6 +633,62 @@ def lrb_facts(note):
     return out
 
 
+def _changed_at(block, label, bar):
+    """A re-read note block's `cost_effective` changed cells at one setting and bar."""
+    for line in block.split("\n"):
+        if line.startswith(f"  cost_effective  {bar}  {label} "):
+            return int(line[len(f"  cost_effective  {bar}  {label} "):].split()[0].replace(",", ""))
+    raise AssertionError((label, bar))
+
+
+def rb_facts(note):
+    """The Response Bank Facts bullets, built from the note's Response Bank block; the claims the Facts, Reading it
+    and Recommendation make about it are checked on the way, against the other two blocks and the re-read note's
+    Response Bank block."""
+    block = _block(note, RB_COMMAND)
+    table, grids = _table(block), _grids(block)
+    bars = sorted({k[2] for k in table})
+    assert set(grids) == {"base"} and len(table) == 2 * len(bars) and bars == ["0.8", "0.9"]
+    assert all(v["moving"] == 0 and v["most"] == 0 for k, v in table.items() if k[1] == "cost_blind")
+    (cells, b, flavors, points, parents, seeds, models, runs), by_model = grids["base"]
+    assert int(b) == len(bars) and int(runs) == 2 * int(models)
+    tasks = re.search(r" cells, (\d+) tasks, ", block).group(1)
+    by_task = [x.rsplit(" ", 1) for x in re.search(TASK_LINE, block, flags=re.M).group(1).split(", ")]
+    by_task = {t: int(n.replace(",", "")) for t, n in by_task}
+    by_point = [int(x.split(": ")[1].replace(",", "")) for x in
+                re.search(POINT_LINE, block, flags=re.M).group(1).split(", ")]
+    moved = [m for m, c in by_model.items() if c[0] or c[2]]
+    counts = [c[i] for c in by_model.values() for i in (0, 2) if c[i]]
+    changed, inline = sum(counts), sum(c[1] + c[3] for c in by_model.values())
+    some, none = [t for t, n in by_task.items() if n], [t for t, n in by_task.items() if not n]
+    # the Facts and Reading it claims: some models move no cell, the runs that move a cell each change the same
+    # number, all of one task, at every point, none of them inline
+    assert len(by_task) == int(tasks) and len(by_point) == int(points)
+    assert 0 < len(moved) < int(models) and len(set(counts)) == 1 and len(some) == 1 and inline == 0
+    assert changed == sum(by_task.values()) == sum(by_point) and all(n > 0 for n in by_point)
+    out = [f"- Response Bank data: the rows and registry that evidence/response-bank-delegation/results.py runs, its "
+           f"one grid ({cells} cells: {tasks} tasks, {b} bars, {flavors} flavors, {points} points, {parents} parents, "
+           f"{seeds} seeds), with the {models} models of its registry, each model's input and output prices times 0.5 "
+           f"and times 2.0 in turn, so {runs} runs; every cell's decision and held-out sum is reproduced at the "
+           "committed prices before any price is scaled"]
+    out.append("- Response Bank, `cost_effective`: " + "; ".join(_bar_parts(table, "base", bars)))
+    out.append(f"- Response Bank by model and task: {len(moved)} of the {models} models move a cell at one factor or "
+               f"the other and {int(models) - len(moved)} move none at either; {len(counts)} of the {runs} runs move a "
+               f"cell, each {counts[0]:,} cells over every flavor and bar, so {changed:,} in all, none of them inline; "
+               f"only {some[0]} has changed cells, and {', '.join(none[:-1])} and {none[-1]} have none")
+    # Reading it: at each bar the run that moves the most sends the work to picks that cost more and are right less
+    # often, far fewer cells than on the other two datasets, and a zero re-read share moves more cells than it does;
+    # the Recommendation: the bill over all the bar's cells is unchanged at the block's three decimals
+    rows = [table["base", "cost_effective", bar] for bar in bars]
+    assert all(r["gap"].startswith("-") and float(r["ratio"]) > 1 and r["all"] == "1.000" for r in rows)
+    others = [v for command in (COMMAND, LRB_COMMAND) for k, v in _table(_block(note, command)).items()
+              if k[1] == "cost_effective"]
+    assert 4 * max(float(r["share"]) for r in rows) < min(float(v["share"]) for v in others)
+    reread = _block(REREAD.read_text(encoding="utf-8"), REREAD_RB_COMMAND)
+    assert all(_changed_at(reread, "sigma 0", bar) > table["base", "cost_effective", bar]["most"] for bar in bars)
+    return out
+
+
 def facts(note):
     """The Facts bullets that hold numbers, built from the note's Results blocks."""
     block = _block(note)
@@ -612,17 +722,17 @@ def facts(note):
                f"({totals[1][0]:,})")
     out.append(f"- On AutoBench, of the {changed:,} cells the base grid's runs change, {inline:,} go inline; of the variant grid's "
                f"{v_changed:,}, {v_inline:,}; the rest go to a delegated pick")
-    return out + lrb_facts(note)
+    return out + lrb_facts(note) + rb_facts(note)
 
 
 def test_note_has_its_sections_command_and_regenerate():
     note = NOTE.read_text(encoding="utf-8")
     assert re.findall(r"^## (.+)$", note, flags=re.M) == SECTIONS
-    for command in (COMMAND, LRB_COMMAND):
+    for command in (COMMAND, LRB_COMMAND, RB_COMMAND):
         assert _section(note, "Results").count("```text\n" + command + "\n") == 1, command
     assert "```bash\n" + "\n".join(REGENERATE) + "\n```" in _section(note, "Regenerate")
     for link in ("../evidence/delegation/RESULTS.md", "../evidence/llmrouterbench-delegation/RESULTS.md",
-                 "price-sensitivity.md", "reread-sensitivity.md", "delegation_price_sensitivity.py"):
+                 "../evidence/response-bank-delegation/RESULTS.md", "price-sensitivity.md", "reread-sensitivity.md", "delegation_price_sensitivity.py"):
         assert f"]({link})" in note, link
 
 
@@ -643,10 +753,10 @@ def test_every_number_of_the_prose_is_in_a_built_bullet_or_allowed():
     block's parameters (its title's dataset year and factors, and its bars); a code span is a name, not a number."""
     note = NOTE.read_text(encoding="utf-8")
     parameters = set()
-    for command in (COMMAND, LRB_COMMAND):
+    for command in (COMMAND, LRB_COMMAND, RB_COMMAND):
         block = _block(note, command)
         parameters |= set(NUMBER.findall(block.split("\n", 1)[0])) | {k[2] for k in _table(block)}
-    assert parameters == {"2026", "0.1", "0.3", "0.5", "2.0", "0.7", "0.8"}
+    assert parameters == {"2026", "0.1", "0.3", "0.5", "2.0", "0.7", "0.8", "0.9"}
     prose = _prose(note)
     for bullet in facts(note):
         assert prose.count(bullet) == 1, bullet
@@ -665,7 +775,12 @@ def test_the_note_says_no_cost_blind_cell_moves_and_how_picks_are_scored():
     # the bill rises far more than the re-read inputs move it on AutoBench only (review iter-286 should-fix 1)
     assert "raises the bill, far more than" not in note
     assert "on AutoBench by far more than those inputs move it and on LLMRouterBench by about as little" in note
-    assert "- No run moves a `cost_blind` cell, on any grid or bar of either dataset" in _section(note, "Facts")
+    assert "- No run moves a `cost_blind` cell, on any grid or bar of the three datasets" in _section(note, "Facts")
+    # the Limits and the Recommendation name the datasets measured and the one left (row R39c)
+    assert ("- Three datasets, AutoBench 2026, LLMRouterBench and the LLM Routing Response Bank; the tau2-bench "
+            "delegation results are not measured yet") in _section(note, "Limits")
+    assert "- Measure the tau2-bench delegation results the same way before" in _section(note, "Recommendation")
+    assert "on the Response Bank it moves a few decisions of one task" in _section(note, "Recommendation")
     method = _section(note, "Method")
     for phrase in ("`price_in` and `price_out`", "committed prices", "`_router`", "`checked`"):
         assert phrase in method, phrase
@@ -687,7 +802,8 @@ def test_the_design_bullet_is_in_12_22():
                    "exit 2", "at the committed prices", "0.5 and 2.0", "`price_in` and `price_out` times the factor",
                    "committed 13.2 costs", "tests/test_research_delegation_price_sensitivity.py", "`## Results` block",
                    "`--dataset llmrouterbench` (v1.425, row R39b) runs the 13.13 grid", "refuses `--registry`",
-                   "names the task count", "one block per dataset"):
+                   "names the task count", "one block per dataset",
+                   "`--dataset response-bank` (v1.426, row R39c) runs the 13.14 grid"):
         assert phrase in bullet[0], phrase
     # the last bullet of 12.22, after the re-read bullet
     lines = section.rstrip("\n").split("\n")
@@ -727,3 +843,14 @@ def lrb_output(ps, llmrouterbench_pinned):
 
 def test_note_llmrouterbench_block_is_the_script_output(lrb_output):
     assert _block(NOTE.read_text(encoding="utf-8"), LRB_COMMAND).split("\n") == lrb_output
+
+
+@pytest.fixture(scope="module")
+def rb_output(ps, response_bank_pinned):
+    code, _stdout, _stderr, path = response_bank_pinned
+    assert code == 0
+    return ps.run(path, None, ROOT, "response-bank")
+
+
+def test_note_response_bank_block_is_the_script_output(rb_output):
+    assert _block(NOTE.read_text(encoding="utf-8"), RB_COMMAND).split("\n") == rb_output
