@@ -255,7 +255,8 @@ tau2-bench pooled, base grid (`evidence/tau2-bench-delegation/pooled.json`): 7,2
 
 ## Recommendation
 
-- Keep every committed delegation result at sigma 1.0 and W = B, and README Limitations' sentences on the two inputs as they are: neither input changes more than 0.7% of the cells of an AutoBench file, flavor and bar, 2.6% of LLMRouterBench's, 3.9% of the Response Bank's or none of tau2-bench's, per domain or pooled, and the cost over all of them moves by a factor of 0.996 to 1.003
+- Keep every committed delegation result at sigma 1.0 and W = B: neither input changes more than 0.7% of the cells of an AutoBench file, flavor and bar, 2.6% of LLMRouterBench's, 3.9% of the Response Bank's or none of tau2-bench's, per domain or pooled, and the cost over all of them moves by a factor of 0.996 to 1.003
+- README Limitations' inline-or-delegate cost bullet gives these bounds, after its sentences on the two inputs, and links this note
 
 ## Limits
 

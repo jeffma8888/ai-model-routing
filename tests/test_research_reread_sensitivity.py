@@ -28,6 +28,10 @@ root whose committed 13.12 file is that matrix's, against the brute force with e
 call at a time in exact fractions; the refusals of `--registry`, of rows without per-call sizes and of a
 summary that is not the committed one; and the note's two tau2-bench blocks, compared byte for byte when
 the 12 pinned tau2-bench files are cached, with the Facts claims checked against them.
+
+v1.420 (row DOC33): README Limitations' inline-or-delegate cost bullet gives the note's bounds in the
+sentence after the `brief_output_tokens` one and links the note, which the test builds from the five
+Results blocks, and the note's Recommendation and DESIGN 13.1 say so.
 """
 
 import contextlib
@@ -905,6 +909,82 @@ def test_the_design_bullet_is_in_12_22():
                    "or with `tau2-bench` or `tau2-bench-pooled` (v1.416) the 13.12 run",
                    "pricing each call's re-read of an earlier output at sigma"):
         assert phrase in bullet[0], phrase
+
+
+
+# README Limitations: the note's bounds after the brief's-output sentence (v1.420, row DOC33)
+
+def reread_sentence():
+    """The README Limitations sentence on the committed delegation results, built from the five blocks."""
+    note = NOTE.read_text(encoding="utf-8")
+    autobench, _points = _table(_block(note, COMMAND))
+    others = {command: _lrb_table(_block(note, command))[0] for command in COMMANDS[1:]}
+    tables = [autobench, *others.values()]
+    assert len(autobench) == 24 and [len(t) for t in others.values()] == [24, 12, 36, 36]
+    # every block runs the three settings the sentence names, and no cost_blind cell changes in any of them
+    assert [s[1:] for s in SETTINGS] == [(0.0, 1), (0.5, 1), (1.0, 2)]
+    assert all({k[-1] for k in t} == {s[0] for s in SETTINGS} for t in tables)
+    assert all(v[0] == 0 for t in tables for k, v in t.items() if "cost_blind" in k)
+    # tau2-bench changes no cell, per domain or pooled
+    assert all(v[0] == 0 for command in (T2_COMMAND, T2_POOLED_COMMAND) for v in others[command].values())
+
+    def top(rows):
+        return max(round(100 * v[0] / v[1], 1) for v in rows.values())
+
+    whole = [v[3] for v in autobench.values()] + [v[5] for t in others.values() for v in t.values()]
+    return (
+        "The committed delegation results keep both defaults, and re-deciding every cell of them at a re-read "
+        "share of 0 and 0.5 and at twice the brief's size for that call's output "
+        "([research/reread-sensitivity.md](research/reread-sensitivity.md)) changes at most "
+        f"{top(autobench):.1f}% of the cells of an AutoBench 2026 file, flavor and bar, "
+        f"{top(others[LRB_COMMAND]):.1f}% of LLMRouterBench's, {top(others[RB_COMMAND]):.1f}% of the LLM Routing "
+        "Response Bank's and none of tau2-bench's, none in `cost_blind`, which compares no costs, and moves the "
+        f"cost over all of a file, flavor and bar's cells by a factor of {min(whole):.3f} to {max(whole):.3f}.")
+
+
+def test_readme_limitations_give_the_bounds_after_the_brief_output_sentence():
+    sentence = reread_sentence()
+    readme = ROOT.joinpath("README.md").read_text(encoding="utf-8")
+    limits = readme.split("\n## Limitations and non-goals (v1)\n", 1)[1].split("\n## ", 1)[0]
+    bullets = [line for line in limits.split("\n")
+               if line.startswith("- The inline-or-delegate cost is a list-price approximation.")]
+    assert len(bullets) == 1 and bullets[0].count(sentence) == 1
+    # right after the `brief_output_tokens` sentence, which ends at the note calls' depths, and before the
+    # cached-read one
+    at = bullets[0].index(sentence)
+    before = bullets[0][:at]
+    assert "`brief_output_tokens` (`--brief-output-tokens`" in before.rsplit(". ", 2)[-2]
+    assert re.search(r"at depths \d+ to \d+\. $", before)
+    assert bullets[0][at + len(sentence):].startswith(" Prompt caching is costed only")
+    # the README links the note in this sentence alone
+    assert readme.count("(research/reread-sensitivity.md)") == 1
+
+
+def test_the_recommendation_says_readme_limitations_link_the_note():
+    rec = _section(NOTE.read_text(encoding="utf-8"), "Recommendation")
+    assert rec.count("\n- README Limitations' inline-or-delegate cost bullet gives these bounds, after its "
+                     "sentences on the two inputs, and links this note") == 1
+    assert "as they are" not in rec
+
+
+def test_design_13_1_states_the_reread_sentence():
+    design = DESIGN.read_text(encoding="utf-8")
+    s13_1 = design.split("\n### 13.1 Inputs\n", 1)[1].split("\n### 13.2 ", 1)[0]
+    clause = (
+        "From v1.420 (row DOC33, the Recommendation of the 12.22 v1.413 note) the sentence after that one says "
+        "that the committed delegation results keep sigma and W at their defaults and how far re-deciding their "
+        "cells at sigma 0, sigma 0.5 and W = 2 B moves them, from `research/reread-sensitivity.md`, which it "
+        "links: the largest share of a file, flavor and bar's cells that changes on AutoBench 2026, "
+        "LLMRouterBench and the LLM Routing Response Bank, none on tau2-bench and none in `cost_blind`, which "
+        "compares no costs, and the range of the cost over all of a file, flavor and bar's cells as a factor of "
+        "the committed picks', each number read by tests/test_research_reread_sensitivity.py from the note's "
+        "Results blocks to build the sentence, pinned once in that place; the note's Recommendation says that "
+        "README Limitations links it")
+    bullet = [line for line in s13_1.split("\n") if line.startswith("- `brief_output_tokens`")]
+    assert len(bullet) == 1 and bullet[0].count(clause) == 1
+    # beside DOC31's clause, after it
+    assert bullet[0].index("From v1.412 (row DOC31)") < bullet[0].index(clause)
+    assert bullet[0].endswith(clause)
 
 
 @pytest.fixture(scope="module")
