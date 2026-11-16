@@ -3,9 +3,10 @@ the code.
 
 ``brief_output_tokens`` (W, default None, meaning B) is what the decision turn writes to produce
 the brief, the completion of the call that writes it. W replaces B in the brief's output charge
-alone, ``P.cost(0, B)`` in 13.2 and ``B * out(C)`` on a tiered parent; the delegate's read of the
-brief, the parent's re-reads of B + R and the delegate's ``select`` keep B, so W moves
-``delegate_cost_usd`` only, and W = B gives the None costs bit for bit.
+alone, ``P.cost(0, W)`` in 13.2 and ``W * out(C)`` on a tiered parent (written with B up to
+v1.409); the delegate's read of the brief, the parent's re-reads of B + R and the delegate's
+``select`` keep B, so W moves ``delegate_cost_usd`` only, and W = B gives the None costs bit for
+bit.
 
 Every hand-computed case below is worked in the comment above it. The untiered models are cheap
 1/2, mid 3/6 and best 10/20 USD per 1M tokens, with S_in = 2,000 and S_out = 500 (no token counts),
@@ -84,14 +85,96 @@ def test_design_states_w_in_13_1_and_13_2():
     assert ("output_reread_share=1.0, brief_output_tokens=None, generator_model=None"
             in s13_1)
     assert "- `brief_output_tokens` (W, v1.405, default None, meaning B):" in s13_1
-    for term in ("W replaces B in the brief's output charge alone, `P.cost(0, B)` in 13.2 and "
-                 "`B * out(C)` on a tiered parent",
+    for term in ("W replaces B in the brief's output charge alone, `P.cost(0, W)` in 13.2 and "
+                 "`W * out(C)` on a tiered parent (13.2 v1.219, written with B up to v1.409)",
                  "so of the two costs W moves `delegate_cost_usd` alone, and through it the 13.5 "
                  "rows that compare them, never `inline_cost_usd`",
                  "checked after `output_reread_share`",
                  "W = B gives the None costs bit for bit"):
         assert term in s13_1, term
-    assert "so B (W from v1.405, 13.1) is charged once as parent output" in s13_2
+    assert ("so W (B unless `brief_output_tokens` is set, 13.1) is charged once as parent output"
+            in s13_2)
+
+
+# v1.410 (row DOC32): 13.2 writes the brief's output charge as W in each expression that charges
+# it, so a reader who checks the formulas against the code gets the code's cost at any W. Each
+# expression below is pinned as 13.2 writes it and then evaluated, as written, against
+# `decide_delegation` with D = P (fiction/mid delegates for fiction/mid in cost_effective).
+DELEGATE_1 = "P.cost(0, W) + D.cost(B + S_in, S_out) + (1 + T) * P.cost(B + R, 0)"
+DELEGATE_K = ("P.cost(0, W) + D.cost(K * B + w_in * S_in + w_out * S_out, K * S_out) "
+              "+ (1 + T) * P.cost(B + R, 0)")
+SEPARATE_1 = "P.cost(C, 0) - P.cost(B, W) + (1 + T) * (P.cost(S_in + S_out, 0) - P.cost(B + R, 0))"
+FOLDED_1_GAIN = "T * P.cost(S_in + S_out, 0)"
+FOLDED_1_COST = "P.cost(B, W) + (1 + T) * P.cost(B + R, 0)"
+SEPARATE_K = ("P.cost(K * C, 0) - P.cost(K * B, W) + (1 + T) * (P.cost(K * (S_in + S_out), 0) "
+              "- P.cost(B + R, 0))")
+FOLDED_K = ("P.cost((K - 1) * C, 0) - P.cost(K * B, W) + T * P.cost(K * (S_in + S_out), 0) "
+            "- (1 + T) * P.cost(B + R, 0)")
+SEPARATE_RHO = ("P.cost(K * C * rho, 0) - P.cost(K * B, W) + (1 + T) * (P.cost(K * (S_in + S_out), "
+                "0) - P.cost(B + R, 0))")
+
+
+def subsection(number, following):
+    design = (ROOT / "DESIGN.md").read_text(encoding="utf-8")
+    return design[design.index(f"### {number} "):design.index(f"### {following} ")]
+
+
+def test_13_2_writes_the_brief_output_as_w_and_13_9_keeps_b():
+    s13_2 = subsection("13.2", "13.3")
+    for written in (f"`delegate_cost_usd = {DELEGATE_1}`", f"`delegate_cost_usd = {DELEGATE_K}`",
+                    f"`{SEPARATE_1}`", f"`{FOLDED_1_GAIN}` exceeds `{FOLDED_1_COST}`",
+                    f"`{SEPARATE_K}`", f"Folded it is `{FOLDED_K}`", f"`{SEPARATE_RHO}`",
+                    "So the decision turn's brief on the delegate path is `W * out(C)` (A = 0)",
+                    "and its brief on the delegated path is the `W * out(C)` above",
+                    "W is what the decision turn writes, R what the next call reads back"):
+        assert written in s13_2, written
+    for term, count in (("P.cost(0, W)", 2), ("W * out(C)", 2), ("P.cost(B, W)", 2),
+                        ("P.cost(K * B, W)", 3)):
+        assert s13_2.count(term) == count, term
+    for term in ("P.cost(0, B)", "B * out(C)", "P.cost(B, B)", "P.cost(K * B, B)"):
+        assert term not in s13_2, term
+    # the evaluator keeps W = B (13.1 v1.409), so its delegated expressions keep B
+    s13_9 = subsection("13.9", "13.10")
+    assert s13_9.count("delegated: `P.cost(0, B) + D.cost(") == 3
+    assert "P.cost(0, W)" not in s13_9
+
+
+@pytest.mark.parametrize("k", [1, 3])
+@pytest.mark.parametrize("t", [0, 2])
+@pytest.mark.parametrize("w", [0, 800])
+def test_13_2_expressions_as_written_give_the_code_costs(k, t, w):
+    router = plain_router()
+    p = router.registry.get("fiction/mid")
+    c, b, r = 20_000, 300, 200
+    names = {"__builtins__": {}, "P": p, "D": p, "C": c, "B": b, "R": r, "W": w, "T": t, "K": k,
+             "S_in": S_IN, "S_out": S_OUT, "w_in": k * (k + 1) // 2, "w_out": k * (k - 1) // 2}
+
+    def spec(expression, rho=1.0):
+        return eval(expression, {**names, "rho": rho})  # noqa: S307, the pinned 13.2 text only
+
+    def close(value):
+        return pytest.approx(value, rel=0, abs=1e-12)
+
+    def run(fold, rho=1.0):
+        decision = decide(router, "fiction/mid", context_tokens=c, brief_tokens=b,
+                          result_tokens=r, work_calls=k, carry_turns=t,
+                          inline_separate_call=not fold, cached_read_ratio=rho,
+                          brief_output_tokens=w)
+        assert decision.route.primary == "fiction/mid"
+        return decision.inline_cost_usd, decision.delegate_cost_usd
+
+    inline, delegate = run(fold=False)
+    assert delegate == close(spec(DELEGATE_K))
+    assert inline - delegate == close(spec(SEPARATE_K))
+    if k == 1:
+        assert delegate == close(spec(DELEGATE_1))
+        assert inline - delegate == close(spec(SEPARATE_1))
+    inline, delegate = run(fold=True)
+    assert inline - delegate == close(spec(FOLDED_K))
+    if k == 1:
+        assert inline - delegate == close(spec(FOLDED_1_GAIN) - spec(FOLDED_1_COST))
+    inline, delegate = run(fold=False, rho=0.25)
+    assert inline - delegate == close(spec(SEPARATE_RHO, rho=0.25))
 
 
 def prices(model, tokens):
