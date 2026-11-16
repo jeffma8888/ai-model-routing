@@ -313,12 +313,15 @@ DESIGN_9 = (
     "Limitations' prices bullet gives, in one sentence right after the one that asks the reader to refresh "
     "`models.json` and check the model the gateway serves, how far a wrong price moves `cost_effective` routing, "
     "from `research/price-sensitivity.md`, which it links: on LLMRouterBench, with one model's price halved or "
-    "doubled, one model at a time, the most (task, seed) picks that changed, as a count of the cells and a share, "
-    "the range of the held-out success gap and the highest cost ratio, at the lowest bar and then at the highest; "
+    "doubled, one model at a time, the most picks that changed, one per (task, seed) cell, as a count of the cells and "
+    "a share, the range of the held-out success gap and, apart from it, the highest cost ratio, at the lowest committed "
+    "bar and then at the highest; "
     "then that a price is to be refreshed whenever its vendor changes it, most of all for a task with a low bar, at "
     "no fixed interval, since the note measures what a wrong price does, not how often prices change. Its numbers "
-    "are the note's own: the two bars, the cells per bar, and each bar's highest changed count, success gap range "
-    "and highest cost ratio from its closing `over the` line, which tests/test_research_price_sensitivity.py reads "
+    "are the note's own: the two bars, the cells per bar, which are its tasks times its seeds, each bar's highest "
+    "changed count, success gap range and highest cost ratio from its closing `over the` line, and each share, that "
+    "count over the cells to one decimal, the share the script prints beside it, all of which "
+    "tests/test_research_price_sensitivity.py reads "
     "from the note's Results block to build the sentence, pinned once in that place; the bars are the lowest and "
     "highest of `evidence/llmrouterbench/results.json`. No code, cost, committed result or README transcript changes\n")
 SPAN = re.compile(
@@ -333,6 +336,9 @@ def note_spans():
     assert len(spans) == 2 and spans[0][1] == spans[1][1]
     low, high = spans
     assert f"bars {low[0]} and {high[0]}, the lowest and highest of " in text
+    # the cells are one per task and seed, as the sentence says (review iter-278 should-fix 1)
+    [(tasks, seeds)] = re.findall(r"^LLMRouterBench .*?: (\d+) tasks, .*?, (\d+) seeds, ", text, flags=re.M)
+    assert int(low[1]) == int(tasks) * int(seeds)
     assert "with one model's calibration mean cost times 0.5 or 2.0, every other model's as recorded" in text
     for bar, cells, most, *_ in spans:
         share = f"{100 * int(most) / int(cells):.1f}%"
@@ -348,9 +354,10 @@ def price_error_sentence():
     return (
         "A wrong price moves `cost_effective` routing most at a low bar: on LLMRouterBench "
         "([research/price-sensitivity.md](research/price-sensitivity.md)), one model's price halved or doubled, "
-        f"one model at a time, changed up to {most_lo} of {cells} picks ({share(most_lo)}) at the lowest bar, {lo}, "
-        f"moving held-out success by {g_lo} to {g_hi} at up to {r_lo} times the cost, and up to {most_hi} "
-        f"({share(most_hi)}) at the highest, {hi}, by {h_lo} to {h_hi} at up to {r_hi} times, so refresh a price "
+        f"one model at a time, changed up to {most_lo} of the {cells} picks, one per task and seed ({share(most_lo)}), "
+        f"at the lowest committed bar, {lo}, moving held-out success by {g_lo} to {g_hi} and the cost up to {r_lo} "
+        f"times, and up to {most_hi} ({share(most_hi)}) at the highest, {hi}, by {h_lo} to {h_hi} and up to {r_hi} "
+        "times, so refresh a price "
         "whenever its vendor changes it, most of all for a task with a low bar (the note measures what a wrong "
         "price does, not how often prices change, so it sets no fixed interval). ")
 
