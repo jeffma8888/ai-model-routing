@@ -547,7 +547,7 @@ RESEARCH_NOTES = (
     "- Below-bar fallback, on LLMRouterBench (v1.191): ",
     "- The 13.2 re-read rule against measured tokens (v1.402, row R37): ",
     "- A price error, on LLMRouterBench (v1.403, row R35): ",
-    "- The re-read share and the brief's output, on AutoBench and LLMRouterBench (v1.413, row R38): ",
+    "- The re-read share and the brief's output, on AutoBench, LLMRouterBench and the response bank (v1.413, row R38): ",
 )
 
 

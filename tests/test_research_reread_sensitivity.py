@@ -14,6 +14,12 @@ has a null token count and a model the registry lacks, run through `main` agains
 refusals of `--registry`, of a missing one for AutoBench and of a summary that is not the committed one;
 and the note's LLMRouterBench block, compared byte for byte when the pinned file is cached (the session
 fixture `llmrouterbench_pinned` of tests/conftest.py), whose Facts claims a test checks against it.
+
+v1.415 (row R38c) adds `--dataset response-bank`, checked as `--dataset llmrouterbench` is: the same hand
+matrix through `main` against a root whose committed 13.14 files are that matrix's, against the brute
+force; its refusal of `--registry` and of a summary that is not the committed one; and the note's
+Response Bank block, compared byte for byte when the four pinned files are cached (the session fixture
+`response_bank_pinned`), with the Facts and Recommendation claims checked against it.
 """
 
 import contextlib
@@ -37,9 +43,11 @@ INDEX = ROOT / "research" / "README.md"
 DESIGN = ROOT / "DESIGN.md"
 FOLDER = ROOT / "evidence" / "delegation"
 LRB = ROOT / "evidence" / "llmrouterbench-delegation"
+RB = ROOT / "evidence" / "response-bank-delegation"
 COMMAND = ("$ python research/reread_sensitivity.py --matrix autobench-tokens.jsonl"
            " --registry autobench-pool.json")
 LRB_COMMAND = "$ python research/reread_sensitivity.py --dataset llmrouterbench --matrix llmrouterbench-matrix.jsonl"
+RB_COMMAND = "$ python research/reread_sensitivity.py --dataset response-bank --matrix response-bank-matrix.jsonl"
 REGENERATE = [
     "python -m pip install -e .",
     "python evidence/autobench-2026/convert.py --out autobench-tokens.jsonl --task-by all --tokens"
@@ -47,11 +55,14 @@ REGENERATE = [
     COMMAND[2:],
     "python evidence/llmrouterbench/convert.py --out llmrouterbench-matrix.jsonl",
     LRB_COMMAND[2:],
+    "python evidence/response-bank/convert.py --out response-bank-matrix.jsonl",
+    RB_COMMAND[2:],
 ]
 SECTIONS = ["Facts", "Method", "Results", "Reading it", "Recommendation", "Limits", "Regenerate"]
-BULLET = "- The re-read share and the brief's output, on AutoBench and LLMRouterBench (v1.413, row R38): "
+BULLET = ("- The re-read share and the brief's output, on AutoBench, LLMRouterBench and the response bank "
+          "(v1.413, row R38): ")
 # DESIGN section numbers: the only numbers of the note's prose not in the script's lines
-ALLOWED = {"12.22", "13.1", "13.2", "13.5", "13.9", "13.10", "13.13"}
+ALLOWED = {"12.22", "13.1", "13.2", "13.5", "13.9", "13.10", "13.13", "13.14"}
 NUMBER = re.compile(r"(?<![\w.])[+-]?\d+(?:,\d{3})*(?:\.\d+)?%?")
 SETTINGS = (("sigma 0", 0.0, 1), ("sigma 0.5", 0.5, 1), ("W = 2 B", 1.0, 2))
 
@@ -84,6 +95,11 @@ def dr():
 @pytest.fixture(scope="module")
 def lrb():
     return _load("research_reread_lrb_results", LRB / "results.py")
+
+
+@pytest.fixture(scope="module")
+def rb():
+    return _load("research_reread_rb_results", RB / "results.py")
 
 
 def _rows():
@@ -136,15 +152,16 @@ def _root(tmp_path, dr, rows, registry):
     return tmp_path / "root", matrix, _registry_file(tmp_path / "pool.json", registry.models)
 
 
-def _lrb_root(tmp_path, lrb, rows, registry):
-    """A root whose committed 13.13 files are the run on `rows`; the 13.13 script reads the base points
-    from the 13.10 script beside it, so that is copied too."""
+def _lrb_root(tmp_path, lrb, rows, registry, target=LRB):
+    """A root whose committed 13.13 files (or, with `target` RB, 13.14 files) are the run on `rows`; the
+    13.13 script reads the base points from the 13.10 script beside it, and the 13.14 script reads those and
+    the 13.13 `select_rows`, so those are copied too."""
     root = tmp_path / "root"
-    for source in (FOLDER, LRB):
+    for source in dict.fromkeys((FOLDER, LRB, target)):
         folder = root / "evidence" / source.name
         folder.mkdir(parents=True)
         (folder / "results.py").write_text((source / "results.py").read_text(encoding="utf-8"), encoding="utf-8")
-    folder = root / "evidence" / LRB.name
+    folder = root / "evidence" / target.name
     _registry_file(folder / "registry.json", registry.models)
     kept, _dropped = lrb.select_rows(rows, [m.id for m in registry.models])
     (folder / "results.json").write_text(json.dumps(lrb.run(kept, registry), indent=2) + "\n", encoding="utf-8")
@@ -334,15 +351,20 @@ def lrb_hand(rs, lrb, tmp_path_factory):
     return rows, registry, root, matrix, code, out, err
 
 
-def test_llmrouterbench_report_on_a_hand_matrix_is_the_brute_force(lrb, lrb_hand):
-    rows, registry, _, _, code, out, err = lrb_hand
-    assert (code, err) == (0, "")
-    # the 13.13 rows, kept here apart from `select_rows`: the registry's models, less every item on which
-    # one of them has a null token count
+def _kept(rows, registry):
+    """The 13.13 rows (13.14 takes the same rule), kept here apart from `select_rows`: the registry's models,
+    less every item on which one of them has a null token count."""
     names = {m.id for m in registry.models}
     null = {r["item"] for r in rows if r["model"] in names and None in (r["input_tokens"], r["output_tokens"])}
     kept = [r for r in rows if r["model"] in names and r["item"] not in null]
     assert null == {"t80"} and len(kept) == len(rows) - 3
+    return kept
+
+
+def test_llmrouterbench_report_on_a_hand_matrix_is_the_brute_force(lrb, lrb_hand):
+    rows, registry, _, _, code, out, err = lrb_hand
+    assert (code, err) == (0, "")
+    kept = _kept(rows, registry)
     want = ["The re-read share and the brief's output on the LLMRouterBench delegation results: each cell "
             "re-decided at sigma 0, sigma 0.5 and W = 2 B, both picks scored at that setting's costs"]
     want += _expected(kept, registry, lrb, "base", "results.json", "LLMRouterBench",
@@ -360,28 +382,58 @@ def test_the_llmrouterbench_hand_matrix_moves_cells_of_both_tasks(lrb_hand):
         assert [t for t, _ in counts] == ["t", "u"] and all(int(n) > 0 for _, n in counts), line
 
 
-def test_dataset_refusals(rs, hand, lrb_hand):
+@pytest.fixture(scope="module")
+def rb_hand(rs, rb, tmp_path_factory):
+    rows, registry = _lrb_rows(), Registry([P, D])
+    root, matrix = _lrb_root(tmp_path_factory.mktemp("rb"), rb, rows, registry, RB)
+    code, out, err = _main(rs, ["--dataset", "response-bank", "--matrix", str(matrix), "--root", str(root)])
+    return rows, registry, root, matrix, code, out, err
+
+
+def test_response_bank_report_on_a_hand_matrix_is_the_brute_force(rb, rb_hand):
+    rows, registry, _, _, code, out, err = rb_hand
+    assert (code, err) == (0, "")
+    want = ["The re-read share and the brief's output on the LLM Routing Response Bank delegation results: each "
+            "cell re-decided at sigma 0, sigma 0.5 and W = 2 B, both picks scored at that setting's costs"]
+    want += _expected(_kept(rows, registry), registry, rb, "base", "results.json", "LLM Routing Response Bank",
+                      "evidence/response-bank-delegation")
+    assert out.split("\n") == want + [""]
+
+
+def test_the_response_bank_hand_matrix_moves_cells_of_both_tasks(rb_hand):
+    out = rb_hand[5].split("\n")
+    assert out[1].startswith("LLM Routing Response Bank, base grid (`evidence/response-bank-delegation/results.json`): "
+                             "3,200 cells, 2 tasks, 2 bars, 2 flavors, 4 points, 2 parents, 50 seeds; ")
+    for label in ("sigma 0", "sigma 0.5", "W = 2 B"):
+        line = next(x for x in out if x.startswith(f"  changed cells by task, {label}: "))
+        counts = [x.rsplit(" ", 1) for x in line.split(": ", 1)[1].split(", ")]
+        assert [t for t, _ in counts] == ["t", "u"] and all(int(n) > 0 for _, n in counts), line
+
+
+def test_dataset_refusals(rs, hand, lrb_hand, rb_hand):
     pool = hand[4]
-    root, matrix = lrb_hand[2], lrb_hand[3]
-    for argv, want in [
-        (["--dataset", "llmrouterbench", "--matrix", str(matrix), "--registry", str(pool)],
-         "error: --registry is only used with --dataset autobench\n"),
-        (["--matrix", str(matrix)], "error: --dataset autobench needs --registry\n"),
-    ]:
-        code, out, err = _main(rs, argv + ["--root", str(root)])
-        assert (code, out, err) == (2, "", want), argv
+    for (root, matrix), dataset in (((lrb_hand[2], lrb_hand[3]), "llmrouterbench"),
+                                    ((rb_hand[2], rb_hand[3]), "response-bank")):
+        for argv, want in [
+            (["--dataset", dataset, "--matrix", str(matrix), "--registry", str(pool)],
+             "error: --registry is only used with --dataset autobench\n"),
+            (["--matrix", str(matrix)], "error: --dataset autobench needs --registry\n"),
+        ]:
+            code, out, err = _main(rs, argv + ["--root", str(root)])
+            assert (code, out, err) == (2, "", want), argv
 
 
-def test_llmrouterbench_exits_2_when_the_summary_is_not_the_committed_one(rs, lrb, tmp_path):
-    root, matrix = _lrb_root(tmp_path, lrb, _lrb_rows(), Registry([P, D]))
-    path = root / "evidence" / "llmrouterbench-delegation" / "results.json"
+@pytest.mark.parametrize("dataset, target", [("llmrouterbench", LRB), ("response-bank", RB)])
+def test_a_many_task_dataset_exits_2_when_the_summary_is_not_the_committed_one(rs, tmp_path, dataset, target):
+    script = _load(f"research_reread_{target.name}_summary", target / "results.py")
+    root, matrix = _lrb_root(tmp_path, script, _lrb_rows(), Registry([P, D]), target)
+    path = root / "evidence" / target.name / "results.json"
     data = json.loads(path.read_text(encoding="utf-8"))
     data["summary"][0]["cost_usd"] *= 2
     path.write_text(json.dumps(data), encoding="utf-8")
-    code, out, err = _main(rs, ["--dataset", "llmrouterbench", "--matrix", str(matrix), "--root", str(root)])
+    code, out, err = _main(rs, ["--dataset", dataset, "--matrix", str(matrix), "--root", str(root)])
     assert (code, out) == (2, "")
-    assert err == ("error: evidence/llmrouterbench-delegation/results.json: the run's summary is not the "
-                   "committed one\n")
+    assert err == f"error: evidence/{target.name}/results.json: the run's summary is not the committed one\n"
 
 
 def _edited(tmp_path, root, name, edit):
@@ -464,10 +516,11 @@ def test_note_has_its_sections_command_and_regenerate():
     results = _section(note, "Results")
     assert results.count("```text\n" + COMMAND + "\n") == 1
     assert results.count("```text\n" + LRB_COMMAND + "\n") == 1
+    assert results.count("```text\n" + RB_COMMAND + "\n") == 1
     regenerate = _section(note, "Regenerate")
     assert "```bash\n" + "\n".join(REGENERATE) + "\n```" in regenerate
     for link in ("../evidence/delegation/RESULTS.md", "../evidence/llmrouterbench-delegation/RESULTS.md",
-                 "ledger-cost-model.md"):
+                 "../evidence/response-bank-delegation/RESULTS.md", "ledger-cost-model.md"):
         assert f"]({link})" in note, link
 
 
@@ -478,7 +531,7 @@ def test_facts_states_the_finding_before_any_number():
 
 def test_every_number_of_the_prose_is_in_the_output_or_allowed():
     note = NOTE.read_text(encoding="utf-8")
-    printed = set(NUMBER.findall(_block(note, COMMAND))) | set(NUMBER.findall(_block(note, LRB_COMMAND)))
+    printed = {n for command in (COMMAND, LRB_COMMAND, RB_COMMAND) for n in NUMBER.findall(_block(note, command))}
     assert sorted({n for n in NUMBER.findall(_prose(note)) if n not in printed and n not in ALLOWED}) == []
 
 
@@ -514,8 +567,7 @@ def test_the_facts_claims_hold_in_the_block():
     assert max(round(100 * v[0] / v[1], 1) for v in rows.values()) == 0.7
     assert (min(v[3] for v in rows.values()), max(v[3] for v in rows.values())) == (1.0, 1.003)
     rec = _section(note, "Recommendation")
-    assert "more than 0.7% of the cells of an AutoBench file" in rec and "or 2.6% of LLMRouterBench's" in rec
-    assert "a factor of 0.997 to 1.003" in rec
+    assert "more than 0.7% of the cells of an AutoBench file" in rec and ", 2.6% of LLMRouterBench's" in rec
 
 
 def _lrb_table(block):
@@ -561,6 +613,38 @@ def test_the_llmrouterbench_facts_claims_hold_in_its_block():
     assert all(n > 0 for n in tasks["W = 2 B"].values())
 
 
+def test_the_response_bank_facts_claims_hold_in_its_block():
+    note = NOTE.read_text(encoding="utf-8")
+    rows, points, tasks = _lrb_table(_block(note, RB_COMMAND))
+    assert len(rows) == 12 and len(points) == 3 and len(tasks) == 3
+    changed = [v for v in rows.values() if v[0]]
+    # no cost_blind cell moves; every change is to inline and at point 3, the folded one
+    assert all(v[0] == 0 for k, v in rows.items() if k[0] == "cost_blind")
+    assert changed and all(v[2] == v[0] for v in changed)
+    assert all(p[:3] == [0, 0, 0] and p[3] > 0 for p in points.values())
+    # on the changed cells the new picks cost 0.877 to 1.028 times the committed ones, for a held-out
+    # success gap of +0.0000 to +0.0104, never below the committed picks'
+    assert (min(v[4] for v in changed), max(v[4] for v in changed)) == (0.877, 1.028)
+    assert (min(v[3] for v in changed), max(v[3] for v in changed)) == (0.0, 0.0104)
+    # at most 3.9% of a flavor and bar's cells, at sigma 0 at both bars; all-cells cost ratio 0.996 to 1.000
+    top = max(round(100 * v[0] / v[1], 1) for v in rows.values())
+    assert top == 3.9 and {k for k, v in rows.items() if round(100 * v[0] / v[1], 1) == top} == {
+        ("cost_effective", "0.8", "sigma 0"), ("cost_effective", "0.9", "sigma 0")}
+    assert (min(v[5] for v in rows.values()), max(v[5] for v in rows.values())) == (0.996, 1.0)
+    # at sigma 0.5 and W = 2 B only mmlu_pro changes; at sigma 0 every task changes some
+    assert all(n == 0 for label in ("sigma 0.5", "W = 2 B") for t, n in tasks[label].items() if t != "mmlu_pro")
+    assert all(n > 0 for n in tasks["sigma 0"].values())
+    # the Recommendation's bounds over the three datasets' blocks: the largest share of each and the
+    # all-cells cost ratio range over all of them
+    whole = [float(x) for command in (COMMAND, LRB_COMMAND, RB_COMMAND)
+             for x in re.findall(r"^  cost_\w+ .* ([\d.]+)$", _block(note, command), flags=re.M)]
+    assert len(whole) == 24 + 24 + 12
+    rec = _section(note, "Recommendation")
+    assert "or 3.9% of the Response Bank's" in rec
+    assert (min(whole), max(whole)) == (0.996, 1.003)
+    assert f"a factor of {min(whole):.3f} to {max(whole):.3f}" in rec
+
+
 def test_the_note_says_from_13_2_which_terms_sigma_scales():
     method = _section(NOTE.read_text(encoding="utf-8"), "Method")
     for phrase in ("`w_out * sigma * S_out`", "`K * (S_in + sigma * S_out)`", "`P.cost(0, W)`"):
@@ -580,7 +664,7 @@ def test_the_design_bullet_is_in_12_22():
     assert len(bullet) == 1
     for phrase in ("`research/reread-sensitivity.md`", "`research/reread_sensitivity.py`", "sigma 1.0 and W = B",
                    "sigma 0, sigma 0.5 and W = 2 B", "13.2 costs", "`## Results` blocks",
-                   "or with `--dataset llmrouterbench` (v1.414) the 13.13 run"):
+                   "or with `--dataset llmrouterbench` (v1.414) or `response-bank` (v1.415) the 13.13 or 13.14 run"):
         assert phrase in bullet[0], phrase
 
 
@@ -617,3 +701,14 @@ def lrb_output(rs, llmrouterbench_pinned):
 
 def test_note_llmrouterbench_block_is_the_script_output(lrb_output):
     assert _block(NOTE.read_text(encoding="utf-8"), LRB_COMMAND).split("\n") == lrb_output
+
+
+@pytest.fixture(scope="module")
+def rb_output(rs, response_bank_pinned):
+    code, _stdout, _stderr, path = response_bank_pinned
+    assert code == 0
+    return rs.run(path, None, ROOT, "response-bank")
+
+
+def test_note_response_bank_block_is_the_script_output(rb_output):
+    assert _block(NOTE.read_text(encoding="utf-8"), RB_COMMAND).split("\n") == rb_output
