@@ -155,7 +155,7 @@ def test_the_red_cases_are_bad_cases():
     assert PASSED_BEFORE["ledger-handoff"] == set() and len(CLIS) == 8
 
 
-def test_the_checks_are_one_check():  # the ledger converter's copy from v1.419
+def test_the_checks_are_one_check():  # the eight CLIS; the ledger converter's copy matches from v1.419
     sources = {cli: inspect.getsource(owner(cli)._check_out) for cli in CLIS}
     assert len(set(sources.values())) == 1, sorted(sources)
 
