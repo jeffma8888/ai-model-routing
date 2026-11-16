@@ -1,20 +1,22 @@
-"""The `--out` check of the evidence CLIs that download (DESIGN 12.14 v1.171 and v1.174, rows H4 and H4b).
+"""The `--out` check of the evidence CLIs that download (DESIGN 12.14 v1.171 and v1.174, rows H4 and H4b;
+13.15 v1.418, row E23d).
 
-Seven CLIs check `--out` before they fetch anything: the tau2-bench converter (12.14), the
+Eight CLIs check `--out` before they fetch anything: the tau2-bench converter (12.14), the
 LiveCodeBench converter (12.16), the LLMRouterBench converter (12.18), the TRAIL summary
-(13.11) and, from v1.174, the RouterBench converter (12.6), the AutoBench converter (12.9) and
+(13.11), from v1.174 the RouterBench converter (12.6), the AutoBench converter (12.9) and
 the AutoBench judges script (12.11), the last two also on `--registry` when it is given, after
-`--out` and before their four-files check. A value whose last `/`-separated part is empty, `.`
-or `..`, a path or `<path>.part` that is an existing folder (a link to one counts), or a path
-whose parent is not an existing folder is a bad option: `main` returns 2 with one
-`error: <option>` line and nothing on stdout, and neither fetches nor writes a file. A good
-value gets past the check to `fetch`. `judges.py` fetches and checks with the `convert` module
-it loads, never a copy, so its stand-in `fetch` goes on that module.
+`--out` and before their four-files check, and, in this test from v1.418, the ledger hand-off
+converter (13.15), which has taken the check since it was written (v1.394). A value whose last
+`/`-separated part is empty, `.` or `..`, a path or `<path>.part` that is an existing folder (a
+link to one counts), or a path whose parent is not an existing folder is a bad option: `main`
+returns 2 with one `error: <option>` line and nothing on stdout, and neither fetches nor writes a
+file. A good value gets past the check to `fetch`. `judges.py` fetches and checks with the
+`convert` module it loads, never a copy, so its stand-in `fetch` goes on that module.
 
 `PASSED_BEFORE` lists the cases each CLI let through to the fetch before it took the check: 27
 for the four v1.170 checks, held as strict xfail (raising `Downloaded`) until v1.172, and all
 twelve for each of the three v1.173 CLIs, 36, with `REGISTRY_PASSED_BEFORE` the 24 `--registry`
-cases, held as strict xfail until v1.175.
+cases, held as strict xfail until v1.175; the ledger converter lists none.
 """
 
 import importlib.util
@@ -33,6 +35,7 @@ CLIS = {
     "routerbench": ROOT / "evidence" / "routerbench" / "convert.py",
     "autobench": ROOT / "evidence" / "autobench-2026" / "convert.py",
     "autobench-judges": ROOT / "evidence" / "autobench-2026" / "judges.py",
+    "ledger-handoff": ROOT / "evidence" / "ledger-handoff" / "results.py",
 }
 REGISTRY_CLIS = ("autobench", "autobench-judges")
 _LOADED = {}
@@ -112,6 +115,7 @@ PASSED_BEFORE = {
     "routerbench": set(BAD),
     "autobench": set(BAD),
     "autobench-judges": set(BAD),
+    "ledger-handoff": set(),  # v1.394: written with the check, so no bad value ever reached its fetch
 }
 REGISTRY_PASSED_BEFORE = {cli: set(BAD) for cli in REGISTRY_CLIS}
 LATE = {"routerbench", "autobench", "autobench-judges"}  # the three that took the check in v1.175
@@ -148,8 +152,11 @@ def test_the_red_cases_are_bad_cases():
     assert sum(len(PASSED_BEFORE[cli]) for cli in CLIS if cli not in LATE) == 27
     assert sum(len(PASSED_BEFORE[cli]) for cli in LATE) == 36
     assert sum(len(cases) for cases in REGISTRY_PASSED_BEFORE.values()) == 24
+    assert PASSED_BEFORE["ledger-handoff"] == set() and len(CLIS) == 8
 
 
+@pytest.mark.xfail(strict=True, raises=AssertionError,
+                   reason="v1.418: the ledger converter's _check_out docstring lacks the (12.14 v1.174) tag until v1.419")
 def test_the_checks_are_one_check():
     sources = {cli: inspect.getsource(owner(cli)._check_out) for cli in CLIS}
     assert len(set(sources.values())) == 1, sorted(sources)

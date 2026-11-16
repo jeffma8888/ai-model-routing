@@ -1,4 +1,5 @@
-"""A closed stdout at interpreter exit (DESIGN 12.6, 12.9, 12.11, 12.14, 12.16 and 13.11, v1.150; 12.20, v1.289).
+"""A closed stdout at interpreter exit (DESIGN 12.6, 12.9, 12.11, 12.14, 12.16 and 13.11, v1.150; 12.20, v1.289;
+13.15, v1.418).
 
 Each evidence CLI prints its report with ``flush=True`` before it renames ``<out>.part``, and turns a
 ``BrokenPipeError`` from that print into one ``error:`` line and exit 2. A failed flush leaves the
@@ -6,7 +7,9 @@ report's bytes in the stdout buffer, so before v1.151 the interpreter's own flus
 again and the process exited 120 with two more stderr lines. These tests run each script's ``main``
 in a child process whose stdout is the write end of a pipe with its read end closed. The child loads
 the script from its path and stubs the functions that read data, so nothing is downloaded or read
-from the cache, and the report is a 10-character or a 100,000-character string.
+from the cache, and the report is a 10-character or a 100,000-character string. With an open stdout,
+`--out` holds what each script writes: no rows for a converter, the summary with its ``runs`` for
+TRAIL, and for the ledger hand-off converter (v1.418) the printed results file and a newline.
 """
 
 import errno
@@ -69,6 +72,10 @@ STUBS = {
         m.runs = lambda trace, name: None
         m.summarize = lambda runs: {"report": "x" * SIZE, "runs": []}
     """,
+    "evidence/ledger-handoff/results.py": """
+        m.fetch = lambda cache: tmp
+        m.build = lambda root: {"report": "x" * SIZE}
+    """,
 }
 
 CHILD = """
@@ -120,6 +127,9 @@ def test_open_stdout_prints_the_report_and_exits_0(script, tmp_path):
     assert proc.stderr == b""
     assert json.loads(proc.stdout) == {"report": "x" * SIZES[1]}
     report = {"report": "x" * SIZES[1]}
-    written = json.dumps(dict(report, runs=[]), indent=2) + "\n" if script == "evidence/trail/summary.py" else ""
+    written = {
+        "evidence/trail/summary.py": json.dumps(dict(report, runs=[]), indent=2) + "\n",
+        "evidence/ledger-handoff/results.py": json.dumps(report, indent=2) + "\n",
+    }.get(script, "")
     assert (tmp_path / "out.jsonl").read_text() == written
     assert not (tmp_path / "out.jsonl.part").exists()
