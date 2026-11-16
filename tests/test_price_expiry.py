@@ -237,6 +237,7 @@ def test_cli_still_warns_for_an_eligible_model_it_did_not_choose(dated_files, ca
 
 @pytest.mark.parametrize("build", [select_args, delegate_args])
 @pytest.mark.parametrize("rule, reason", [("family", "excluded_family"), ("generator", "generator"),
+                                          ("generator-family", "generator_family"),
                                           ("window", "context_too_small")])
 def test_cli_does_not_warn_for_a_model_rules_2_to_5_rule_out(
         dated_files, write_json, task_factory, capsys, build, rule, reason):
@@ -246,6 +247,12 @@ def test_cli_does_not_warn_for_a_model_rules_2_to_5_rule_out(
             "tasks": [asdict(task_factory(exclude_families=("medium",)))]})
     elif rule == "generator":
         extra = ["--generator", "fiction/mid"]
+    elif rule == "generator-family":
+        models = json.loads(dated_files["registry"].read_text(encoding="utf-8"))["models"]
+        models[0]["family"] = "medium"
+        dated_files["registry"] = write_json("same-family.json", {
+            "version": "1", "as_of": "2026-01-01", "currency": "USD", "models": models})
+        extra = ["--generator", "fiction/cheap"]
     else:
         models = json.loads(dated_files["registry"].read_text(encoding="utf-8"))["models"]
         models[1]["context_window"] = 500
@@ -276,6 +283,18 @@ def test_delegate_warns_for_its_parent_even_when_excluded(dated_files, capsys):
     assert code == 0
     assert json.loads(out)["route"] is not None
     assert err.splitlines() == [warning("fiction/mid", "2026-11-21")]
+
+
+def test_delegate_exit_three_still_warns_for_an_excluded_parent(dated_files, tmp_path, capsys):
+    dated_files["stats"] = tmp_path / "absent-stats.json"
+    args = delegate_args(dated_files, "--exclude", "fiction/mid")
+    args[args.index("--parent") + 1] = "fiction/mid"
+    code, out, err = run(capsys, args, AFTER)
+    assert code == 3 and out == ""
+    lines = err.splitlines()
+    assert lines[0].startswith("error: ")
+    assert lines[-1] == warning("fiction/mid", "2026-11-21")
+    assert sum(line.startswith("warning: ") for line in lines) == 1
 
 
 def test_delegate_with_no_route_warns_for_its_parent_alone(dated_files, tmp_path, capsys):
