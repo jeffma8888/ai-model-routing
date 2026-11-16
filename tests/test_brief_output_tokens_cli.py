@@ -227,5 +227,14 @@ def test_design_13_1_states_the_limitations_sentence():
         "before it writes, with the note calls' medians above and their depths, 20 to 100, which "
         "its test reads from the note's Results block")
     assert s13_1.count(clause) == 1
-    depths, _ = note_call_medians()
+    depths, pairs = note_call_medians()
     assert (min(depths), max(depths)) == (20, 100)
+    # the medians the clause calls "above" are the note's too (review iter-273 should-fix 1)
+    written = sorted(p[0] for p in pairs)
+    notes = sorted(p[1] for p in pairs)
+    bullet = [line for line in s13_1.split("\n") if line.startswith("- `brief_output_tokens`")]
+    assert len(bullet) == 1
+    medians = (f"a note's call wrote a median {written[0]:.1f} to {written[-1]:.1f} completion "
+               f"tokens for notes of {notes[0]:.1f} to {notes[-1]:.1f}")
+    assert bullet[0].count(medians) == 1
+    assert bullet[0].index(medians) < bullet[0].index(clause)
