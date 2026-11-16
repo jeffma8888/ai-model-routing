@@ -301,6 +301,90 @@ def test_the_design_bullet_is_in_12_22_and_under_1900_bytes():
     assert len(lines[0].encode("utf-8")) < 1900
 
 
+
+# --- README Limitations' prices bullet (DESIGN 9 v1.417, row DOC30) ----------------------------
+
+README = ROOT / "README.md"
+PRICES = "- Prices are a dated snapshot. "
+REFRESH = ("Refresh `models.json` yourself, and check that the model your gateway actually serves "
+           "matches the ID you calibrated. ")
+DESIGN_9 = (
+    "- v1.417 a price error in the README (row DOC30, the Recommendation of the 12.22 v1.403 note): README "
+    "Limitations' prices bullet gives, in one sentence right after the one that asks the reader to refresh "
+    "`models.json` and check the model the gateway serves, how far a wrong price moves `cost_effective` routing, "
+    "from `research/price-sensitivity.md`, which it links: on LLMRouterBench, with one model's price halved or "
+    "doubled, one model at a time, the most (task, seed) picks that changed, as a count of the cells and a share, "
+    "the range of the held-out success gap and the highest cost ratio, at the lowest bar and then at the highest; "
+    "then that a price is to be refreshed whenever its vendor changes it, most of all for a task with a low bar, at "
+    "no fixed interval, since the note measures what a wrong price does, not how often prices change. Its numbers "
+    "are the note's own: the two bars, the cells per bar, and each bar's highest changed count, success gap range "
+    "and highest cost ratio from its closing `over the` line, which tests/test_research_price_sensitivity.py reads "
+    "from the note's Results block to build the sentence, pinned once in that place; the bars are the lowest and "
+    "highest of `evidence/llmrouterbench/results.json`. No code, cost, committed result or README transcript changes\n")
+SPAN = re.compile(
+    r"^bar ([\d.]+): committed .*? the cells of (\d+) whose .*?^  over the \d+: cells changed \d+ to (\d+), "
+    r"success gap ([+-][\d.]+) to ([+-][\d.]+), cost ratio [\d.]+ to ([\d.]+)$", flags=re.M | re.S)
+
+
+def note_spans():
+    """Per bar of the note's Results block, lowest first: (bar, cells, most changed, gap from, gap to, top ratio)."""
+    [text] = _blocks(NOTE.read_text(encoding="utf-8"), "text")
+    spans = SPAN.findall(text)
+    assert len(spans) == 2 and spans[0][1] == spans[1][1]
+    low, high = spans
+    assert f"bars {low[0]} and {high[0]}, the lowest and highest of " in text
+    assert "with one model's calibration mean cost times 0.5 or 2.0, every other model's as recorded" in text
+    for bar, cells, most, *_ in spans:
+        share = f"{100 * int(most) / int(cells):.1f}%"
+        # the share the sentence gives is the one the script prints for that count
+        assert f": {most} of {cells} cells change ({share})" in text.split(f"\nbar {bar}: ", 1)[1].split("\nbar ", 1)[0]
+    return spans
+
+
+def price_error_sentence():
+    (lo, cells, most_lo, g_lo, g_hi, r_lo), (hi, _, most_hi, h_lo, h_hi, r_hi) = note_spans()
+    def share(most):
+        return f"{100 * int(most) / int(cells):.1f}%"
+    return (
+        "A wrong price moves `cost_effective` routing most at a low bar: on LLMRouterBench "
+        "([research/price-sensitivity.md](research/price-sensitivity.md)), one model's price halved or doubled, "
+        f"one model at a time, changed up to {most_lo} of {cells} picks ({share(most_lo)}) at the lowest bar, {lo}, "
+        f"moving held-out success by {g_lo} to {g_hi} at up to {r_lo} times the cost, and up to {most_hi} "
+        f"({share(most_hi)}) at the highest, {hi}, by {h_lo} to {h_hi} at up to {r_hi} times, so refresh a price "
+        "whenever its vendor changes it, most of all for a task with a low bar (the note measures what a wrong "
+        "price does, not how often prices change, so it sets no fixed interval). ")
+
+
+def test_the_note_bars_are_the_lowest_and_highest_committed():
+    bars = json.loads((ROOT / RESULTS).read_text(encoding="utf-8"))["config"]["bars"]
+    (lo, *_), (hi, *_) = note_spans()
+    assert (float(lo), float(hi)) == (min(bars), max(bars))
+
+
+def test_readme_limitations_give_the_price_error_after_the_refresh_sentence():
+    sentence = price_error_sentence()
+    readme = README.read_text(encoding="utf-8")
+    limits = readme.split("\n## Limitations and non-goals (v1)\n", 1)[1].split("\n## ", 1)[0]
+    [bullet] = [x for x in limits.split("\n") if x.startswith(PRICES)]
+    assert bullet.count(sentence) == 1
+    assert bullet.index(PRICES + REFRESH) == 0
+    assert bullet.index(sentence) == len(PRICES + REFRESH)
+    assert bullet[len(PRICES + REFRESH + sentence):].startswith("A row whose vendor states an end date ")
+    # Limitations links the note in this sentence alone
+    assert limits.count("](research/price-sensitivity.md)") == 1
+
+
+def test_design_9_states_the_limitations_sentence_and_12_22_points_to_it():
+    text = DESIGN.read_text(encoding="utf-8")
+    s9 = text[text.index("\n## 9. Data files\n"):text.index("\n## 10. ")]
+    assert s9.count(DESIGN_9) == 1
+    # no number of the sentence is written into the clause, so the clause cannot go stale
+    assert NUMBER.findall(DESIGN_9.split(": README Limitations' prices bullet", 1)[1]) == []
+    start, end = text.index("### 12.22 "), text.index("\n## 13. ")
+    [line] = [x for x in text[start:end].splitlines() if x.startswith(BULLET)]
+    assert line.endswith("; README Limitations links it (9 v1.417)")
+
+
 # --- the pinned file, only when already cached (one session read, tests/conftest.py) ----------
 
 @pytest.fixture(scope="module")
