@@ -42,6 +42,8 @@ The ledger runs (v1.394, row E23): 13.15, the ledger hand-off converter, is a co
 Room in 12.22 (v1.421, row DOC34): the eight research-note lines of v1.124 to v1.191 drop the scope
 sentences of the slices that added them (`No change under ...`), their explanatory clauses and the
 definitions they restated from 12.3, each keeping its contract with one history pointer (POINTERS).
+v1.422 (row DOC34b): the same lines restate their contract in fewer words; each rule several of them repeated
+is stated once and the others name the line that holds it (BORROWED).
 """
 import re
 from pathlib import Path
@@ -634,6 +636,43 @@ def test_the_12_22_lines_of_v1_124_to_v1_191_hold_no_scope_or_restated_history()
         assert not [line[:60] for line in trimmed if words in line], words
     for line in trimmed:
         assert len(POINTER.findall(line)) == 1, line[:60]
+
+
+# DOC34b (v1.422): each phrase a 12.22 line uses for a rule another line states, with the opening of
+# the line that states it and the words that state it, which that line alone holds among the eight.
+BORROWED = (
+    ("its prose numbers obey the per-task ceiling bullet's rule", "- Per-task ceiling on RouterBench (v1.146): ",
+     "every number of its prose outside the block, a link target and a code span is in that output or is a "
+     "DESIGN section number"),
+    ("compared as in the seed by seed bullet", "- Seed by seed on LLMRouterBench (v1.177): ",
+     "compared byte for byte with the script's lines on the matrix that the 12.19 session fixture "
+     "`llmrouterbench_pinned` writes when the pinned file is cached, skipped otherwise"),
+    ("on what stops the seed by seed script", "- Seed by seed on LLMRouterBench (v1.177): ",
+     "Exit 0, or 2 with one `error: ` line on a missing or unreadable file, a row `load_outcomes` refuses, a "
+     "missing key or a row that differs from the committed one."),
+    ("`max_fallbacks` M as there", "- Fallback on a failed check, on LLMRouterBench (v1.181): ",
+     "`max_fallbacks` of 0, 2 and M, the number of pool models minus one, M giving the whole list that 5.3 sorts"),
+    ("pass that bullet's checks against the committed rows", "- Fallback on a failed check, on LLMRouterBench (v1.181): ",
+     "It stops unless, at both bars and in each flavor, `max_fallbacks` 0's success and cost are the committed "
+     "summary's `routed` row and each task's are the committed `per_task` `routed` row, and the oracle's (12.3) "
+     "the committed `oracle` row, each within a relative 1e-12."),
+)
+
+
+def test_the_12_22_lines_that_borrow_a_rule_find_it_in_the_line_they_name():
+    body = subsection_body(DESIGN.read_text(encoding="utf-8"), "12.22")
+    trimmed = [line for line in body if line.startswith(RESEARCH_NOTES[:8])]
+    assert len(trimmed) == 8
+    for phrase, lender, rule in BORROWED:
+        borrowers = [line[:40] for line in trimmed if phrase in line]
+        assert borrowers and all(not b.startswith(lender[:40]) for b in borrowers), phrase
+        assert [line[:40] for line in trimmed if rule in line] == [lender[:40]], rule[:60]
+    # the words v1.422 dropped: explanations, a restated 12.3 seed value, and the rules now borrowed
+    for words in ("its script `research/", "so a file added later moves the range", "the note's main claim",
+                  "a code span holds a model ID", "instead of being skipped", "so the README test runs in CI",
+                  "The second finding names", "checked reader", "with the whole list", "whole-list route",
+                  "and so is the attempts per held-out item", "correct held-out items over held-out items"):
+        assert not [line[:60] for line in trimmed if words in line], words
 
 
 # --- the rest of 12.13 (DESIGN 12 v1.392, row DOC21c) ---------------------------------------------
