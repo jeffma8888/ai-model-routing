@@ -4,6 +4,8 @@ Usage:
   python research/reread_sensitivity.py --matrix autobench-tokens.jsonl --registry autobench-pool.json [--root PATH]
   python research/reread_sensitivity.py --dataset llmrouterbench --matrix llmrouterbench-matrix.jsonl [--root PATH]
   python research/reread_sensitivity.py --dataset response-bank --matrix response-bank-matrix.jsonl [--root PATH]
+  python research/reread_sensitivity.py --dataset tau2-bench --matrix tau2-calls.jsonl [--root PATH]
+  python research/reread_sensitivity.py --dataset tau2-bench-pooled --matrix tau2-calls-all.jsonl [--root PATH]
 
 Runs `evaluate_delegation` (DESIGN 13.9) on the AutoBench 2026 converter's `--task-by all --tokens`
 matrix and `--registry` pool on the base grid and on the variant grid, as evidence/delegation/
@@ -13,7 +15,12 @@ R38b) it runs instead the 13.13 grid of evidence/llmrouterbench-delegation/resul
 converter's default matrix, on the rows that script's `select_rows` keeps for the committed registry.json
 (no `--registry`), and checks it against results.json; `--dataset response-bank` (v1.415, row R38c) does the
 same with the 13.14 grid of evidence/response-bank-delegation/results.py, the response-bank converter's
-default matrix and that folder's registry.json. Every committed result keeps the re-read
+default matrix and that folder's registry.json; `--dataset tau2-bench` (`tau2-bench-pooled`, v1.416, row
+R38d) runs the 13.12 grid of evidence/tau2-bench-delegation/results.py on the tau2-bench converter's
+`--calls` (`--calls --task-by all`) matrix and that folder's registry.json, and checks it against
+results.json (pooled.json). Those rows carry per-call sizes (13.9 v1.74), each item's work its own calls,
+and `call_cost` prices them; the decision's `work_calls` is the calibration half's median call count, as in
+13.9. Every committed result keeps the re-read
 share sigma (`output_reread_share`) at 1.0 and the brief's output W (`brief_output_tokens`) at B
 (DESIGN 13.1), so the script then re-decides every cell with the run's own calibration half and router
 (13.9 `_calibrate` and `_router`), first at sigma 1.0 and W = B, where each cell's mode and model and
@@ -33,7 +40,8 @@ count and a last line per setting gives the changed cells by task, in the run's 
 
 Standard library and the model_routing package. Read by research/reread-sensitivity.md. Exit 0, or 2
 with one `error: ...` line on a missing or unreadable file, a row 13.9 refuses, a model with price
-tiers or a row with per-call sizes (not priced here), a run whose config, tasks or summary is not the
+tiers, a row with per-call sizes outside the tau2-bench runs or one without them in those runs (not priced
+here), a run whose config, tasks or summary is not the
 committed file's, a re-decided cell or held-out sum at sigma 1.0 and W = B that is not the run's,
 `--dataset autobench` without `--registry` or another dataset with it.
 """
@@ -58,7 +66,12 @@ DATASETS = {
                   (("results.json", "base"), ("variants.json", "variants"))),
     "llmrouterbench": ("LLMRouterBench", "evidence/llmrouterbench-delegation", (("results.json", "base"),)),
     "response-bank": ("LLM Routing Response Bank", "evidence/response-bank-delegation", (("results.json", "base"),)),
+    "tau2-bench": ("tau2-bench per domain", "evidence/tau2-bench-delegation", (("results.json", "base"),)),
+    "tau2-bench-pooled": ("tau2-bench pooled", "evidence/tau2-bench-delegation", (("pooled.json", "base"),)),
 }
+# the datasets whose results script keeps rows by `select_rows`, and those whose rows carry per-call sizes
+SELECTED = ("llmrouterbench", "response-bank")
+PER_CALL = ("tau2-bench", "tau2-bench-pooled")
 # label, sigma, W as a multiple of B
 SETTINGS = (("sigma 0", 0.0, 1), ("sigma 0.5", 0.5, 1), ("W = 2 B", 1.0, 2))
 HEADER = ("  flavor          bar  setting    changed / cells  share  to inline  "
@@ -117,16 +130,37 @@ def item_cost(p, d, point, path, tin, tout, sigma, w):
             + shared * p.base_cost(k * (tin + sigma * tout), 0))
 
 
+def call_cost(p, d, point, path, calls, sigma, w):
+    """13.2's list cost of one held-out item with per-call sizes (13.9 v1.74) at sigma and W.
+
+    Call j reads a_1 to a_j and b_1 to b_(j-1), each b re-read at sigma (13.2 v1.404), so the K calls read
+    sum (K - j + 1) a_j + sigma * sum (K - j) b_j, and each later read of the work, A + O, is A + sigma * O;
+    the decision turn's brief is `P.cost(0, W)`. At sigma 1.0 and W = B each is the 13.9 cost bit for bit.
+    """
+    k, _rd, a, o, ins, outs = calls
+    c, b, r, t = (point[x] for x in ("context_tokens", "brief_tokens", "result_tokens", "carry_turns"))
+    rd = sum((k - j) * x for j, x in enumerate(ins)) + sigma * sum((k - j - 1) * y for j, y in enumerate(outs))
+    if path == "delegate":
+        return p.base_cost(0, w) + d.base_cost(k * b + rd, o) + (1 + t) * p.base_cost(b + r, 0)
+    separate = point["inline_separate_call"]
+    base = k * c if separate else (k - 1) * c
+    if "cached_read_ratio" in point:
+        base = base * point["cached_read_ratio"]
+    return p.base_cost(base + rd, o) + ((1 + t) if separate else t) * p.base_cost(a + sigma * o, 0)
+
+
 class Run:
     """One grid's run and what re-deciding its cells needs."""
 
-    def __init__(self, rows, registry, grid, dr):
+    def __init__(self, rows, registry, grid, dr, per_call=False):
         self.registry = registry
+        self.per_call = per_call
         self.table = {}
         for raw in rows:
             task, item, model, row = _row(raw)
-            if row[3] is not None:
-                raise ValueError(f"task {task!r}: rows with per-call sizes are not priced here")
+            if (row[3] is not None) != per_call:
+                raise ValueError(f"task {task!r}: rows with{'out' if per_call else ''} per-call sizes are not "
+                                 "priced here")
             self.table.setdefault((task, item), {})[model] = row
         points = dr.points() if grid == "base" else dr.variant_points()
         self.result = evaluate_delegation(rows, registry, bars=list(dr.BARS), points=points,
@@ -143,7 +177,7 @@ class Run:
         for task in sorted(items):
             for seed in config["seeds"]:
                 cal, held = split_items(items[task], seed, config["calibration_fraction"])
-                self.calibrated[task, seed] = _calibrate(self.table, self.models, task, cal, held)
+                self.calibrated[task, seed] = _calibrate(self.table, self.models, task, cal, held, per_call)
         self.routers = {(task, seed, bar): _router(registry, task, self.calibrated[task, seed], bar,
                                                    config["min_samples"], config["confidence"])
                         for (task, seed) in self.calibrated for bar in config["bars"]}
@@ -160,8 +194,9 @@ class Run:
         held = self.calibrated[task, seed]["held"]
         if key not in self.costs:
             p, d = self.registry.get(cell["parent"]), self.registry.get(model)
-            self.costs[key] = {i: item_cost(p, d, point, mode, self.table[task, i][model][1],
-                                            self.table[task, i][model][2], sigma, w) for i in self.items[task]}
+            rows = {i: self.table[task, i][model] for i in self.items[task]}
+            self.costs[key] = {i: call_cost(p, d, point, mode, row[3], sigma, w) if self.per_call
+                               else item_cost(p, d, point, mode, row[1], row[2], sigma, w) for i, row in rows.items()}
         if (task, seed, model) not in self.correct:
             self.correct[task, seed, model] = sum(self.table[task, i][model][0] for i in held)
         self.sums[key, seed] = (self.correct[task, seed, model], fsum(map(self.costs[key].__getitem__, held)),
@@ -170,7 +205,9 @@ class Run:
 
     def decide(self, cell, point, sigma, w):
         router = self.routers[cell["task"], cell["seed"], cell["bar"]]
-        decision = router.decide_delegation(cell["task"], cell["parent"], cell["flavor"], **point,
+        k = self.calibrated[cell["task"], cell["seed"]].get("k")
+        decision = router.decide_delegation(cell["task"], cell["parent"], cell["flavor"],
+                                            **(point if k is None else dict(point, work_calls=k)),
                                             output_reread_share=sigma, brief_output_tokens=w)
         return decision.mode, decision.model
 
@@ -180,7 +217,7 @@ def rerun(rows, registry, root, name, grid, dr, dataset="autobench"):
     title, folder, _files = DATASETS[dataset]
     rel = f"{folder}/{name}"
     committed = read_object(Path(root) / rel)
-    run = Run(rows, registry, grid, dr)
+    run = Run(rows, registry, grid, dr, dataset in PER_CALL)
     got = json.loads(json.dumps({k: run.result[k] for k in ("config", "tasks", "summary")}))
     for key in ("config", "tasks", "summary"):
         if got[key] != committed.get(key):
@@ -268,9 +305,9 @@ def reasons(changed):
 
 
 def run(matrix, registry=None, root=ROOT, dataset="autobench"):
-    """The report lines of one dataset: `registry` is the AutoBench pool file, and None for LLMRouterBench and
-    the Response Bank, whose committed registry.json is read from `root` and whose rows are those the
-    dataset's `select_rows` keeps for it."""
+    """The report lines of one dataset: `registry` is the AutoBench pool file, and None for the others, whose
+    committed registry.json is read from `root`; on LLMRouterBench and the Response Bank the rows are those
+    the dataset's `select_rows` keeps for it, and on tau2-bench every row of the matrix."""
     if dataset not in DATASETS:
         raise ValueError(f"dataset must be one of {', '.join(DATASETS)}, got {dataset!r}")
     if dataset == "autobench" and registry is None:
@@ -285,7 +322,7 @@ def run(matrix, registry=None, root=ROOT, dataset="autobench"):
         pool = Registry.load(path)
     except FileNotFoundError:
         raise ValueError(f"{path}: no such file") from None
-    if dataset != "autobench":
+    if dataset in SELECTED:
         rows, _dropped = dr.select_rows(rows, [m.id for m in pool.models])
     lines = [f"The re-read share and the brief's output on the {title} delegation results: each cell "
              "re-decided at sigma 0, sigma 0.5 and W = 2 B, both picks scored at that setting's costs"]
@@ -298,11 +335,14 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n", 1)[0])
     parser.add_argument("--matrix", required=True,
                         help="the AutoBench converter's --task-by all --tokens matrix, or with --dataset "
-                             "llmrouterbench or response-bank that dataset's converter's default output")
+                             "llmrouterbench or response-bank that dataset's converter's default output, or with "
+                             "tau2-bench (tau2-bench-pooled) the tau2-bench converter's --calls (--calls --task-by "
+                             "all) output")
     parser.add_argument("--registry", help="with --dataset autobench: the AutoBench converter's --registry pool")
     parser.add_argument("--dataset", choices=tuple(DATASETS), default="autobench",
                         help="the delegation results to re-decide (default: autobench, DESIGN 13.10; "
-                             "llmrouterbench, 13.13; response-bank, 13.14)")
+                             "llmrouterbench, 13.13; response-bank, 13.14; tau2-bench and tau2-bench-pooled, "
+                             "13.12 results.json and pooled.json)")
     parser.add_argument("--root", default=str(ROOT), help="the repository root (default: this checkout)")
     args = parser.parse_args(argv)
     try:
