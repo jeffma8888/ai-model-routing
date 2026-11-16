@@ -2,11 +2,15 @@
 
 Usage:
   python research/reread_sensitivity.py --matrix autobench-tokens.jsonl --registry autobench-pool.json [--root PATH]
+  python research/reread_sensitivity.py --dataset llmrouterbench --matrix llmrouterbench-matrix.jsonl [--root PATH]
 
 Runs `evaluate_delegation` (DESIGN 13.9) on the AutoBench 2026 converter's `--task-by all --tokens`
 matrix and `--registry` pool on the base grid and on the variant grid, as evidence/delegation/
 results.py makes results.json and variants.json (its bars, seeds and points), and checks that each
-run's config, tasks and summary are the committed file's. Every committed result keeps the re-read
+run's config, tasks and summary are the committed file's. With `--dataset llmrouterbench` (v1.414, row
+R38b) it runs instead the 13.13 grid of evidence/llmrouterbench-delegation/results.py on the LLMRouterBench
+converter's default matrix, on the rows that script's `select_rows` keeps for the committed registry.json
+(no `--registry`), and checks it against results.json. Every committed result keeps the re-read
 share sigma (`output_reread_share`) at 1.0 and the brief's output W (`brief_output_tokens`) at B
 (DESIGN 13.1), so the script then re-decides every cell with the run's own calibration half and router
 (13.9 `_calibrate` and `_router`), first at sigma 1.0 and W = B, where each cell's mode and model and
@@ -21,12 +25,14 @@ the changed cells, their share, how many changed to inline, the changed cells' h
 (new correct minus committed correct over their held-out items) and cost ratio (new over committed),
 and the cost ratio over all the cells, then per file and setting the changed cells by point, and by
 the committed decision's 13.5 reason, with how many seeds and parents they fall on and the parent most
-of them have.
+of them have; on a run of more than one task (LLMRouterBench) the header names the task count and a last
+line per setting gives the changed cells by task, in the run's task order.
 
 Standard library and the model_routing package. Read by research/reread-sensitivity.md. Exit 0, or 2
 with one `error: ...` line on a missing or unreadable file, a row 13.9 refuses, a model with price
 tiers or a row with per-call sizes (not priced here), a run whose config, tasks or summary is not the
-committed file's, or a re-decided cell or held-out sum at sigma 1.0 and W = B that is not the run's.
+committed file's, a re-decided cell or held-out sum at sigma 1.0 and W = B that is not the run's,
+`--dataset autobench` without `--registry` or another dataset with it.
 """
 
 import argparse
@@ -42,9 +48,13 @@ from model_routing import Registry, evaluate_delegation, split_items
 from model_routing.delegation_eval import _calibrate, _router, _row
 
 ROOT = Path(__file__).resolve().parents[1]
-FOLDER = "evidence/delegation"
-# committed file, its grid in evidence/delegation/results.py
-FILES = (("results.json", "base"), ("variants.json", "variants"))
+# dataset: its name in the report, the folder of its delegation results script, and each committed file
+# with its grid in that script (`base` is its `points()`, `variants` its `variant_points()`)
+DATASETS = {
+    "autobench": ("AutoBench 2026", "evidence/delegation",
+                  (("results.json", "base"), ("variants.json", "variants"))),
+    "llmrouterbench": ("LLMRouterBench", "evidence/llmrouterbench-delegation", (("results.json", "base"),)),
+}
 # label, sigma, W as a multiple of B
 SETTINGS = (("sigma 0", 0.0, 1), ("sigma 0.5", 0.5, 1), ("W = 2 B", 1.0, 2))
 HEADER = ("  flavor          bar  setting    changed / cells  share  to inline  "
@@ -133,20 +143,26 @@ class Run:
         self.routers = {(task, seed, bar): _router(registry, task, self.calibrated[task, seed], bar,
                                                    config["min_samples"], config["confidence"])
                         for (task, seed) in self.calibrated for bar in config["bars"]}
-        self.costs = {}
+        self.items = items
+        self.costs = {}  # each item's cost by path and setting
+        self.correct = {}  # the held-out correct count by task, seed and model
+        self.sums = {}  # the held-out sums by path, setting and seed: a cell of another bar or flavor shares them
 
     def held_sum(self, cell, point, mode, model, sigma, w):
         task, seed = cell["task"], cell["seed"]
-        held = self.calibrated[task, seed]["held"]
-        p = self.registry.get(cell["parent"])
         key = (task, cell["point"], cell["parent"], mode, model, sigma, w)
-        costs = self.costs.setdefault(key, {})
-        for i in held:
-            if i not in costs:
-                _, tin, tout, _ = self.table[task, i][model]
-                costs[i] = item_cost(p, self.registry.get(model), point, mode, tin, tout, sigma, w)
-        correct = sum(self.table[task, i][model][0] for i in held)
-        return correct, fsum(costs[i] for i in held), len(held)
+        if (key, seed) in self.sums:
+            return self.sums[key, seed]
+        held = self.calibrated[task, seed]["held"]
+        if key not in self.costs:
+            p, d = self.registry.get(cell["parent"]), self.registry.get(model)
+            self.costs[key] = {i: item_cost(p, d, point, mode, self.table[task, i][model][1],
+                                            self.table[task, i][model][2], sigma, w) for i in self.items[task]}
+        if (task, seed, model) not in self.correct:
+            self.correct[task, seed, model] = sum(self.table[task, i][model][0] for i in held)
+        self.sums[key, seed] = (self.correct[task, seed, model], fsum(map(self.costs[key].__getitem__, held)),
+                                len(held))
+        return self.sums[key, seed]
 
     def decide(self, cell, point, sigma, w):
         router = self.routers[cell["task"], cell["seed"], cell["bar"]]
@@ -155,9 +171,10 @@ class Run:
         return decision.mode, decision.model
 
 
-def rerun(rows, registry, root, name, grid, dr):
+def rerun(rows, registry, root, name, grid, dr, dataset="autobench"):
     """The report lines of one committed file: the check at sigma 1.0 and W = B, then the settings."""
-    rel = f"{FOLDER}/{name}"
+    title, folder, _files = DATASETS[dataset]
+    rel = f"{folder}/{name}"
     committed = read_object(Path(root) / rel)
     run = Run(rows, registry, grid, dr)
     got = json.loads(json.dumps({k: run.result[k] for k in ("config", "tasks", "summary")}))
@@ -180,11 +197,14 @@ def rerun(rows, registry, root, name, grid, dr):
             raise ValueError(f"{rel}: a held-out sum at sigma 1.0 and W = B is not the run's: "
                              f"{cell['flavor']}, bar {cell['bar']}, point {cell['point']}, "
                              f"parent {cell['parent']}, seed {cell['seed']}")
-    lines = [f"AutoBench 2026, {grid} grid (`{rel}`): {len(cells):,} cells, {len(config['bars'])} bars, "
+    tasks = list(got["tasks"])
+    lines = [f"{title}, {grid} grid (`{rel}`): {len(cells):,} cells, "
+             + (f"{len(tasks)} tasks, " if len(tasks) > 1 else "") + f"{len(config['bars'])} bars, "
              f"{len(config['flavors'])} flavors, {len(config['points'])} points, "
              f"{len(config['parents'])} parents, {len(config['seeds'])} seeds; every cell's decision and "
              "held-out sum reproduced at sigma 1.0 and W = B", HEADER]
     by_point = {label: [0] * len(config["points"]) for label, _, _ in SETTINGS}
+    by_task = {label: dict.fromkeys(tasks, 0) for label, _, _ in SETTINGS}
     why = {label: [] for label, _, _ in SETTINGS}  # (committed reason, seed, parent) of each changed cell
     for flavor in config["flavors"]:
         for bar in config["bars"]:
@@ -206,6 +226,7 @@ def rerun(rows, registry, root, name, grid, dr):
                         changed += 1
                         inline += pick[0] == "inline"
                         by_point[label][cell["point"]] += 1
+                        by_task[label][cell["task"]] += 1
                         why[label].append((cell["reason"], cell["seed"], cell["parent"]))
                         gap = [gap[0] + new[0], gap[1] + old[0], gap[2] + old[2]]
                         new_cost.append(new[1])
@@ -224,6 +245,10 @@ def rerun(rows, registry, root, name, grid, dr):
                      + ", ".join(f"{i}: {n}" for i, n in enumerate(by_point[label])))
     for label, _, _ in SETTINGS:
         lines.append(f"  changed cells by reason, {label}: " + reasons(why[label]))
+    if len(tasks) > 1:
+        for label, _, _ in SETTINGS:
+            lines.append(f"  changed cells by task, {label}: "
+                         + ", ".join(f"{t} {n}" for t, n in by_task[label].items()))
     return lines
 
 
@@ -238,28 +263,45 @@ def reasons(changed):
             f"{len(parents)} parent{'' if len(parents) == 1 else 's'}, the most {parents[0][1]} of {parents[0][0]}")
 
 
-def run(matrix, registry, root=ROOT):
-    dr = _load("research_reread_results", Path(root) / FOLDER / "results.py")
+def run(matrix, registry=None, root=ROOT, dataset="autobench"):
+    """The report lines of one dataset: `registry` is the AutoBench pool file, and None for LLMRouterBench,
+    whose committed registry.json is read from `root`."""
+    if dataset not in DATASETS:
+        raise ValueError(f"dataset must be one of {', '.join(DATASETS)}, got {dataset!r}")
+    if dataset == "autobench" and registry is None:
+        raise ValueError("--dataset autobench needs --registry")
+    if dataset != "autobench" and registry is not None:
+        raise ValueError("--registry is only used with --dataset autobench")
+    title, folder, files = DATASETS[dataset]
+    dr = _load(f"research_reread_{dataset}_results", Path(root) / folder / "results.py")
     rows = read_rows(matrix)
+    path = Path(root) / folder / "registry.json" if registry is None else registry
     try:
-        pool = Registry.load(registry)
+        pool = Registry.load(path)
     except FileNotFoundError:
-        raise ValueError(f"{registry}: no such file") from None
-    lines = ["The re-read share and the brief's output on the AutoBench 2026 delegation results: each cell "
+        raise ValueError(f"{path}: no such file") from None
+    if dataset == "llmrouterbench":
+        rows, _dropped = dr.select_rows(rows, [m.id for m in pool.models])
+    lines = [f"The re-read share and the brief's output on the {title} delegation results: each cell "
              "re-decided at sigma 0, sigma 0.5 and W = 2 B, both picks scored at that setting's costs"]
-    for name, grid in FILES:
-        lines += rerun(rows, pool, root, name, grid, dr)
+    for name, grid in files:
+        lines += rerun(rows, pool, root, name, grid, dr, dataset)
     return lines
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n", 1)[0])
-    parser.add_argument("--matrix", required=True, help="the converter's --task-by all --tokens matrix")
-    parser.add_argument("--registry", required=True, help="the converter's --registry pool")
+    parser.add_argument("--matrix", required=True,
+                        help="the AutoBench converter's --task-by all --tokens matrix, or with --dataset "
+                             "llmrouterbench the LLMRouterBench converter's default output")
+    parser.add_argument("--registry", help="with --dataset autobench: the AutoBench converter's --registry pool")
+    parser.add_argument("--dataset", choices=tuple(DATASETS), default="autobench",
+                        help="the delegation results to re-decide (default: autobench, DESIGN 13.10; "
+                             "llmrouterbench, 13.13)")
     parser.add_argument("--root", default=str(ROOT), help="the repository root (default: this checkout)")
     args = parser.parse_args(argv)
     try:
-        lines = run(args.matrix, args.registry, Path(args.root))
+        lines = run(args.matrix, args.registry, Path(args.root), args.dataset)
     except (ValueError, KeyError, TypeError, OSError) as exc:
         message = str(exc).replace("\r", "\\r").replace("\n", "\\n")
         print(f"error: {message}", file=sys.stderr)

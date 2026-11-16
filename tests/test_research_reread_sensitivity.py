@@ -100,7 +100,7 @@ def _lrb_rows():
     """Two tasks, `u` listed before `t`, each built as `_rows` with output sizes of its own; item `t80` has a
     null output count, so `select_rows` drops it, and `v/x`, a model the registry lacks, has one row."""
     rows = []
-    for task, base, step, mod in (("u", 1200, 40, 11), ("t", 1250, 30, 13)):
+    for task, base, step, mod in (("u", 1200, 40, 11), ("t", 1180, 30, 13)):
         for j in range(80):
             item = f"{task}{j:02d}"
             rows.append({"task": task, "item": item, "model": "v/p", "correct": j % 10 != 0,
