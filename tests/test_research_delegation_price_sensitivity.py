@@ -1082,7 +1082,7 @@ DESIGN_9 = (
     "moves `cost_effective` delegation decisions, from `research/delegation-price-sensitivity.md`, which it links: with "
     "one model's prices halved or doubled, one model at a time, the largest share of a bar's `cost_effective` cells "
     "that a run changes on each of the four delegation datasets, over all of its grids, from the least moved to the "
-    "most, the Response Bank's with the one task that holds all of its changed cells, and that no `cost_blind` cell "
+    "most, the Response Bank's saying that all of its changed cells are on one task, and that no `cost_blind` cell "
     "moves, since that flavor compares no costs; then that a small effect on one dataset bounds none on another. Each "
     "share is the one the note's Results blocks print, which tests/test_research_delegation_price_sensitivity.py reads "
     "from them to build the sentence, pinned once in that place, checking on the way that the order is from the least "
@@ -1118,7 +1118,7 @@ def delegation_price_sentence():
         "the four delegation datasets ([research/delegation-price-sensitivity.md](research/delegation-price-sensitivity.md)), "
         f"one model's prices halved or doubled, one model at a time, changed at most {rb}% of a bar's `cost_effective` "
         f"cells on the LLM Routing Response Bank, all on one task, {t2}% on tau2-bench, {lrb}% on LLMRouterBench and "
-        f"{autobench}% on AutoBench 2026, and no `cost_blind` cell, since that flavor compares no costs, so a small "
+        f"{autobench}% on AutoBench 2026, and no `cost_blind` cell, since that flavor compares no costs; a small "
         "effect on one dataset bounds none on another. ")
 
 
