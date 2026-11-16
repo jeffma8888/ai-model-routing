@@ -115,7 +115,7 @@ def outcomes(grades, split, ids):
         task = f"{row['dataset']}/{row['task'].replace(' ', '_')}"
         for arm in ARMS:
             correct, cost = row[f"{arm}_correct"], row[f"{arm}_cost_usd"]
-            if correct not in (0, 1) or isinstance(correct, bool) or isinstance(cost, bool) \
+            if type(correct) is not int or correct not in (0, 1) or isinstance(cost, bool) \
                     or not isinstance(cost, (int, float)) or not math.isfinite(cost) or cost < 0:
                 raise ValueError(f"{split}: row {row['id']!r}: {arm} correct {correct!r} cost {cost!r}")
             found.append(Outcome(task, row["id"], ids[arm], correct == 1, float(cost)))
@@ -198,10 +198,10 @@ def report(pair, ids, grades_calibration, grades_final, config):
     for m in models:
         r = _row(summary, *first, f"model:{m}")
         lines.append(f"    {m:<20} {r['success']:.3f}  {r['cost_usd']:.6f}")
-    best = _row(summary, *first, f"model:{strong}")
+    strong_row = _row(summary, *first, f"model:{strong}")
     for s in ("oracle", "best_on_calibration", "cheapest"):
         r = _row(summary, *first, s)
-        lines.append(f"  {s}: {r['success']:.3f} at {r['cost_usd'] / best['cost_usd']:.3f} of {strong}'s cost")
+        lines.append(f"  {s}: {r['success']:.3f} at {r['cost_usd'] / strong_row['cost_usd']:.3f} of {strong}'s cost")
     lines.append("  bar  flavor          routed  cost (USD)  cost / strong  cleared   tasks on cheap  "
                  "cleared below the bar on final")
     for flavor in config["flavors"]:
@@ -212,7 +212,7 @@ def report(pair, ids, grades_calibration, grades_final, config):
             on_cheap = sum(x["models"]["routed"] == cheap for x in group)
             under = sum(x["cleared"] and x["success"]["routed"] < bar for x in group)
             lines.append(f"  {bar:<4} {flavor:<15} {r['success']:.3f}   {r['cost_usd']:<11.6f} "
-                         f"{r['cost_usd'] / best['cost_usd']:<14.3f} {cleared:>2} of {len(tasks)}  {on_cheap:>14}  "
+                         f"{r['cost_usd'] / strong_row['cost_usd']:<14.3f} {cleared:>2} of {len(tasks)}  {on_cheap:>14}  "
                          f"{under:>2}")
     lines.append(f"  tasks routed to {cheap} (* cleared, else the best available fallback):")
     for flavor in config["flavors"]:
@@ -238,7 +238,7 @@ def main(argv=None):
         ids = check_pair(pair, registry)
         lines = report(pair, ids, read["recordings/grades-calibration.json"],
                        read["recordings/grades-final.json"], config)
-    except (OSError, ValueError, KeyError, TypeError, AttributeError) as exc:
+    except (OSError, ValueError, KeyError, TypeError, AttributeError, ZeroDivisionError) as exc:
         message = str(exc).replace("\r", "\\r").replace("\n", "\\n")
         print(f"error: {message}", file=sys.stderr)
         return 2

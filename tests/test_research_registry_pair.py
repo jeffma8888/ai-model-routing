@@ -206,37 +206,45 @@ def _pair(cheap_in="0.10"):
                                        "gpt-6.1-sol": {"input": "2", "output": "10"}}}
 
 
-def _row(split, k, cheap, strong, family):
-    return {"id": f"{split}:{k}", "role": split, "dataset": "d", "task": "t x", "family": family,
+def _row(split, k, cheap, strong, family, task="t x"):
+    return {"id": f"{split}:{task[0]}{k}", "role": split, "dataset": "d", "task": task, "family": family,
             "cheap_correct": int(cheap), "cheap_cost_usd": 1.0, "strong_correct": int(strong), "strong_cost_usd": 2.0}
 
 
 def _grades():
     cal = [_row("calibration", k, k > 0, True, f"f{k}") for k in range(30)]
+    cal += [_row("calibration", k, True, k > 0, f"h{k}", "u") for k in range(10)]
     final = [_row("final", k, k < 2, True, f"g{k // 2}") for k in range(4)]
+    final += [_row("final", k, k < 2, True, "g2", "u") for k in range(4)]
     def wrap(split, rows):
         return {"format": "routerbench-paired-grades-v1", "split": split, "rows": rows}
     return wrap("calibration", cal), wrap("final", final)
 
 
 def test_report_on_a_hand_made_pair(rp):
-    # Calibration: v/cheap right on 29 of 30, Wilson bound at 0.95 (29 + 1.92 - 1.96 * sqrt(29 / 30 + 0.9604))
-    # / 33.8416 = 0.833; v/strong 30 of 30, 30 / 33.8416 = 0.886; both clear 0.8. cost_effective takes the
-    # cheaper v/cheap (mean 1.0 against 2.0), right on 2 of the 4 final items for 4.0, half v/strong's 8.0,
-    # and, cleared at 0.500 < 0.8, one cleared task below the bar; cost_blind takes v/strong's higher bound.
-    # The oracle pays v/cheap on the two items it gets right and v/strong on the other two, 6.0, 0.750 of
-    # 8.0; best_on_calibration is v/strong (30 > 29) and cheapest v/cheap. 30 calibration families, 2 final
+    # d/t_x, calibration: v/cheap right on 29 of 30, Wilson bound at 0.95 (29 + 1.92 - 1.96 * sqrt(29 / 30 +
+    # 0.9604)) / 33.8416 = 0.833; v/strong 30 of 30, 30 / 33.8416 = 0.886; both clear 0.8. cost_effective takes
+    # the cheaper v/cheap (mean 1.0 against 2.0), right on 2 of its 4 final items, and cost_blind v/strong's
+    # higher bound, right on 4. d/u (review iter-293 should-fix 1): 10 calibration items, below min_samples
+    # 30, so it never clears; v/cheap 10 of 10, 10 / 13.8416 = 0.722, v/strong 9 of 10, 0.596, so both
+    # flavors fall back to v/cheap, right on 2 of 4. cost_effective: 4 of 8 for 8.0, half v/strong's 16.0,
+    # 1 of 2 cleared, and 1 cleared task below the bar (d/t_x at 0.500), where counting every cell below the
+    # bar gives 2; cost_blind: 6 of 8 for 12.0, 0.750, 0 cleared below the bar, where every cell gives 1.
+    # The oracle pays v/cheap on the four items it gets right and v/strong on the other four, 12.0, 0.750 of
+    # 16.0; best_on_calibration is v/strong on d/t_x (30 > 29) and v/cheap on d/u (10 > 9), 6 of 8 for 12.0;
+    # cheapest is v/cheap on both. Families: 40 calibration, 3 final (g0, g1, g2)
     pair = _pair()
     pair["arms"]["cheap"]["model"], pair["arms"]["strong"]["model"] = "cheap", "strong"
     pair["prices_usd_per_million"] = {"cheap": {"input": "1", "output": "2"}, "strong": {"input": "3", "output": "4"}}
     cal, final = _grades()
     lines = [" ".join(line.split()) for line in rp.report(pair, IDS, cal, final, CONFIG)]
-    for want in ("families: calibration 30 questions in 30, final 4 in 2, 0 in both splits",
-                 "d/t_x 30 4 no 29 30 0.833 0.886", "all 30 4", "v/cheap 0.500 4.000000", "v/strong 1.000 8.000000",
-                 "oracle: 1.000 at 0.750 of v/strong's cost", "best_on_calibration: 1.000 at 1.000 of v/strong's cost",
+    for want in ("families: calibration 40 questions in 40, final 8 in 3, 0 in both splits",
+                 "d/t_x 30 4 no 29 30 0.833 0.886", "d/u 10 4 yes 10 9 0.722 0.596", "all 40 8",
+                 "v/cheap 0.500 8.000000", "v/strong 1.000 16.000000",
+                 "oracle: 1.000 at 0.750 of v/strong's cost", "best_on_calibration: 0.750 at 0.750 of v/strong's cost",
                  "cheapest: 0.500 at 0.500 of v/strong's cost",
-                 "0.8 cost_effective 0.500 4.000000 0.500 1 of 1 1 1", "0.8 cost_blind 1.000 8.000000 1.000 1 of 1 0 0",
-                 "0.8 cost_effective: d/t_x*", "0.8 cost_blind: none",
+                 "0.8 cost_effective 0.500 8.000000 0.500 1 of 2 2 1", "0.8 cost_blind 0.750 12.000000 0.750 1 of 2 1 0",
+                 "0.8 cost_effective: d/t_x*, d/u", "0.8 cost_blind: d/u",
                  "cheap: v/cheap at 1 and 2 USD per million input and output tokens, the registry's prices, reasoning medium"):
         assert want in lines, want
 
@@ -261,9 +269,11 @@ def test_check_pair_against_the_registry(rp):
     (lambda c, f: ({**c, "rows": [dict(c["rows"][0], role="final")] + c["rows"][1:]}, f), "role"),
     (lambda c, f: ({**c, "rows": [dict(c["rows"][0], cheap_correct=2)] + c["rows"][1:]}, f), "correct"),
     (lambda c, f: ({**c, "rows": [dict(c["rows"][0], cheap_correct=True)] + c["rows"][1:]}, f), "correct"),
+    # review iter-293 nit 3: 0 or 1 as an int, never the float 1.0
+    (lambda c, f: ({**c, "rows": [dict(c["rows"][0], cheap_correct=1.0)] + c["rows"][1:]}, f), "correct"),
     (lambda c, f: ({**c, "rows": [dict(c["rows"][0], strong_cost_usd=-1.0)] + c["rows"][1:]}, f), "cost"),
     (lambda c, f: ({**c, "rows": [dict(c["rows"][0], strong_cost_usd=float("nan"))] + c["rows"][1:]}, f), "cost"),
-    (lambda c, f: (c, {**f, "rows": [dict(f["rows"][0], id="calibration:0")] + f["rows"][1:]}), "in both splits"),
+    (lambda c, f: (c, {**f, "rows": [dict(f["rows"][0], id="calibration:t0")] + f["rows"][1:]}), "in both splits"),
     (lambda c, f: (c, {**f, "rows": [dict(r, task="u") for r in f["rows"]]}), "split is empty"),
 ])
 def test_refusals(rp, change, message):
