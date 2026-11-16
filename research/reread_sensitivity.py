@@ -10,7 +10,8 @@ run's config, tasks and summary are the committed file's. Every committed result
 share sigma (`output_reread_share`) at 1.0 and the brief's output W (`brief_output_tokens`) at B
 (DESIGN 13.1), so the script then re-decides every cell with the run's own calibration half and router
 (13.9 `_calibrate` and `_router`), first at sigma 1.0 and W = B, where each cell's mode and model and
-its decision's held-out correct count and cost must be the run's, then at sigma 0, sigma 0.5 and
+the held-out correct count and cost of its decision, of always inline and of always delegating must
+be the run's, then at sigma 0, sigma 0.5 and
 W = 2 B. A cell's decision changes when its mode or its model does. Both picks are scored on the cell's
 held-out half at that setting's 13.2 list-price costs (sigma scales each re-read of a work call's
 output and nothing else, W is the decision turn's output on the delegated path), so the comparison is
@@ -18,7 +19,9 @@ the one a caller sees whose model really re-reads that share or writes that much
 against the one the decision makes once told. Per file, flavor, bar and setting it prints the cells,
 the changed cells, their share, how many changed to inline, the changed cells' held-out success gap
 (new correct minus committed correct over their held-out items) and cost ratio (new over committed),
-and the cost ratio over all the cells, then per file and setting the changed cells by point.
+and the cost ratio over all the cells, then per file and setting the changed cells by point, and by
+the committed decision's 13.5 reason, with how many seeds and parents they fall on and the parent most
+of them have.
 
 Standard library and the model_routing package. Read by research/reread-sensitivity.md. Exit 0, or 2
 with one `error: ...` line on a missing or unreadable file, a row 13.9 refuses, a model with price
@@ -33,7 +36,9 @@ import sys
 from math import fsum
 from pathlib import Path
 
-from model_routing import Registry, evaluate_delegation
+from collections import Counter
+
+from model_routing import Registry, evaluate_delegation, split_items
 from model_routing.delegation_eval import _calibrate, _router, _row
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -120,7 +125,6 @@ class Run:
         items = {}
         for task, item in self.table:
             items.setdefault(task, []).append(item)
-        from model_routing import split_items
         self.calibrated = {}
         for task in sorted(items):
             for seed in config["seeds"]:
@@ -169,8 +173,10 @@ def rerun(rows, registry, root, name, grid, dr):
             raise ValueError(f"{rel}: a cell re-decided at sigma 1.0 and W = B is not the run's: "
                              f"{cell['flavor']}, bar {cell['bar']}, point {cell['point']}, "
                              f"parent {cell['parent']}, seed {cell['seed']}")
-        correct, cost, _ = run.held_sum(cell, point, cell["mode"], cell["model"], 1.0, b)
-        if (correct, cost) != (cell["correct"]["decision"], cell["cost_usd"]["decision"]):
+        paths = {"decision": (cell["mode"], cell["model"]), "inline": ("inline", cell["parent"]),
+                 "delegate": ("delegate", cell["delegate"])}
+        if any(run.held_sum(cell, point, *pick, 1.0, b)[:2] != (cell["correct"][s], cell["cost_usd"][s])
+               for s, pick in paths.items()):
             raise ValueError(f"{rel}: a held-out sum at sigma 1.0 and W = B is not the run's: "
                              f"{cell['flavor']}, bar {cell['bar']}, point {cell['point']}, "
                              f"parent {cell['parent']}, seed {cell['seed']}")
@@ -179,6 +185,7 @@ def rerun(rows, registry, root, name, grid, dr):
              f"{len(config['parents'])} parents, {len(config['seeds'])} seeds; every cell's decision and "
              "held-out sum reproduced at sigma 1.0 and W = B", HEADER]
     by_point = {label: [0] * len(config["points"]) for label, _, _ in SETTINGS}
+    why = {label: [] for label, _, _ in SETTINGS}  # (committed reason, seed, parent) of each changed cell
     for flavor in config["flavors"]:
         for bar in config["bars"]:
             sel = [c for c in cells if c["flavor"] == flavor and c["bar"] == bar]
@@ -199,6 +206,7 @@ def rerun(rows, registry, root, name, grid, dr):
                         changed += 1
                         inline += pick[0] == "inline"
                         by_point[label][cell["point"]] += 1
+                        why[label].append((cell["reason"], cell["seed"], cell["parent"]))
                         gap = [gap[0] + new[0], gap[1] + old[0], gap[2] + old[2]]
                         new_cost.append(new[1])
                         old_cost.append(old[1])
@@ -214,7 +222,20 @@ def rerun(rows, registry, root, name, grid, dr):
     for label, _, _ in SETTINGS:
         lines.append(f"  changed cells by point, {label}: "
                      + ", ".join(f"{i}: {n}" for i, n in enumerate(by_point[label])))
+    for label, _, _ in SETTINGS:
+        lines.append(f"  changed cells by reason, {label}: " + reasons(why[label]))
     return lines
+
+
+def reasons(changed):
+    """The committed reasons of the changed cells, most first, then their seeds and parents."""
+    if not changed:
+        return "none"
+    count = sorted(Counter(r for r, _, _ in changed).items(), key=lambda kv: (-kv[1], kv[0]))
+    parents = sorted(Counter(p for _, _, p in changed).items(), key=lambda kv: (-kv[1], kv[0]))
+    seeds = len({s for _, s, _ in changed})
+    return (", ".join(f"{r} {n}" for r, n in count) + f"; {seeds} seed{'' if seeds == 1 else 's'}, "
+            f"{len(parents)} parent{'' if len(parents) == 1 else 's'}, the most {parents[0][1]} of {parents[0][0]}")
 
 
 def run(matrix, registry, root=ROOT):

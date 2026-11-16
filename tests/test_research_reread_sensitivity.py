@@ -187,6 +187,7 @@ def _expected(rows, registry, dr, grid, name):
              "and W = B",
              "  flavor          bar  setting    changed / cells  share  to inline  success gap  cost ratio  all cost ratio"]
     by_point = {label: [0] * len(points) for label, _, _ in SETTINGS}
+    why = {label: [] for label, _, _ in SETTINGS}
     for flavor in ("cost_effective", "cost_blind"):
         for bar in dr.BARS:
             sel = [c for c in cells if (c["flavor"], c["bar"]) == (flavor, bar)]
@@ -204,6 +205,7 @@ def _expected(rows, registry, dr, grid, name):
                         changed += 1
                         inline += pick[0] == "inline"
                         by_point[label][cell["point"]] += 1
+                        why[label].append((cell["reason"], cell["seed"], cell["parent"]))
                         new_hits, old_hits, n = new_hits + new[0], old_hits + old[0], n + old[1]
                         new_cost, old_cost = new_cost + new[2], old_cost + old[2]
                 gap = f"{(new_hits - old_hits) / n:+.4f}" if changed else "-"
@@ -213,6 +215,19 @@ def _expected(rows, registry, dr, grid, name):
                              f"{float(all_new / all_old):>14.3f}")
     for label, _, _ in SETTINGS:
         lines.append(f"  changed cells by point, {label}: " + ", ".join(f"{i}: {n}" for i, n in enumerate(by_point[label])))
+    for label, _, _ in SETTINGS:
+        changed = why[label]
+        if not changed:
+            lines.append(f"  changed cells by reason, {label}: none")
+            continue
+        reasons = {r: sum(x[0] == r for x in changed) for r in {x[0] for x in changed}}
+        parents = {p: sum(x[2] == p for x in changed) for p in {x[2] for x in changed}}
+        top = min(parents, key=lambda p: (-parents[p], p))
+        seeds = len({x[1] for x in changed})
+        lines.append(f"  changed cells by reason, {label}: "
+                     + ", ".join(f"{r} {reasons[r]}" for r in sorted(reasons, key=lambda r: (-reasons[r], r)))
+                     + f"; {seeds} seed{'s' * (seeds != 1)}, {len(parents)} parent{'s' * (len(parents) != 1)}, "
+                     f"the most {parents[top]} of {top}")
     return lines
 
 
@@ -300,7 +315,7 @@ def test_refusals(rs, dr, tmp_path):
 def test_script_is_standard_library_and_model_routing():
     text = SCRIPT.read_text(encoding="utf-8")
     imports = {m.split(".")[0] for m in re.findall(r"^\s*(?:from|import) (\S+)", text, flags=re.M)}
-    assert imports == {"argparse", "importlib", "json", "sys", "math", "pathlib", "model_routing"}
+    assert imports == {"argparse", "collections", "importlib", "json", "sys", "math", "pathlib", "model_routing"}
 
 
 # --- the note --------------------------------------------------------------------------------
@@ -333,6 +348,41 @@ def test_every_number_of_the_prose_is_in_the_output_or_allowed():
     block = note.split(COMMAND + "\n", 1)[1].split("\n```", 1)[0]
     printed = set(NUMBER.findall(block))
     assert sorted({n for n in NUMBER.findall(_prose(note)) if n not in printed and n not in ALLOWED}) == []
+
+
+def _table(block):
+    """{(grid, flavor, bar, setting): (changed, cells, to inline, all cost ratio)} and the by-point lines."""
+    rows, points, grid = {}, {}, None
+    for line in block.split("\n"):
+        if line.startswith("AutoBench 2026, "):
+            grid = line.split(", ", 2)[1].split(" ")[0]
+        found = re.match(r"  (cost_\w+) +(0\.\d) +(sigma 0\.5|sigma 0|W = 2 B) +(\d+) / ([\d,]+) +[\d.]+% +(\d+) .* ([\d.]+)$", line)
+        if found:
+            f, bar, label, changed, cells, inline, ratio = found.groups()
+            rows[grid, f, bar, label] = (int(changed), int(cells.replace(",", "")), int(inline), float(ratio))
+        found = re.match(r"  changed cells by point, (.+?): (.+)$", line)
+        if found:
+            points[grid, found.group(1)] = [int(x.split(": ")[1]) for x in found.group(2).split(", ")]
+    return rows, points
+
+
+def test_the_facts_claims_hold_in_the_block():
+    note = NOTE.read_text(encoding="utf-8")
+    rows, points = _table(note.split(COMMAND + "\n", 1)[1].split("\n```", 1)[0])
+    assert len(rows) == 24 and len(points) == 6
+    # no cost_blind cell moves; every base-grid change is to inline and at point 3; no variant change is
+    # to inline, W = 2 B changes no variant cell, and every variant change is at variant point 2
+    assert all(v[0] == 0 for k, v in rows.items() if k[1] == "cost_blind")
+    assert all(v[2] == v[0] for k, v in rows.items() if k[0] == "base")
+    assert all(p[:3] == [0, 0, 0] for (g, _), p in points.items() if g == "base")
+    assert all(v[2] == 0 for k, v in rows.items() if k[0] == "variants")
+    assert all(v[0] == 0 for k, v in rows.items() if k[0] == "variants" and k[3] == "W = 2 B")
+    assert all(p[:2] == [0, 0] for (g, _), p in points.items() if g == "variants")
+    # the Recommendation's bounds: at most 0.7% of a file, flavor and bar's cells, all-cells ratio 1.000 to 1.003
+    assert max(round(100 * v[0] / v[1], 1) for v in rows.values()) == 0.7
+    assert (min(v[3] for v in rows.values()), max(v[3] for v in rows.values())) == (1.0, 1.003)
+    rec = _section(note, "Recommendation")
+    assert "more than 0.7% of the cells" in rec and "at most 1.003" in rec
 
 
 def test_the_note_says_from_13_2_which_terms_sigma_scales():
