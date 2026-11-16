@@ -534,7 +534,7 @@ def test_a_broken_history_pointer_is_named(old, new, pointers, message):
 
 # --- research notes out of 12.8 (DESIGN 12 v1.390, row DOC21o) ------------------------------------
 
-# The opening of each line of the nine research-note bullets, the first with its README sub-bullet, in
+# The opening of each line of the ten research-note bullets, the first with its README sub-bullet, in
 # their order in 12.22.
 RESEARCH_NOTES = (
     "- Where routing pays (v1.124): ",
@@ -547,6 +547,7 @@ RESEARCH_NOTES = (
     "- Below-bar fallback, on LLMRouterBench (v1.191): ",
     "- The 13.2 re-read rule against measured tokens (v1.402, row R37): ",
     "- A price error, on LLMRouterBench (v1.403, row R35): ",
+    "- The re-read share and the brief's output, on AutoBench (v1.413, row R38): ",
 )
 
 
