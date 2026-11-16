@@ -628,8 +628,9 @@ def test_the_12_22_lines_of_v1_124_to_v1_191_hold_no_scope_or_restated_history()
                   "review iter-", "the mean over seeds of each seed's pooled success", "two middle gaps",
                   "the cost ratios rest", "no committed row measures", "confidence cascade",
                   "So the 5.3 route is always", "as on the pooled line", "every attempt's recorded cost spent",
-                  "and from v1.341", "`, from v1.341 `", "which their own tests compare",
-                  "no committed file holds a seed's value"):
+                  "and from v1.341", "`, from v1.341 `", "no committed file holds a seed's value",
+                  "five of v1.124", "seven in all", "round(success * half)",
+                  "as does a `cost_blind` `better` row"):  # the last four: review iter-282 nit 2
         assert not [line[:60] for line in trimmed if words in line], words
     for line in trimmed:
         assert len(POINTER.findall(line)) == 1, line[:60]
