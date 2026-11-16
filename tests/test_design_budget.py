@@ -547,7 +547,7 @@ def test_a_broken_history_pointer_is_named(old, new, pointers, message):
 
 # --- research notes out of 12.8 (DESIGN 12 v1.390, row DOC21o) ------------------------------------
 
-# The opening of each line of the ten research-note bullets, the first with its README sub-bullet, in
+# The opening of each line of the research-note bullets, the first with its README sub-bullet, in
 # their order in 12.22.
 RESEARCH_NOTES = (
     "- Where routing pays (v1.124): ",
@@ -562,6 +562,7 @@ RESEARCH_NOTES = (
     "- A price error, on LLMRouterBench (v1.403, row R35): ",
     "- The re-read share and the brief's output, on AutoBench, LLMRouterBench, the response bank and tau2-bench (v1.413, row R38): ",
     "- A price error in a delegation decision, on AutoBench (v1.424, row R39): ",
+    "- The registry's own pair, on superlinked/train-a-router-reasoning (v1.430, row R40): ",
 )
 
 
