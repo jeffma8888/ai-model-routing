@@ -372,7 +372,7 @@ def facts(note):
                f"`{totals[0][1]}`'s prices ({totals[0][0]:,} cells) and {_verb(totals[1][2])} `{totals[1][1]}`'s "
                f"({totals[1][0]:,})")
     out.append(f"- Of the {changed:,} cells the base grid's runs change, {inline:,} go inline; of the variant grid's "
-               f"{v_changed:,}, {v_inline:,}; the rest go to another delegate")
+               f"{v_changed:,}, {v_inline:,}; the rest go to a delegated pick")
     return out
 
 
@@ -416,6 +416,10 @@ def test_every_number_of_the_prose_is_in_a_built_bullet_or_allowed():
 
 def test_the_note_says_no_cost_blind_cell_moves_and_how_picks_are_scored():
     note = NOTE.read_text(encoding="utf-8")
+    # the block counts the changed cells that go inline, not those that were inline before, so a delegated new
+    # pick is not said to be another delegate; and no committed file holds per-delegate cell counts
+    # (review iter-285 should-fix 1 and 2)
+    assert "another delegate" not in note and "cells in evidence/delegation/results.json" not in note
     assert "- No run moves a `cost_blind` cell, on either grid or bar" in _section(note, "Facts")
     method = _section(note, "Method")
     for phrase in ("`price_in` and `price_out`", "committed prices", "`_router`", "`checked`"):

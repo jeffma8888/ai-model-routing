@@ -4,12 +4,12 @@
 
 ## Facts
 
-- A wrong list price for one model moves far more committed delegation decisions than the re-read share or the brief's output do: in `cost_effective` one model's prices halved or doubled can move about half of a bar's cells, nearly all of them to another delegate rather than inline, and in the run that moves the most at each bar the moved picks cost more at the list price, right less often at the lower bar and more often at the higher one; no `cost_blind` cell moves
+- A wrong list price for one model moves far more committed delegation decisions than the re-read share or the brief's output do: in `cost_effective` one model's prices halved or doubled can move about half of a bar's cells, nearly all of them to a delegated pick rather than inline, and in the run that moves the most at each bar the moved picks cost more at the list price, right less often at the lower bar and more often at the higher one; no `cost_blind` cell moves
 - Data: the AutoBench 2026 matrix and pool that evidence/delegation/results.py runs, its base grid (16,000 cells: 2 bars, 2 flavors, 4 points, 20 parents, 50 seeds) and its variant grid (12,000 cells, 3 points), with the 20 models of the pool, each model's input and output prices times 0.5 and times 2.0 in turn, so 40 runs per grid; every cell's decision and held-out sum is reproduced at the committed prices before any price is scaled
 - Base grid, `cost_effective`: at bar 0.7 8 of the 40 runs move a cell, and the most, doubling `openai/gpt-5.6-luna`'s prices, moves 2,147 of 4,000 cells (53.7%), 22 of them to inline, for a held-out success gap of -0.1413 at 1.236 times their cost and 1.127 times the cost over all the bar's cells; at bar 0.8 5 of the 40 runs move a cell, and the most, halving `openai/gpt-5.6-sol`'s prices, moves 317 of 4,000 cells (7.9%), 1 of them to inline, for a held-out success gap of +0.0496 at 1.292 times their cost and 1.027 times the cost over all the bar's cells
 - Variant grid, `cost_effective`: at bar 0.7 6 of the 40 runs move a cell, and the most, doubling `openai/gpt-5.6-luna`'s prices, moves 1,580 of 3,000 cells (52.7%), none to inline, for a held-out success gap of -0.1385 at 1.587 times their cost and 1.299 times the cost over all the bar's cells; at bar 0.8 5 of the 40 runs move a cell, and the most, halving `openai/gpt-5.6-sol`'s prices, moves 240 of 3,000 cells (8.0%), none to inline, for a held-out success gap of +0.0496 at 1.246 times their cost and 1.025 times the cost over all the bar's cells
 - By model: 8 of the 20 models move a base-grid cell at one factor or the other and 12 move none at either; on the variant grid 7 move a cell. Over every flavor and bar of the base grid the runs that move the most are doubling `openai/gpt-5.6-luna`'s prices (2,147 cells) and halving `google/gemini-3.7-flash`'s (1,834)
-- Of the 5,901 cells the base grid's runs change, 51 go inline; of the variant grid's 4,240, 0; the rest go to another delegate
+- Of the 5,901 cells the base grid's runs change, 51 go inline; of the variant grid's 4,240, 0; the rest go to a delegated pick
 - No run moves a `cost_blind` cell, on either grid or bar
 
 ## Method
@@ -82,11 +82,11 @@ AutoBench 2026, variants grid (`evidence/delegation/variants.json`): 12,000 cell
 
 ## Reading it
 
-- The work moves between delegates, not between the paths. The delegate a decision weighs is the router's `cost_effective` pick, the cheapest of the models whose calibration bound clears the bar, so a wrong price can hand the work to another delegate on any cell where that pick is close in cost to the next; the parent's own path moves only on the few cells where the two paths cost about the same, as on the re-read note's folded point
-- So a price error moves cells at every point alike (the `changed cells by point` lines), unlike the re-read share and the brief's output, which move the cost of one path against the other and change cells only where the paths are close
-- Most models move no cell at either factor (the per-model lines); the runs that move the most are on the models the committed decisions hand the most work to, or the one an error makes look cheaper than them
-- At bar 0.7 the committed decision delegates most cells to `openai/gpt-5.6-luna` (its cells in evidence/delegation/results.json), so doubling its prices, the run that moves the most, sends the work to delegates that cost more at the list price and, on those cells, are right less often on the held-out half. At bar 0.8 halving `openai/gpt-5.6-sol`'s prices, the run that moves the most, makes it look cheaper than the delegate the decision picked, so the moved picks cost more and, on those cells, are right more often
-- For each flavor and bar's run that moves the most, the cost over all the bar's cells rises at the list price
+- The moved decisions go to a delegated pick and rarely inline. The delegate a decision weighs is the router's `cost_effective` pick, the cheapest of the models whose calibration bound clears the bar, so a wrong price can change that pick on any cell where it is close in cost to the next; the parent's own path wins only on the few cells where the two paths cost about the same, as on the re-read note's folded point
+- So a price error moves cells at every point (the `changed cells by point` lines), unlike the re-read share and the brief's output, which move the cost of one path against the other and change cells only where the paths are close
+- Most models move no cell at either factor (the per-model lines)
+- At bar 0.7 doubling `openai/gpt-5.6-luna`'s prices, the run that moves the most, sends the work to picks that cost more at the list price and, on the cells it moves, are right less often on the held-out half. At bar 0.8 halving `openai/gpt-5.6-sol`'s prices, the run that moves the most, makes it look cheaper than the delegate the decision picked, so the moved picks cost more and, on those cells, are right more often
+- For each `cost_effective` bar's run that moves the most, the cost over all the bar's cells rises at the list price
 - `cost_blind` compares no costs (13.5), and no run moves one of its cells
 
 ## Recommendation
