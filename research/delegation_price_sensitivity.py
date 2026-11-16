@@ -2,6 +2,7 @@
 
 Usage:
   python research/delegation_price_sensitivity.py --matrix autobench-tokens.jsonl --registry autobench-pool.json [--root PATH]
+  python research/delegation_price_sensitivity.py --dataset llmrouterbench --matrix llmrouterbench-matrix.jsonl [--root PATH]
 
 Runs the AutoBench 2026 converter's `--task-by all --tokens` matrix and `--registry` pool on the 13.10 base
 and variant grids, as evidence/delegation/results.py makes results.json and variants.json, through
@@ -18,12 +19,18 @@ of them go inline, their held-out success gap (new correct minus committed corre
 items) and cost ratio (new over committed), the run's cost ratio over all the cells, and the run: the first,
 in model and factor order, of those that change the most. Then per file the changed cells of all runs by
 point, and each model's changed cells over every flavor and bar at each factor, with how many go inline.
+With `--dataset llmrouterbench` (v1.425, row R39b) it runs instead the 13.13 grid on the LLMRouterBench
+converter's default matrix, on the rows evidence/llmrouterbench-delegation/results.py's `select_rows` keeps for
+that folder's committed registry.json (no `--registry`), checked against its results.json, as
+research/reread_sensitivity.py's `--dataset llmrouterbench` reads and checks it; on a run of more than one task
+the header names the task count and a line after the changed cells by point gives them by task, in the run's
+task order.
 
 Standard library and the model_routing package. Read by research/delegation-price-sensitivity.md. Exit 0, or
 2 with one `error: ...` line where research/reread_sensitivity.py exits 2: a missing or unreadable file, a
 row 13.9 refuses, a model with price tiers, a row with per-call sizes, a run whose config, tasks or summary
-is not the committed file's, or a re-decided cell or held-out sum at the committed prices that is not the
-run's.
+is not the committed file's, a re-decided cell or held-out sum at the committed prices that is not the
+run's, `--dataset autobench` without `--registry` or `--dataset llmrouterbench` with it.
 """
 
 import argparse
@@ -38,6 +45,8 @@ from model_routing.delegation_eval import _router
 
 ROOT = Path(__file__).resolve().parents[1]
 FACTORS = (0.5, 2.0)
+# the datasets this script measures, as research/reread_sensitivity.py's DATASETS names them
+DATASETS = ("autobench", "llmrouterbench")
 HEADER = ("  flavor          bar  runs moving  most changed / cells  share  to inline  success gap  cost ratio  "
           "all cost ratio  by")
 
@@ -75,13 +84,15 @@ def picks(run, config, registry):
     return out
 
 
-def report(rows, pool, root, name, grid, dr, title):
+def report(rows, pool, root, name, grid, dr, title, dataset="autobench"):
     """The report lines of one committed file: the check, then each model's price times each factor."""
-    run, got, rel = RS.checked(rows, pool, root, name, grid, dr)
+    run, got, rel = RS.checked(rows, pool, root, name, grid, dr, dataset)
     config = got["config"]
     cells = run.result["cells"]
+    tasks = list(got["tasks"])
     runs = [(m, f) for m in run.models for f in FACTORS]
-    lines = [f"{title}, {grid} grid (`{rel}`): {len(cells):,} cells, {len(config['bars'])} bars, "
+    lines = [f"{title}, {grid} grid (`{rel}`): {len(cells):,} cells, "
+             + (f"{len(tasks)} tasks, " if len(tasks) > 1 else "") + f"{len(config['bars'])} bars, "
              f"{len(config['flavors'])} flavors, {len(config['points'])} points, {len(config['parents'])} parents, "
              f"{len(config['seeds'])} seeds, {len(run.models)} models, so {len(runs)} runs; every cell's decision "
              "and held-out sum reproduced at the committed prices", HEADER]
@@ -92,6 +103,7 @@ def report(rows, pool, root, name, grid, dr, title):
         held.append((was, run.held_sum(cell, point, *was, 1.0, point["brief_tokens"])))
     new = {r: picks(run, config, scaled(pool, *r)) for r in runs}
     by_point = [0] * len(config["points"])
+    by_task = dict.fromkeys(tasks, 0)
     by_model = {r: [0, 0] for r in runs}  # changed cells, of them to inline
     for flavor in config["flavors"]:
         for bar in config["bars"]:
@@ -112,6 +124,7 @@ def report(rows, pool, root, name, grid, dr, title):
                         changed += 1
                         inline += pick[0] == "inline"
                         by_point[cell["point"]] += 1
+                        by_task[cell["task"]] += 1
                         gap = [gap[0] + now[0], gap[1] + old[0], gap[2] + old[2]]
                         new_cost.append(now[1])
                         old_cost.append(old[1])
@@ -131,6 +144,9 @@ def report(rows, pool, root, name, grid, dr, title):
                          f"{all_ratio:>14}  {by}")
     lines.append(f"  changed cells by point, all {len(runs)} runs: "
                  + ", ".join(f"{i}: {n:,}" for i, n in enumerate(by_point)))
+    if len(tasks) > 1:
+        lines.append(f"  changed cells by task, all {len(runs)} runs: "
+                     + ", ".join(f"{t} {n:,}" for t, n in by_task.items()))
     for m in run.models:
         (a, ai), (b, bi) = by_model[m, FACTORS[0]], by_model[m, FACTORS[1]]
         lines.append(f"  {m}: times {FACTORS[0]} changes {a:,} cells ({ai:,} to inline), "
@@ -138,26 +154,33 @@ def report(rows, pool, root, name, grid, dr, title):
     return lines
 
 
-def run(matrix, registry, root=ROOT):
-    """The report lines of the AutoBench 2026 delegation results, on what research/reread_sensitivity.py's
+def run(matrix, registry=None, root=ROOT, dataset="autobench"):
+    """The report lines of one dataset's delegation results, on what research/reread_sensitivity.py's
     `inputs` reads for them."""
-    title, files, dr, rows, pool = RS.inputs(matrix, registry, root, "autobench")
+    if dataset not in DATASETS:
+        raise ValueError(f"dataset must be one of {', '.join(DATASETS)}, got {dataset!r}")
+    title, files, dr, rows, pool = RS.inputs(matrix, registry, root, dataset)
     lines = [f"One model's list price halved or doubled on the {title} delegation results: each cell re-decided "
              f"with that model's input and output prices times {FACTORS[0]} or {FACTORS[1]}, both picks scored at "
              "the committed prices"]
     for name, grid in files:
-        lines += report(rows, pool, root, name, grid, dr, title)
+        lines += report(rows, pool, root, name, grid, dr, title, dataset)
     return lines
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n", 1)[0])
-    parser.add_argument("--matrix", required=True, help="the AutoBench converter's --task-by all --tokens matrix")
-    parser.add_argument("--registry", required=True, help="the AutoBench converter's --registry pool")
+    parser.add_argument("--matrix", required=True,
+                        help="the AutoBench converter's --task-by all --tokens matrix, or with --dataset "
+                             "llmrouterbench that dataset's converter's default output")
+    parser.add_argument("--registry", help="with --dataset autobench: the AutoBench converter's --registry pool")
+    parser.add_argument("--dataset", choices=DATASETS, default="autobench",
+                        help="the delegation results to re-decide (default: autobench, DESIGN 13.10; "
+                             "llmrouterbench, 13.13)")
     parser.add_argument("--root", default=str(ROOT), help="the repository root (default: this checkout)")
     args = parser.parse_args(argv)
     try:
-        lines = run(args.matrix, args.registry, Path(args.root))
+        lines = run(args.matrix, args.registry, Path(args.root), args.dataset)
     except (ValueError, KeyError, TypeError, OSError) as exc:
         message = str(exc).replace("\r", "\\r").replace("\n", "\\n")
         print(f"error: {message}", file=sys.stderr)
