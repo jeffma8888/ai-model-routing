@@ -500,18 +500,21 @@ def _call_row(task, item, model, correct, a, b):
 
 
 def _t2_rows(pooled=False):
-    """Two tasks, `u` and `t`, or with `pooled` the same rows as one task `all`, items named `task|j` as the
-    converter names them `domain|id`. Each is `_lrb_rows`' outputs per call: v/p writes o = 1,200 + 40 *
-    (j % 11) (`u`) or 1,180 + 30 * (j % 13) (`t`), in one call, a = [100], b = [o], or on j % 4 == 0 in two,
-    a = [100, 0], b = [o, o], so its second call re-reads the first one's output; v/d writes 100 in one call,
-    or on j % 5 == 0 50 in each of two. The median call count is 1, so the decision prices one work call at
-    the half's means per call, while each two-call item's held-out cost reads b_1 again at sigma (and, inline,
-    the context once more), so the two kinds of cost differ, as on the pinned conversations."""
+    """Three tasks, `u`, `t` and `s`, or with `pooled` the same rows as one task `all`, items named `task|j` as
+    the converter names them `domain|id`. On `u` and `t` each is `_lrb_rows`' outputs per call: v/p writes
+    o = 1,200 + 40 * (j % 11) (`u`) or 1,180 + 30 * (j % 13) (`t`), in one call, a = [100], b = [o], or on
+    j % 4 == 0 in two, a = [100, 0], b = [o, o], so its second call re-reads the first one's output; v/d writes
+    100 in one call, or on j % 5 == 0 50 in each of two. Their median call count is 1, so the decision prices
+    one work call at the half's means per call, while each two-call item's held-out cost reads b_1 again at
+    sigma (and, inline, the context once more), so the two kinds of cost differ, as on the pinned
+    conversations. On `s` v/p writes o = 1,190 + 20 * (j % 7) in two calls on every item, so that task's median
+    call count is 2 and the decision's `work_calls` is above one, as on every pinned domain (review iter-277
+    should-fix 1); pooled, the median stays 1."""
     rows = []
-    for task, base, step, mod in (("u", 1200, 40, 11), ("t", 1180, 30, 13)):
+    for task, base, step, mod in (("u", 1200, 40, 11), ("t", 1180, 30, 13), ("s", 1190, 20, 7)):
         for j in range(80):
             item, name, o = f"{task}|{j:02d}", "all" if pooled else task, base + step * (j % mod)
-            a, b = ([100, 0], [o, o]) if j % 4 == 0 else ([100], [o])
+            a, b = ([100, 0], [o, o]) if j % 4 == 0 or task == "s" else ([100], [o])
             rows.append(_call_row(name, item, "v/p", j % 10 != 0, a, b))
             a, b = ([100, 0], [50, 50]) if j % 5 == 0 else ([100], [100])
             rows.append(_call_row(name, item, "v/d", j % 20 != 0, a, b))
@@ -560,7 +563,7 @@ def test_tau2_report_on_a_hand_matrix_is_the_brute_force(t2, t2_hand):
 def test_the_tau2_hand_matrix_moves_cells_at_each_setting(t2_hand):
     dataset, *_, out, _err = t2_hand
     out = out.split("\n")
-    cells = "9,600 cells, 2 tasks, " if dataset == "tau2-bench" else "4,800 cells, "
+    cells = "14,400 cells, 3 tasks, " if dataset == "tau2-bench" else "4,800 cells, "
     assert out[1].endswith(f"`): {cells}6 bars, 2 flavors, 4 points, 2 parents, 50 seeds; every cell's decision "
                            "and held-out sum reproduced at sigma 1.0 and W = B"), out[1]
     for label in ("sigma 0", "sigma 0.5", "W = 2 B"):
@@ -569,7 +572,25 @@ def test_the_tau2_hand_matrix_moves_cells_at_each_setting(t2_hand):
         assert counts[3] > 0 and counts[:3] == [0, 0, 0], line
         if dataset == "tau2-bench":
             line = next(x for x in out if x.startswith(f"  changed cells by task, {label}: "))
-            assert all(int(x.rsplit(" ", 1)[1]) > 0 for x in line.split(": ", 1)[1].split(", ")), line
+            counts = dict(x.rsplit(" ", 1) for x in line.split(": ", 1)[1].split(", "))
+            assert list(counts) == ["s", "t", "u"] and int(counts["t"]) > 0 and int(counts["u"]) > 0, line
+
+
+def test_the_tau2_hand_matrix_forecasts_two_work_calls_on_one_task():
+    """The calibration half's median call count over both models' rows, as 13.9 v1.74 forecasts the work: 2
+    on `s` and 1 on `t`, `u` and pooled, on every seed, so the hand runs check the decision's `work_calls`
+    above one (review iter-277 should-fix 1)."""
+    for pooled, want in ((False, {"s": {2}, "t": {1}, "u": {1}}), (True, {"all": {1}})):
+        rows = _t2_rows(pooled)
+        got = {}
+        for task in dict.fromkeys(r["task"] for r in rows):
+            mine = [r for r in rows if r["task"] == task]
+            items = list(dict.fromkeys(r["item"] for r in mine))
+            for seed in range(50):
+                cal = set(split_items(items, seed, 0.5)[0])
+                got.setdefault(task, set()).add(statistics.median_low(
+                    [len(r["call_input_tokens"]) for r in mine if r["item"] in cal]))
+        assert got == want, pooled
 
 
 def test_call_cost_re_reads_each_earlier_output_at_sigma(rs):
