@@ -911,7 +911,6 @@ def test_the_design_bullet_is_in_12_22():
         assert phrase in bullet[0], phrase
 
 
-
 # README Limitations: the note's bounds after the brief's-output sentence (v1.420, row DOC33)
 
 def reread_sentence():
@@ -934,8 +933,8 @@ def reread_sentence():
     whole = [v[3] for v in autobench.values()] + [v[5] for t in others.values() for v in t.values()]
     return (
         "The committed delegation results keep both defaults, and re-deciding every cell of them at a re-read "
-        "share of 0 and 0.5 and at twice the brief's size for that call's output "
-        "([research/reread-sensitivity.md](research/reread-sensitivity.md)) changes at most "
+        "share of 0 and 0.5 and at twice the brief's size for that call's output, each with the other input at "
+        "its default ([research/reread-sensitivity.md](research/reread-sensitivity.md)), changes at most "
         f"{top(autobench):.1f}% of the cells of an AutoBench 2026 file, flavor and bar, "
         f"{top(others[LRB_COMMAND]):.1f}% of LLMRouterBench's, {top(others[RB_COMMAND]):.1f}% of the LLM Routing "
         "Response Bank's and none of tau2-bench's, none in `cost_blind`, which compares no costs, and moves the "
@@ -973,7 +972,7 @@ def test_design_13_1_states_the_reread_sentence():
     clause = (
         "From v1.420 (row DOC33, the Recommendation of the 12.22 v1.413 note) the sentence after that one says "
         "that the committed delegation results keep sigma and W at their defaults and how far re-deciding their "
-        "cells at sigma 0, sigma 0.5 and W = 2 B moves them, from `research/reread-sensitivity.md`, which it "
+        "cells at sigma 0, sigma 0.5 and W = 2 B, each with the other input at its default, moves them, from `research/reread-sensitivity.md`, which it "
         "links: the largest share of a file, flavor and bar's cells that changes on AutoBench 2026, "
         "LLMRouterBench and the LLM Routing Response Bank, none on tau2-bench and none in `cost_blind`, which "
         "compares no costs, and the range of the cost over all of a file, flavor and bar's cells as a factor of "
