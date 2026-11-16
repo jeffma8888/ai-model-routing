@@ -1,4 +1,5 @@
-"""Dated list prices expire visibly (DESIGN 4.1, 9, 10 and 13.7, v1.15)."""
+"""Dated list prices expire visibly (DESIGN 4.1, 9, 10 and 13.7, v1.15; the warning's scope and
+`evaluate`, 10, 12.4 and 13.7, v1.411, row P2b)."""
 
 import json
 import re
@@ -10,6 +11,7 @@ import pytest
 
 from model_routing import DATA_DIR, Model, Registry
 from model_routing.cli import main
+from model_routing.stats import Stats
 
 ON = date(2026, 11, 21)
 BEFORE = date(2026, 11, 20)
@@ -211,11 +213,91 @@ def test_cli_warns_once_per_expired_model_in_file_order_and_leaves_stdout_alone(
         json.loads(out_later)
 
 
+# 10 v1.411 (row P2b): a run warns only for a model whose price its result can depend on
+
+
 @pytest.mark.parametrize("build", [select_args, delegate_args])
-def test_cli_warns_for_an_excluded_or_unchosen_model_too(dated_files, capsys, build):
+def test_cli_does_not_warn_for_an_excluded_model(dated_files, capsys, build):
     code, out, err = run(capsys, build(dated_files, "--exclude", "fiction/mid"), AFTER)
+    assert code == 0 and err == ""
+    code, out, err = run(capsys, build(dated_files, "--exclude", "fiction/mid"), date(2027, 1, 1))
     assert code == 0
+    assert err.splitlines() == [warning("fiction/best", "2026-12-31")]
+
+
+@pytest.mark.parametrize("build", [select_args, delegate_args])
+def test_cli_still_warns_for_an_eligible_model_it_did_not_choose(dated_files, capsys, build):
+    code, out, err = run(capsys, build(dated_files, "--json"), AFTER)
+    assert code == 0
+    decision = json.loads(out)
+    chosen = decision["primary"] if build is select_args else decision["model"]
+    assert chosen != "fiction/mid"
     assert err.splitlines() == [warning("fiction/mid", "2026-11-21")]
+
+
+@pytest.mark.parametrize("build", [select_args, delegate_args])
+@pytest.mark.parametrize("rule, reason", [("family", "excluded_family"), ("generator", "generator"),
+                                          ("window", "context_too_small")])
+def test_cli_does_not_warn_for_a_model_rules_2_to_5_rule_out(
+        dated_files, write_json, task_factory, capsys, build, rule, reason):
+    extra = []
+    if rule == "family":
+        dated_files["tasks"] = write_json("family-tasks.json", {
+            "tasks": [asdict(task_factory(exclude_families=("medium",)))]})
+    elif rule == "generator":
+        extra = ["--generator", "fiction/mid"]
+    else:
+        models = json.loads(dated_files["registry"].read_text(encoding="utf-8"))["models"]
+        models[1]["context_window"] = 500
+        dated_files["registry"] = write_json("small-window.json", {
+            "version": "1", "as_of": "2026-01-01", "currency": "USD", "models": models})
+    code, out, err = run(capsys, build(dated_files, *extra, "--json"), AFTER)
+    assert code == 0 and err == ""
+    decision = json.loads(out)
+    candidates = decision["candidates"] if build is select_args else decision["route"]["candidates"]
+    assert {c["model_id"]: c["reason"] for c in candidates}["fiction/mid"] == reason
+
+
+@pytest.mark.parametrize("build", [select_args, delegate_args])
+def test_cli_exit_three_skips_an_excluded_model(dated_files, tmp_path, capsys, build):
+    dated_files["stats"] = tmp_path / "absent-stats.json"
+    code, out, err = run(capsys, build(dated_files, "--exclude", "fiction/mid"), AFTER)
+    assert code == 3 and out == ""
+    lines = err.splitlines()
+    assert lines[0].startswith("error: ")
+    assert any(line.startswith("fiction/mid") for line in lines[1:])
+    assert "warning:" not in err
+
+
+def test_delegate_warns_for_its_parent_even_when_excluded(dated_files, capsys):
+    args = delegate_args(dated_files, "--exclude", "fiction/mid", "--json")
+    args[args.index("--parent") + 1] = "fiction/mid"
+    code, out, err = run(capsys, args, AFTER)
+    assert code == 0
+    assert json.loads(out)["route"] is not None
+    assert err.splitlines() == [warning("fiction/mid", "2026-11-21")]
+
+
+def test_delegate_with_no_route_warns_for_its_parent_alone(dated_files, tmp_path, capsys):
+    stats = Stats()
+    stats.add("judge", "fiction/best", 100, 100)
+    dated_files["stats"] = tmp_path / "parent-only-stats.json"
+    stats.save(dated_files["stats"])
+    code, out, err = run(capsys, delegate_args(dated_files, "--exclude", "fiction/best", "--json"),
+                         date(2027, 1, 1))
+    assert code == 0
+    decision = json.loads(out)
+    assert decision["route"] is None and decision["mode"] == "inline"
+    assert err.splitlines() == [warning("fiction/best", "2026-12-31")]
+
+
+def test_design_states_the_v1_411_scope_and_the_evaluate_warning():
+    text = (Path(__file__).resolve().parent.parent / "DESIGN.md").read_text(encoding="utf-8")
+    section = text[text.index("\n## 10. CLI"):text.index("\n## 11. ")]
+    assert section.count("\n- v1.411 warning scope (row P2b): ") == 1
+    assert section.count("\n- v1.411 `evaluate` (12.4): ") == 1
+    assert "is left open" not in section
+    assert "so each of these prices is one the decision used" not in section
 
 
 @pytest.mark.parametrize("build", [select_args, delegate_args])
@@ -281,6 +363,74 @@ def test_other_commands_do_not_take_a_registry_warning(tmp_path, capsys, record_
     log.write_text(json.dumps(record_factory()) + "\n", encoding="utf-8")
     assert main(["report", "--log", str(log)], today=date(9999, 12, 31)) == 0
     assert capsys.readouterr().err == ""
+
+
+# 10 and 12.4 v1.411 (row P2b): evaluate warns for the models of its token-form rows
+
+
+def write_outcomes(path, token_form):
+    """40 items of task t for the three fiction models; a row is in token form when
+    token_form(model, n) is true, and carries cost_usd otherwise."""
+    with path.open("w", encoding="utf-8") as fh:
+        for n in range(40):
+            for model_id in ("fiction/cheap", "fiction/mid", "fiction/best"):
+                row = {"task": "t", "item": f"i{n:02d}", "model": model_id, "correct": n % 4 != 0}
+                if token_form(model_id, n):
+                    row.update(input_tokens=1000, output_tokens=200)
+                else:
+                    row["cost_usd"] = 0.001
+                fh.write(json.dumps(row) + "\n")
+    return path
+
+
+def evaluate_args(files, outcomes, *extra):
+    return ["evaluate", "--outcomes", str(outcomes), "--registry", str(files["registry"]),
+            "--seeds", "2", *extra]
+
+
+@pytest.mark.parametrize("json_flag", [(), ("--json",)])
+def test_evaluate_warns_once_per_expired_model_with_a_token_form_row(
+        dated_files, tmp_path, capsys, json_flag):
+    outcomes = write_outcomes(tmp_path / "outcomes.jsonl", lambda m, n: m == "fiction/mid"
+                              or (m == "fiction/best" and n == 7))
+    args = evaluate_args(dated_files, outcomes, *json_flag)
+    code, out_before, err = run(capsys, args, BEFORE)
+    assert code == 0 and err == "" and out_before
+    code, out, err = run(capsys, args, ON)
+    assert code == 0 and err == "" and out == out_before
+    code, out, err = run(capsys, args, AFTER)
+    assert code == 0 and out == out_before
+    assert err.splitlines() == [warning("fiction/mid", "2026-11-21")]
+    code, out, err = run(capsys, args, date(2027, 1, 1))
+    assert code == 0 and out == out_before
+    assert err.splitlines() == [warning("fiction/mid", "2026-11-21"),
+                                warning("fiction/best", "2026-12-31")]
+    if json_flag:
+        json.loads(out)
+
+
+@pytest.mark.parametrize("which", ["none", "undated"])
+def test_evaluate_never_warns_for_rows_that_carry_cost_usd(dated_files, tmp_path, capsys, which):
+    token_form = (lambda m, n: False) if which == "none" else (lambda m, n: m == "fiction/cheap")
+    outcomes = write_outcomes(tmp_path / "outcomes.jsonl", token_form)
+    code, out, err = run(capsys, evaluate_args(dated_files, outcomes), date(9999, 12, 31))
+    assert code == 0 and out and err == ""
+
+
+@pytest.mark.parametrize("kind", ["incomplete", "bad-json"])
+def test_evaluate_exit_two_prints_no_warning_and_the_error_stays_last(
+        dated_files, tmp_path, capsys, kind):
+    outcomes = write_outcomes(tmp_path / "outcomes.jsonl", lambda m, n: m == "fiction/mid")
+    with outcomes.open("a", encoding="utf-8") as fh:
+        if kind == "incomplete":
+            fh.write(json.dumps({"task": "t", "item": "extra", "model": "fiction/mid",
+                                 "correct": True, "input_tokens": 1, "output_tokens": 1}) + "\n")
+        else:
+            fh.write("{not json\n")
+    code, out, err = run(capsys, evaluate_args(dated_files, outcomes), date(2027, 1, 1))
+    assert code == 2 and out == ""
+    assert "warning:" not in err
+    assert err.splitlines()[-1].startswith("error: ")
 
 
 def test_the_warning_text_has_no_placeholder_left():
