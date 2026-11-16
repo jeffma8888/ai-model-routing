@@ -11,9 +11,9 @@ Runs the AutoBench 2026 converter's `--task-by all --tokens` matrix and `--regis
 and variant grids, as evidence/delegation/results.py makes results.json and variants.json, through
 research/reread_sensitivity.py's `inputs` and `checked`: each run's config, tasks and summary must be the
 committed file's, and each cell's decision and held-out sums re-decided at the committed prices (sigma 1.0
-and W = B) the run's. Then, for each model of the run in ID order and each factor 0.5 and 2.0, it rebuilds
-the router (13.9 `_router`, on the run's own calibration half) of each cell on a registry whose one change is
-that model's `price_in` and `price_out` times the factor, and re-decides every `cost_effective` cell, while
+and W = B) the run's. Then, for each model of the run in ID order and each factor 0.5 and 2.0, it
+re-decides every `cost_effective` cell on its router (13.9 `_router`, on the run's own calibration half) rebuilt
+on a registry whose one change is that model's `price_in` and `price_out` times the factor, while
 each `cost_blind` cell keeps its committed pick (v1.429, row T15): no price can move it, since a candidate's
 5.2 `routing_cost` is 0.0 outside `cost_effective` and every 13.5 row that compares costs is a `cost_effective`
 one, so the cut prints what re-deciding every cell prints, in half the decisions. A cell's decision changes
