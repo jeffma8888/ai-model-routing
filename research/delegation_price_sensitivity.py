@@ -3,6 +3,7 @@
 Usage:
   python research/delegation_price_sensitivity.py --matrix autobench-tokens.jsonl --registry autobench-pool.json [--root PATH]
   python research/delegation_price_sensitivity.py --dataset llmrouterbench --matrix llmrouterbench-matrix.jsonl [--root PATH]
+  python research/delegation_price_sensitivity.py --dataset response-bank --matrix response-bank-matrix.jsonl [--root PATH]
 
 Runs the AutoBench 2026 converter's `--task-by all --tokens` matrix and `--registry` pool on the 13.10 base
 and variant grids, as evidence/delegation/results.py makes results.json and variants.json, through
@@ -24,13 +25,15 @@ converter's default matrix, on the rows evidence/llmrouterbench-delegation/resul
 that folder's committed registry.json (no `--registry`), checked against its results.json, as
 research/reread_sensitivity.py's `--dataset llmrouterbench` reads and checks it; on a run of more than one task
 the header names the task count and a line after the changed cells by point gives them by task, in the run's
-task order.
+task order. `--dataset response-bank` (v1.426, row R39c) runs the 13.14 grid of evidence/response-bank-delegation/
+results.py in the same way, on the response-bank converter's default matrix and that folder's registry.json,
+checked against its results.json, as research/reread_sensitivity.py's `--dataset response-bank` reads and checks it.
 
 Standard library and the model_routing package. Read by research/delegation-price-sensitivity.md. Exit 0, or
 2 with one `error: ...` line where research/reread_sensitivity.py exits 2: a missing or unreadable file, a
 row 13.9 refuses, a model with price tiers, a row with per-call sizes, a run whose config, tasks or summary
 is not the committed file's, a re-decided cell or held-out sum at the committed prices that is not the
-run's, `--dataset autobench` without `--registry` or `--dataset llmrouterbench` with it.
+run's, `--dataset autobench` without `--registry` or another dataset with it.
 """
 
 import argparse
@@ -46,7 +49,7 @@ from model_routing.delegation_eval import _router
 ROOT = Path(__file__).resolve().parents[1]
 FACTORS = (0.5, 2.0)
 # the datasets this script measures, as research/reread_sensitivity.py's DATASETS names them
-DATASETS = ("autobench", "llmrouterbench")
+DATASETS = ("autobench", "llmrouterbench", "response-bank")
 HEADER = ("  flavor          bar  runs moving  most changed / cells  share  to inline  success gap  cost ratio  "
           "all cost ratio  by")
 
@@ -172,11 +175,11 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n", 1)[0])
     parser.add_argument("--matrix", required=True,
                         help="the AutoBench converter's --task-by all --tokens matrix, or with --dataset "
-                             "llmrouterbench that dataset's converter's default output")
+                             "llmrouterbench or response-bank that dataset's converter's default output")
     parser.add_argument("--registry", help="with --dataset autobench: the AutoBench converter's --registry pool")
     parser.add_argument("--dataset", choices=DATASETS, default="autobench",
                         help="the delegation results to re-decide (default: autobench, DESIGN 13.10; "
-                             "llmrouterbench, 13.13)")
+                             "llmrouterbench, 13.13; response-bank, 13.14)")
     parser.add_argument("--root", default=str(ROOT), help="the repository root (default: this checkout)")
     args = parser.parse_args(argv)
     try:
