@@ -12,8 +12,11 @@ and variant grids, as evidence/delegation/results.py makes results.json and vari
 research/reread_sensitivity.py's `inputs` and `checked`: each run's config, tasks and summary must be the
 committed file's, and each cell's decision and held-out sums re-decided at the committed prices (sigma 1.0
 and W = B) the run's. Then, for each model of the run in ID order and each factor 0.5 and 2.0, it rebuilds
-every cell's router (13.9 `_router`, on the run's own calibration half) on a registry whose one change is
-that model's `price_in` and `price_out` times the factor, and re-decides the cell. A cell's decision changes
+the router (13.9 `_router`, on the run's own calibration half) of each cell on a registry whose one change is
+that model's `price_in` and `price_out` times the factor, and re-decides every `cost_effective` cell, while
+each `cost_blind` cell keeps its committed pick (v1.429, row T15): no price can move it, since a candidate's
+5.2 `routing_cost` is 0.0 outside `cost_effective` and every 13.5 row that compares costs is a `cost_effective`
+one, so the cut prints what re-deciding every cell prints, in half the decisions. A cell's decision changes
 when its mode or its model does. Both picks are scored on the cell's held-out half at the committed
 registry's 13.2 costs: the error is in the price the decision believes, and the bill is at the list price,
 as research/price-sensitivity.md scores routing. A run is one model and one factor. Per file, flavor and bar
@@ -57,6 +60,9 @@ ROOT = Path(__file__).resolve().parents[1]
 FACTORS = (0.5, 2.0)
 # the datasets this script measures, as research/reread_sensitivity.py's DATASETS names them
 DATASETS = ("autobench", "llmrouterbench", "response-bank", "tau2-bench", "tau2-bench-pooled")
+# the flavors whose cells a run re-decides; a `cost_blind` cell keeps its committed pick, which no price can move
+# (v1.429, row T15); the tests set both flavors to run the v1.424 to v1.428 re-decision of every cell
+REDECIDED = ("cost_effective",)
 HEADER = ("  flavor          bar  runs moving  most changed / cells  share  to inline  success gap  cost ratio  "
           "all cost ratio  by")
 
@@ -78,10 +84,14 @@ def scaled(registry, model, factor):
 
 
 def picks(run, config, registry):
-    """Each cell's (mode, model) re-decided by the 13.9 router rebuilt on `registry`, in the run's cell order."""
+    """Each cell's (mode, model) re-decided by the 13.9 router rebuilt on `registry`, in the run's cell order; a
+    cell of a flavor outside `REDECIDED` keeps its committed pick (v1.429)."""
     routers = {}
     out = []
     for cell in run.result["cells"]:
+        if cell["flavor"] not in REDECIDED:
+            out.append((cell["mode"], cell["model"]))
+            continue
         key = (cell["task"], cell["seed"], cell["bar"])
         if key not in routers:
             routers[key] = _router(registry, cell["task"], run.calibrated[cell["task"], cell["seed"]], cell["bar"],
