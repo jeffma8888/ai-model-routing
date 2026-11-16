@@ -4,6 +4,8 @@ Usage:
   python research/delegation_price_sensitivity.py --matrix autobench-tokens.jsonl --registry autobench-pool.json [--root PATH]
   python research/delegation_price_sensitivity.py --dataset llmrouterbench --matrix llmrouterbench-matrix.jsonl [--root PATH]
   python research/delegation_price_sensitivity.py --dataset response-bank --matrix response-bank-matrix.jsonl [--root PATH]
+  python research/delegation_price_sensitivity.py --dataset tau2-bench --matrix tau2-calls.jsonl [--root PATH]
+  python research/delegation_price_sensitivity.py --dataset tau2-bench-pooled --matrix tau2-calls-all.jsonl [--root PATH]
 
 Runs the AutoBench 2026 converter's `--task-by all --tokens` matrix and `--registry` pool on the 13.10 base
 and variant grids, as evidence/delegation/results.py makes results.json and variants.json, through
@@ -28,11 +30,16 @@ the header names the task count and a line after the changed cells by point give
 task order. `--dataset response-bank` (v1.426, row R39c) runs the 13.14 grid of evidence/response-bank-delegation/
 results.py in the same way, on the response-bank converter's default matrix and that folder's registry.json,
 checked against its results.json, as research/reread_sensitivity.py's `--dataset response-bank` reads and checks it.
+`--dataset tau2-bench` (`tau2-bench-pooled`, v1.427, row R39d) runs the 13.12 grid of evidence/tau2-bench-delegation/
+results.py on the tau2-bench converter's `--calls` (`--calls --task-by all`) matrix and that folder's registry.json,
+checked against results.json (pooled.json), as research/reread_sensitivity.py's same options read and check it; those
+rows carry per-call sizes (13.9 v1.74), so each held-out item is priced by that script's `call_cost` and each
+decision's `work_calls` is the calibration half's median call count.
 
 Standard library and the model_routing package. Read by research/delegation-price-sensitivity.md. Exit 0, or
 2 with one `error: ...` line where research/reread_sensitivity.py exits 2: a missing or unreadable file, a
-row 13.9 refuses, a model with price tiers, a row with per-call sizes, a run whose config, tasks or summary
-is not the committed file's, a re-decided cell or held-out sum at the committed prices that is not the
+row 13.9 refuses, a model with price tiers, a row with per-call sizes outside the tau2-bench runs or one without
+them in those runs, a run whose config, tasks or summary is not the committed file's, a re-decided cell or held-out sum at the committed prices that is not the
 run's, `--dataset autobench` without `--registry` or another dataset with it.
 """
 
@@ -49,7 +56,7 @@ from model_routing.delegation_eval import _router
 ROOT = Path(__file__).resolve().parents[1]
 FACTORS = (0.5, 2.0)
 # the datasets this script measures, as research/reread_sensitivity.py's DATASETS names them
-DATASETS = ("autobench", "llmrouterbench", "response-bank")
+DATASETS = ("autobench", "llmrouterbench", "response-bank", "tau2-bench", "tau2-bench-pooled")
 HEADER = ("  flavor          bar  runs moving  most changed / cells  share  to inline  success gap  cost ratio  "
           "all cost ratio  by")
 
@@ -175,11 +182,14 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n", 1)[0])
     parser.add_argument("--matrix", required=True,
                         help="the AutoBench converter's --task-by all --tokens matrix, or with --dataset "
-                             "llmrouterbench or response-bank that dataset's converter's default output")
+                             "llmrouterbench or response-bank that dataset's converter's default output, or with "
+                             "tau2-bench (tau2-bench-pooled) the tau2-bench converter's --calls (--calls --task-by "
+                             "all) output")
     parser.add_argument("--registry", help="with --dataset autobench: the AutoBench converter's --registry pool")
     parser.add_argument("--dataset", choices=DATASETS, default="autobench",
                         help="the delegation results to re-decide (default: autobench, DESIGN 13.10; "
-                             "llmrouterbench, 13.13; response-bank, 13.14)")
+                             "llmrouterbench, 13.13; response-bank, 13.14; tau2-bench and tau2-bench-pooled, "
+                             "13.12 results.json and pooled.json)")
     parser.add_argument("--root", default=str(ROOT), help="the repository root (default: this checkout)")
     args = parser.parse_args(argv)
     try:

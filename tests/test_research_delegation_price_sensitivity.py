@@ -899,6 +899,11 @@ def t2_facts(note):
     assert [(m, f) for m, f, _ in movers["per domain"]] == [(m, f) for m, f, _ in movers["pooled"]]
     assert len(movers["pooled"]) == 2 and all(len({n for *_x, n in movers[k]}) == 1 for k in blocks)
     (m1, f1, n1), (m2, f2, n2) = movers["per domain"]
+    # Reading it: halving the first model's prices or doubling the second's, so each makes the first look cheaper
+    # against the second; cells move at every bar per domain and at all but the two lowest pooled
+    assert (f1, f2) == ("0.5", "2.0")
+    assert [bar for bar in bars if tables["per domain"]["base", "cost_effective", bar]["by"] is None] == []
+    assert [bar for bar in bars if tables["pooled"]["base", "cost_effective", bar]["by"] is None] == bars[:2]
     rest = sorted(set(grids["per domain"]["base"][1]) - {m1, m2})
     assert len(rest) == 1 and sum(by_task.values()) == 2 * n1
     some = sorted(((t, n) for t, n in by_task.items() if n), key=lambda kv: (-kv[1], kv[0]))
