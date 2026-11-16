@@ -3,6 +3,7 @@
 Usage:
   python research/reread_sensitivity.py --matrix autobench-tokens.jsonl --registry autobench-pool.json [--root PATH]
   python research/reread_sensitivity.py --dataset llmrouterbench --matrix llmrouterbench-matrix.jsonl [--root PATH]
+  python research/reread_sensitivity.py --dataset response-bank --matrix response-bank-matrix.jsonl [--root PATH]
 
 Runs `evaluate_delegation` (DESIGN 13.9) on the AutoBench 2026 converter's `--task-by all --tokens`
 matrix and `--registry` pool on the base grid and on the variant grid, as evidence/delegation/
@@ -10,7 +11,9 @@ results.py makes results.json and variants.json (its bars, seeds and points), an
 run's config, tasks and summary are the committed file's. With `--dataset llmrouterbench` (v1.414, row
 R38b) it runs instead the 13.13 grid of evidence/llmrouterbench-delegation/results.py on the LLMRouterBench
 converter's default matrix, on the rows that script's `select_rows` keeps for the committed registry.json
-(no `--registry`), and checks it against results.json. Every committed result keeps the re-read
+(no `--registry`), and checks it against results.json; `--dataset response-bank` (v1.415, row R38c) does the
+same with the 13.14 grid of evidence/response-bank-delegation/results.py, the response-bank converter's
+default matrix and that folder's registry.json. Every committed result keeps the re-read
 share sigma (`output_reread_share`) at 1.0 and the brief's output W (`brief_output_tokens`) at B
 (DESIGN 13.1), so the script then re-decides every cell with the run's own calibration half and router
 (13.9 `_calibrate` and `_router`), first at sigma 1.0 and W = B, where each cell's mode and model and
@@ -25,8 +28,8 @@ the changed cells, their share, how many changed to inline, the changed cells' h
 (new correct minus committed correct over their held-out items) and cost ratio (new over committed),
 and the cost ratio over all the cells, then per file and setting the changed cells by point, and by
 the committed decision's 13.5 reason, with how many seeds and parents they fall on and the parent most
-of them have; on a run of more than one task (LLMRouterBench) the header names the task count and a last
-line per setting gives the changed cells by task, in the run's task order.
+of them have; on a run of more than one task (LLMRouterBench, the Response Bank) the header names the task
+count and a last line per setting gives the changed cells by task, in the run's task order.
 
 Standard library and the model_routing package. Read by research/reread-sensitivity.md. Exit 0, or 2
 with one `error: ...` line on a missing or unreadable file, a row 13.9 refuses, a model with price
@@ -54,6 +57,7 @@ DATASETS = {
     "autobench": ("AutoBench 2026", "evidence/delegation",
                   (("results.json", "base"), ("variants.json", "variants"))),
     "llmrouterbench": ("LLMRouterBench", "evidence/llmrouterbench-delegation", (("results.json", "base"),)),
+    "response-bank": ("LLM Routing Response Bank", "evidence/response-bank-delegation", (("results.json", "base"),)),
 }
 # label, sigma, W as a multiple of B
 SETTINGS = (("sigma 0", 0.0, 1), ("sigma 0.5", 0.5, 1), ("W = 2 B", 1.0, 2))
@@ -264,8 +268,9 @@ def reasons(changed):
 
 
 def run(matrix, registry=None, root=ROOT, dataset="autobench"):
-    """The report lines of one dataset: `registry` is the AutoBench pool file, and None for LLMRouterBench,
-    whose committed registry.json is read from `root`."""
+    """The report lines of one dataset: `registry` is the AutoBench pool file, and None for LLMRouterBench and
+    the Response Bank, whose committed registry.json is read from `root` and whose rows are those the
+    dataset's `select_rows` keeps for it."""
     if dataset not in DATASETS:
         raise ValueError(f"dataset must be one of {', '.join(DATASETS)}, got {dataset!r}")
     if dataset == "autobench" and registry is None:
@@ -280,7 +285,7 @@ def run(matrix, registry=None, root=ROOT, dataset="autobench"):
         pool = Registry.load(path)
     except FileNotFoundError:
         raise ValueError(f"{path}: no such file") from None
-    if dataset == "llmrouterbench":
+    if dataset != "autobench":
         rows, _dropped = dr.select_rows(rows, [m.id for m in pool.models])
     lines = [f"The re-read share and the brief's output on the {title} delegation results: each cell "
              "re-decided at sigma 0, sigma 0.5 and W = 2 B, both picks scored at that setting's costs"]
@@ -293,11 +298,11 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n", 1)[0])
     parser.add_argument("--matrix", required=True,
                         help="the AutoBench converter's --task-by all --tokens matrix, or with --dataset "
-                             "llmrouterbench the LLMRouterBench converter's default output")
+                             "llmrouterbench or response-bank that dataset's converter's default output")
     parser.add_argument("--registry", help="with --dataset autobench: the AutoBench converter's --registry pool")
     parser.add_argument("--dataset", choices=tuple(DATASETS), default="autobench",
                         help="the delegation results to re-decide (default: autobench, DESIGN 13.10; "
-                             "llmrouterbench, 13.13)")
+                             "llmrouterbench, 13.13; response-bank, 13.14)")
     parser.add_argument("--root", default=str(ROOT), help="the repository root (default: this checkout)")
     args = parser.parse_args(argv)
     try:
