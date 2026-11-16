@@ -1149,9 +1149,11 @@ def test_the_design_bullet_is_in_12_22():
                    "prints what re-deciding every cell prints"):
         assert phrase in bullet[0], phrase
     assert "they re-decide every cell" not in bullet[0]
-    # the last bullet of 12.22, after the re-read bullet
+    # right after the re-read bullet; from v1.430 (row R40) the registry-pair bullet follows it
     lines = section.rstrip("\n").split("\n")
-    assert lines[-1] == bullet[0] and lines[-2].startswith("- The re-read share and the brief's output, ")
+    at = lines.index(bullet[0])
+    assert lines[at - 1].startswith("- The re-read share and the brief's output, ")
+    assert lines[at + 1].startswith("- The registry's own pair, on superlinked/train-a-router-reasoning (v1.430, ")
     # it names the 9 clause that specifies the README Limitations sentence linking the note (v1.428, row DOC36),
     # as the routing price-error bullet names 9 v1.417
     assert bullet[0].endswith("; README Limitations links it (9 v1.428)")

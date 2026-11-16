@@ -109,6 +109,8 @@ def test_prose_numbers_are_in_the_results_block():
     prose = re.sub(r"^```[a-z]*\n.*?^```$", "", text, flags=re.M | re.S)
     prose = re.sub(r"https?://\S+", "", prose)
     prose = re.sub(r"\b\d{4}-\d{2}-\d{2}\b", "", prose)
+    # the pin table's byte counts are the script's FILES, which test_note_states_the_pins_and_the_licence checks
+    prose = re.sub(r"^\| `[^`\n]+` \| [\d,]+ \| `[0-9a-f]{64}` \|$", "", prose, flags=re.M)
     prose = re.sub(r"`[^`\n]*`", "", prose)
     stray = sorted(set(NUMBER.findall(prose)) - known)
     assert not stray, stray
