@@ -17,7 +17,7 @@ as research/price-sensitivity.md scores routing. A run is one model and one fact
 it prints how many of the runs change a cell, the most cells one run changes and that run's share, how many
 of them go inline, their held-out success gap (new correct minus committed correct over their held-out
 items) and cost ratio (new over committed), the run's cost ratio over all the cells, and the run: the first,
-in model and factor order, of those that change the most. Then per file the changed cells of all runs by
+in model ID, then factor, order, of those that change the most. Then per file the changed cells of all runs by
 point, and each model's changed cells over every flavor and bar at each factor, with how many go inline.
 With `--dataset llmrouterbench` (v1.425, row R39b) it runs instead the 13.13 grid on the LLMRouterBench
 converter's default matrix, on the rows evidence/llmrouterbench-delegation/results.py's `select_rows` keeps for

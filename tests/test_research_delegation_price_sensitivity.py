@@ -59,6 +59,9 @@ FACTORS = (0.5, 2.0)
 TITLE = ("One model's list price halved or doubled on the AutoBench 2026 delegation results: each cell re-decided "
          "with that model's input and output prices times 0.5 or 2.0, both picks scored at the committed prices")
 LRB_TITLE = TITLE.replace("AutoBench 2026", "LLMRouterBench")
+REREAD = ROOT / "research" / "reread-sensitivity.md"
+REREAD_COMMAND = "$ python research/reread_sensitivity.py --matrix autobench-tokens.jsonl --registry autobench-pool.json"
+REREAD_LRB_COMMAND = "$ python research/reread_sensitivity.py --dataset llmrouterbench --matrix llmrouterbench-matrix.jsonl"
 HEADER = ("  flavor          bar  runs moving  most changed / cells  share  to inline  success gap  cost ratio  "
           "all cost ratio  by")
 
@@ -446,6 +449,7 @@ GRID_LINE = (r"(?:AutoBench 2026|LLMRouterBench), (base|variants) grid \(`eviden
              r"cells, (?:\d+ tasks, )?(\d+) bars, (\d+) flavors, (\d+) points, (\d+) parents, (\d+) seeds, (\d+) "
              r"models, so (\d+) runs; ")
 TASK_LINE = r"  changed cells by task, all \d+ runs: (.+)$"
+POINT_LINE = r"  changed cells by point, all \d+ runs: (.+)$"
 
 
 def _section(note, name):
@@ -542,7 +546,9 @@ def lrb_facts(note):
     changed = sum(c[0] + c[2] for c in by_model.values())
     inline = sum(c[1] + c[3] for c in by_model.values())
     ranked = sorted(by_task.items(), key=lambda kv: (-kv[1], kv[0]))
-    assert changed == sum(by_task.values())
+    by_point = [int(x.split(": ")[1].replace(",", "")) for x in
+                re.search(POINT_LINE, block, flags=re.M).group(1).split(", ")]
+    assert changed == sum(by_task.values()) == sum(by_point) and len(by_point) == int(points)
     some = "every task has changed cells" if ranked[-1][1] else f"{sum(n > 0 for _, n in ranked)} of the {tasks} tasks have changed cells"
     out.append(f"- LLMRouterBench by model and task: {who}; over every flavor and bar the runs that move the most are "
                f"{_verb(totals[0][2])} `{totals[0][1]}`'s prices ({totals[0][0]:,} cells) and {_verb(totals[1][2])} "
@@ -558,8 +564,18 @@ def lrb_facts(note):
     lrb_all = [float(r["all"]) for r in rows]
     ab = _table(_block(note))
     ab_all = [float(v["all"]) for k, v in ab.items() if k[1] == "cost_effective"]
-    assert all(x > 1 for x in lrb_all + ab_all) and max(lrb_all) < 1.01
-    assert max(lrb_all) - 1 < (min(ab_all) - 1) / 4
+    assert all(x > 1 for x in lrb_all + ab_all) and max(lrb_all) - 1 < (min(ab_all) - 1) / 4
+    # the Recommendation: on LLMRouterBench the bill moves about as little as the re-read note's inputs move it
+    # there, every all-cells ratio of both within 0.01 of 1, while on AutoBench it rises far more than they move it
+    # (review iter-286 should-fix 1)
+    reread = REREAD.read_text(encoding="utf-8")
+    moved = {}
+    for command in (REREAD_COMMAND, REREAD_LRB_COMMAND):
+        rows_ = [line.split() for line in _block(reread, command).split("\n") if line.startswith("  cost_")]
+        assert rows_, command
+        moved[command] = [abs(float(r[-1]) - 1) for r in rows_]
+    assert max(lrb_all) - 1 < 0.01 and max(moved[REREAD_LRB_COMMAND]) < 0.01
+    assert min(ab_all) - 1 > 4 * max(moved[REREAD_COMMAND])
     return out
 
 
@@ -646,6 +662,9 @@ def test_the_note_says_no_cost_blind_cell_moves_and_how_picks_are_scored():
     # pick is not said to be another delegate; and no committed file holds per-delegate cell counts
     # (review iter-285 should-fix 1 and 2)
     assert "another delegate" not in note and "cells in evidence/delegation/results.json" not in note
+    # the bill rises far more than the re-read inputs move it on AutoBench only (review iter-286 should-fix 1)
+    assert "raises the bill, far more than" not in note
+    assert "on AutoBench by far more than those inputs move it and on LLMRouterBench by about as little" in note
     assert "- No run moves a `cost_blind` cell, on any grid or bar of either dataset" in _section(note, "Facts")
     method = _section(note, "Method")
     for phrase in ("`price_in` and `price_out`", "committed prices", "`_router`", "`checked`"):
