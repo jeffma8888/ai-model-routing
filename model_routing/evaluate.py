@@ -76,6 +76,15 @@ def outcomes_from_rows(rows: Iterable[dict], registry: Optional[Registry] = None
 
 def load_outcomes(path: PathLike, registry: Optional[Registry] = None) -> Tuple[Outcome, ...]:
     """Read an outcome-matrix JSONL file; errors name ``<path>:<line>``."""
+    return outcomes_from_rows(_read_rows(path), registry)
+
+
+def _read_rows(path: PathLike) -> List[dict]:
+    """The objects of an outcome-matrix JSONL file, blank lines skipped (DESIGN 12.1).
+
+    Private: ``model-routing evaluate`` reads the file once with it and keeps which rows are in
+    token form for its price expiry warnings (DESIGN 10 and 12.4, v1.411).
+    """
     rows = []
     with open(path, encoding="utf-8") as fh:
         for n, line in enumerate(fh, 1):
@@ -88,7 +97,7 @@ def load_outcomes(path: PathLike, registry: Optional[Registry] = None) -> Tuple[
             if not isinstance(value, dict):
                 raise ValueError(f"{path}:{n}: expected a JSON object")
             rows.append(value)
-    return outcomes_from_rows(rows, registry)
+    return rows
 
 
 def _check_fraction(f: float) -> None:

@@ -144,9 +144,11 @@ def _table(headers: List[str], rows: List[List[object]]) -> str:
     return "\n".join(lines)
 
 
-def _warn_expired_prices(registry: Registry, today: date) -> None:
-    """One stderr line per registry model whose stated price end date has passed (DESIGN 10)."""
-    expired = registry.expired_prices(today)
+def _warn_expired_prices(registry: Registry, today: date, used) -> None:
+    """One stderr line per model of ``used`` whose stated price end date has passed, in registry
+    file order (DESIGN 10; from v1.411 only the models whose price the run can use)."""
+    used = set(used)
+    expired = [model for model in registry.expired_prices(today) if model.id in used]
     if not expired:
         return
     sys.stdout.flush()
@@ -154,6 +156,11 @@ def _warn_expired_prices(registry: Registry, today: date) -> None:
         print(f"warning: list price of {model.id} was stated valid through "
               f"{model.price_valid_until}; check the vendor page and update the registry",
               file=sys.stderr)
+
+
+def _eligible(candidates) -> set:
+    """The models 5.2 rules 1 to 5 leave eligible: the only ones whose price a choice reads."""
+    return {c.model_id for c in candidates if c.eligible}
 
 
 def _candidate_table(candidates) -> str:
@@ -179,11 +186,12 @@ def _cmd_select(args) -> int:
     except NoModelClearsBar as exc:
         print(f"error: {exc}", file=sys.stderr)
         print(_candidate_table(exc.candidates), file=sys.stderr)
-        _warn_expired_prices(registry, args.today)
+        _warn_expired_prices(registry, args.today, _eligible(exc.candidates))
         return EXIT_NO_MODEL
+    used = _eligible(decision.candidates)
     if args.json:
         print(json.dumps(decision.to_dict(), indent=2))
-        _warn_expired_prices(registry, args.today)
+        _warn_expired_prices(registry, args.today, used)
         return EXIT_OK
     print(f"task:      {decision.task}")
     print(f"flavor:    {decision.flavor}")
@@ -195,7 +203,7 @@ def _cmd_select(args) -> int:
     print(f"below_bar: {str(decision.below_bar).lower()}")
     print()
     print(_candidate_table(decision.candidates))
-    _warn_expired_prices(registry, args.today)
+    _warn_expired_prices(registry, args.today, used)
     return EXIT_OK
 
 
@@ -263,15 +271,20 @@ def _cmd_demo(args) -> int:
 
 
 def _cmd_evaluate(args) -> int:
-    from .evaluate import evaluate, load_outcomes
+    from .evaluate import _read_rows, evaluate, outcomes_from_rows
     registry = Registry.load(args.registry)
-    result = evaluate(load_outcomes(args.outcomes, registry), bars=args.bar or [0.8],
+    matrix_rows = _read_rows(args.outcomes)
+    outcomes = outcomes_from_rows(matrix_rows, registry)
+    # DESIGN 10 and 12.4 v1.411: a valid row without cost_usd was priced from the registry
+    token_priced = {row["model"] for row in matrix_rows if "cost_usd" not in row}
+    result = evaluate(outcomes, bars=args.bar or [0.8],
                       seeds=range(args.seeds), flavors=args.flavor or FLAVORS,
                       calibration_fraction=args.calibration_fraction,
                       min_samples=args.min_samples, confidence=args.confidence)
     result.pop("cells")
     if args.json:
         print(json.dumps(result, indent=2))
+        _warn_expired_prices(registry, args.today, token_priced)
         return EXIT_OK
 
     def fmt(value):
@@ -287,6 +300,7 @@ def _cmd_evaluate(args) -> int:
                 ["strategy", "success", "cost_usd", "below_bar_rate", "cleared_rate",
                  "bar_violation_rate"], rows))
     print("\n\n".join(blocks))
+    _warn_expired_prices(registry, args.today, token_priced)
     return EXIT_OK
 
 
@@ -298,6 +312,7 @@ def _cmd_delegate(args) -> int:
     for model_id in [args.parent, args.generator, *args.exclude]:
         if model_id is not None:
             registry.get(model_id)
+    parent = registry.get(args.parent).id
     router = Router(registry, tasks, stats, priors)
     try:
         decision = router.decide_delegation(
@@ -312,11 +327,14 @@ def _cmd_delegate(args) -> int:
     except NoModelClearsBar as exc:
         print(f"error: {exc}", file=sys.stderr)
         print(_candidate_table(exc.candidates), file=sys.stderr)
-        _warn_expired_prices(registry, args.today)
+        _warn_expired_prices(registry, args.today, {parent} | _eligible(exc.candidates))
         return EXIT_NO_MODEL
+    # DESIGN 10 v1.411: the parent prices the inline path; with no route no delegate was priced
+    route = decision.route
+    used = {parent} | (_eligible(route.candidates) if route is not None else set())
     if args.json:
         print(json.dumps(decision.to_dict(), indent=2))
-        _warn_expired_prices(registry, args.today)
+        _warn_expired_prices(registry, args.today, used)
         return EXIT_OK
 
     def fmt(value, digits):
@@ -329,7 +347,7 @@ def _cmd_delegate(args) -> int:
     print(f"delegate_cost_usd:   {fmt(decision.delegate_cost_usd, 6)}")
     print(f"parent_quality_lb:   {fmt(decision.parent_quality_lb, 3)}")
     print(f"delegate_quality_lb: {fmt(decision.delegate_quality_lb, 3)}")
-    _warn_expired_prices(registry, args.today)
+    _warn_expired_prices(registry, args.today, used)
     return EXIT_OK
 
 
@@ -356,8 +374,8 @@ _COMMANDS = {"select": _cmd_select, "calibrate": _cmd_calibrate, "report": _cmd_
 def main(argv: Optional[List[str]] = None, *, today: Optional[date] = None) -> int:
     """Run the CLI and return its exit code: 0 ok, 2 bad input, 3 no model clears the bar.
 
-    ``today`` dates the price expiry check of ``select`` and ``delegate``; ``None``
-    means ``datetime.date.today()``.
+    ``today`` dates the price expiry check of ``select``, ``delegate`` and, from v1.411,
+    ``evaluate``; ``None`` means ``datetime.date.today()``.
     """
     if today is None:
         today = date.today()
