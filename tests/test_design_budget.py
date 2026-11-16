@@ -561,6 +561,7 @@ RESEARCH_NOTES = (
     "- The 13.2 re-read rule against measured tokens (v1.402, row R37): ",
     "- A price error, on LLMRouterBench (v1.403, row R35): ",
     "- The re-read share and the brief's output, on AutoBench, LLMRouterBench, the response bank and tau2-bench (v1.413, row R38): ",
+    "- A price error in a delegation decision, on AutoBench (v1.424, row R39): ",
 )
 
 

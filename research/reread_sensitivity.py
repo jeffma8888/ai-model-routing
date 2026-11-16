@@ -212,9 +212,11 @@ class Run:
         return decision.mode, decision.model
 
 
-def rerun(rows, registry, root, name, grid, dr, dataset="autobench"):
-    """The report lines of one committed file: the check at sigma 1.0 and W = B, then the settings."""
-    title, folder, _files = DATASETS[dataset]
+def checked(rows, registry, root, name, grid, dr, dataset="autobench"):
+    """The run of one committed file's grid, its config, tasks and summary as JSON values and the file's path:
+    exit 2 unless those are the file's and each cell re-decided at sigma 1.0 and W = B keeps its pick and
+    held-out sums (research/delegation_price_sensitivity.py, v1.424, runs the same check)."""
+    _title, folder, _files = DATASETS[dataset]
     rel = f"{folder}/{name}"
     committed = read_object(Path(root) / rel)
     run = Run(rows, registry, grid, dr, dataset in PER_CALL)
@@ -238,6 +240,15 @@ def rerun(rows, registry, root, name, grid, dr, dataset="autobench"):
             raise ValueError(f"{rel}: a held-out sum at sigma 1.0 and W = B is not the run's: "
                              f"{cell['flavor']}, bar {cell['bar']}, point {cell['point']}, "
                              f"parent {cell['parent']}, seed {cell['seed']}")
+    return run, got, rel
+
+
+def rerun(rows, registry, root, name, grid, dr, dataset="autobench"):
+    """The report lines of one committed file: the check at sigma 1.0 and W = B, then the settings."""
+    title = DATASETS[dataset][0]
+    run, got, rel = checked(rows, registry, root, name, grid, dr, dataset)
+    config = got["config"]
+    cells = run.result["cells"]
     tasks = list(got["tasks"])
     lines = [f"{title}, {grid} grid (`{rel}`): {len(cells):,} cells, "
              + (f"{len(tasks)} tasks, " if len(tasks) > 1 else "") + f"{len(config['bars'])} bars, "
@@ -304,10 +315,11 @@ def reasons(changed):
             f"{len(parents)} parent{'' if len(parents) == 1 else 's'}, the most {parents[0][1]} of {parents[0][0]}")
 
 
-def run(matrix, registry=None, root=ROOT, dataset="autobench"):
-    """The report lines of one dataset: `registry` is the AutoBench pool file, and None for the others, whose
-    committed registry.json is read from `root`; on LLMRouterBench and the Response Bank the rows are those
-    the dataset's `select_rows` keeps for it, and on tau2-bench every row of the matrix."""
+def inputs(matrix, registry=None, root=ROOT, dataset="autobench"):
+    """What a run of one dataset reads: its title, its committed files with their grids, its results script,
+    its rows and its registry. `registry` is the AutoBench pool file, and None for the others, whose committed
+    registry.json is read from `root`; on LLMRouterBench and the Response Bank the rows are those the
+    dataset's `select_rows` keeps for it, and on tau2-bench every row of the matrix."""
     if dataset not in DATASETS:
         raise ValueError(f"dataset must be one of {', '.join(DATASETS)}, got {dataset!r}")
     if dataset == "autobench" and registry is None:
@@ -324,6 +336,12 @@ def run(matrix, registry=None, root=ROOT, dataset="autobench"):
         raise ValueError(f"{path}: no such file") from None
     if dataset in SELECTED:
         rows, _dropped = dr.select_rows(rows, [m.id for m in pool.models])
+    return title, files, dr, rows, pool
+
+
+def run(matrix, registry=None, root=ROOT, dataset="autobench"):
+    """The report lines of one dataset, on what `inputs` reads."""
+    title, files, dr, rows, pool = inputs(matrix, registry, root, dataset)
     lines = [f"The re-read share and the brief's output on the {title} delegation results: each cell "
              "re-decided at sigma 0, sigma 0.5 and W = 2 B, both picks scored at that setting's costs"]
     for name, grid in files:
