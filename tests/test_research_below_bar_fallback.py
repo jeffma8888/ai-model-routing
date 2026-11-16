@@ -415,7 +415,7 @@ def test_design_specifies_the_note():
     assert len(bullets) == 1
     for words in ("`research/below-bar-fallback.md`", "`research/below_bar_fallback.py`",
                   "`(-quality_lb, routing_cost, model_id)`", "`## Recommendation`",
-                  "`tests/test_research_below_bar_fallback.py`", "(history: CHANGELOG.md v1.191, v1.201)"):
+                  "`tests/test_research_below_bar_fallback.py`", "(history: CHANGELOG.md v1.182, v1.191, v1.201)"):
         assert words in bullets[0], words
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")  # DESIGN 15 v1.326
     assert re.search(r"^- v1\.191 \(\d{4}-\d{2}-\d{2}\): spec and tests \(row R16\)\. ", changelog, flags=re.M)

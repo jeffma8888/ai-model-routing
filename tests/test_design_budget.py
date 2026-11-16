@@ -38,6 +38,10 @@ its workflow cap and leaves PENDING; the heading keeps one tag per clause, and t
 limit it dropped are in the time-limit bullet's pointer.
 
 The ledger runs (v1.394, row E23): 13.15, the ledger hand-off converter, is a converter.
+
+Room in 12.22 (v1.421, row DOC34): the eight research-note lines of v1.124 to v1.191 drop the scope
+sentences of the slices that added them (`No change under ...`), their explanatory clauses and the
+definitions they restated from 12.3, each keeping its contract with one history pointer (POINTERS).
 """
 import re
 from pathlib import Path
@@ -375,12 +379,17 @@ CHANGELOG_LINE = re.compile(r"^- v(\d+\.\d+) \(", re.M)
 # versions the sentences it dropped name (DOC21m: four of the seven research-note bullets of 12.8, in 12.22
 # from v1.390; DOC21n: thirteen lines of its dataset-subsection bullets; DOC21o: two lines of its size budget clause;
 # DOC26: the 12.13 time-limit bullet, tests/test_evidence_workflow.py TIME_LIMIT_HISTORY; DOC21c: the
-# other sixteen lines of 12.13 it changed, its heading holding no pointer).
+# other sixteen lines of 12.13 it changed, its heading holding no pointer; DOC34, v1.421: the other four
+# research-note lines of v1.124 to v1.177 gain one, and the four that had one extend it).
 POINTERS = {
+    "- Where routing pays (v1.124): ": "v1.124, v1.305",
     "  - README.md and research/README.md (v1.124, v1.166, v1.303): ": "v1.124, v1.164, v1.166, v1.296, v1.303",
-    "- Where delegation pays at a glance (v1.258, row DOC15): ": "v1.258, v1.315, v1.316, v1.322, v1.323, v1.328",
-    "- Fallback on a failed check, on LLMRouterBench (v1.181): ": "v1.181 to v1.184",
-    "- Below-bar fallback, on LLMRouterBench (v1.191): ": "v1.191, v1.201",
+    "- Where delegation pays at a glance (v1.258, row DOC15): ": "v1.258, v1.260, v1.315, v1.316, v1.322, v1.323, v1.328",
+    "- When no model clears (v1.144; six datasets from v1.341, row R32): ": "v1.144, v1.341",
+    "- Per-task ceiling on RouterBench (v1.146): ": "v1.146",
+    "- Seed by seed on LLMRouterBench (v1.177): ": "v1.177, v1.179",
+    "- Fallback on a failed check, on LLMRouterBench (v1.181): ": "v1.181 to v1.185",
+    "- Below-bar fallback, on LLMRouterBench (v1.191): ": "v1.182, v1.191, v1.201",
     "- README.md has a section `## Evidence: held-out results on public data`, ":
         "v1.17, v1.22, v1.28, v1.30, v1.48, v1.55, v1.65, v1.80, v1.84",
     "- Results at a glance (v1.23): ": "v1.28, v1.32, v1.55, v1.65, v1.80",
@@ -479,7 +488,9 @@ def test_each_pointer_version_has_its_own_changelog_line():
                     "1.301", "1.302", "1.321", "1.374",
                     # DOC21c (v1.392): the versions the other changed lines of 12.13 named, not listed above.
                     "1.47", "1.49", "1.54", "1.64", "1.85", "1.117", "1.118", "1.119", "1.138", "1.139", "1.169",
-                    "1.278", "1.297", "1.298"):
+                    "1.278", "1.297", "1.298",
+                    # DOC34 (v1.421): the versions the eight 12.22 lines it trimmed name, not listed above.
+                    "1.144", "1.146", "1.177", "1.179", "1.182", "1.185", "1.260", "1.305", "1.341"):
         assert f"\n- v{version} (" in changelog, version
 
 
@@ -606,6 +617,22 @@ def test_the_12_8_size_budget_clause_holds_no_history():
     for words in ("0b3e142", "DOC19a to DOC19k", "from review", "This clause changes no README text",
                   "for 10 names", "v1.346 and v1.347"):
         assert not [line[:60] for line in clause if words in line], words
+
+
+def test_the_12_22_lines_of_v1_124_to_v1_191_hold_no_scope_or_restated_history():
+    # DOC34 (v1.421): what the trim dropped stays out, and each of the eight lines keeps one pointer.
+    body = subsection_body(DESIGN.read_text(encoding="utf-8"), "12.22")
+    trimmed = [line for line in body if line.startswith(RESEARCH_NOTES[:8])]
+    assert len(trimmed) == 8
+    for words in ("No change under", "no transcript changes", "the bound the router uses", "hash split varies",
+                  "review iter-", "the mean over seeds of each seed's pooled success", "two middle gaps",
+                  "the cost ratios rest", "no committed row measures", "confidence cascade",
+                  "So the 5.3 route is always", "as on the pooled line", "every attempt's recorded cost spent",
+                  "and from v1.341", "`, from v1.341 `", "which their own tests compare",
+                  "no committed file holds a seed's value"):
+        assert not [line[:60] for line in trimmed if words in line], words
+    for line in trimmed:
+        assert len(POINTER.findall(line)) == 1, line[:60]
 
 
 # --- the rest of 12.13 (DESIGN 12 v1.392, row DOC21c) ---------------------------------------------
