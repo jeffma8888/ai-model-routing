@@ -35,6 +35,12 @@ v1.428 (row DOC36, DESIGN 9): README Limitations' prices bullet gives, right aft
 largest share of a bar's `cost_effective` cells one run changes on each of the four delegation datasets, built
 here from the note's five blocks, and links the note; the 9 clause, the 12.22 bullet's pointer to it and the
 note's Recommendation are pinned.
+
+v1.429 (row T15): a run re-decides only the `cost_effective` cells, as the script's `REDECIDED` names them, and each
+`cost_blind` cell keeps its committed pick, which no price can move (its 5.2 `routing_cost` is 0.0 and every 13.5
+cost comparison is under `cost_effective`): `picks` calls the decision once per `cost_effective` cell; on the
+AutoBench and LLMRouterBench hand matrices the cut prints what re-deciding every cell prints, byte for byte; and the
+cut's premise is run, every model's prices times 0.001 or 1000 moving no `cost_blind` decision of the hand matrix.
 """
 
 import contextlib
@@ -664,6 +670,82 @@ def test_script_is_standard_library_and_model_routing():
     assert '"reread_sensitivity.py"' in text
 
 
+# --- v1.429 (row T15): a run re-decides only the `cost_effective` cells ------------------------------------------
+
+EVERY = ("cost_effective", "cost_blind")
+
+
+def _checked_hand(ps, hand):
+    _, _, root, matrix, pool = hand[:5]
+    _title, _files, dr10, rows, registry = ps.RS.inputs(matrix, pool, root, "autobench")
+    run, got, _rel = ps.RS.checked(rows, registry, root, "results.json", "base", dr10, "autobench")
+    return run, got["config"], registry
+
+
+def test_a_run_calls_the_decision_for_the_cost_effective_cells_only(ps, hand, monkeypatch):
+    run, config, registry = _checked_hand(ps, hand)
+    cells = run.result["cells"]
+    flavors = []
+    real = Router.decide_delegation
+
+    def counted(self, task_name, parent_model, flavor="cost_effective", **kw):
+        flavors.append(flavor)
+        return real(self, task_name, parent_model, flavor, **kw)
+
+    monkeypatch.setattr(Router, "decide_delegation", counted)
+    new = ps.picks(run, config, ps.scaled(registry, "v/d", 2.0))
+    assert flavors == [c["flavor"] for c in cells if c["flavor"] == "cost_effective"]
+    assert [p for c, p in zip(cells, new) if c["flavor"] == "cost_blind"] == [
+        (c["mode"], c["model"]) for c in cells if c["flavor"] == "cost_blind"]
+    assert ps.REDECIDED == ("cost_effective",)
+    # with both flavors named, as v1.424 to v1.428 ran, every cell is re-decided
+    flavors.clear()
+    monkeypatch.setattr(ps, "REDECIDED", EVERY)
+    ps.picks(run, config, ps.scaled(registry, "v/d", 2.0))
+    assert flavors == [c["flavor"] for c in cells]
+
+
+@pytest.mark.parametrize("which", ["hand", "lrb_hand"])
+def test_the_cut_prints_what_re_deciding_every_cell_prints(ps, which, request, monkeypatch):
+    """The fixture's output, made with the cut, against a run of the same command that re-decides every cell."""
+    fixture = request.getfixturevalue(which)
+    root, matrix = fixture[2], fixture[3]
+    argv = (["--matrix", str(matrix), "--registry", str(fixture[4])] if which == "hand"
+            else ["--dataset", "llmrouterbench", "--matrix", str(matrix)]) + ["--root", str(root)]
+    code, cut, err = fixture[-3:]
+    assert (code, err) == (0, "")
+    monkeypatch.setattr(ps, "REDECIDED", EVERY)
+    assert _main(ps, argv) == (0, cut, "")
+    # two bars in each of the two AutoBench grids, four bars in the one LLMRouterBench grid
+    assert sum(line.startswith("  cost_blind ") for line in cut.split("\n")) == 4
+
+
+def test_no_price_moves_a_cost_blind_decision(ps, hand, monkeypatch):
+    """The cut's premise, run: every model's prices times 0.001 or 1000 leave each `cost_blind` cell of the hand
+    matrix, inline and delegated ones among them, at its committed mode and model, while `cost_effective` cells
+    move."""
+    run, config, registry = _checked_hand(ps, hand)
+    cells = run.result["cells"]
+    blind = [i for i, c in enumerate(cells) if c["flavor"] == "cost_blind"]
+    committed = [(c["mode"], c["model"]) for c in cells]
+    assert {committed[i][0] for i in blind} == {"inline", "delegate"}
+    monkeypatch.setattr(ps, "REDECIDED", EVERY)
+    moved = 0
+    for m in run.models:
+        for f in (0.001, 1000.0):
+            new = ps.picks(run, config, ps.scaled(registry, m, f))
+            assert [new[i] for i in blind] == [committed[i] for i in blind], (m, f)
+            moved += sum(a != b for a, b in zip(new, committed))
+    assert moved > 0
+
+
+def test_the_docstring_says_which_cells_are_re_decided(ps):
+    doc = " ".join(ps.__doc__.split())
+    for phrase in ("re-decides every `cost_effective` cell", "each `cost_blind` cell keeps its committed pick",
+                   "`routing_cost` is 0.0 outside `cost_effective`", "(v1.429, row T15)"):
+        assert phrase in doc, phrase
+
+
 # --- the note --------------------------------------------------------------------------------
 TABLE_LINE = (r"  (cost_\w+) +(0\.\d) +(\d+) / (\d+) +([\d,]+) / ([\d,]+) +([\d.]+)% +([\d,]+) +(\S+) +(\S+) +(\S+)  "
               r"(-|\S+ times (?:0\.5|2\.0))$")
@@ -1037,7 +1119,7 @@ def test_the_note_says_no_cost_blind_cell_moves_and_how_picks_are_scored():
     assert "no one bound holds across the four delegation datasets" in rec
     method = _section(note, "Method")
     for phrase in ("`price_in` and `price_out`", "committed prices", "`_router`", "`checked`", "`call_cost`",
-                   "median call count"):
+                   "median call count", "a `cost_blind` cell keeps its committed pick (v1.429)"):
         assert phrase in method, phrase
 
 
@@ -1060,8 +1142,13 @@ def test_the_design_bullet_is_in_12_22():
                    "names the task count", "one block per dataset",
                    "`--dataset response-bank` (v1.426, row R39c) runs the 13.14 grid",
                    "`--dataset tau2-bench` and `--dataset tau2-bench-pooled` (v1.427, row R39d) run the 13.12 grid",
-                   "priced by its `call_cost`", "median call count (13.9 v1.74)", "two for tau2-bench"):
+                   "priced by its `call_cost`", "median call count (13.9 v1.74)", "two for tau2-bench",
+                   "they re-decide every `cost_effective` cell on a registry",
+                   "each `cost_blind` cell keeps its committed pick (v1.429, row T15), which no price can move",
+                   "its 5.2 `routing_cost` is 0.0 and 13.5 compares costs in `cost_effective` alone",
+                   "prints what re-deciding every cell prints"):
         assert phrase in bullet[0], phrase
+    assert "they re-decide every cell" not in bullet[0]
     # the last bullet of 12.22, after the re-read bullet
     lines = section.rstrip("\n").split("\n")
     assert lines[-1] == bullet[0] and lines[-2].startswith("- The re-read share and the brief's output, ")
