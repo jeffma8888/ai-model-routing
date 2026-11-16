@@ -376,7 +376,11 @@ def test_readme_limitations_give_the_price_error_after_the_refresh_sentence():
     assert bullet.count(sentence) == 1
     assert bullet.index(PRICES + REFRESH) == 0
     assert bullet.index(sentence) == len(PRICES + REFRESH)
-    assert bullet[len(PRICES + REFRESH + sentence):].startswith("A row whose vendor states an end date ")
+    # then the delegation price sentence (9 v1.428, row DOC36, tests/test_research_delegation_price_sensitivity.py),
+    # then the end-date one
+    rest = bullet[len(PRICES + REFRESH + sentence):]
+    assert rest.startswith("A wrong price also moves `cost_effective` delegation decisions, ")
+    assert rest.count("A row whose vendor states an end date ") == 1
     # Limitations links the note in this sentence alone
     assert limits.count("](research/price-sensitivity.md)") == 1
 

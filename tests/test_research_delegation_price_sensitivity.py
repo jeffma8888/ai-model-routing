@@ -30,6 +30,11 @@ each model's calibration sizes its rounded-up means per call, `work_calls` the h
 each held-out item priced one call at a time. The note's two tau2-bench blocks are compared with the script's
 output on the 12 pinned run files when they are cached, their Facts bullets are built from them, and the Facts,
 Reading it and Recommendation claims about them are checked against them, the other blocks and the re-read note.
+
+v1.428 (row DOC36, DESIGN 9): README Limitations' prices bullet gives, right after its routing sentence, the
+largest share of a bar's `cost_effective` cells one run changes on each of the four delegation datasets, built
+here from the note's five blocks, and links the note; the 9 clause, the 12.22 bullet's pointer to it and the
+note's Recommendation are pinned.
 """
 
 import contextlib
@@ -1060,6 +1065,94 @@ def test_the_design_bullet_is_in_12_22():
     # the last bullet of 12.22, after the re-read bullet
     lines = section.rstrip("\n").split("\n")
     assert lines[-1] == bullet[0] and lines[-2].startswith("- The re-read share and the brief's output, ")
+    # it names the 9 clause that specifies the README Limitations sentence linking the note (v1.428, row DOC36),
+    # as the routing price-error bullet names 9 v1.417
+    assert bullet[0].endswith("; README Limitations links it (9 v1.428)")
+    assert bullet[0].count("README Limitations") == 1
+
+
+# --- README Limitations' prices bullet: the delegation price error (DESIGN 9 v1.428, row DOC36) ------------
+
+README = ROOT / "README.md"
+PRICES = "- Prices are a dated snapshot. "
+ROUTING_END = "(the note measures what a wrong price does, not how often prices change, so it sets no fixed interval). "
+DESIGN_9 = (
+    "- v1.428 a price error in a delegation decision in the README (row DOC36, the Recommendation of the 12.22 v1.424 "
+    "note): README Limitations' prices bullet gives, in one sentence right after the v1.417 one, how far a wrong price "
+    "moves `cost_effective` delegation decisions, from `research/delegation-price-sensitivity.md`, which it links: with "
+    "one model's prices halved or doubled, one model at a time, the largest share of a bar's `cost_effective` cells "
+    "that a run changes on each of the four delegation datasets, over all of its grids, from the least moved to the "
+    "most, the Response Bank's with the one task that holds all of its changed cells, and that no `cost_blind` cell "
+    "moves, since that flavor compares no costs; then that a small effect on one dataset bounds none on another. Each "
+    "share is the one the note's Results blocks print, which tests/test_research_delegation_price_sensitivity.py reads "
+    "from them to build the sentence, pinned once in that place, checking on the way that the order is from the least "
+    "to the most and that the Response Bank's changed cells are all of one task; the note's Recommendation says that "
+    "README Limitations links it. No code, cost, committed result or README transcript changes\n")
+
+
+def delegation_price_sentence():
+    """The README Limitations sentence on a price error in a delegation decision, built from the note's five blocks."""
+    note = NOTE.read_text(encoding="utf-8")
+    commands = (COMMAND, LRB_COMMAND, RB_COMMAND, T2_COMMAND, T2_POOLED_COMMAND)
+    tables = {command: _table(_block(note, command)) for command in commands}
+    assert [len(tables[c]) for c in commands] == [8, 8, 4, 12, 12]
+    # no run moves a cost_blind cell in any block
+    assert all(v["moving"] == 0 and v["most"] == 0
+               for table in tables.values() for k, v in table.items() if k[1] == "cost_blind")
+
+    def top(*names):
+        """The largest share a run changes over the blocks' `cost_effective` rows, as the block prints it."""
+        rows = [v for name in names for k, v in tables[name].items() if k[1] == "cost_effective"]
+        return max((v["share"] for v in rows), key=float)
+
+    autobench, lrb, rb = top(COMMAND), top(LRB_COMMAND), top(RB_COMMAND)
+    t2 = top(T2_COMMAND, T2_POOLED_COMMAND)
+    # the sentence lists them from the least moved to the most
+    assert float(rb) < float(t2) < float(lrb) < float(autobench)
+    # all of the Response Bank's changed cells are of one task
+    block = _block(note, RB_COMMAND)
+    by_task = [x.rsplit(" ", 1) for x in re.search(TASK_LINE, block, flags=re.M).group(1).split(", ")]
+    assert len(by_task) > 1 and len([t for t, n in by_task if int(n.replace(",", ""))]) == 1
+    return (
+        "A wrong price also moves `cost_effective` delegation decisions, by an amount that depends on the dataset: on "
+        "the four delegation datasets ([research/delegation-price-sensitivity.md](research/delegation-price-sensitivity.md)), "
+        f"one model's prices halved or doubled, one model at a time, changed at most {rb}% of a bar's `cost_effective` "
+        f"cells on the LLM Routing Response Bank, all on one task, {t2}% on tau2-bench, {lrb}% on LLMRouterBench and "
+        f"{autobench}% on AutoBench 2026, and no `cost_blind` cell, since that flavor compares no costs, so a small "
+        "effect on one dataset bounds none on another. ")
+
+
+def test_readme_limitations_give_the_delegation_price_error_after_the_routing_one():
+    sentence = delegation_price_sentence()
+    readme = README.read_text(encoding="utf-8")
+    limits = readme.split("\n## Limitations and non-goals (v1)\n", 1)[1].split("\n## ", 1)[0]
+    [bullet] = [x for x in limits.split("\n") if x.startswith(PRICES)]
+    assert bullet.count(sentence) == 1
+    # right after the routing sentence (9 v1.417), which ends at its interval, and before the end-date one
+    at = bullet.index(sentence)
+    assert bullet[:at].endswith(ROUTING_END) and bullet.count(ROUTING_END) == 1
+    assert bullet[at + len(sentence):].startswith("A row whose vendor states an end date ")
+    # the README links the note in this sentence alone
+    assert readme.count("(research/delegation-price-sensitivity.md)") == 1
+
+
+def test_design_9_states_the_delegation_sentence_after_the_routing_clause():
+    text = DESIGN.read_text(encoding="utf-8")
+    s9 = text[text.index("\n## 9. Data files\n"):text.index("\n## 10. ")]
+    assert s9.count(DESIGN_9) == 1
+    # right after the v1.417 clause, as the sentence follows that clause's sentence in the README
+    lines = s9.split("\n")
+    at = lines.index(DESIGN_9.rstrip("\n"))
+    assert lines[at - 1].startswith("- v1.417 a price error in the README (row DOC30, ")
+    # no number of the sentence is written into the clause, so the clause cannot go stale
+    assert NUMBER.findall(DESIGN_9.split(": README Limitations' prices bullet", 1)[1]) == []
+
+
+def test_the_recommendation_says_readme_limitations_link_the_note():
+    rec = _section(NOTE.read_text(encoding="utf-8"), "Recommendation")
+    assert rec.count("README Limitations' prices bullet links this note and gives the range") == 1
+    assert "should link this note" not in rec
+    assert "right after its routing sentence on a stale price, which stays as it is" in rec
 
 
 @pytest.fixture(scope="module")
