@@ -22,6 +22,14 @@ a root whose committed 13.14 files are its run, at the 13.14 bars, against the s
 Bank block is compared with the script's output on the pinned files when they are cached (the session fixture
 `response_bank_pinned` of tests/conftest.py), its Facts bullets are built from that block, and its Facts, Reading
 it and Recommendation claims are checked against it and the re-read note's Response Bank block.
+
+v1.427 (row R39d) adds `--dataset tau2-bench` and `tau2-bench-pooled`, the 13.12 runs, whose rows carry per-call
+sizes: a hand matrix of three tasks and three models, one task with two calls on every item so the decision's
+`work_calls` is above one, runs on a root whose committed 13.12 file is its run, against the brute force with
+each model's calibration sizes its rounded-up means per call, `work_calls` the half's median call count and
+each held-out item priced one call at a time. The note's two tau2-bench blocks are compared with the script's
+output on the 12 pinned run files when they are cached, their Facts bullets are built from them, and the Facts,
+Reading it and Recommendation claims about them are checked against them, the other blocks and the re-read note.
 """
 
 import contextlib
@@ -46,12 +54,16 @@ DESIGN = ROOT / "DESIGN.md"
 FOLDER = ROOT / "evidence" / "delegation"
 LRB = ROOT / "evidence" / "llmrouterbench-delegation"
 RB = ROOT / "evidence" / "response-bank-delegation"
+T2 = ROOT / "evidence" / "tau2-bench-delegation"
 COMMAND = ("$ python research/delegation_price_sensitivity.py --matrix autobench-tokens.jsonl"
            " --registry autobench-pool.json")
 LRB_COMMAND = ("$ python research/delegation_price_sensitivity.py --dataset llmrouterbench"
                " --matrix llmrouterbench-matrix.jsonl")
 RB_COMMAND = ("$ python research/delegation_price_sensitivity.py --dataset response-bank"
               " --matrix response-bank-matrix.jsonl")
+T2_COMMAND = "$ python research/delegation_price_sensitivity.py --dataset tau2-bench --matrix tau2-calls.jsonl"
+T2_POOLED_COMMAND = ("$ python research/delegation_price_sensitivity.py --dataset tau2-bench-pooled"
+                     " --matrix tau2-calls-all.jsonl")
 REGENERATE = [
     "python -m pip install -e .",
     "python evidence/autobench-2026/convert.py --out autobench-tokens.jsonl --task-by all --tokens"
@@ -61,10 +73,14 @@ REGENERATE = [
     LRB_COMMAND[2:],
     "python evidence/response-bank/convert.py --out response-bank-matrix.jsonl",
     RB_COMMAND[2:],
+    "python evidence/tau2-bench/convert.py --out tau2-calls.jsonl --calls",
+    T2_COMMAND[2:],
+    "python evidence/tau2-bench/convert.py --out tau2-calls-all.jsonl --calls --task-by all",
+    T2_POOLED_COMMAND[2:],
 ]
 SECTIONS = ["Facts", "Method", "Results", "Reading it", "Recommendation", "Limits", "Regenerate"]
 BULLET = "- A price error in a delegation decision, on AutoBench (v1.424, row R39): "
-ALLOWED = {"12.22", "13.2", "13.5", "13.9", "13.10", "13.13", "13.14"}
+ALLOWED = {"12.22", "13.2", "13.5", "13.9", "13.10", "13.12", "13.13", "13.14"}
 NUMBER = re.compile(r"(?<![\w.])[+-]?\d+(?:,\d{3})*(?:\.\d+)?%?")
 FACTORS = (0.5, 2.0)
 TITLE = ("One model's list price halved or doubled on the AutoBench 2026 delegation results: each cell re-decided "
@@ -75,6 +91,8 @@ REREAD = ROOT / "research" / "reread-sensitivity.md"
 REREAD_COMMAND = "$ python research/reread_sensitivity.py --matrix autobench-tokens.jsonl --registry autobench-pool.json"
 REREAD_LRB_COMMAND = "$ python research/reread_sensitivity.py --dataset llmrouterbench --matrix llmrouterbench-matrix.jsonl"
 REREAD_RB_COMMAND = "$ python research/reread_sensitivity.py --dataset response-bank --matrix response-bank-matrix.jsonl"
+REREAD_T2_COMMANDS = ("$ python research/reread_sensitivity.py --dataset tau2-bench --matrix tau2-calls.jsonl",
+                      "$ python research/reread_sensitivity.py --dataset tau2-bench-pooled --matrix tau2-calls-all.jsonl")
 HEADER = ("  flavor          bar  runs moving  most changed / cells  share  to inline  success gap  cost ratio  "
           "all cost ratio  by")
 
@@ -112,6 +130,11 @@ def lrb():
 @pytest.fixture(scope="module")
 def rb():
     return _load("research_delegation_price_rb_results", RB / "results.py")
+
+
+@pytest.fixture(scope="module")
+def t2():
+    return _load("research_delegation_price_t2_results", T2 / "results.py")
 
 
 def _rows():
@@ -224,10 +247,28 @@ def _exact(p, d, point, path, tin, tout):
     return work + ((1 + t) if separate else t) * _cost(p, k * (tin + tout), 0)
 
 
-def _expected(rows, registry, dr, grid, name, title="AutoBench 2026", folder="evidence/delegation"):
+def _exact_calls(p, d, point, path, a, b):
+    """13.2 (the 13.9 v1.74 cost) on a row with per-call sizes, in fractions, one call at a time: call j reads the
+    path's base, a_1 to a_j and b_1 to b_(j-1)."""
+    c, brief, r, t = (point[k] for k in ("context_tokens", "brief_tokens", "result_tokens", "carry_turns"))
+    k = len(a)
+    reads = [sum(a[:j + 1]) + sum(b[:j]) for j in range(k)]
+    if path == "delegate":
+        return _cost(p, 0, brief) + _cost(d, k * brief + sum(reads), sum(b)) + (1 + t) * _cost(p, brief + r, 0)
+    separate = point["inline_separate_call"]
+    base = Fraction(k * c if separate else (k - 1) * c) * Fraction(point.get("cached_read_ratio", 1))
+    return _cost(p, base + sum(reads), sum(b)) + ((1 + t) if separate else t) * _cost(p, sum(a) + sum(b), 0)
+
+
+def _up(x, y):
+    return -(-x // y)
+
+
+def _expected(rows, registry, dr, grid, name, title="AutoBench 2026", folder="evidence/delegation", per_call=False):
     """The report lines of one committed file: each run's routers rebuilt from the public API per task, seed and
     bar on a registry built here with one model's prices scaled, each held-out sum in fractions at the committed
-    prices."""
+    prices. With `per_call` (v1.427) each model's calibration sizes are its rounded-up means per call, the
+    decision's `work_calls` the half's median call count (13.9 v1.74), and each item is priced by `_exact_calls`."""
     points = dr.points() if grid == "base" else dr.variant_points()
     result = evaluate_delegation(rows, registry, bars=list(dr.BARS), points=points, seeds=range(dr.SEEDS))
     cells, tasks = result["cells"], list(result["tasks"])
@@ -237,16 +278,32 @@ def _expected(rows, registry, dr, grid, name, title="AutoBench 2026", folder="ev
     halves = {(t, seed): split_items(items[t], seed, 0.5) for t in tasks for seed in range(dr.SEEDS)}
     runs = [(m, f) for m in models for f in FACTORS]
 
+    works = {}
+
     def router(prices, tk, seed, bar):
         cal = halves[tk, seed][0]
         stats = Stats()
+        each = [by[tk, i, m] for i in cal for m in models]
         for m in models:
-            stats.add(tk, m, sum(by[tk, i, m]["correct"] for i in cal), len(cal),
-                      input_tokens=sum(by[tk, i, m]["input_tokens"] for i in cal),
-                      output_tokens=sum(by[tk, i, m]["output_tokens"] for i in cal))
+            hits = [by[tk, i, m] for i in cal]
+            if per_call:
+                k = sum(len(h["call_input_tokens"]) for h in hits)
+                stats.add(tk, m, sum(h["correct"] for h in hits), len(cal),
+                          input_tokens=len(cal) * _up(sum(sum(h["call_input_tokens"]) for h in hits), k),
+                          output_tokens=len(cal) * _up(sum(h["output_tokens"] for h in hits), k))
+            else:
+                stats.add(tk, m, sum(h["correct"] for h in hits), len(cal),
+                          input_tokens=sum(h["input_tokens"] for h in hits),
+                          output_tokens=sum(h["output_tokens"] for h in hits))
+        if per_call:
+            sizes = ([_up(sum(h["call_input_tokens"]), len(h["call_input_tokens"])) for h in each],
+                     [_up(h["output_tokens"], len(h["call_input_tokens"])) for h in each])
+            works[tk, seed] = statistics.median_low([len(h["call_input_tokens"]) for h in each])
+        else:
+            sizes = ([h["input_tokens"] for h in each], [h["output_tokens"] for h in each])
         task = Task(name=tk, bar=bar, min_samples=30, confidence=0.95, independent_of_generator=False,
-                    expected_input_tokens=statistics.median_low([by[tk, i, m]["input_tokens"] for i in cal for m in models]),
-                    expected_output_tokens=statistics.median_low([by[tk, i, m]["output_tokens"] for i in cal for m in models]),
+                    expected_input_tokens=statistics.median_low(sizes[0]),
+                    expected_output_tokens=statistics.median_low(sizes[1]),
                     on_no_model="best_available", max_fallbacks=0)
         return Router(prices, {tk: task}, stats)
 
@@ -259,7 +316,9 @@ def _expected(rows, registry, dr, grid, name, title="AutoBench 2026", folder="ev
             p, d = registry.get(cell["parent"]), registry.get(pick[1])
             hits = [by[cell["task"], i, pick[1]] for i in halves[cell["task"], cell["seed"]][1]]
             sums[key] = (sum(h["correct"] for h in hits), len(hits),
-                         sum(_exact(p, d, point, pick[0], h["input_tokens"], h["output_tokens"]) for h in hits))
+                         sum(_exact_calls(p, d, point, pick[0], h["call_input_tokens"], h["call_output_tokens"])
+                             if per_call else _exact(p, d, point, pick[0], h["input_tokens"], h["output_tokens"])
+                             for h in hits))
         return sums[key]
 
     new = {}
@@ -267,8 +326,9 @@ def _expected(rows, registry, dr, grid, name, title="AutoBench 2026", folder="ev
         prices = Registry([Model(x.id, x.family, x.price_in * f, x.price_out * f, x.context_window) if x.id == m
                            else x for x in registry.models])
         routers = {(t, s, b): router(prices, t, s, b) for t in tasks for s in range(dr.SEEDS) for b in dr.BARS}
-        new[m, f] = [routers[c["task"], c["seed"], c["bar"]].decide_delegation(c["task"], c["parent"], c["flavor"],
-                                                                               **points[c["point"]])
+        new[m, f] = [routers[c["task"], c["seed"], c["bar"]].decide_delegation(
+            c["task"], c["parent"], c["flavor"],
+            **(dict(points[c["point"]], work_calls=works[c["task"], c["seed"]]) if per_call else points[c["point"]]))
                      for c in cells]
     lines = [f"{title}, {grid} grid (`{folder}/{name}`): {len(cells):,} cells, "
              + (f"{len(tasks)} tasks, " if len(tasks) > 1 else "") + f"{len(dr.BARS)} bars, "
@@ -403,6 +463,100 @@ def test_the_response_bank_hand_matrix_moves_cells_of_both_tasks(rb_hand):
     assert all(v["most"] == 0 for k, v in table.items() if k[1] == "cost_blind")
 
 
+def _call_row(task, item, model, correct, a, b):
+    """A 13.9 v1.74 per-call row whose counts are what its calls read and write."""
+    k = len(a)
+    return {"task": task, "item": item, "model": model, "correct": correct,
+            "input_tokens": sum((k - j) * a[j] + (k - j - 1) * b[j] for j in range(k)),
+            "output_tokens": sum(b), "call_input_tokens": list(a), "call_output_tokens": list(b)}
+
+
+def _t2_rows(pooled=False):
+    """Three tasks, `u`, `t` and `s`, or with `pooled` the same rows as one task `all`, items named `task|j` as the
+    tau2-bench converter names them `domain|id`. On `u` and `t` each model writes `_lrb_rows`' outputs in one call,
+    a = [100], b = [o], except v/d, which writes 50 in each of two calls on j % 5 == 0; on `s` every model writes in
+    two calls, a = [100, 0], so that task's median call count is 2 and the decision's `work_calls` is above one,
+    while pooled it stays 1."""
+    rows = []
+    for task, base, step, mod in (("u", 1200, 40, 11), ("t", 1050, 10, 7), ("s", 600, 20, 5)):
+        for j in range(80):
+            item, name, o, two = f"{task}|{j:02d}", "all" if pooled else task, base + step * (j % mod), task == "s"
+            rows.append(_call_row(name, item, "v/p", j % 10 != 0, *(([100, 0], [o, o]) if two else ([100], [o]))))
+            rows.append(_call_row(name, item, "v/d", j % 20 != 0,
+                                  *(([100, 0], [50, 50]) if two or j % 5 == 0 else ([100], [100]))))
+            e = ([100, 0], [55, 55 + 10 * (j % 3)]) if two else ([100], [110 + 10 * (j % 3)])
+            rows.append(_call_row(name, item, "v/e", j % 8 != 3, *e))
+    return rows
+
+
+def _t2_root(tmp_path, t2, rows, registry, name):
+    """A root whose committed 13.12 file `name` (results.json or pooled.json) is the run on `rows`; the 13.12 script
+    reads the base points from the 13.10 script, so that is copied too."""
+    root = tmp_path / "root"
+    for source in (FOLDER, T2):
+        folder = root / "evidence" / source.name
+        folder.mkdir(parents=True)
+        (folder / "results.py").write_text((source / "results.py").read_text(encoding="utf-8"), encoding="utf-8")
+    folder = root / "evidence" / T2.name
+    _registry_file(folder / "registry.json", registry)
+    (folder / name).write_text(json.dumps(t2.run(rows, registry), indent=2) + "\n", encoding="utf-8")
+    matrix = tmp_path / "t2.jsonl"
+    matrix.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    return root, matrix
+
+
+T2_RUNS = {"tau2-bench": (False, "results.json", "tau2-bench per domain"),
+           "tau2-bench-pooled": (True, "pooled.json", "tau2-bench pooled")}
+
+
+@pytest.fixture(scope="module", params=sorted(T2_RUNS))
+def t2_hand(ps, t2, tmp_path_factory, request):
+    pooled, name, _title = T2_RUNS[request.param]
+    rows, registry = _t2_rows(pooled), Registry([P, D, E])
+    root, matrix = _t2_root(tmp_path_factory.mktemp("t2"), t2, rows, registry, name)
+    code, out, err = _main(ps, ["--dataset", request.param, "--matrix", str(matrix), "--root", str(root)])
+    return request.param, rows, registry, root, matrix, code, out, err
+
+
+def test_tau2_report_on_a_hand_matrix_is_the_brute_force(t2, t2_hand):
+    dataset, rows, registry, _, _, code, out, err = t2_hand
+    assert (code, err) == (0, "")
+    _, name, title = T2_RUNS[dataset]
+    want = [TITLE.replace("AutoBench 2026", title)]
+    want += _expected(rows, registry, t2, "base", name, title, "evidence/tau2-bench-delegation", per_call=True)
+    assert out.split("\n") == want + [""]
+
+
+def test_the_tau2_hand_matrix_moves_cells_at_every_bar_and_no_cost_blind_cell(t2_hand):
+    dataset, *_, out, _err = t2_hand
+    table = _table(out)
+    assert sorted({k[2] for k in table}) == ["0.3", "0.4", "0.5", "0.6", "0.7", "0.8"]
+    assert all(v["most"] > 0 for k, v in table.items() if k[1] == "cost_effective")
+    assert all(v["moving"] == 0 and v["most"] == 0 for k, v in table.items() if k[1] == "cost_blind")
+    if dataset == "tau2-bench":
+        line = next(x for x in out.split("\n") if x.startswith("  changed cells by task, all 6 runs: "))
+        counts = dict(x.rsplit(" ", 1) for x in line.split(": ", 1)[1].split(", "))
+        assert list(counts) == ["s", "t", "u"] and all(int(n.replace(",", "")) > 0 for n in counts.values()), line
+        # the parent's error moves cells between the paths
+        assert sum(c[1] + c[3] for c in _grids(out)["base"][1].values()) > 0
+
+
+def test_the_tau2_hand_matrix_forecasts_two_work_calls_on_one_task():
+    """The calibration half's median call count over the three models' rows: 2 on `s` and 1 on `t`, `u` and pooled,
+    on every seed, so the hand run checks a decision's `work_calls` above one."""
+    for pooled, want in ((False, {"s": {2}, "t": {1}, "u": {1}}), (True, {"all": {1}})):
+        rows = _t2_rows(pooled)
+        got = {}
+        for task in dict.fromkeys(r["task"] for r in rows):
+            mine = [r for r in rows if r["task"] == task]
+            items = list(dict.fromkeys(r["item"] for r in mine))
+            for seed in range(50):
+                cal = set(split_items(items, seed, 0.5)[0])
+                got.setdefault(task, set()).add(statistics.median_low(
+                    [len(r["call_input_tokens"]) for r in mine if r["item"] in cal]))
+        assert got == want, pooled
+
+
 def test_a_hand_matrix_run_moves_a_committed_inline_cell_to_a_delegate(ps, lrb_hand):
     """The report counts the changed cells whose new mode is inline; this checks the other way round on the hand
     matrix, from `picks` itself (review iter-285 nit 8)."""
@@ -449,7 +603,7 @@ def test_the_most_names_the_first_tied_run_in_model_then_factor_order(ps, hand, 
     assert per_model == {"v/d": (0, 0, 3, 3), "v/e": (3, 3, 0, 0), "v/p": (2, 2, 0, 0)}
 
 
-def test_the_dataset_and_registry_options_exit_2_together(ps, hand, lrb_hand, rb_hand):
+def test_the_dataset_and_registry_options_exit_2_together(ps, hand, lrb_hand, rb_hand, t2, tmp_path):
     _, _, root, matrix, pool = hand[:5]
     code, out, err = _main(ps, ["--matrix", str(matrix), "--root", str(root)])
     assert (code, out, err) == (2, "", "error: --dataset autobench needs --registry\n")
@@ -461,10 +615,20 @@ def test_the_dataset_and_registry_options_exit_2_together(ps, hand, lrb_hand, rb
     code, out, err = _main(ps, ["--dataset", "response-bank", "--matrix", str(r_matrix), "--registry", str(pool),
                                 "--root", str(r_root)])
     assert (code, out, err) == (2, "", "error: --registry is only used with --dataset autobench\n")
-    with pytest.raises(ValueError, match="^dataset must be one of autobench, llmrouterbench, response-bank, got "
-                                         "'tau2-bench'$"):
-        ps.run(l_matrix, None, l_root, "tau2-bench")
-    assert ps.DATASETS == ("autobench", "llmrouterbench", "response-bank")
+    t_root, t_matrix = _t2_root(tmp_path, t2, _t2_rows(), Registry([P, D, E]), "results.json")
+    for dataset in ("tau2-bench", "tau2-bench-pooled"):
+        code, out, err = _main(ps, ["--dataset", dataset, "--matrix", str(t_matrix), "--registry", str(pool),
+                                    "--root", str(t_root)])
+        assert (code, out, err) == (2, "", "error: --registry is only used with --dataset autobench\n")
+    # pooled.json is absent from this root, and a matrix without per-call sizes is refused as the re-read check does
+    code, out, err = _main(ps, ["--dataset", "tau2-bench-pooled", "--matrix", str(t_matrix), "--root", str(t_root)])
+    assert (code, out, err) == (2, "", f"error: {t_root / 'evidence' / T2.name / 'pooled.json'}: no such file\n")
+    code, out, err = _main(ps, ["--dataset", "tau2-bench", "--matrix", str(matrix), "--root", str(t_root)])
+    assert (code, out, err) == (2, "", "error: task 't': rows without per-call sizes are not priced here\n")
+    with pytest.raises(ValueError, match="^dataset must be one of autobench, llmrouterbench, response-bank, "
+                                         "tau2-bench, tau2-bench-pooled, got 'routerbench'$"):
+        ps.run(l_matrix, None, l_root, "routerbench")
+    assert ps.DATASETS == ("autobench", "llmrouterbench", "response-bank", "tau2-bench", "tau2-bench-pooled")
 
 
 def test_scaled_changes_one_models_prices_only(ps):
@@ -499,7 +663,8 @@ def test_script_is_standard_library_and_model_routing():
 TABLE_LINE = (r"  (cost_\w+) +(0\.\d) +(\d+) / (\d+) +([\d,]+) / ([\d,]+) +([\d.]+)% +([\d,]+) +(\S+) +(\S+) +(\S+)  "
               r"(-|\S+ times (?:0\.5|2\.0))$")
 MODEL_LINE = r"  (\S+): times 0\.5 changes ([\d,]+) cells \(([\d,]+) to inline\), times 2\.0 changes ([\d,]+) \(([\d,]+) to inline\)$"
-GRID_LINE = (r"(?:AutoBench 2026|LLMRouterBench|LLM Routing Response Bank), (base|variants) grid \(`evidence/[\w-]+/\w+\.json`\): ([\d,]+) "
+GRID_LINE = (r"(?:AutoBench 2026|LLMRouterBench|LLM Routing Response Bank|tau2-bench per domain|tau2-bench pooled), "
+             r"(base|variants) grid \(`evidence/[\w-]+/\w+\.json`\): ([\d,]+) "
              r"cells, (?:\d+ tasks, )?(\d+) bars, (\d+) flavors, (\d+) points, (\d+) parents, (\d+) seeds, (\d+) "
              r"models, so (\d+) runs; ")
 TASK_LINE = r"  changed cells by task, all \d+ runs: (.+)$"
@@ -689,6 +854,81 @@ def rb_facts(note):
     return out
 
 
+def t2_facts(note):
+    """The tau2-bench Facts bullets, built from the note's two tau2-bench blocks; the claims the Facts, Reading it and
+    Recommendation make about them are checked on the way, against the other blocks and the re-read note's
+    tau2-bench blocks."""
+    blocks = {"per domain": _block(note, T2_COMMAND), "pooled": _block(note, T2_POOLED_COMMAND)}
+    tables = {k: _table(b) for k, b in blocks.items()}
+    grids = {k: _grids(b) for k, b in blocks.items()}
+    bars = ["0.3", "0.4", "0.5", "0.6", "0.7", "0.8"]
+    head = {}
+    for k in blocks:
+        assert set(grids[k]) == {"base"} and sorted({x[2] for x in tables[k]}) == bars and len(tables[k]) == 12
+        assert all(v["moving"] == 0 and v["most"] == 0 for x, v in tables[k].items() if x[1] == "cost_blind")
+        head[k] = grids[k]["base"][0]
+        assert int(head[k][1]) == len(bars) and int(head[k][7]) == 2 * int(head[k][6])
+    (cells, b, flavors, points, parents, seeds, models, runs), (p_cells, *_rest) = head["per domain"], head["pooled"]
+    assert head["pooled"][1:] == head["per domain"][1:]
+    tasks = re.search(r" cells, (\d+) tasks, ", blocks["per domain"]).group(1)
+    assert re.search(r" cells, \d+ tasks, ", blocks["pooled"]) is None
+    out = [f"- tau2-bench data: the rows and registry that evidence/tau2-bench-delegation/results.py runs, its grid per "
+           f"domain ({cells} cells: {tasks} tasks, {b} bars, {flavors} flavors, {points} points, {parents} parents, "
+           f"{seeds} seeds) and pooled ({p_cells} cells, one task), with the {models} models of its registry, each "
+           f"model's input and output prices times 0.5 and times 2.0 in turn, so {runs} runs per grid; each held-out "
+           "item is priced call by call from its per-call sizes, and every cell's decision and held-out sum is "
+           "reproduced at the committed prices before any price is scaled"]
+    for k in blocks:
+        still = [bar for bar in bars if tables[k]["base", "cost_effective", bar]["by"] is None]
+        moving = [bar for bar in bars if bar not in still]
+        lead = (f"at bars {', '.join(still[:-1])} and {still[-1]} no run moves a cell; " if len(still) > 1 else
+                f"at bar {still[0]} no run moves a cell; " if still else "")
+        out.append(f"- tau2-bench {k}, `cost_effective`: " + lead + "; ".join(_bar_parts(tables[k], "base", moving)))
+    by_task = [x.rsplit(" ", 1) for x in re.search(TASK_LINE, blocks["per domain"], flags=re.M).group(1).split(", ")]
+    by_task = {t: int(n.replace(",", "")) for t, n in by_task}
+    assert len(by_task) == int(tasks)
+    movers = {}
+    for k in blocks:
+        by_model = grids[k]["base"][1]
+        movers[k] = sorted((m, f, c[i]) for m, c in by_model.items() for i, f in ((0, "0.5"), (2, "2.0")) if c[i])
+        assert sum(c[1] + c[3] for c in by_model.values()) == 0
+        by_point = [int(x.split(": ")[1].replace(",", "")) for x in
+                    re.search(POINT_LINE, blocks[k], flags=re.M).group(1).split(", ")]
+        assert sum(n for *_x, n in movers[k]) == sum(by_point) and len(by_point) == int(points)
+    # the same two runs move cells per domain and pooled, each the same count, and the third model moves none
+    assert [(m, f) for m, f, _ in movers["per domain"]] == [(m, f) for m, f, _ in movers["pooled"]]
+    assert len(movers["pooled"]) == 2 and all(len({n for *_x, n in movers[k]}) == 1 for k in blocks)
+    (m1, f1, n1), (m2, f2, n2) = movers["per domain"]
+    rest = sorted(set(grids["per domain"]["base"][1]) - {m1, m2})
+    assert len(rest) == 1 and sum(by_task.values()) == 2 * n1
+    some = sorted(((t, n) for t, n in by_task.items() if n), key=lambda kv: (-kv[1], kv[0]))
+    none = [t for t, n in by_task.items() if not n]
+    assert len(some) == 2 and len(none) == 1
+    out.append(f"- tau2-bench by model and task: per domain and pooled 2 of the {models} models move a cell, "
+               f"{_verb(f1)} `{m1}`'s prices or {_verb(f2)} `{m2}`'s, each run the same number of cells "
+               f"({n1:,} per domain, {movers['pooled'][0][2]:,} pooled), and `{rest[0]}` moves none at either factor; "
+               f"none of the changed cells go inline; per domain {some[0][0]} has the most changed cells "
+               f"({some[0][1]:,}), {some[1][0]} {some[1][1]:,} and {none[0]} none")
+    # Reading it and the Recommendation: on tau2-bench, where the re-read note moves no cell, the run that moves the
+    # most at each bar where one does sends the work to delegated picks that cost more than twice as much at the
+    # list price, the bill over all the bar's cells rising by more than on LLMRouterBench; per domain the success
+    # gap's sign varies, pooled the moved picks are right more often; per domain it moves up to about a fifth of a
+    # bar's cells
+    rows = {k: [tables[k]["base", "cost_effective", bar] for bar in bars if tables[k]["base", "cost_effective", bar]["by"]]
+            for k in blocks}
+    lrb_all = [float(v["all"]) for x, v in _table(_block(note, LRB_COMMAND)).items() if x[1] == "cost_effective"]
+    for k in blocks:
+        assert all(float(r["ratio"]) > 2 and float(r["all"]) > max(lrb_all) for r in rows[k])
+    assert {r["gap"][0] for r in rows["per domain"]} == {"+", "-"} and {r["gap"][0] for r in rows["pooled"]} == {"+"}
+    assert 15 < max(float(r["share"]) for r in rows["per domain"]) < 25
+    reread = REREAD.read_text(encoding="utf-8")
+    for command in REREAD_T2_COMMANDS:
+        block = _block(reread, command)
+        moved = [line.split() for line in block.split("\n") if line.startswith("  cost_")]
+        assert len(moved) == 36 and all(r[r.index("/") - 1] == "0" for r in moved), command
+    return out
+
+
 def facts(note):
     """The Facts bullets that hold numbers, built from the note's Results blocks."""
     block = _block(note)
@@ -722,17 +962,18 @@ def facts(note):
                f"({totals[1][0]:,})")
     out.append(f"- On AutoBench, of the {changed:,} cells the base grid's runs change, {inline:,} go inline; of the variant grid's "
                f"{v_changed:,}, {v_inline:,}; the rest go to a delegated pick")
-    return out + lrb_facts(note) + rb_facts(note)
+    return out + lrb_facts(note) + rb_facts(note) + t2_facts(note)
 
 
 def test_note_has_its_sections_command_and_regenerate():
     note = NOTE.read_text(encoding="utf-8")
     assert re.findall(r"^## (.+)$", note, flags=re.M) == SECTIONS
-    for command in (COMMAND, LRB_COMMAND, RB_COMMAND):
+    for command in (COMMAND, LRB_COMMAND, RB_COMMAND, T2_COMMAND, T2_POOLED_COMMAND):
         assert _section(note, "Results").count("```text\n" + command + "\n") == 1, command
     assert "```bash\n" + "\n".join(REGENERATE) + "\n```" in _section(note, "Regenerate")
     for link in ("../evidence/delegation/RESULTS.md", "../evidence/llmrouterbench-delegation/RESULTS.md",
-                 "../evidence/response-bank-delegation/RESULTS.md", "price-sensitivity.md", "reread-sensitivity.md", "delegation_price_sensitivity.py"):
+                 "../evidence/response-bank-delegation/RESULTS.md", "../evidence/tau2-bench-delegation/RESULTS.md",
+                 "price-sensitivity.md", "reread-sensitivity.md", "delegation_price_sensitivity.py"):
         assert f"]({link})" in note, link
 
 
@@ -753,10 +994,10 @@ def test_every_number_of_the_prose_is_in_a_built_bullet_or_allowed():
     block's parameters (its title's dataset year and factors, and its bars); a code span is a name, not a number."""
     note = NOTE.read_text(encoding="utf-8")
     parameters = set()
-    for command in (COMMAND, LRB_COMMAND, RB_COMMAND):
+    for command in (COMMAND, LRB_COMMAND, RB_COMMAND, T2_COMMAND, T2_POOLED_COMMAND):
         block = _block(note, command)
         parameters |= set(NUMBER.findall(block.split("\n", 1)[0])) | {k[2] for k in _table(block)}
-    assert parameters == {"2026", "0.1", "0.3", "0.5", "2.0", "0.7", "0.8", "0.9"}
+    assert parameters == {"2026", "0.1", "0.3", "0.4", "0.5", "0.6", "2.0", "0.7", "0.8", "0.9"}
     prose = _prose(note)
     for bullet in facts(note):
         assert prose.count(bullet) == 1, bullet
@@ -775,14 +1016,18 @@ def test_the_note_says_no_cost_blind_cell_moves_and_how_picks_are_scored():
     # the bill rises far more than the re-read inputs move it on AutoBench only (review iter-286 should-fix 1)
     assert "raises the bill, far more than" not in note
     assert "on AutoBench by far more than those inputs move it and on LLMRouterBench by about as little" in note
-    assert "- No run moves a `cost_blind` cell, on any grid or bar of the three datasets" in _section(note, "Facts")
-    # the Limits and the Recommendation name the datasets measured and the one left (row R39c)
-    assert ("- Three datasets, AutoBench 2026, LLMRouterBench and the LLM Routing Response Bank; the tau2-bench "
-            "delegation results are not measured yet") in _section(note, "Limits")
-    assert "- Measure the tau2-bench delegation results the same way before" in _section(note, "Recommendation")
-    assert "on the Response Bank it moves a few decisions of one task" in _section(note, "Recommendation")
+    assert "- No run moves a `cost_blind` cell, on any grid or bar of the four datasets" in _section(note, "Facts")
+    # the Limits and the Recommendation name the four datasets measured, so none is left (rows R39c, R39d)
+    assert ("- Four datasets, AutoBench 2026, LLMRouterBench, the LLM Routing Response Bank and tau2-bench, per domain "
+            "and pooled, every committed delegation results file") in _section(note, "Limits")
+    assert "not measured yet" not in note and "- Measure the tau2-bench" not in note
+    rec = _section(note, "Recommendation")
+    assert "on the Response Bank it moves a few decisions of one task" in rec
+    assert "on tau2-bench, where neither input the re-read note varies moves a cell, it moves up to about a fifth" in rec
+    assert "no one bound holds across the four delegation datasets" in rec
     method = _section(note, "Method")
-    for phrase in ("`price_in` and `price_out`", "committed prices", "`_router`", "`checked`"):
+    for phrase in ("`price_in` and `price_out`", "committed prices", "`_router`", "`checked`", "`call_cost`",
+                   "median call count"):
         assert phrase in method, phrase
 
 
@@ -803,7 +1048,9 @@ def test_the_design_bullet_is_in_12_22():
                    "committed 13.2 costs", "tests/test_research_delegation_price_sensitivity.py", "`## Results` block",
                    "`--dataset llmrouterbench` (v1.425, row R39b) runs the 13.13 grid", "refuses `--registry`",
                    "names the task count", "one block per dataset",
-                   "`--dataset response-bank` (v1.426, row R39c) runs the 13.14 grid"):
+                   "`--dataset response-bank` (v1.426, row R39c) runs the 13.14 grid",
+                   "`--dataset tau2-bench` and `--dataset tau2-bench-pooled` (v1.427, row R39d) run the 13.12 grid",
+                   "priced by its `call_cost`", "median call count (13.9 v1.74)", "two for tau2-bench"):
         assert phrase in bullet[0], phrase
     # the last bullet of 12.22, after the re-read bullet
     lines = section.rstrip("\n").split("\n")
@@ -854,3 +1101,29 @@ def rb_output(ps, response_bank_pinned):
 
 def test_note_response_bank_block_is_the_script_output(rb_output):
     assert _block(NOTE.read_text(encoding="utf-8"), RB_COMMAND).split("\n") == rb_output
+
+
+@pytest.fixture(scope="module")
+def t2_output(ps, tmp_path_factory):
+    """The script's lines on the tau2-bench converter's --calls matrices, per domain and pooled, built from the 12
+    pinned run files as tests/test_research_reread_sensitivity.py builds them."""
+    cv = _load("research_delegation_price_tau2_convert", ROOT / "evidence" / "tau2-bench" / "convert.py")
+    folder = cv.default_cache_dir()
+    if not all((folder / n).is_file() for n in cv.FILES):
+        pytest.skip("the 12 pinned tau2-bench run files are not in the default cache")
+    extracts = []
+    for n, (size, sha) in cv.FILES.items():
+        cv.verify(folder / n, size, sha)
+        extracts.append(cv.extract(cv.read_run(folder / n), trial=0, tokens=True, calls=True))
+    tmp, out = tmp_path_factory.mktemp("t2-pinned"), {}
+    for dataset, task_by in (("tau2-bench", "domain"), ("tau2-bench-pooled", "all")):
+        matrix = tmp / f"{dataset}.jsonl"
+        matrix.write_text("".join(json.dumps(r) + "\n" for r in cv.convert(extracts, task_by=task_by)[0]),
+                          encoding="utf-8")
+        out[dataset] = ps.run(matrix, None, ROOT, dataset)
+    return out
+
+
+@pytest.mark.parametrize("dataset, command", [("tau2-bench", T2_COMMAND), ("tau2-bench-pooled", T2_POOLED_COMMAND)])
+def test_note_tau2_blocks_are_the_script_output(t2_output, dataset, command):
+    assert _block(NOTE.read_text(encoding="utf-8"), command).split("\n") == t2_output[dataset]
