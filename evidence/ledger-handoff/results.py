@@ -323,7 +323,7 @@ def _stdout_to_devnull() -> None:
 
 
 def _check_out(value, option="--out"):
-    """The path an output option names, or a ValueError for a bad one, checked before any download."""
+    """The path an output option names, or a ValueError for a bad one, checked before any download (12.14 v1.174)."""
     if value.rsplit("/", 1)[-1] in ("", ".", ".."):
         raise ValueError(f"{option} must end in a file name, got {value!r}")
     out = Path(value)

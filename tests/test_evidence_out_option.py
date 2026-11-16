@@ -155,9 +155,7 @@ def test_the_red_cases_are_bad_cases():
     assert PASSED_BEFORE["ledger-handoff"] == set() and len(CLIS) == 8
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError,
-                   reason="v1.418: the ledger converter's _check_out docstring lacks the (12.14 v1.174) tag until v1.419")
-def test_the_checks_are_one_check():
+def test_the_checks_are_one_check():  # the ledger converter's copy from v1.419
     sources = {cli: inspect.getsource(owner(cli)._check_out) for cli in CLIS}
     assert len(set(sources.values())) == 1, sorted(sources)
 
