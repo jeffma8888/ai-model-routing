@@ -8,6 +8,10 @@ token options do; unset, the CLI prints what v1.408 printed, byte for byte. The 
 keeps W = B, since a point has no key for it, and 13.15 says the ledger runs set no W from their
 note calls' measured completions, which the test builds from research/ledger-cost-model.md.
 
+v1.412 (row DOC31, review iter-269 should-fix 1): README Limitations' inline-or-delegate cost
+bullet names the flag in the sentence after the re-read share's, with the note calls' medians and
+depths, which the test builds from the same Results block, and 13.1 says so.
+
 The fixture is that of tests/test_output_reread_share_cli.py: cheap 1/2, mid 3/6 and best 10/20
 USD per 1M tokens, S_in = 2,000, S_out = 500, C = 20,000, B = 300, R = 200, and in
 ``cost_effective`` the delegate is mid.
@@ -22,7 +26,8 @@ import pytest
 from model_routing import main
 from model_routing.delegation_eval import _points
 from test_output_reread_share import decide, plain_router
-from test_output_reread_share_cli import TEXT_KEYS, delegate_args, delegate_files  # noqa: F401
+from test_output_reread_share_cli import (TEXT_KEYS, delegate_args, delegate_files,  # noqa: F401
+                                        limitations_bullet)
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -181,3 +186,46 @@ def test_design_13_15_says_the_ledger_runs_keep_w_at_b():
         "delegation result keeps W = B (13.1, v1.409, row D12)")
     assert s13_15.count(sentence) == 1
     assert "never as a decision's outcome. " + sentence in s13_15
+
+
+# README Limitations: the flag beside the re-read share, from the note's Results block (v1.412)
+
+def brief_output_sentence():
+    """The README Limitations sentence on the flag, with the note calls' medians and depths."""
+    depths, pairs = note_call_medians()
+    written = sorted(p[0] for p in pairs)
+    notes = sorted(p[1] for p in pairs)
+    # every note's call writes more than its note, so the brief's size under-states it here
+    assert all(w > b for w, b in pairs)
+    return (
+        "`brief_output_tokens` (`--brief-output-tokens`, default the brief's size) sets the "
+        "output tokens of the call that writes the brief, which the brief's size under-states "
+        "when that call reasons before it writes: on the ledger runs the call that wrote a note "
+        f"produced a median {written[0]:.1f} to {written[-1]:.1f} completion tokens for notes of "
+        f"{notes[0]:.1f} to {notes[-1]:.1f}, at depths {min(depths)} to {max(depths)}.")
+
+
+def test_readme_limitations_name_the_flag_after_the_reread_share():
+    sentence = brief_output_sentence()
+    bullet = limitations_bullet()
+    assert bullet.count(sentence) == 1
+    before = "sets the share of each output that later calls re-read. "
+    assert bullet.index(before) + len(before) == bullet.index(sentence)
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    limits = readme.split("\n## Limitations and non-goals (v1)\n", 1)[1].split("\n## ", 1)[0]
+    # Limitations names the flag in this sentence alone
+    assert limits.count("--brief-output-tokens") == 1
+
+
+def test_design_13_1_states_the_limitations_sentence():
+    design = (ROOT / "DESIGN.md").read_text(encoding="utf-8")
+    s13_1 = section(design, "### 13.1 Inputs", "### 13.2 ")
+    clause = (
+        "From v1.412 (row DOC31) README Limitations' inline-or-delegate cost bullet names the flag "
+        "in the sentence after the `output_reread_share` one: it sets the output tokens of the "
+        "call that writes the brief, which the brief's size under-states when that call reasons "
+        "before it writes, with the note calls' medians above and their depths, 20 to 100, which "
+        "its test reads from the note's Results block")
+    assert s13_1.count(clause) == 1
+    depths, _ = note_call_medians()
+    assert (min(depths), max(depths)) == (20, 100)
