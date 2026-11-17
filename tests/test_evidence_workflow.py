@@ -42,8 +42,8 @@ ROUTERBENCH_CONVERT = ROOT / "evidence" / "routerbench" / "convert.py"
 # line, read from their RESULTS.md, runs after the README commands (DESIGN 13.15 Workflow bullet).
 LEDGER_NOTES = "evidence/ledger-handoff/RESULTS.md"
 LEDGER_LINE = "python evidence/ledger-handoff/results.py --out evidence/ledger-handoff/results.json"
-# v1.443 (row E24e): the registry-pair results have no README subsection yet (row E24c); their
-# `## Regenerate` block, read from their RESULTS.md, runs after the ledger line (DESIGN 12.13).
+# v1.443 (row E24e): the registry-pair `## Regenerate` block, read from their RESULTS.md, runs after the
+# ledger line (DESIGN 12.13); from v1.452 (row E24c) the README `### Registry pair` block is the same block.
 REGISTRY_NOTES = "evidence/registry-pair/RESULTS.md"
 REGISTRY_LINES = [
     "python evidence/registry-pair/convert.py --out registry-pair-matrix.jsonl",
@@ -241,9 +241,9 @@ def registry_commands():
 
 
 def readme_commands(text):
-    """The lines the README evidence intro speaks for: the README commands and the ledger line (v1.397).
-    The registry-pair block joins them with its README subsection (row E24c)."""
-    return run_once(expected_commands(text) + [ledger_command()])
+    """The lines the README evidence intro speaks for: the README commands and the ledger line (v1.397),
+    and from v1.452 (row E24c) the registry-pair block, which its README subsection holds."""
+    return regenerate_commands(text)
 
 
 def regenerate_commands(text):
@@ -273,7 +273,7 @@ def readme_sentence(text):
         "On GitHub, the `evidence` workflow "
         "([.github/workflows/evidence.yml](.github/workflows/evidence.yml)) reruns the "
         "regenerate commands of the AutoBench, AutoBench judges, tau2-bench, LiveCodeBench, "
-        "LLMRouterBench, LLM Routing Response Bank and "
+        "LLMRouterBench, LLM Routing Response Bank, registry pair and "
         "delegation "
         "subsections and of the ledger hand-off results below, "
         f"downloading the pinned files, and fails if one of the {count} results files those commands write "
@@ -970,7 +970,11 @@ def test_the_workflow_reruns_the_registry_pair_block_last():
     assert compare.endswith(" evidence/ledger-handoff/results.json evidence/registry-pair/results.json")
     assert (ROOT / "evidence" / "registry-pair" / "results.json").is_file()
     assert out_paths(regenerate_commands(readme()))[-1] == "evidence/registry-pair/results.json"
-    assert "evidence/registry-pair/results.json" not in out_paths(readme_commands(readme()))
+    # v1.452 (row E24c): the README intro counts it, and the README block is the RESULTS.md one.
+    assert out_paths(readme_commands(readme())) == out_paths(regenerate_commands(readme()))
+    assert len(out_paths(readme_commands(readme()))) == 14
+    block = re.findall(r"```bash\n(.*?)```", subsection(readme(), "Registry pair"), re.S)
+    assert block == ["\n".join([INSTALL] + REGISTRY_LINES) + "\n"]
     ci_text = CI.read_text(encoding="utf-8")
     assert problems(MUTANTS["a registry-pair line dropped"](text), readme(), ci_text) == [
         "Regenerate is not the README commands in order"]

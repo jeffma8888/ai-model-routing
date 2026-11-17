@@ -71,7 +71,7 @@ SECTION_LINK = "../autobench-2026/README.md#judge-evidence-one-item-per-graded-a
 README = ROOT / "README.md"
 EVIDENCE_README = ROOT / "evidence" / "autobench-2026" / "README.md"
 HEADINGS = ["RouterBench", "AutoBench", "AutoBench judges", "tau2-bench", "LiveCodeBench",
-            "LLMRouterBench", "LLM Routing Response Bank", "Delegation on AutoBench", "Delegation on tau2-bench",
+            "LLMRouterBench", "LLM Routing Response Bank", "Registry pair", "Delegation on AutoBench", "Delegation on tau2-bench",
             "Delegation on LLMRouterBench",
             "Delegation on the LLM Routing Response Bank"]
 # v1.369 (12.12 v1.368): the line after the kept limit that links the rest of RESULTS.md.

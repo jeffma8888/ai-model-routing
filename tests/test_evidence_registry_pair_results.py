@@ -726,3 +726,150 @@ def test_opening_builder_follows_the_file_and_span():
     fake["config"]["bars"] = [0.8, 0.9]
     with pytest.raises(AssertionError, match="12.17 rule"):
         opening(fake)
+
+
+# --- v1.452 (row E24c): the README `### Registry pair` subsection (DESIGN 12.24 README bullet, 12.8) ------
+
+README = ROOT / "README.md"
+EVIDENCE_HEADING = "\n## Evidence: held-out results on public data\n"
+README_HEADING = "Registry pair"
+README_RESULTS = "[RESULTS.md](evidence/registry-pair/RESULTS.md)"
+README_EVIDENCE = "[evidence/registry-pair/README.md](evidence/registry-pair/README.md)"
+NUMBER = {3: "three"}
+# The kept bullets are the first and third of `## Reading it` (`cost_effective` and `cost_blind`); the link
+# line names the other seven and the family-held check.
+README_LINK_LINE = (
+    "The higher bars, bar violations, oracle, `korbench/logic` fallback, costs, one vendor, `mmlupro` share "
+    "and size are in [RESULTS.md](evidence/registry-pair/RESULTS.md#reading-it) `## Reading it`, and the "
+    "release's own split in [`## Family-held check`](evidence/registry-pair/RESULTS.md#family-held-check).")
+
+
+def readme_text():
+    return README.read_text(encoding="utf-8")
+
+
+def readme_subsection(text=None):
+    text = readme_text() if text is None else text
+    assert text.count(EVIDENCE_HEADING) == 1
+    part = text.split(EVIDENCE_HEADING, 1)[1].split("\n## ", 1)[0]
+    marker = f"\n### {README_HEADING}\n"
+    assert part.count(marker) == 1
+    return part.split(marker, 1)[1].split("\n### ", 1)[0]
+
+
+def readme_source_lines(results):
+    """The four source lines: the dataset, the licence, what was run and the full-results links."""
+    config, tasks = results["config"], results["tasks"]
+    models = sorted({m for v in tasks.values() for m in v["models"]})
+    groups = {}
+    for task in tasks:
+        groups[task.split("/")[0]] = groups.get(task.split("/")[0], 0) + 1
+    bars = config["bars"]
+    return [
+        f"- Dataset: [superlinked/train-a-router-reasoning]({DATASET_URL}), pinned at revision "
+        f"[`{REVISION[:7]}`]({DATASET_URL}/tree/{REVISION}), {NUMBER[len(FILES)]} files of {DOWNLOAD:,} bytes "
+        "in all, each checked by size and sha256",
+        f"- Licence: {CARD_META[0]} and {CARD_META[1]} on the card, which says: \"{LICENSES}\" Its "
+        f"component licences and citation request are quoted in {README_RESULTS}. The repo commits only "
+        "derived numbers",
+        f"- What was run: the registry's own {len(models)} models at its prices, "
+        f"{join(f'`{m}`' for m in models)}, on {len(tasks)} routing tasks, one per (dataset, task) of "
+        f"MMLU-Pro, BIG-Bench Hard and KOR-Bench ({join(f'{n} `{g}`' for g, n in sorted(groups.items()))}, "
+        f"{sum(v['items'] for v in tasks.values()):,} items in all), {len(config['seeds'])} seeds, bars "
+        f"{bars[0]} to {bars[-1]}, both flavors. A success is the release's strict declared-label match, the "
+        "cost its estimate from token counts at those prices",
+        f"- Full results: {README_RESULTS} and [results.json](evidence/registry-pair/results.json); source, "
+        f"prices, release splits and row keys: {README_EVIDENCE}"]
+
+
+def readme_columns(results):
+    cells = len(results["config"]["seeds"]) * len(results["tasks"])
+    return ("Held-out success is the share of held-out items whose answer the release marks right, pooled over "
+            f"the {len(results['tasks'])} tasks, and cost is the estimated cost of answering them, both averaged "
+            "over the seeds; the ratio divides that cost by the cost of the best single model. The cleared rate "
+            f"is the share of the {cells:,} (task, seed) cells where some model cleared the bar on the "
+            "calibration half, and the bar-violation rate is the share of cleared cells whose held-out success "
+            "fell below the bar.")
+
+
+def readme_tables(results):
+    """The two tables, in the columns of `### LLM Routing Response Bank` (DESIGN 12.8, 12.24 v1.452)."""
+    config = results["config"]
+    first = (config["bars"][0], config["flavors"][0])
+    models, best, cheapest = single_models(results)
+    lines = ["| Bar | Flavor | Held-out success | Cost (USD) | Cost / best single model | Cleared rate "
+             "| Bar-violation rate |", "|---|---|---|---|---|---|---|"]
+    for bar in config["bars"]:
+        for flavor in config["flavors"]:
+            r = summary_row(results, bar, flavor, "routed")
+            v = r["bar_violation_rate"]
+            lines.append(f"| {bar} | `{flavor}` | {r['success']:.3f} | {r['cost_usd']:.4f} | "
+                         f"{r['cost_usd'] / best['cost_usd']:.3f} | {r['cleared_rate']:.3f} | "
+                         f"{'-' if v is None else format(v, '.3f')} |")
+    rows = [("Per-item oracle: on each item, the cheapest model marked right, or the cheapest model, counted "
+             "wrong, when neither was", summary_row(results, *first, "oracle"))]
+    for m in models:
+        mark = (", the best single model" if m is best else "") + \
+               (", the cheapest single model" if m is cheapest else "")
+        rows.append((f"Always `{name(m)}`{mark}", m))
+    rows += [("Best model on the calibration half, per task",
+              summary_row(results, *first, "best_on_calibration")),
+             ("Cheapest model on the calibration half, per task", summary_row(results, *first, "cheapest"))]
+    lines += ["", "| Baseline | Held-out success | Cost (USD) |", "|---|---|---|"]
+    lines += [f"| {label} | {r['success']:.3f} | {r['cost_usd']:.4f} |" for label, r in rows]
+    return "\n".join(lines) + "\n"
+
+
+def readme_regenerate_line():
+    return ("Regenerate (the converter downloads the three pinned files, about "
+            f"{DOWNLOAD / 1e6:.1f} MB, into a cache folder outside the repo and converts them in under a second "
+            "once they are cached; the `evidence` workflow reruns these commands on GitHub and fails if "
+            "`results.json` changes by a byte, while the test suite rebuilds it only where the files are "
+            "cached):")
+
+
+def readme_reading(results):
+    """The kept Reading it bullets, the first and third of RESULTS.md, and the other seven."""
+    bullets = reading_bullets(results).split("\n")
+    assert len(bullets) == 9 and bullets[0].startswith("- `cost_effective`: ") and \
+        bullets[2].startswith("- `cost_blind` reaches ")
+    return [bullets[0], bullets[2]], bullets[1:2] + bullets[3:]
+
+
+def readme_body(results):
+    """The whole subsection after its heading line, built from the committed file and the constants."""
+    kept, _ = readme_reading(results)
+    return ("\n" + "\n".join(readme_source_lines(results)) + "\n\n" + readme_columns(results) + "\n\n"
+            + readme_tables(results) + "\n" + beats_statement(results) + "\n\nReading it:\n\n"
+            + "\n".join(kept) + "\n\n" + README_LINK_LINE + "\n\n" + readme_regenerate_line() + "\n\n"
+            + REGENERATE)
+
+
+def test_readme_registry_pair_subsection_is_built_from_the_committed_file():
+    # v1.452 (row E24c): every line of the subsection, its source lines, tables, single-model sentence,
+    # two Reading it bullets, link line and regenerate paragraph and block, is built here; the section
+    # runs to the blank line before the next `###` heading.
+    assert readme_subsection() == readme_body(committed())
+
+
+def test_readme_registry_pair_keeps_two_results_md_bullets_and_links_the_rest():
+    sub, text = readme_subsection(), results_md()
+    kept, dropped = readme_reading(committed())
+    assert all(bullet in text for bullet in kept + dropped)
+    assert all(sub.count(bullet + "\n") == 1 for bullet in kept)
+    assert not any(bullet[2:] in sub for bullet in dropped)
+    assert sub.count("](evidence/registry-pair/RESULTS.md#reading-it)") == 1
+    assert "\n## Reading it\n" in text and "\n## Family-held check\n" in text
+    # The regenerate block is the RESULTS.md one, which the `evidence` workflow reruns (12.13 v1.443).
+    assert sub.endswith(REGENERATE) and sub.count("```bash\n") == 1
+    assert section(text, "## Regenerate").startswith(REGENERATE)
+
+
+def test_readme_registry_pair_builders_follow_the_file():
+    seeds = json.loads(json.dumps(committed()))
+    seeds["config"]["seeds"] = list(range(51))
+    assert "51 seeds" in readme_source_lines(seeds)[2] and "1,581 (task, seed) cells" in readme_columns(seeds)
+    fake = json.loads(json.dumps(committed()))
+    summary_row(fake, 0.6, "cost_effective", "routed")["cost_usd"] = 0.4632
+    assert "| 0.6 | `cost_effective` | 0.885 | 0.4632 | 0.108 |" in readme_tables(fake)
+    assert readme_body(fake) != readme_body(committed())

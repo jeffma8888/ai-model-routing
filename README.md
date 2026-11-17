@@ -396,7 +396,7 @@ for row in report(monitor.records, by="tag:team"):
 
 ## Evidence: held-out results on public data
 
-Each dataset here already holds every model's answer to every item, a label for whether that answer was good enough (right or wrong on RouterBench, a Delta-Hit from a judge committee's scores on AutoBench, agreement with the other judges' grades for a judge model's grade in AutoBench judges, whether an agent's conversation passed the run's program checks on tau2-bench, whether a model's first sample passed the problem's test cases on LiveCodeBench, whether the record scored 1 on LLMRouterBench, and whether the response scored 1 on the LLM Routing Response Bank) and the cost of each call (of each whole conversation on tau2-bench) or the token counts to estimate it at list prices (LiveCodeBench records neither, so it is `cost_blind` evidence only), so the router is tested offline with no API key: for each task and seed, calibrate on one half of the items, route at a bar, and score the routed model on the other half, next to fixed baselines (`model-routing evaluate`, `DESIGN.md` 12). The test suite rebuilds every number in these tables from that dataset's committed results file, so they cannot drift from it. On GitHub, the `evidence` workflow ([.github/workflows/evidence.yml](.github/workflows/evidence.yml)) reruns the regenerate commands of the AutoBench, AutoBench judges, tau2-bench, LiveCodeBench, LLMRouterBench, LLM Routing Response Bank and delegation subsections and of the ledger hand-off results below, downloading the pinned files, and fails if one of the 13 results files those commands write changes by a byte; RouterBench is left out of it, since its source is a 99,567,659-byte pickle that needs pandas and its evaluate step takes about 70 seconds.
+Each dataset here already holds every model's answer to every item, a label for whether it was good enough (right or wrong on RouterBench, a Delta-Hit from a judge committee's scores on AutoBench, agreement with the other judges' grades for a judge model's grade in AutoBench judges, whether an agent's conversation passed the run's program checks on tau2-bench, whether a model's first sample passed the problem's test cases on LiveCodeBench, whether the record scored 1 on LLMRouterBench, whether the response scored 1 on the LLM Routing Response Bank, and whether the release marked it right on the registry pair) and the cost of each call (of each whole conversation on tau2-bench) or the token counts to estimate it at list prices (LiveCodeBench records neither, so it is `cost_blind` evidence only), so the router is tested offline with no API key: for each task and seed, calibrate on one half of the items, route at a bar, and score the routed model on the other half, next to fixed baselines (`model-routing evaluate`, `DESIGN.md` 12). The test suite rebuilds every number in these tables from that dataset's committed results file, so they cannot drift from it. On GitHub, the `evidence` workflow ([.github/workflows/evidence.yml](.github/workflows/evidence.yml)) reruns the regenerate commands of the AutoBench, AutoBench judges, tau2-bench, LiveCodeBench, LLMRouterBench, LLM Routing Response Bank, registry pair and delegation subsections and of the ledger hand-off results below, downloading the pinned files, and fails if one of the 14 results files those commands write changes by a byte; RouterBench is left out of it, since its source is a 99,567,659-byte pickle that needs pandas and its evaluate step takes about 70 seconds.
 
 Results at a glance, each number from the committed results of the subsection it links:
 
@@ -407,6 +407,7 @@ Results at a glance, each number from the committed results of the subsection it
 - [LiveCodeBench](#livecodebench): the dataset records no cost, so only `cost_blind` routing is run; it reaches held-out success 0.902 at every bar, below the 0.909 of always calling the best single model, `openai/o4-mini-high`
 - [LLMRouterBench](#llmrouterbench): `cost_blind` routing reaches held-out success 0.615 at every bar, above the 0.592 of always calling the best single model, `google/gemini-2.5-pro`, at less than half its cost; at bar 0.1 `cost_effective` routing costs less still and falls below that model's held-out success
 - [LLM Routing Response Bank](#llm-routing-response-bank): at bar 0.8, `cost_effective` routing reaches held-out success 0.847 at 0.201 of the cost of the best single model, `deepseek/deepseek-v4-pro`, and costs less than always calling the cheapest model, `z-ai/glm-5.3-flash`, for more held-out success; `cost_blind` routing passes the best single model's held-out success at every bar in the mean over 50 seeds, and on most of them ([seed by seed](research/response-bank-seeds.md)), but at more than twice its cost in the mean
+- [Registry pair](#registry-pair): on the registry's own two models at its prices, at bar 0.6, `cost_effective` routing reaches held-out success 0.885 at 0.114 of the cost of the best single model, `openai/gpt-6.1-sol`, but costs more than always calling the cheaper model, `openai/gpt-6-luna`; no routed row at any bar reaches the best model's held-out success
 - [Delegation on AutoBench](#delegation-on-autobench): at bar 0.8, with the brief assumed to carry the whole question and inline work in a parent call of its own, the `cost_effective` decision delegates on every seed for each of the 20 parents, so it scores and costs the same as always delegating; its mean held-out success over the parents is 0.855 against 0.670 for always inline, and it costs more than always inline at 8,000 context tokens but less at 64,000 and 200,000
 - [Delegation on tau2-bench](#delegation-on-tau2-bench): on trial 0, the `cost_effective` decision delegates on every seed for each of the 3 parents at every bar and point; at bar 0.3 and 8,000 context tokens, with inline work in a parent call of its own, its mean cost over the parents is 19.8422 USD against 67.1856 for always inline, for less held-out success
 - [Delegation on LLMRouterBench](#delegation-on-llmrouterbench): at bar 0.1 and 8,000 context tokens, with inline work in a parent call of its own, the `cost_effective` decision delegates on every seed for each of the 8 parents; its mean cost over the parents is 69.5970 USD against 133.3194 for always inline, for no less held-out success, but it costs more than always inline for 3 of the 8 parents
@@ -762,6 +763,53 @@ python evidence/response-bank/convert.py --out response-bank-matrix.jsonl
 model-routing evaluate --outcomes response-bank-matrix.jsonl --bar 0.8 0.9 --seeds 50 --json > response-bank-evaluate.json
 python evidence/routerbench/results.py --evaluate response-bank-evaluate.json --out evidence/response-bank/results.json
 python evidence/routerbench/results.py --table evidence/response-bank/results.json
+```
+
+### Registry pair
+
+- Dataset: [superlinked/train-a-router-reasoning](https://huggingface.co/datasets/superlinked/train-a-router-reasoning), pinned at revision [`63336f2`](https://huggingface.co/datasets/superlinked/train-a-router-reasoning/tree/63336f25fc54597a8e161a7245613f91bd60177e), three files of 7,522,421 bytes in all, each checked by size and sha256
+- Licence: `license: other` and `license_name: mixed-mit-and-apache-2.0` on the card, which says: "This is a collection with multiple upstream licenses, not a relicensing of its components. Preserve the included notices when redistributing them." Its component licences and citation request are quoted in [RESULTS.md](evidence/registry-pair/RESULTS.md). The repo commits only derived numbers
+- What was run: the registry's own 2 models at its prices, `openai/gpt-6-luna` and `openai/gpt-6.1-sol`, on 31 routing tasks, one per (dataset, task) of MMLU-Pro, BIG-Bench Hard and KOR-Bench (14 `bbh`, 3 `korbench` and 14 `mmlupro`, 6,099 items in all), 50 seeds, bars 0.6 to 0.9, both flavors. A success is the release's strict declared-label match, the cost its estimate from token counts at those prices
+- Full results: [RESULTS.md](evidence/registry-pair/RESULTS.md) and [results.json](evidence/registry-pair/results.json); source, prices, release splits and row keys: [evidence/registry-pair/README.md](evidence/registry-pair/README.md)
+
+Held-out success is the share of held-out items whose answer the release marks right, pooled over the 31 tasks, and cost is the estimated cost of answering them, both averaged over the seeds; the ratio divides that cost by the cost of the best single model. The cleared rate is the share of the 1,550 (task, seed) cells where some model cleared the bar on the calibration half, and the bar-violation rate is the share of cleared cells whose held-out success fell below the bar.
+
+| Bar | Flavor | Held-out success | Cost (USD) | Cost / best single model | Cleared rate | Bar-violation rate |
+|---|---|---|---|---|---|---|
+| 0.6 | `cost_effective` | 0.885 | 0.4882 | 0.114 | 0.967 | 0.000 |
+| 0.6 | `cost_blind` | 0.918 | 3.8351 | 0.897 | 0.967 | 0.000 |
+| 0.7 | `cost_effective` | 0.892 | 0.9864 | 0.231 | 0.957 | 0.001 |
+| 0.7 | `cost_blind` | 0.918 | 3.8351 | 0.897 | 0.957 | 0.000 |
+| 0.8 | `cost_effective` | 0.906 | 2.2621 | 0.529 | 0.840 | 0.014 |
+| 0.8 | `cost_blind` | 0.918 | 3.8351 | 0.897 | 0.840 | 0.002 |
+| 0.9 | `cost_effective` | 0.917 | 3.5815 | 0.838 | 0.493 | 0.007 |
+| 0.9 | `cost_blind` | 0.918 | 3.8351 | 0.897 | 0.493 | 0.004 |
+
+| Baseline | Held-out success | Cost (USD) |
+|---|---|---|
+| Per-item oracle: on each item, the cheapest model marked right, or the cheapest model, counted wrong, when neither was | 0.933 | 0.8420 |
+| Always `openai/gpt-6-luna`, the cheapest single model | 0.884 | 0.4632 |
+| Always `openai/gpt-6.1-sol`, the best single model | 0.921 | 4.2761 |
+| Best model on the calibration half, per task | 0.918 | 3.8351 |
+| Cheapest model on the calibration half, per task | 0.884 | 0.4632 |
+
+No routed row beats any of the 2 single models on both counts: against each of them, every routed row in the table has lower held-out success or a higher cost.
+
+Reading it:
+
+- `cost_effective`: at bar 0.6 a model clears on 1,499 of the 1,550 (task, seed) cells, and the router spends 0.114 of the cost of the best single model, `openai/gpt-6.1-sol`, for a held-out success of 0.885, against 0.921 for that model. Always calling the cheapest model, `openai/gpt-6-luna`, reaches 0.884 at 0.4632 USD, so at bar 0.6 the router pays 1.054 of that cost for more held-out success
+- `cost_blind` reaches 0.918 at 0.897 of the best single model's cost at every bar, the held-out success and cost of `best_on_calibration`, 0.0027 below that model's held-out success; at bar 0.6 it routes every seed of 6 of the 31 tasks to `openai/gpt-6-luna`
+
+The higher bars, bar violations, oracle, `korbench/logic` fallback, costs, one vendor, `mmlupro` share and size are in [RESULTS.md](evidence/registry-pair/RESULTS.md#reading-it) `## Reading it`, and the release's own split in [`## Family-held check`](evidence/registry-pair/RESULTS.md#family-held-check).
+
+Regenerate (the converter downloads the three pinned files, about 7.5 MB, into a cache folder outside the repo and converts them in under a second once they are cached; the `evidence` workflow reruns these commands on GitHub and fails if `results.json` changes by a byte, while the test suite rebuilds it only where the files are cached):
+
+```bash
+python -m pip install -e .
+python evidence/registry-pair/convert.py --out registry-pair-matrix.jsonl
+model-routing evaluate --outcomes registry-pair-matrix.jsonl --bar 0.6 0.7 0.8 0.9 --seeds 50 --json > registry-pair-evaluate.json
+python evidence/routerbench/results.py --evaluate registry-pair-evaluate.json --out evidence/registry-pair/results.json
+python evidence/routerbench/results.py --table evidence/registry-pair/results.json
 ```
 
 ### Delegation on AutoBench

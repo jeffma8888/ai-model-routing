@@ -271,7 +271,7 @@ def test_evidence_readme_links_the_results():
 
 README = ROOT / "README.md"
 HEADINGS = ["RouterBench", "AutoBench", "AutoBench judges", "tau2-bench", "LiveCodeBench",
-            "LLMRouterBench", "LLM Routing Response Bank", "Delegation on AutoBench", "Delegation on tau2-bench",
+            "LLMRouterBench", "LLM Routing Response Bank", "Registry pair", "Delegation on AutoBench", "Delegation on tau2-bench",
             "Delegation on LLMRouterBench",
             "Delegation on the LLM Routing Response Bank"]
 # v1.366 (12.17 v1.365): the subsection keeps the date limit, its one Limits bullet; the other three

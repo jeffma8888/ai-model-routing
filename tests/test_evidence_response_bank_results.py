@@ -525,7 +525,7 @@ README = ROOT / "README.md"
 EVIDENCE_HEADING = "\n## Evidence: held-out results on public data\n"
 HEADING = "LLM Routing Response Bank"
 HEADINGS = ["RouterBench", "AutoBench", "AutoBench judges", "tau2-bench", "LiveCodeBench",
-            "LLMRouterBench", "LLM Routing Response Bank", "Delegation on AutoBench",
+            "LLMRouterBench", "LLM Routing Response Bank", "Registry pair", "Delegation on AutoBench",
             "Delegation on tau2-bench", "Delegation on LLMRouterBench",
             "Delegation on the LLM Routing Response Bank"]
 INDENT = " " * 16
@@ -535,8 +535,9 @@ EVIDENCE_LINK = "[evidence/response-bank/README.md](evidence/response-bank/READM
 RESULTS_LINK = "[RESULTS.md](evidence/response-bank/RESULTS.md)"
 ATTRIBUTION = ("the data behind these results is the LLM Routing Response Bank, from the dataset "
                "repository https://huggingface.co/datasets/Lurume/llm-routing-response-bank")
-LABEL = ("whether the record scored 1 on LLMRouterBench, and whether the response scored 1 on the "
-         "LLM Routing Response Bank)")
+# v1.452 (row E24c): the registry pair's label follows it, so the list no longer ends here.
+LABEL = ("whether the record scored 1 on LLMRouterBench, whether the response scored 1 on the "
+         "LLM Routing Response Bank, and ")
 NUMBER = {4: "four"}
 DESIGN_REF = re.compile(r"DESIGN (?=\d)")
 

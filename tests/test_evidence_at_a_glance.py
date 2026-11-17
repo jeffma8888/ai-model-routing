@@ -43,6 +43,7 @@ FILES = {"RouterBench": ROOT / "evidence" / "routerbench" / "results.json",
          "LiveCodeBench": ROOT / "evidence" / "livecodebench" / "results.json",
          "LLMRouterBench": ROOT / "evidence" / "llmrouterbench" / "results.json",
          "LLM Routing Response Bank": ROOT / "evidence" / "response-bank" / "results.json",
+         "Registry pair": ROOT / "evidence" / "registry-pair" / "results.json",
          "Delegation on AutoBench": ROOT / "evidence" / "delegation" / "results.json",
          "Delegation on tau2-bench": ROOT / "evidence" / "tau2-bench-delegation" / "results.json",
          "Delegation on LLMRouterBench": ROOT / "evidence" / "llmrouterbench-delegation" / "results.json",
@@ -233,6 +234,30 @@ def response_bank_bullet(results, block=None):
             "but at more than twice its cost in the mean")
 
 
+def registry_pair_bullet(results):
+    """v1.452 (row E24c): the RouterBench claim on the registry's own pair, and that at the lowest bar
+    `cost_effective` routing costs more than always calling the cheaper of the two models."""
+    config = results["config"]
+    b0 = config["bars"][0]
+    models = [r for r in results["summary"]
+              if (r["bar"], r["flavor"]) == (b0, config["flavors"][0]) and r["strategy"].startswith("model:")]
+    assert len(models) == 2, "registry pair: not two models"
+    best = min(models, key=lambda r: (-r["success"], r["cost_usd"], r["strategy"]))
+    cheaper = min(models, key=lambda r: (r["cost_usd"], -r["success"], r["strategy"]))
+    assert best is not cheaper, "registry pair: the best model is the cheaper one"
+    low = summary_row(results, b0, "cost_effective", "routed")
+    routed = [summary_row(results, bar, flavor, "routed")
+              for bar in config["bars"] for flavor in config["flavors"]]
+    assert max(r["success"] for r in routed) < best["success"], "registry pair: a routed row reaches it"
+    assert low["cost_usd"] > cheaper["cost_usd"], "registry pair: the lowest bar costs no more than the cheaper model"
+    return (link("Registry pair") + f"on the registry's own two models at its prices, at bar {b0}, "
+            f"`cost_effective` routing reaches held-out success {low['success']:.3f} at "
+            f"{low['cost_usd'] / best['cost_usd']:.3f} of the cost of the best single model, "
+            f"`{best['strategy'][len('model:'):]}`, but costs more than always calling the cheaper model, "
+            f"`{cheaper['strategy'][len('model:'):]}`; no routed row at any bar reaches the best model's "
+            "held-out success")
+
+
 def delegation_bullet(results):
     config = results["config"]
     rows = {(r["bar"], r["flavor"], r["point"], r["parent"], r["strategy"]): r
@@ -368,6 +393,7 @@ BULLETS = {"RouterBench": routerbench_bullet, "AutoBench": autobench_bullet,
            "AutoBench judges": judges_bullet, "tau2-bench": tau2_bullet,
            "LiveCodeBench": livecodebench_bullet, "LLMRouterBench": llmrouterbench_bullet,
            "LLM Routing Response Bank": response_bank_bullet,
+           "Registry pair": registry_pair_bullet,
            "Delegation on AutoBench": delegation_bullet,
            "Delegation on tau2-bench": tau2_delegation_bullet,
            "Delegation on LLMRouterBench": llmrouterbench_delegation_bullet,
@@ -508,7 +534,11 @@ def test_the_glance_numbers_are_those_of_the_committed_files():
                    "`openai/o4-mini-high`",
                    "`cost_blind` routing reaches held-out success 0.615 at every bar, above the 0.592 of "
                    "always calling the best single model, `google/gemini-2.5-pro`, at less than half its "
-                   "cost; at bar 0.1 `cost_effective` routing costs less still and falls below"):
+                   "cost; at bar 0.1 `cost_effective` routing costs less still and falls below",
+                   "on the registry's own two models at its prices, at bar 0.6, `cost_effective` routing "
+                   "reaches held-out success 0.885 at 0.114 of the cost of the best single model, "
+                   "`openai/gpt-6.1-sol`, but costs more than always calling the cheaper model, "
+                   "`openai/gpt-6-luna`; no routed row"):
         assert needle in text, needle
     changed = copy.deepcopy(files)
     summary_row(changed["AutoBench"], 0.6, "cost_effective", LUNA)["cost_usd"] = 0.3095
@@ -671,7 +701,23 @@ def lrbd_dearer_for_none(files):
         r["cost_usd"] = 1000.0
 
 
+def registry_rows(files, strategy):
+    return [r for r in files["Registry pair"]["summary"] if r["strategy"] == strategy]
+
+
+def registry_reaches(files):
+    for r in registry_rows(files, "routed"):
+        r["success"] = 0.921
+
+
+def registry_cheap(files):
+    row = summary_row(files["Registry pair"], 0.6, "cost_effective", "routed")
+    row["cost_usd"] = 0.4632
+
+
 @pytest.mark.parametrize("change, match", [
+    (registry_reaches, "registry pair: a routed row reaches it"),
+    (registry_cheap, "registry pair: the lowest bar costs no more than the cheaper model"),
     (raise_routerbench, "a routed row reaches it"),
     (raise_judges, "a routed row reaches it"),
     (beat_luna, "bar 0.7 cost_effective beats it"),

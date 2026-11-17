@@ -534,7 +534,7 @@ def test_results_md_regenerate_block():
 
 README = ROOT / "README.md"
 EVIDENCE_HEADINGS = ["RouterBench", "AutoBench", "AutoBench judges", "tau2-bench", "LiveCodeBench",
-                     "LLMRouterBench", "LLM Routing Response Bank", "Delegation on AutoBench", "Delegation on tau2-bench",
+                     "LLMRouterBench", "LLM Routing Response Bank", "Registry pair", "Delegation on AutoBench", "Delegation on tau2-bench",
                      "Delegation on LLMRouterBench",
             "Delegation on the LLM Routing Response Bank"]
 README_LINKS = (

@@ -284,7 +284,7 @@ def test_evidence_readme_links_the_results():
 # --- the README subsection (DESIGN 12.8, v1.55) ---------------------------------------------
 
 HEADINGS = ["RouterBench", "AutoBench", "AutoBench judges", "tau2-bench", "LiveCodeBench",
-            "LLMRouterBench", "LLM Routing Response Bank", "Delegation on AutoBench", "Delegation on tau2-bench",
+            "LLMRouterBench", "LLM Routing Response Bank", "Registry pair", "Delegation on AutoBench", "Delegation on tau2-bench",
             "Delegation on LLMRouterBench",
             "Delegation on the LLM Routing Response Bank"]
 # v1.363 (12.15 v1.362): the subsection kept the first limit phrase, in its one Limits bullet, and the

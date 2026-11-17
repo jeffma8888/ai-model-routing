@@ -604,7 +604,7 @@ def readme_subsection():
     section = readme.split(heading, 1)[1].split("\n## ", 1)[0]
     assert re.findall(r"^### (.*)$", section, re.M) == ["RouterBench", "AutoBench",
                                                         "AutoBench judges", "tau2-bench",
-                                                        "LiveCodeBench", "LLMRouterBench", "LLM Routing Response Bank",
+                                                        "LiveCodeBench", "LLMRouterBench", "LLM Routing Response Bank", "Registry pair",
                                                         "Delegation on AutoBench", "Delegation on tau2-bench",
             "Delegation on LLMRouterBench",
             "Delegation on the LLM Routing Response Bank"]
