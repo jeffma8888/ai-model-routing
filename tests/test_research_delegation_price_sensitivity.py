@@ -824,8 +824,9 @@ def test_a_cell_the_cut_keeps_re_decides_to_its_committed_pick(ps, hand, monkeyp
 
 @pytest.mark.parametrize("which", ["hand", "lrb_hand", "rb_hand"])
 def test_the_shared_route_cut_prints_the_same_in_fewer_decisions(ps, which, request, monkeypatch):
-    """The fixture's output, made with both cuts, against a run of the same command that re-decides every cell,
-    counting the decisions of each."""
+    """The fixture's output, made with both cuts, against a run with the v1.429 cut alone and a run that re-decides
+    every cell, counting the decisions of each, so the shared-route cut's own saving is measured against v1.429
+    (review iter-301 should-fix 2)."""
     fixture = request.getfixturevalue(which)
     root, matrix = fixture[2], fixture[3]
     dataset = {"hand": [], "lrb_hand": ["--dataset", "llmrouterbench"], "rb_hand": ["--dataset", "response-bank"]}
@@ -846,9 +847,12 @@ def test_the_shared_route_cut_prints_the_same_in_fewer_decisions(ps, which, requ
     fewer = len(calls)
     calls.clear()
     monkeypatch.setattr(ps, "SHARED", False)
+    assert _main(ps, argv) == (0, cut, "")
+    v1_429 = len(calls)
+    calls.clear()
     monkeypatch.setattr(ps, "REDECIDED", EVERY)
     assert _main(ps, argv) == (0, cut, "")
-    assert 0 < fewer < len(calls)
+    assert 0 < fewer < v1_429 < len(calls)
 
 
 # --- the note --------------------------------------------------------------------------------
@@ -1253,7 +1257,12 @@ def test_the_design_bullet_is_in_12_22():
                    "shares it",
                    "has the same primary at the run's prices, as one decision of the group finds",
                    "13.2 prices both paths at the parent's and the primary's prices alone",
-                   "prints what re-deciding every cell prints"):
+                   "prints what re-deciding every cell prints",
+                   # what the v1.424 to v1.427 bullet said of the four other datasets (review iter-301 should-fix 1)
+                   "a dataset other than AutoBench refuses `--registry`",
+                   "a run of more than one task names the task count in its header and gives the changed cells by task",
+                   "price each held-out item by its `call_cost`",
+                   "`work_calls` the calibration half's median call count (13.9 v1.74)"):
         assert phrase in bullet[0], phrase
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     for version in ("v1.424", "v1.425", "v1.426", "v1.427", "v1.429"):

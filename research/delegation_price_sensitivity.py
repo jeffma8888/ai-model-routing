@@ -92,7 +92,7 @@ def scaled(registry, model, factor):
 
 def group(cell):
     """The cells that share one delegate route: 13.3 builds it from the task, the router of its seed and bar, the
-    point's brief and the flavor, never from the parent (v1.440)."""
+    point and the flavor, never from the parent (v1.440)."""
     return cell["task"], cell["seed"], cell["bar"], cell["point"], cell["flavor"]
 
 
