@@ -625,17 +625,38 @@ def test_readme_subsection_shows_the_table_and_links(dr):
                    "[results.json](evidence/delegation/results.json)",
                    "8,000, 64,000 and 200,000", "brief of 500 tokens", "500-token result",
                    "(`inline_separate_call` True)", "(`inline_separate_call` False)",
-                   "`separate` whether inline work takes a parent call of its own (`True`) or "
-                   "folds into the next call (`False`)", "(licence CC-BY-4.0)",
-                   "The decision prices each model at its own mean input and output tokens "
-                   "per answer on the calibration half; the median sizes of all the half's "
-                   "answers are used only for the context-window checks.",
+                   "`separate` the point's `inline_separate_call`", "(licence CC-BY-4.0)",
                    "](https://huggingface.co/datasets/AutoBench/router-benchmark-2026-10/tree/43755180be7d8097068982d7a3f37fc04cd15379)",
                    "list-price estimate"):
         assert phrase in sub, phrase
+    # v1.448 (13.10, row DOC28e): the opening shed these clauses to fit its 5,500-byte cap; each is
+    # absent here, and the phrase after it is in its home.
+    for clause, home, phrase in DROPPED_OPENING_CLAUSES:
+        assert clause not in sub, clause
+        assert phrase in home.read_text(encoding="utf-8"), phrase
     readme = README.read_text(encoding="utf-8")
     inline = readme.split("\n### Inline or sub-agent\n", 1)[1].split("\n## ", 1)[0]
     assert "[Delegation on AutoBench](#delegation-on-autobench)" in inline
+
+
+DROPPED_OPENING_CLAUSES = [
+    ("with each answer's token counts and the pool's list prices", RESULTS_MD,
+     "From the pool registry (`convert.py --registry`): list prices, families and context windows"),
+    ("next to always working inline and always delegating", RESULTS_MD,
+     "next to always working inline and always delegating"),
+    ("`separate` whether inline work takes", RESULTS_MD,
+     "`separate` whether inline work takes a parent call of its own (`True`) or folds into the next call (`False`)"),
+    ("The decision prices each model at its own mean", RESULTS_MD,
+     "its own mean input and output tokens per answer there, which price it, with the median input and output "
+     "tokens of all the half's answers as the task's expected sizes for the context-window checks"),
+    ("the delegate is credited with its recorded answer", RESULTS_MD,
+     "the delegate is credited with its recorded answer to the whole question"),
+    ("the mean over the 50 seeds of a held-out half's list-price cost", RESULTS_MD,
+     "each averaged over the 50 seeds"),
+    ("observed usage only", ROOT / "evidence" / "trail" / "RESULTS.md", "\n- No run of a task without its sub-agent"),
+    ("which the routing evidence above also reads", README,
+     "whose items are conversations of 2 to 100 model calls"),
+]
 
 
 LINK_LINE = ("The other Reading it bullets are in [RESULTS.md](evidence/delegation/RESULTS.md#reading-it), and the "
@@ -886,12 +907,9 @@ def test_readme_and_design_say_the_delegation_evidence_reads_one_dataset():
     sub = readme_subsection()
     # v1.75: the harness prices a conversation on its own calls from per-call rows (13.9);
     # v1.77: the tau2-bench converter writes them with --calls (12.14);
-    # v1.79: the delegation results on them are committed (13.12)
-    sentence = ("tau2-bench, which the "
-                "routing evidence above also reads, records each item as a conversation of 2 to "
-                "100 model calls, which the harness prices on the item's own calls only from "
-                "rows that list each call's tokens; its converter's `--calls` writes such rows, "
-                f"and the delegation results on them are in {TAU2_RESULTS_LINK} ({DATASETS_LINK}).")
+    # v1.79: the delegation results on them are committed (13.12); v1.448 (13.10, row DOC28e): the
+    # sentence keeps its two links, and the Limitations bullet below, required whole, says the rest
+    sentence = f"tau2-bench's results are in {TAU2_RESULTS_LINK} ({DATASETS_LINK})."
     assert sub.count(sentence) == 1
     assert sub.index(sentence) < sub.index("[research/hand-off-data.md]") < sub.index("```text\n")
     readme = README.read_text(encoding="utf-8")
