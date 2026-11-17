@@ -13,7 +13,9 @@ The tests that read the committed file were committed before it under strict xfa
 tests read only DESIGN.md and the pinned files. From v1.435 (row E24d) the RESULTS.md and evidence
 README tests build the Reading it and Family-held check sections whole from the committed file and the
 Results block of research/registry-pair.md; the ones that read either file were committed before them
-under strict xfail (``FileNotFoundError``), removed by the commit that adds both (v1.436).
+under strict xfail (``FileNotFoundError``), removed by the commit that adds both (v1.436). From
+v1.454 (row DOC41) DESIGN 12.24's README bullet quotes each fixed clause the README builder emits, and a
+test requires each in both.
 """
 
 import contextlib
@@ -873,3 +875,59 @@ def test_readme_registry_pair_builders_follow_the_file():
     summary_row(fake, 0.6, "cost_effective", "routed")["cost_usd"] = 0.4632
     assert "| 0.6 | `cost_effective` | 0.885 | 0.4632 | 0.108 |" in readme_tables(fake)
     assert readme_body(fake) != readme_body(committed())
+
+
+# --- v1.454 (row DOC41, review iter-314 should-fix 2): DESIGN 12.24's README bullet is a rebuild recipe ----
+
+DESIGN_README_BULLET = "- README subsection (v1.452, row E24c; each fixed clause the builder emits, v1.454, row DOC41): "
+# Each fixed clause of the README builders above that no other 12.24 or 12.8 rule words for this subsection;
+# the bullet quotes each in a code span.
+README_CLAUSES = (
+    "in all, each checked by size and sha256",
+    "on the card, which says:",
+    "The repo commits only derived numbers",
+    "A success is the release's strict declared-label match, the cost its estimate from token counts at those "
+    "prices",
+    "source, prices, release splits and row keys:",
+    "whose answer the release marks right",
+    "estimated cost",
+    "the cheapest model marked right, or the cheapest model, counted wrong, when neither was",
+    "and converts them in under a second once they are cached",
+)
+
+
+def design_readme_bullet(text=None):
+    """The 12.24 README-subsection bullet of DESIGN.md `text` (the file when None)."""
+    text = DESIGN.read_text(encoding="utf-8") if text is None else text
+    lines = [line for line in text.split("\n") if line.startswith(DESIGN_README_BULLET)]
+    assert len(lines) == 1, f"DESIGN.md has {len(lines)} 12.24 README bullets, not one"
+    return lines[0]
+
+
+def missing_clauses(bullet, built, clauses=README_CLAUSES):
+    """Each clause the bullet does not quote, or the built subsection does not hold, as a message."""
+    return ([f"12.24 does not quote `{c}`" for c in clauses if f"`{c}`" not in bullet]
+            + [f"the builder does not emit `{c}`" for c in clauses if c not in built])
+
+
+def test_design_12_24_quotes_each_fixed_clause_of_the_readme_subsection():
+    built = readme_body(committed())
+    assert readme_subsection() == built and missing_clauses(design_readme_bullet(), built) == []
+    # The bullet names the parts in the builder's order: the four source lines, then the columns, the
+    # oracle, the link line and the regenerate paragraph.
+    bullet = design_readme_bullet()
+    order = [bullet.index(f"`{c}`") for c in README_CLAUSES]
+    assert order == sorted(order)
+    for head in ("`- Dataset:`", "`- Licence:`", "`- What was run:`", "`- Full results:`"):
+        assert bullet.count(head) == 1 and head.strip("`") in built
+
+
+def test_a_clause_the_spec_or_the_builder_drops_is_named():
+    bullet, built = design_readme_bullet(), readme_body(committed())
+    clause = "The repo commits only derived numbers"
+    assert missing_clauses(bullet.replace(f"`{clause}`", "that it commits only derived numbers"), built) == [
+        f"12.24 does not quote `{clause}`"]
+    assert missing_clauses(bullet, built.replace(clause, "Only derived numbers are committed")) == [
+        f"the builder does not emit `{clause}`"]
+    assert missing_clauses(bullet, built, clauses=("in under a minute",)) == [
+        "12.24 does not quote `in under a minute`", "the builder does not emit `in under a minute`"]

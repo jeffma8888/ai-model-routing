@@ -31,6 +31,11 @@ DESIGN 12.8 v1.452 (row E24c): ``Registry pair`` is that twelfth heading, so ``C
 hold is lifted; the section is over ``PROJECTED_CAP`` and at most ``SECTION_CAP``, and the hold is checked on
 the README without the new subsection and its glance bullet (``eleven``). ``OPENING_CAP`` rose by that
 bullet's line and newline, 362 bytes, to 7,862, at most the 8,000 the room bullet allows.
+
+DESIGN 12.8 v1.454 (row DOC41, review iter-314 should-fix 3): the figures the 12.8 size-budget bullet and
+room bullet state, the section, opening and subsection caps, the count of routing and delegation
+subsections, the 8,000 ceiling, the ordinal of the registry pair's heading, the hold, the glance bullet's
+bytes and the raised cap, are each this module's constant or the README's measure (``stated_problems``).
 """
 import re
 from pathlib import Path
@@ -44,6 +49,7 @@ SECTION_CAP, OPENING_CAP = 70_000, 7_862  # the opening 8,000 to v1.443, 7,500 t
 # v1.452 (row E24c): the room bullet raises the opening cap by the registry pair's Results at a glance
 # bullet, its line and newline, to at most 8,000.
 BASE_OPENING_CAP, GLANCE_BULLET = 7_500, "- [Registry pair](#registry-pair): "
+OPENING_CEILING = 8_000  # v1.444: the row that adds the next subsection may raise the opening cap to this
 CAPS = {"routing": 5_000, "delegation": 5_500}  # 6,500 and 7,500 to v1.443
 # Every `###` heading of the section and its class; a heading this table lacks fails.
 CLASS = {
@@ -528,12 +534,100 @@ def test_the_registry_pair_spends_the_room_and_raises_the_opening_cap():
     assert PROJECTED_CAP < parts[0][1] <= SECTION_CAP
     bullets = [line for line in text.split("\n") if line.startswith(GLANCE_BULLET)]
     assert len(bullets) == 1
-    assert OPENING_CAP == BASE_OPENING_CAP + len((bullets[0] + "\n").encode("utf-8")) <= 8_000
+    assert OPENING_CAP == BASE_OPENING_CAP + len((bullets[0] + "\n").encode("utf-8")) <= OPENING_CEILING
     margin = OPENING_CAP - parts[1][1]
     assert margin >= 0
     over = text.replace(GLANCE_BULLET, GLANCE_BULLET + "x" * (margin + 1), 1)
     assert f"the opening is {OPENING_CAP + 1:,} bytes, over {OPENING_CAP:,}" in problems(over)
     assert eleven(text)[0].count(GLANCE_BULLET) == 0 and "### Registry pair" not in eleven(text)[0]
+
+
+# v1.454 (row DOC41, review iter-314 should-fix 3): the 12.8 sentences whose figures are this module's.
+SIZE_BULLET = "- Size budget (v1.334, row DOC19): "
+ROOM_BULLET = "  - Room for one more subsection (v1.444, row DOC28a): "
+SIZE_STATED = re.compile(r"The budget: the section at most ([\d,]+) bytes, its opening at most ([\d,]+) \(([\d,]+) to "
+                         r"v1\.451, the room bullet below\), each routing subsection \(the first (\w+)\) at most "
+                         r"([\d,]+) and each delegation subsection \(the last (\w+)\) at most ([\d,]+) ")
+CEILING_STATED = re.compile(r"may raise the opening cap by its Results at a glance bullet, to at most ([\d,]+)\. ")
+RAISED_STATED = re.compile(r"Row E24c \(v1\.452\) spent the room on `Registry pair`, the (\w+) heading, which lifts "
+                           r"the ([\d,]+) hold, and raised `OPENING_CAP` by that bullet's ([\d,]+) bytes, its line and "
+                           r"newline, to ([\d,]+)$")
+WORDS = {"four": 4, "eight": 8, "eleventh": 11, "twelfth": 12, "thirteenth": 13}
+
+
+def stated_problems(design, readme, classes=CLASS):
+    """Every figure of the 12.8 size-budget and room bullets in DESIGN.md `design` that disagrees with this
+    module's constants or the README `readme`, as messages; [] when all agree. The registry pair's heading
+    is the one after the ROOM_HEADINGS the room was kept for, whatever CLASS holds later."""
+    lines = design.split("\n")
+    size_lines = [line for line in lines if line.startswith(SIZE_BULLET)]
+    room_lines = [line for line in lines if line.startswith(ROOM_BULLET)]
+    if len(size_lines) != 1 or len(room_lines) != 1:
+        return [f"DESIGN.md has {len(size_lines)} size-budget and {len(room_lines)} room bullets, not one each"]
+    sized = SIZE_STATED.findall(size_lines[0])
+    ceiling, raised = CEILING_STATED.findall(room_lines[0]), RAISED_STATED.findall(room_lines[0])
+    if [len(sized), len(ceiling), len(raised)] != [1, 1, 1]:
+        return [f"the 12.8 budget, ceiling and raised-cap sentences are found {len(sized)}, {len(ceiling)} and "
+                f"{len(raised)} times, not once each"]
+    bullets = [line for line in readme.split("\n") if line.startswith(GLANCE_BULLET)]
+    measured = len((bullets[0] + "\n").encode("utf-8")) if len(bullets) == 1 else None
+    kinds = list(classes.values())
+    want = {"the section cap": SECTION_CAP, "the opening cap": OPENING_CAP,
+            "the opening cap to v1.451": BASE_OPENING_CAP, "the routing count": kinds.count("routing"),
+            "the routing cap": CAPS["routing"], "the delegation count": kinds.count("delegation"),
+            "the delegation cap": CAPS["delegation"], "the opening ceiling": OPENING_CEILING,
+            "the registry pair's heading": ROOM_HEADINGS + 1, "the hold": PROJECTED_CAP,
+            "the glance bullet's bytes": measured, "the raised opening cap": OPENING_CAP}
+    got = [*sized[0], ceiling[0], *raised[0]]
+    found = []
+    for (label, value), text in zip(want.items(), got):
+        number = WORDS.get(text) if text.isalpha() else int(text.replace(",", ""))
+        if number != value:
+            found.append(f"12.8 states {label} as {text}, but it is {'none' if value is None else f'{value:,}'}")
+    return found
+
+
+def test_the_12_8_figures_are_the_constants_and_the_readme():
+    design, readme = DESIGN.read_text(encoding="utf-8"), README.read_text(encoding="utf-8")
+    assert stated_problems(design, readme) == []
+    # The glance bullet's 362 bytes are its line and newline, and the raised cap is the base plus them.
+    assert OPENING_CAP - BASE_OPENING_CAP == 362 and len(CLASS) == ROOM_HEADINGS + 1
+
+
+@pytest.mark.parametrize("old, new, message", [
+    ("to 7,862", "to 7,863", "12.8 states the raised opening cap as 7,863, but it is 7,862"),
+    ("bullet's 362 bytes", "bullet's 361 bytes", "12.8 states the glance bullet's bytes as 361, but it is 362"),
+    ("`Registry pair`, the twelfth heading", "`Registry pair`, the eleventh heading",
+     "12.8 states the registry pair's heading as eleventh, but it is 12"),
+    ("lifts the 63,000 hold", "lifts the 62,000 hold", "12.8 states the hold as 62,000, but it is 63,000"),
+    ("to at most 8,000. ", "to at most 8,100. ", "12.8 states the opening ceiling as 8,100, but it is 8,000"),
+    ("its opening at most 7,862 (", "its opening at most 7,500 (", "12.8 states the opening cap as 7,500, but it is 7,862"),
+    ("(the first eight)", "(the first seven)", None),
+    ("(the last four)", "(the last five)", None),
+    ("at most 70,000 bytes, its opening", "at most 69,000 bytes, its opening",
+     "12.8 states the section cap as 69,000, but it is 70,000"),
+    ("Row E24c (v1.452) spent the room", "Row E24c spent the room",
+     "the 12.8 budget, ceiling and raised-cap sentences are found 1, 1 and 0 times, not once each"),
+])
+def test_a_12_8_figure_that_drifts_is_named(old, new, message):
+    design, readme = DESIGN.read_text(encoding="utf-8"), README.read_text(encoding="utf-8")
+    assert design.count(old) == 1
+    found = stated_problems(design.replace(old, new), readme)
+    if message is None:  # a count word outside WORDS, or a wrong one, names its count
+        assert len(found) == 1 and found[0].startswith("12.8 states the ") and "count as " in found[0]
+    else:
+        assert found == [message]
+
+
+def test_a_changed_glance_bullet_or_class_is_named():
+    design, readme = DESIGN.read_text(encoding="utf-8"), README.read_text(encoding="utf-8")
+    longer = readme.replace(GLANCE_BULLET, GLANCE_BULLET + "x", 1)
+    assert stated_problems(design, longer) == ["12.8 states the glance bullet's bytes as 362, but it is 363"]
+    assert stated_problems(design, readme.replace(GLANCE_BULLET, "- [Registry](#registry-pair): ", 1)) == [
+        "12.8 states the glance bullet's bytes as 362, but it is none"]
+    # A thirteenth routing heading changes the routing count the size-budget bullet states, not the ordinal.
+    assert stated_problems(design, readme, classes={**CLASS, "Thirteenth": "routing"}) == [
+        "12.8 states the routing count as eight, but it is 9"]
 
 
 @pytest.mark.parametrize("text, held, message", [
