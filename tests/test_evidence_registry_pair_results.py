@@ -424,12 +424,14 @@ def results_section(rs, results):
 
 
 def regenerate_section(cv):
-    """The `## Regenerate` section: the five commands and the download line, its bytes from FILES."""
+    """The `## Regenerate` section: the five commands and the download line, its bytes from FILES, which from
+    v1.443 (row E24e) also says the `evidence` workflow reruns them."""
     return (f"{REGENERATE}\nThe converter downloads the three pinned files "
             f"({sum(size for size, _ in cv.FILES.values()):,} bytes) into "
             f"`~/.cache/ai-model-routing-evidence/registry-pair/` on its first run, the folder "
             f"`research/registry_pair.py` also reads, and checks each against its pinned size and sha256; "
-            f"converting them takes under a second once they are cached.")
+            f"converting them takes under a second once they are cached. The `evidence` workflow reruns "
+            f"these commands on GitHub and fails if `results.json` changes by a byte (DESIGN.md 12.13, v1.443).")
 
 
 def prices():

@@ -47,6 +47,10 @@ is stated once and the others name the line that holds it (BORROWED).
 
 The registry pair (v1.431, row E24): 12.23, the registry-pair converter, is a converter.
 12.24, the registry-pair results (v1.433, row E24b), is a routing results subsection.
+
+The registry pair in the workflow (v1.443, row E24e): three `is rerun` lines of 12.13 drop what the Steps,
+RouterBench and Tests lines already state for every rerun block (its place in `Regenerate`, `Compare` and the
+top comment, and the test reading it), so 12.13 has room for the registry pair's lines.
 """
 import re
 from pathlib import Path
@@ -414,7 +418,7 @@ POINTERS = {
     "- Time limit and retries (v1.152, ": ("v1.152, v1.168, v1.170, v1.215, v1.217, v1.218, v1.225, v1.226, v1.268, "
                                            "v1.299, v1.301, v1.302, v1.317, v1.321, v1.374, v1.395, v1.398, "
                                            "v1.399, v1.401, v1.407, v1.442"),
-    "Purpose: a reader can see the thirteen results files of the `Compare` step below ":
+    "Purpose: a reader can see the fourteen results files of the `Compare` step below ":
         "v1.55, v1.65, v1.80, v1.84, v1.168, v1.200, v1.299",
     "- The workflow `.github/workflows/evidence.yml`, `name: evidence`, ":
         "v1.54, v1.55, v1.65, v1.80, v1.84, v1.168, v1.200, v1.299",
@@ -690,13 +694,17 @@ def test_12_13_states_its_contract_as_it_is_and_holds_no_growth_history():
     assert "12.13" not in PENDING and dict(measure(text)[1])["12.13"] <= CAPS["workflow"]
     # The counts are the ones the workflow and its tests hold now.
     compare = [line for line in workflow.workflow_text().splitlines() if "git diff --exit-code --" in line]
-    assert len(compare) == 1 and compare[0].count(" evidence/") == 13  # the ledger file from v1.397
-    assert body[0].startswith("Purpose: a reader can see the thirteen results files of the `Compare` step below ")
+    assert len(compare) == 1 and compare[0].count(" evidence/") == 14  # ledger v1.397, registry pair v1.443
+    assert body[0].startswith("Purpose: a reader can see the fourteen results files of the `Compare` step below ")
     assert f"each of {len(workflow.MUTANTS)} broken workflows fails the check" in joined
     commands, run = workflow.expected_commands(workflow.readme()), workflow.regenerate_commands(workflow.readme())
-    # v1.397 (row E23c): after the README commands it runs, the ledger RESULTS.md line
-    assert run[-1] == workflow.ledger_command() and run[-1] not in commands
-    assert f"so the README holds {len(commands)} rerun commands and `Regenerate` runs {len(run) - 1} of them." in joined
+    # v1.397 (row E23c): after the README commands it runs, the ledger RESULTS.md line, and from v1.443
+    # (row E24e) the registry-pair RESULTS.md block
+    registry = workflow.registry_commands()
+    assert run[-len(registry) - 1] == workflow.ledger_command() and run[-len(registry):] == registry
+    assert not set(registry + [workflow.ledger_command()]) & set(commands)
+    readme_run = len(run) - 1 - len(registry)
+    assert f"so the README holds {len(commands)} rerun commands and `Regenerate` runs {readme_run} of them." in joined
     # Review iter-251 should-fix 2: the other counts, each from the list or file it counts.
     import test_ci_permissions as permissions
     import test_ci_pythons as pythons
@@ -722,8 +730,13 @@ def test_12_13_states_its_contract_as_it_is_and_holds_no_growth_history():
                   "(11 from v1.139)", "In run 42814244636", "In run 43008722362", "three to v1.54"):
         assert words not in joined, words
     heading = [line for line in text.splitlines() if line.startswith("### 12.13 ")]
-    # v1.397 (row E23c): the heading names no entry a bullet of 12.13 opens with, and ends with the ledger line
-    assert len(heading) == 1 and heading[0].endswith("; ledger hand-off v1.397)")
+    # v1.397 (row E23c): the heading names no entry a bullet of 12.13 opens with, and ends with the ledger
+    # line; from v1.443 (row E24e) with the registry pair
+    assert len(heading) == 1 and heading[0].endswith("; ledger hand-off v1.397; registry pair v1.443)")
+    # v1.443: the restatements the three `is rerun` lines dropped stay out
+    for words in ("directly after `pooled.json`", "names it next to last", "after the four `### LLMRouterBench` lines",
+                  "`SUBSECTIONS` holds it after"):
+        assert words not in joined, words
     for words in ("pinned runner v1.49", "Python versions v1.118", "token permissions v1.137", "time limit v1.152",
                   "one run of a repeated line v1.215", "no cache between runs v1.251"):
         assert words not in heading[0], words

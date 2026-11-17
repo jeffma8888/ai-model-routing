@@ -88,4 +88,4 @@ python evidence/routerbench/results.py --evaluate registry-pair-evaluate.json --
 python evidence/routerbench/results.py --table evidence/registry-pair/results.json
 ```
 
-The converter downloads the three pinned files (7,522,421 bytes) into `~/.cache/ai-model-routing-evidence/registry-pair/` on its first run, the folder `research/registry_pair.py` also reads, and checks each against its pinned size and sha256; converting them takes under a second once they are cached.
+The converter downloads the three pinned files (7,522,421 bytes) into `~/.cache/ai-model-routing-evidence/registry-pair/` on its first run, the folder `research/registry_pair.py` also reads, and checks each against its pinned size and sha256; converting them takes under a second once they are cached. The `evidence` workflow reruns these commands on GitHub and fails if `results.json` changes by a byte (DESIGN.md 12.13, v1.443).

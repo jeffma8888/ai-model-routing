@@ -3,8 +3,9 @@ subsections, from v1.55 the tau2-bench one, from v1.65 the LiveCodeBench one, fr
 delegation one, from v1.84 its pooled run, from v1.168 the LLMRouterBench one, from v1.200 the
 LLMRouterBench delegation one and from v1.299 the LLM Routing Response Bank one on GitHub (from
 v1.215 running a repeated line once), from v1.397 last the one regenerate line of
-evidence/ledger-handoff/RESULTS.md (DESIGN 13.15), which has no README subsection, and
-fails when a committed results file changes (DESIGN 12.13, v1.30),
+evidence/ledger-handoff/RESULTS.md (DESIGN 13.15), which has no README subsection, from v1.443
+after it the `## Regenerate` block of evidence/registry-pair/RESULTS.md (DESIGN 12.24), which has
+none yet either, and fails when a committed results file changes (DESIGN 12.13, v1.30),
 and both workflows run on one pinned runner image with a dated comment (v1.49), and the job
 has a time limit of ten times its slowest run, rounded up to whole five minutes, with no download
 retry until v1.406 (v1.152; 25 minutes, restated as 30 at v1.170, as 40 at v1.217, whose basis was the
@@ -41,6 +42,16 @@ ROUTERBENCH_CONVERT = ROOT / "evidence" / "routerbench" / "convert.py"
 # line, read from their RESULTS.md, runs after the README commands (DESIGN 13.15 Workflow bullet).
 LEDGER_NOTES = "evidence/ledger-handoff/RESULTS.md"
 LEDGER_LINE = "python evidence/ledger-handoff/results.py --out evidence/ledger-handoff/results.json"
+# v1.443 (row E24e): the registry-pair results have no README subsection yet (row E24c); their
+# `## Regenerate` block, read from their RESULTS.md, runs after the ledger line (DESIGN 12.13).
+REGISTRY_NOTES = "evidence/registry-pair/RESULTS.md"
+REGISTRY_LINES = [
+    "python evidence/registry-pair/convert.py --out registry-pair-matrix.jsonl",
+    "model-routing evaluate --outcomes registry-pair-matrix.jsonl --bar 0.6 0.7 0.8 0.9 --seeds 50 --json "
+    "> registry-pair-evaluate.json",
+    "python evidence/routerbench/results.py --evaluate registry-pair-evaluate.json "
+    "--out evidence/registry-pair/results.json",
+    "python evidence/routerbench/results.py --table evidence/registry-pair/results.json"]
 EVIDENCE = "## Evidence: held-out results on public data\n"
 SUBSECTIONS = ("AutoBench", "AutoBench judges", "tau2-bench", "LiveCodeBench", "LLMRouterBench",
                "LLM Routing Response Bank", "Delegation on AutoBench", "Delegation on tau2-bench",
@@ -178,7 +189,8 @@ REPEAT_PROBLEM = "the top comment does not give the repeated-line rule"
 # v1.278 (row T4): the top comment names the rerun subsections in README heading order, and every
 # line above `on:` is under 100 columns; the comment checks join its lines, so a reflow is safe.
 SUBSECTION_LIST = ("Reruns the regenerate commands of the README subsections "
-                   + ", ".join(SUBSECTIONS[:-1]) + f" and {SUBSECTIONS[-1]}, and the one of {LEDGER_NOTES}, which")
+                   + ", ".join(SUBSECTIONS[:-1]) + f" and {SUBSECTIONS[-1]}, and those of {LEDGER_NOTES} and "
+                   f"{REGISTRY_NOTES}, which")
 SUBSECTION_PROBLEM = "the top comment does not name the rerun subsections in README heading order"
 WIDTH = 100
 WIDTH_PROBLEM = f"a line above on: is {WIDTH} columns or wider"
@@ -216,8 +228,26 @@ def ledger_command():
     return found[0]
 
 
-def regenerate_commands(text):
+def registry_commands():
+    """The lines of the one `bash` block of the registry-pair RESULTS.md `## Regenerate`, without its
+    install line (v1.443)."""
+    text = (ROOT / REGISTRY_NOTES).read_text(encoding="utf-8")
+    section = text.split("\n## Regenerate\n", 1)[1].split("\n## ", 1)[0]
+    found = re.findall(r"```bash\n(.*?)```", section, re.S)
+    assert len(found) == 1
+    block = found[0].rstrip("\n").split("\n")
+    assert block[0] == INSTALL and INSTALL not in block[1:]
+    return block[1:]
+
+
+def readme_commands(text):
+    """The lines the README evidence intro speaks for: the README commands and the ledger line (v1.397).
+    The registry-pair block joins them with its README subsection (row E24c)."""
     return run_once(expected_commands(text) + [ledger_command()])
+
+
+def regenerate_commands(text):
+    return run_once(expected_commands(text) + [ledger_command()] + registry_commands())
 
 
 def out_paths(commands):
@@ -236,7 +266,7 @@ def routerbench_size():
 
 
 def readme_sentence(text):
-    paths = out_paths(regenerate_commands(text))
+    paths = out_paths(readme_commands(text))
     named = ", ".join(f"`{p}`" for p in paths[:-1]) + f" or `{paths[-1]}`"
     return (
         "On GitHub, the `evidence` workflow "
@@ -451,14 +481,15 @@ def test_the_hand_built_list_count_is_the_one_design_states():
 def test_regenerate_leaves_out_the_two_repeated_converter_lines():
     commands = expected_commands(readme())
     run = regenerate_commands(readme())
-    assert len(commands) == 45 and len(run) == 44 and run[-1] == ledger_command()
+    assert len(commands) == 45 and len(run) == 48 and run[-5] == ledger_command()
+    assert run[-4:] == registry_commands() == REGISTRY_LINES  # v1.443
     left_out = []
     for repeated, script in ((REPEATED, "llmrouterbench-delegation"), (RB_REPEATED, "response-bank-delegation")):
         assert commands.count(repeated) == 2 and run.count(repeated) == 1
         second = len(commands) - 1 - commands[::-1].index(repeated)
         assert commands[second + 1].startswith(f"python evidence/{script}/results.py --matrix")
         left_out.append(second)
-    assert run == [c for k, c in enumerate(commands) if k not in left_out] + [ledger_command()]
+    assert run == [c for k, c in enumerate(commands) if k not in left_out] + [ledger_command()] + REGISTRY_LINES
 
 
 def test_the_rerun_subsections_are_in_readme_heading_order():
@@ -534,11 +565,17 @@ MUTANTS = {
     "the compare step without the response-bank delegation": lambda t: t.replace(
         "evidence/llmrouterbench-delegation/results.json evidence/response-bank-delegation/results.json ",
         "evidence/llmrouterbench-delegation/results.json ", 1),
-    # v1.397: the ledger hand-off file, last in command order, and its line, the last Regenerate line
+    # v1.397: the ledger hand-off file and its line, after the README ones
     "the compare step without the ledger hand-off": lambda t: t.replace(
-        "evidence/response-bank-delegation/results.json evidence/ledger-handoff/results.json\n",
-        "evidence/response-bank-delegation/results.json\n", 1),
-    "the ledger line dropped": lambda t: with_lines(t, lambda ls: ls[:-1]),
+        "evidence/response-bank-delegation/results.json evidence/ledger-handoff/results.json ",
+        "evidence/response-bank-delegation/results.json ", 1),
+    "the ledger line dropped": lambda t: with_lines(t, lambda ls: [line for line in ls if line.strip() != LEDGER_LINE]),
+    # v1.443: the registry-pair file, last in command order, and its evaluate line
+    "the compare step without the registry pair": lambda t: t.replace(
+        " evidence/ledger-handoff/results.json evidence/registry-pair/results.json\n",
+        " evidence/ledger-handoff/results.json\n", 1),
+    "a registry-pair line dropped": lambda t: with_lines(
+        t, lambda ls: [line for line in ls if line.strip() != REGISTRY_LINES[1]]),
     # v1.299: the response-bank file, directly after the LLMRouterBench one
     "the compare step without the response bank": lambda t: t.replace(
         "evidence/llmrouterbench/results.json evidence/response-bank/results.json ",
@@ -611,7 +648,7 @@ TIME_LIMIT_MUTANTS = {
 
 
 def test_the_mutant_count_is_the_one_design_states():
-    assert len(MUTANTS) == 34
+    assert len(MUTANTS) == 36
     assert len(CACHE_MUTANTS) == 2 and set(CACHE_MUTANTS) <= set(MUTANTS)
     assert len(TIME_LIMIT_MUTANTS) == 5 and set(TIME_LIMIT_MUTANTS) <= set(MUTANTS)
     assert len(REPEAT_MUTANTS) == 2 and set(REPEAT_MUTANTS) <= set(MUTANTS)
@@ -763,6 +800,7 @@ def test_a_time_limit_mutant_fails_on_the_check_it_names(name):
                                   "the compare step without pooled.json",
                                   "the compare step without the response bank",
                                   "the compare step without the ledger hand-off",  # v1.397, row E23c
+                                  "the compare step without the registry pair",  # v1.443, row E24e
                                   "the compare step without the response-bank delegation",  # v1.392, row DOC21c
                                   "the compare step without variants.json"])
 def test_a_compare_mutant_fails_on_the_compare_line_alone(name):
@@ -876,26 +914,28 @@ def test_the_workflow_reruns_the_response_bank_delegation_block():
     assert run.count("python evidence/response-bank/convert.py --out response-bank-matrix.jsonl") == 1
     compare = text.split("      - name: Compare\n", 1)[1].split("\n", 1)[0]
     assert compare.endswith(" evidence/llmrouterbench-delegation/results.json "
-                            "evidence/response-bank-delegation/results.json evidence/ledger-handoff/results.json")
+                            "evidence/response-bank-delegation/results.json evidence/ledger-handoff/results.json "
+                            "evidence/registry-pair/results.json")
 
 
-def test_the_workflow_reruns_the_ledger_handoff_line_last():
-    # v1.397 (row E23c, DESIGN 13.15 Workflow bullet)
+def test_the_workflow_reruns_the_ledger_handoff_line_after_the_readme_commands():
+    # v1.397 (row E23c, DESIGN 13.15 Workflow bullet); from v1.443 the registry-pair block follows it
     assert ledger_command() == LEDGER_LINE
     text = workflow_text()
     run = [line.strip() for line in regenerate_lines(text)[1]]
-    assert run[-1] == LEDGER_LINE and run[-3:-1] == RB_TABLES and run.count(LEDGER_LINE) == 1
+    assert run[-5] == LEDGER_LINE and run[-7:-5] == RB_TABLES and run.count(LEDGER_LINE) == 1
     compare = text.split("      - name: Compare\n", 1)[1].split("\n", 1)[0]
-    assert compare.endswith(" evidence/response-bank-delegation/results.json evidence/ledger-handoff/results.json")
+    assert compare.endswith(" evidence/response-bank-delegation/results.json evidence/ledger-handoff/results.json "
+                            "evidence/registry-pair/results.json")
     assert (ROOT / "evidence" / "ledger-handoff" / "results.json").is_file()
     ci_text = CI.read_text(encoding="utf-8")
     assert problems(MUTANTS["the ledger line dropped"](text), readme(), ci_text) == [
         "Regenerate is not the README commands in order"]
     design = DESIGN.read_text(encoding="utf-8")
     section = design.split("\n### 12.13 ", 1)[1].split("\n### ", 1)[0]
-    assert f"each of {len(MUTANTS)} broken workflows fails the check, the seven `Compare` mutants" in section
+    assert f"each of {len(MUTANTS)} broken workflows fails the check, the eight `Compare` mutants" in section
     assert "then (v1.397) the regenerate line of `evidence/ledger-handoff/RESULTS.md` (13.15)" in section
-    assert "thirteen files from `evidence/autobench-2026/results.json` to `evidence/ledger-handoff/results.json`" in section
+    assert "fourteen files from `evidence/autobench-2026/results.json` to `evidence/registry-pair/results.json`" in section
     # v1.401 (row CI21): the basis is the slowest run on main, whatever its lines; v1.407 (row CI22),
     # by its latest attempt.
     assert (f"all on `main` and all successful by their latest attempt, the slowest is run {SLOWEST_RUN_ID} on "
@@ -910,3 +950,26 @@ def test_the_workflow_reruns_the_ledger_handoff_line_last():
     # Review iter-267 nit (v1.442, row CI24): the sentence also names the v1.407 rerun rule.
     assert bullets[0].endswith("whatever its lines (12.13, v1.401), a run that was rerun counting by its latest "
                                "attempt from that attempt's start (12.13, v1.407)")
+
+
+def test_the_workflow_reruns_the_registry_pair_block_last():
+    # v1.443 (row E24e, DESIGN 12.13 Registry pair bullet): the four lines of the RESULTS.md block, after
+    # the ledger line, and the results file last in Compare; the README intro names it only with E24c.
+    assert registry_commands() == REGISTRY_LINES
+    text = workflow_text()
+    run = [line.strip() for line in regenerate_lines(text)[1]]
+    assert run[-4:] == REGISTRY_LINES and run[-5] == LEDGER_LINE
+    assert all(run.count(line) == 1 for line in REGISTRY_LINES)
+    compare = text.split("      - name: Compare\n", 1)[1].split("\n", 1)[0]
+    assert compare.endswith(" evidence/ledger-handoff/results.json evidence/registry-pair/results.json")
+    assert (ROOT / "evidence" / "registry-pair" / "results.json").is_file()
+    assert out_paths(regenerate_commands(readme()))[-1] == "evidence/registry-pair/results.json"
+    assert "evidence/registry-pair/results.json" not in out_paths(readme_commands(readme()))
+    ci_text = CI.read_text(encoding="utf-8")
+    assert problems(MUTANTS["a registry-pair line dropped"](text), readme(), ci_text) == [
+        "Regenerate is not the README commands in order"]
+    section = DESIGN.read_text(encoding="utf-8").split("\n### 12.13 ", 1)[1].split("\n### ", 1)[0]
+    bullets = [line for line in section.split("\n") if line.startswith("- Registry pair is rerun (v1.443, row E24e): ")]
+    assert len(bullets) == 1
+    assert ("and (v1.443) the four lines of the `## Regenerate` block of `evidence/registry-pair/RESULTS.md` "
+            "without its install line (12.24)") in section
