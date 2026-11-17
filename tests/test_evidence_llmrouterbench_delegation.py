@@ -21,6 +21,11 @@ v1.351 (row DOC19c) trims the README subsection to the 12.8 v1.334 size budget, 
 README trim bullet (v1.350) specifies: the whole table, the third Reading it bullet, the four
 `## Method` bullets and five of the six `## Assumed` bullets leave it, and the tests that required
 them there now require each in RESULTS.md and none of them in the subsection.
+
+v1.449 (row DOC28f) trims it to the 12.8 v1.444 delegation cap, 5,500 bytes, as the 13.13 README trim
+bullet now specifies: the `Limits` line and the lossless-brief bullet leave it, which RESULTS.md
+`## Assumed` holds, and its opening paragraph sheds words, among them the parents' names, which its
+table gives; each shed clause is absent from the subsection and its fact is in RESULTS.md.
 """
 
 import importlib.util
@@ -547,16 +552,32 @@ README_LINKS = (
     "list-price estimate",
 )
 # Each is the start of one RESULTS.md bullet that the README repeated verbatim (12.8 v1.200). From
-# v1.351 (13.13 v1.350) the README keeps only the one in README_KEPT_LINES, then the link line; every
-# one stays a RESULTS.md line.
+# v1.351 (13.13 v1.350) the README kept only the one in README_KEPT_LINES, then the link line, and from
+# v1.449 (row DOC28f) none; every one stays a RESULTS.md line.
 METHOD_LINES = ("`aime` has 60 items", "At point 2, C = 200,000", "Of the ")
 ASSUMED_LINES = ("The lossless brief", "Every cost is a list price", "The windows of the three DeepSeek models",
                  "The 8 models are 2025 snapshots", "An `arenahard` score of 0.5", "The limits of `DESIGN.md` 13.8")
-README_KEPT_LINES = ("The lossless brief",)
+README_KEPT_LINES = ()
 ROOT_GEMINI = GEMINI.replace("](../llmrouterbench/RESULTS.md)", "](evidence/llmrouterbench/RESULTS.md)")
-LINK_LINE = ("The other limits are in [RESULTS.md](evidence/llmrouterbench-delegation/RESULTS.md#assumed) `## Assumed`, "
+LINK_LINE = ("The limits are in [RESULTS.md](evidence/llmrouterbench-delegation/RESULTS.md#assumed) `## Assumed`, "
              "and the means over the parents at every bar and point, the bar 0.8 cost, why `google/gemini-2.5-pro` is "
-             "left out, the short `aime` halves, the window blocks and the reason counts in the rest of that file.")
+             "left out, the short `aime` halves, the window blocks and reason counts in the rest of it.")
+# v1.449 (13.13, row DOC28f): each clause the opening paragraph shed to fit the 5,500-byte cap, and the
+# RESULTS.md phrase that holds its fact; the clause is absent from the subsection, the phrase in RESULTS.md.
+DROPPED_OPENING_CLAUSES = [
+    ("the records the [LLMRouterBench](#llmrouterbench) routing results above read",
+     "The routing results read the same 9 benchmarks"),
+    ("next to always working inline and always delegating", "next to always working inline and always delegating"),
+    ("`DESIGN.md` 13.9 and 13.13", "(`DESIGN.md` 13.13)"),
+    ("which each model answered in one recorded call", "which every model answered in one recorded call"),
+    ("4 at a vendor page's list price", "at the list price of a vendor page"),
+    ("the one price pair their recorded costs give", "at the one price pair their recorded costs give within 1e-9 USD"),
+    ("with the pages and the checks behind them in", "(../../research/delegation-datasets.md)"),
+    ("never a billed cost", "never a recorded cost"),
+    ("with inline work in parent calls of its own", "points 0 to 2 put inline work in parent calls of their own"),
+    ("each with a brief of 500 tokens, a 500-token result and one later parent call",
+     "each with a 500-token brief (B), a 500-token result (R) and one later parent call that re-reads them (T = 1)"),
+]
 PARENT_INTRO = ("One row per (flavor, parent) at bar 0.1 and point 0, columns as in "
                 "[Delegation on AutoBench](#delegation-on-autobench):")
 REGENERATE_INTRO = ("Regenerate (the converter's download is the one of [LLMRouterBench](#llmrouterbench), kept in "
@@ -575,11 +596,11 @@ def readme_subsection():
 def counts_sentence(results):
     config, tasks = results["config"], results["tasks"]
     benchmarks = join([f"`{name}` {task['items']:,}" for name, task in tasks.items()])
-    parents = join([f"`{p}`" for p in config["parents"]])
     total = sum(task["items"] for task in tasks.values())
-    return (f"Each item is one benchmark question, which each model answered in one recorded call, one task per "
-            f"benchmark ({benchmarks} items, {total:,} in all), with each of the {len(config['parents'])} priced "
-            f"models ({parents}) as the parent, over {len(config['seeds'])} seeds.")
+    # v1.449 (row DOC28f): the parents' number, not their names, which the parent table and `## Method` give.
+    return (f"one task per benchmark ({benchmarks} items, {total:,} in all), each item one question with one recorded "
+            f"call per model, with each of the {len(config['parents'])} priced models as parent, over "
+            f"{len(config['seeds'])} seeds.")
 
 
 def results_md_line(start, heading):
@@ -612,6 +633,11 @@ def test_readme_subsection_shows_the_counts_tables_and_reading_it(dr):
     results = committed_results()
     assert counts_sentence(results) in sub
     assert sum(task["items"] for task in results["tasks"].values()) == 12_056
+    # v1.449 (row DOC28f): the parents are named in the table and the first `## Method` bullet, not the opening.
+    assert "priced models (`" not in sub
+    method = section(RESULTS_MD.read_text(encoding="utf-8"), "## Method").split("\n- ")[1]
+    for parent in results["config"]["parents"]:
+        assert f"`{parent}`" in method and sub.count(f"\ncost_effective  {parent} ") == 1, parent
     assert f"```text\n{TABLE_CMD}\n" not in sub
     assert dr.table(results).split("\n")[0] not in sub
     assert "Means over the 8 parents" not in sub
@@ -625,16 +651,17 @@ def test_readme_subsection_shows_the_counts_tables_and_reading_it(dr):
     assert "`results.json` is " not in sub
 
 
-def test_readme_subsection_keeps_two_bullets_one_limit_and_a_link_line():
-    """v1.351 (13.13 v1.350): the subsection's only bullets are the first two Reading it ones and the
-    lossless-brief limit, in that order after the per-parent block, then the link line and the
-    regenerate paragraph; the link line's anchor is the RESULTS.md `## Assumed` heading."""
+def test_readme_subsection_keeps_two_bullets_and_a_link_line():
+    """v1.351 (13.13 v1.350): the subsection's only bullets are the first two Reading it ones, in that
+    order after the per-parent block, then the link line and the regenerate paragraph; the link line's
+    anchor is the RESULTS.md `## Assumed` heading. v1.449 (row DOC28f): the `Limits` line and the
+    lossless-brief bullet between them are gone, and that bullet is a line of RESULTS.md `## Assumed`."""
     sub = readme_subsection()
     reading = readme_reading_it()
     lossless = results_md_line("The lossless brief", "## Assumed")
-    assert [line for line in sub.splitlines() if line.startswith("- ")] == [reading[0], reading[1], lossless]
-    tail = (f"\n{reading[1]}\n\nLimits, as RESULTS.md states them:\n\n{lossless}\n\n{LINK_LINE}\n\n"
-            f"{REGENERATE_INTRO}\n\n```bash\n")
+    assert [line for line in sub.splitlines() if line.startswith("- ")] == [reading[0], reading[1]]
+    assert "Limits, as RESULTS.md states them:" not in sub and lossless[2:] not in sub
+    tail = f"\n{reading[1]}\n\n{LINK_LINE}\n\n{REGENERATE_INTRO}\n\n```bash\n"
     assert sub.count(tail) == 1
     assert sub.index(PARENT_CMD) < sub.index(tail)
     assert "\n## Assumed\n" in RESULTS_MD.read_text(encoding="utf-8")
@@ -653,8 +680,15 @@ def test_readme_subsection_repeats_the_results_md_lines():
     assert results_md_line("The pool leaves out", "## Method") == "- " + GEMINI
     assert ROOT_GEMINI not in sub and GEMINI not in sub
     assert "\n- The pool leaves out" not in sub
-    limits = sub.index("\nLimits, as RESULTS.md states them:\n")
-    assert limits < sub.index(results_md_line(ASSUMED_LINES[0], "## Assumed"))
+
+
+def test_readme_opening_shed_clauses_are_in_results_md():
+    # v1.449 (13.13, row DOC28f): each clause the opening shed is absent, and its fact is in RESULTS.md.
+    sub = readme_subsection()
+    md = RESULTS_MD.read_text(encoding="utf-8")
+    for clause, phrase in DROPPED_OPENING_CLAUSES:
+        assert clause not in sub, clause
+        assert phrase in md, phrase
 
 
 def test_readme_subsection_regenerate_block_is_the_results_md_one():
