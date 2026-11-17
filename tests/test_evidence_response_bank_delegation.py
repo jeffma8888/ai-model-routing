@@ -27,6 +27,12 @@ v1.354 (row DOC19d) trims the README subsection to the 12.8 v1.334 size budget, 
 README trim bullet (v1.353) specifies: the per-parent block, the third Reading it bullet, the five
 `## Method` bullets and five of the six `## Assumed` bullets leave it, and the tests that required
 them there now require each in RESULTS.md and none of them in the subsection.
+
+v1.450 (row DOC28g) trims it to the 12.8 v1.444 delegation cap, 5,500 bytes, as the 13.14 README trim
+bullet now specifies: the `Limits` line and the lossless-brief bullet leave it, which RESULTS.md
+`## Assumed` holds, and its opening paragraph sheds words, among them the parents' names, which the
+RESULTS.md `## Method` pool bullet gives; each shed clause is absent from the subsection and its fact is
+in RESULTS.md.
 """
 
 import importlib.util
@@ -675,17 +681,37 @@ README_LINKS = (
     "list-price estimate",
 )
 # Each is the start of one RESULTS.md bullet that the README repeated verbatim (12.8 v1.316). From
-# v1.354 (13.14 v1.353) the README keeps only the one in README_KEPT_LINES, then the link line; every
-# one stays a RESULTS.md line.
+# v1.354 (13.14 v1.353) the README kept only the one in README_KEPT_LINES, then the link line, and from
+# v1.450 (row DOC28g) none; every one stays a RESULTS.md line.
 README_METHOD = ("`aime` has 30 items", "Outside `aime`, ", "Inline is blocked on no cell", "Of the ")
 README_ASSUMED = ("The lossless brief", "Every cost is a list price", "A row's input tokens are `usage.input`",
                   "The windows are the vendor pages'", "The vendor pages, opened 2026-11-12",
                   "The limits of `DESIGN.md` 13.8")
-README_KEPT_LINES = ("The lossless brief",)
-LINK_LINE = ("The other limits are in [RESULTS.md](evidence/response-bank-delegation/RESULTS.md#assumed) `## Assumed`, "
+README_KEPT_LINES = ()
+LINK_LINE = ("The limits are in [RESULTS.md](evidence/response-bank-delegation/RESULTS.md#assumed) `## Assumed`, "
              "and the per-parent rows at bar 0.8 and point 0, the bar 0.9 cost, the pool, the short `aime` halves, the "
-             "`none_clear` cells outside `aime`, why inline is blocked on no cell and the reason counts in the rest of "
-             "that file.")
+             "`none_clear` cells outside `aime`, why inline is blocked on no cell and reason counts in the rest of it.")
+# v1.450 (13.14, row DOC28g): each clause the opening paragraph shed to fit the 5,500-byte cap, and the
+# RESULTS.md phrase that holds its fact; the clause is absent from the subsection, the phrase in RESULTS.md.
+DROPPED_OPENING_CLAUSES = [
+    ("the responses the [LLM Routing Response Bank](#llm-routing-response-bank) routing results above read",
+     "the converter's default output, the one the routing results read"),
+    ("next to always working inline and always delegating", "next to always working inline and always delegating"),
+    ("`DESIGN.md` 13.9 and 13.14", "measured by `evaluate_delegation` (`DESIGN.md` 13.9)"),
+    ("`DESIGN.md` 13.9 and 13.14", "a vendor page states the same pair for the last three (`DESIGN.md` 13.14)"),
+    ("allows use under its terms", "you may use, redistribute, and build on this data under ODC-BY-4.0 terms"),
+    ("as the routing subsection quotes it",
+     "its per-family terms are quoted in [the response-bank routing results](../response-bank/RESULTS.md)"),
+    ("which each model answered in one recorded call", "which every model answered in one recorded call"),
+    ("with the pages and the checks behind them in",
+     "with the pages and the checks behind them in [the research note](../../research/delegation-datasets.md)"),
+    ("never a bill", "Every cost is a list-price estimate, never a billed cost."),
+    ("on its responses with no cache read",
+     "each priced at the input and output pair its bills give on its responses with no cache read"),
+    ("with inline work in parent calls of its own", "points 0 to 2 put inline work in parent calls of their own"),
+    ("each with a brief of 500 tokens, a 500-token result and one later parent call",
+     "each with a 500-token brief (B), a 500-token result (R) and one later parent call that re-reads them (T = 1)"),
+]
 TABLE_INTRO = "Means over the 5 parents, columns as in [Delegation on AutoBench](#delegation-on-autobench):"
 REGENERATE_INTRO = ("Regenerate (the converter's download is the one of [LLM Routing Response Bank]"
                     "(#llm-routing-response-bank), kept in its cache folder after the first run):")
@@ -703,11 +729,11 @@ def readme_subsection():
 def readme_counts_sentence(results):
     config, tasks = results["config"], results["tasks"]
     families = join([f"`{name}` {task['items']:,}" for name, task in tasks.items()])
-    parents = join([f"`{p}`" for p in config["parents"]])
     total = sum(task["items"] for task in tasks.values())
-    return (f"Each item is one benchmark question, which each model answered in one recorded call, one task per "
-            f"benchmark family ({families} items, {total:,} in all), with each of the {len(config['parents'])} "
-            f"models ({parents}) as the parent, over {len(config['seeds'])} seeds.")
+    # v1.450 (row DOC28g): the parents' number, not their names, which the `## Method` pool bullet gives.
+    return (f"One task per benchmark family ({families} items, {total:,} in all), each item one question with one "
+            f"recorded call per model, with each of the {len(config['parents'])} models as parent, over "
+            f"{len(config['seeds'])} seeds.")
 
 
 def results_md_line(start, heading):
@@ -748,6 +774,12 @@ def test_readme_subsection_shows_the_counts_tables_and_reading_it(dr):
     results = json.loads(RESULTS.read_text(encoding="utf-8"))
     assert readme_counts_sentence(results) in sub
     assert sum(task["items"] for task in results["tasks"].values()) == 13_311
+    # v1.450 (row DOC28g): the parents are named in the `## Method` pool bullet, not in the subsection.
+    assert "models (`" not in sub
+    pool = results_md_line("The pool is all five", "## Method")
+    assert results["config"]["parents"] == list(POOL)
+    for parent in POOL:
+        assert f"`{parent}`" in pool and parent not in sub, parent
     bar = results["config"]["bars"][0]
     assert PARENT_CMD == f"{TABLE_CMD} --bar {bar} --point 0"
     block = f"```text\n{TABLE_CMD}\n{dr.table(results)}\n```\n"
@@ -764,23 +796,25 @@ def test_readme_subsection_shows_the_counts_tables_and_reading_it(dr):
     assert "`results.json` is " not in sub
 
 
-def test_readme_subsection_keeps_two_bullets_one_limit_and_a_link_line():
-    """v1.354 (13.14 v1.353): the subsection's only bullets are the first two Reading it ones and the
-    lossless-brief limit, in that order after the table, then the link line and the regenerate
-    paragraph; the link line's anchor is the RESULTS.md `## Assumed` heading."""
+def test_readme_subsection_keeps_two_bullets_and_a_link_line():
+    """v1.354 (13.14 v1.353): the subsection's only bullets are the first two Reading it ones, in that
+    order after the table, then the link line and the regenerate paragraph; the link line's anchor is
+    the RESULTS.md `## Assumed` heading. v1.450 (row DOC28g): the `Limits` line and the lossless-brief
+    bullet between them are gone, and that bullet is a line of RESULTS.md `## Assumed`."""
     sub = readme_subsection()
     reading = readme_reading_it()
     lossless = results_md_line("The lossless brief", "## Assumed")
-    assert [line for line in sub.splitlines() if line.startswith("- ")] == [reading[0], reading[1], lossless]
-    tail = (f"\n```\n\n{reading[0]}\n{reading[1]}\n\nLimits, as RESULTS.md states them:\n\n{lossless}\n\n"
-            f"{LINK_LINE}\n\n{REGENERATE_INTRO}\n\n```bash\n")
+    assert [line for line in sub.splitlines() if line.startswith("- ")] == [reading[0], reading[1]]
+    assert "Limits, as RESULTS.md states them:" not in sub and lossless[2:] not in sub
+    tail = f"\n```\n\n{reading[0]}\n{reading[1]}\n\n{LINK_LINE}\n\n{REGENERATE_INTRO}\n\n```bash\n"
     assert sub.count(tail) == 1
     assert sub.index(TABLE_CMD) < sub.index(tail)
     assert "\n## Assumed\n" in RESULTS_MD.read_text(encoding="utf-8")
 
 
 def test_readme_subsection_repeats_the_results_md_lines():
-    # v1.354 (13.14 v1.353): each is one RESULTS.md line; the subsection keeps only README_KEPT_LINES.
+    # v1.354 (13.14 v1.353): each is one RESULTS.md line; the subsection keeps only README_KEPT_LINES,
+    # none from v1.450 (row DOC28g).
     sub = readme_subsection()
     for start, heading in [(m, "## Method") for m in README_METHOD] + [(a, "## Assumed") for a in README_ASSUMED]:
         line = results_md_line(start, heading)
@@ -793,8 +827,15 @@ def test_readme_subsection_repeats_the_results_md_lines():
     assert pool[2:] not in sub
     assert results_md_line("The pool is all five", "## Method")[2:] not in sub
     assert "\n- The pool is all five" not in sub
-    limits = sub.index("\nLimits, as RESULTS.md states them:\n")
-    assert limits < sub.index(results_md_line(README_ASSUMED[0], "## Assumed"))
+
+
+def test_readme_opening_shed_clauses_are_in_results_md():
+    # v1.450 (13.14, row DOC28g): each clause the opening shed is absent, and its fact is in RESULTS.md.
+    sub = readme_subsection()
+    md = RESULTS_MD.read_text(encoding="utf-8")
+    for clause, phrase in DROPPED_OPENING_CLAUSES:
+        assert clause not in sub, clause
+        assert phrase in md, phrase
 
 
 def test_readme_subsection_regenerate_block_is_the_results_md_one():
