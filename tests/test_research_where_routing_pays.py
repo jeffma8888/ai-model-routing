@@ -4,6 +4,11 @@ v1.384 (row DOC27, DESIGN 12.21 Seeds in the README): the README Limitations bul
 and the note's seeds bullet are built from the Results blocks of the two seeds notes, the one bullet
 of the note whose numbers are not in the script's output.
 
+v1.453 (row DOC40, review iter-314 should-fix 1): the Limitations bullet's second sentence says
+`the first seven` while the README holds more routing subsections than the script reads files, the
+registry pair being the eighth from v1.452, and its builder requires the files' datasets to open
+them in order.
+
 The script reads only the committed routing results files, six since v1.166 and seven since v1.303, so
 the note's Results block is
 compared byte for byte with a fresh run on every machine, CI included. Its report is also checked
@@ -415,6 +420,15 @@ def test_the_needs_bullet_gives_the_shortfall_range_of_every_file(wrp, output):
 WORDS = {2: "two", 5: "five", 6: "six", 7: "seven"}
 # a dataset name the README gives with an article
 ARTICLE = {"LLM Routing Response Bank": "the "}
+EVIDENCE = "\n## Evidence: held-out results on public data\n"
+
+
+def routing_headings(readme):
+    """v1.453: the README evidence section's routing subsections, in order: its `###` headings but the
+    `Delegation on` ones (DESIGN 12.8)."""
+    body = readme.split(EVIDENCE, 1)[1].split("\n## ", 1)[0]
+    return [line[4:] for line in body.split("\n")
+            if line.startswith("### ") and not line.startswith("### Delegation on ")]
 
 
 def seed_counts(lrb_block=None, rb_block=None):
@@ -483,9 +497,10 @@ def test_the_halves_bullet_is_a_whole_sentence():
     assert len(bullets) == 1 and not bullets[0].endswith(" is"), bullets
 
 
-def limitations_bullet(wrp):
+def limitations_bullet(wrp, readme=None):
     """README Limitations bullet 2 (v1.166; v1.303, one sentence on the seven files again), its counts,
-    dataset names and the cost of each passing dataset's passing rows built from the files."""
+    dataset names and the cost of each passing dataset's passing rows built from the files; v1.453:
+    `first` while `readme` (default README.md) holds more routing subsections than the files."""
     passing = []
     for name, rel in wrp.DATASETS:
         results = committed(rel)
@@ -506,6 +521,9 @@ def limitations_bullet(wrp):
         passing.append(f"{ARTICLE.get(name, '')}{name} {cost}")
     n, k = len(wrp.DATASETS), len(passing)
     assert (n, k) == (7, 2), (n, passing)
+    headings = routing_headings(README.read_text(encoding="utf-8") if readme is None else readme)
+    assert headings[:n] == [name for name, _ in wrp.DATASETS], headings
+    first = "first " if len(headings) > n else ""
     # v1.384: the third sentence is said of the cost_blind rows, which pass at every bar on both
     assert [p.split(" at ")[0] for p in passing] == ["LLMRouterBench", "the LLM Routing Response Bank"], passing
     for rel in FILES[5:]:
@@ -516,7 +534,7 @@ def limitations_bullet(wrp):
                    for bar in config["bars"]), rel
     seeds, above, _below = seed_counts()
     return ("- Routing per task pays in held-out success only where tasks differ in their best model and "
-            f"each task's calibration half can tell the models apart. Of the {WORDS[n]} routing datasets "
+            f"each task's calibration half can tell the models apart. Of the {first}{WORDS[n]} routing datasets "
             f"above, {WORDS[k]} have a routed row above the best single model's held-out success, "
             f"{passing[0]} and {passing[1]}; on the other {WORDS[n - k]}, routing pays at most in cost, at a "
             "bar below that success ([research/where-routing-pays.md](research/where-routing-pays.md)). "
@@ -542,6 +560,26 @@ def test_limitations_bullet_fails_on_a_passing_row_between_half_and_twice(wrp, m
     monkeypatch.setitem(globals(), "committed", changed)
     with pytest.raises(AssertionError, match="LLM Routing Response Bank: routed rows above"):
         limitations_bullet(wrp)
+
+
+def test_limitations_bullet_says_first_only_while_more_routing_subsections_follow(wrp):
+    """v1.453 (row DOC40): with the routing subsections after the files' datasets gone the sentence
+    says `the seven`, with one more it says `the first seven`, and a README whose routing subsections
+    do not open with the files' datasets in order fails the builder."""
+    readme, n = README.read_text(encoding="utf-8"), len(wrp.DATASETS)
+    without = readme
+    for heading in routing_headings(readme)[n:]:
+        without = without.replace(f"\n### {heading}\n", "\n", 1)
+    assert routing_headings(without) == [name for name, _ in wrp.DATASETS]
+    assert f"Of the {WORDS[n]} routing datasets above, two have " in limitations_bullet(wrp, without)
+    more = without.replace("\n### Delegation on AutoBench\n", "\n### Another\n\n### Delegation on AutoBench\n", 1)
+    assert routing_headings(more)[n:] == ["Another"]
+    assert f"Of the first {WORDS[n]} routing datasets above, two have " in limitations_bullet(wrp, more)
+    swapped = readme.replace("\n### LiveCodeBench\n", "\n### x\n", 1).replace(
+        "\n### LLMRouterBench\n", "\n### LiveCodeBench\n", 1).replace("\n### x\n", "\n### LLMRouterBench\n", 1)
+    assert swapped != readme
+    with pytest.raises(AssertionError, match="LLMRouterBench"):
+        limitations_bullet(wrp, swapped)
 
 
 def test_readme_limitations_and_the_index_say_where_routing_passes(wrp):

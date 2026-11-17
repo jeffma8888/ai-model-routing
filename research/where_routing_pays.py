@@ -1,6 +1,6 @@
 """Where task-level routing pays on the committed evidence (DESIGN 12.8 v1.124, v1.166, v1.303).
 
-Reads only the seven committed routing results files under evidence/ and prints, per dataset: the
+Reads only the first seven committed routing results files under evidence/ and prints, per dataset: the
 tasks routed, the items per task and the expected calibration half, the best single model and the
 per-task `best_on_calibration` baseline, how far a Wilson lower bound sits below the best single
 model's success at that half, and, per flavor and bar, the routed row against the best single

@@ -7,6 +7,9 @@ report, its check against the committed results file and its exits are tested on
 DESIGN 12.8 v1.341 (row R32): the script also reads LLMRouterBench (12.19) and the LLM Routing
 Response Bank (12.21), six datasets in all; the note gains a dated section on the two, and the
 README Limitations bullet and the research index row list the script's `DATASETS` by name.
+
+v1.453 (row DOC40): the two say `the first six` while the README holds more routing subsections
+whose dataset records a cost than the script reads, the registry pair being one from v1.452.
 """
 
 import contextlib
@@ -54,6 +57,9 @@ SECTION = "LLMRouterBench and the response bank (2026-11-13)"
 # v1.341: how the bullet and the index row name each dataset of the script's DATASETS
 PROSE_NAME = {"AutoBench judges": "the AutoBench judges", "LLM Routing Response Bank": "the LLM Routing Response Bank"}
 COUNT_WORD = {4: "four", 5: "five", 6: "six", 7: "seven", 8: "eight"}
+EVIDENCE = "\n## Evidence: held-out results on public data\n"
+# v1.453: the evidence opening names the routing dataset that records no cost
+NO_COST = re.compile(r"\((\S+) records neither, so it is `cost_blind` evidence only\)")
 CONFIG = {"bars": [0.5, 0.75], "seeds": [0, 1, 2, 3], "flavors": ["cost_effective", "cost_blind"],
           "calibration_fraction": 0.5, "min_samples": 10, "confidence": 0.95}
 
@@ -300,10 +306,41 @@ def test_named_lists_the_names_in_order():
     assert _named(["X", "AutoBench judges", "Y"]) == "X, the AutoBench judges and Y"
 
 
+def costed_headings(readme):
+    """v1.453: the README routing subsections (its evidence `###` headings but the `Delegation on`
+    ones) whose dataset records a cost, in order: all but the one the evidence opening names."""
+    body = readme.split(EVIDENCE, 1)[1].split("\n## ", 1)[0]
+    [none] = NO_COST.findall(body)
+    return [line[4:] for line in body.split("\n") if line.startswith("### ")
+            and not line.startswith("### Delegation on ") and line[4:] != none]
+
+
+def count_phrase(names, readme):
+    """v1.453: the count word of `names`, after `first ` while more costed subsections follow them;
+    the costed subsections must open with `names` in order."""
+    costed = costed_headings(readme)
+    assert costed[:len(names)] == list(names), costed
+    return ("first " if len(costed) > len(names) else "") + COUNT_WORD[len(names)]
+
+
+def test_count_phrase_says_first_only_while_more_costed_subsections_follow(nmc):
+    names = [name for name, _, _ in nmc.DATASETS]
+    readme = README.read_text(encoding="utf-8")
+    assert "LiveCodeBench" not in costed_headings(readme)
+    without = readme
+    for heading in costed_headings(readme)[len(names):]:
+        without = without.replace(f"\n### {heading}\n", "\n", 1)
+    assert count_phrase(names, without) == COUNT_WORD[len(names)]
+    more = without.replace("\n### Delegation on AutoBench\n", "\n### Another\n\n### Delegation on AutoBench\n", 1)
+    assert count_phrase(names, more) == "first " + COUNT_WORD[len(names)]
+    with pytest.raises(AssertionError, match="LiveCodeBench"):
+        count_phrase(names, readme.replace("(LiveCodeBench records neither", "(tau2-bench records neither", 1))
+
+
 def test_bullet_and_index_row_list_the_script_datasets(nmc):
     names = [name for name, _, _ in nmc.DATASETS]
-    count, listed = COUNT_WORD[len(names)], _named(names)
     readme = README.read_text(encoding="utf-8")
+    count, listed = count_phrase(names, readme), _named(names)
     limits = readme[readme.index("## Limitations and non-goals (v1)\n"):readme.index("\n## Layout\n")]
     [bullet] = [x for x in limits.split("\n") if "(research/no-model-clears.md)" in x]
     assert bullet.endswith(f" measures it on the {count} routing datasets that record a cost, {listed}, "

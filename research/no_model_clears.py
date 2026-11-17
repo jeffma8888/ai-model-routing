@@ -5,7 +5,7 @@ Usage:
       --judges MATRIX.jsonl --judges-registry MODELS.json --tau2 MATRIX.jsonl \
       --llmrouterbench MATRIX.jsonl --response-bank MATRIX.jsonl
 
-Runs `evaluate` (DESIGN 12.3) on the `cost_effective` flavor of the six routing datasets that
+Runs `evaluate` (DESIGN 12.3) on the `cost_effective` flavor of the first six routing datasets that
 record a cost (LLMRouterBench and the LLM Routing Response Bank from v1.341), with the bars,
 seeds and options of each committed results file, and prints, per bar, the cells on which no
 model clears and, on them, the held-out success and cost of the router's fallback (5.3

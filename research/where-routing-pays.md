@@ -1,6 +1,6 @@
 # Where task-level routing pays on the committed evidence
 
-README Results at a glance shows routing costing less than the best single model on some datasets, never reaching that model's held-out success on five of them and passing it on LLMRouterBench and the LLM Routing Response Bank. This note reads the seven committed routing results files to say why, and what a user's own data needs for routing to pay. Its numbers are the output of [where_routing_pays.py](where_routing_pays.py), which reads only those files (`DESIGN.md` 12.8).
+README Results at a glance shows routing costing less than the best single model on some of its first seven datasets, never reaching that model's held-out success on five of them and passing it on LLMRouterBench and the LLM Routing Response Bank. This note reads those seven committed routing results files to say why, and what a user's own data needs for routing to pay. Its numbers are the output of [where_routing_pays.py](where_routing_pays.py), which reads only those files (`DESIGN.md` 12.8).
 
 ## Facts
 
