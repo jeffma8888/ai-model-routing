@@ -266,8 +266,9 @@ def routerbench_size():
 
 
 def readme_sentence(text):
-    paths = out_paths(readme_commands(text))
-    named = ", ".join(f"`{p}`" for p in paths[:-1]) + f" or `{paths[-1]}`"
+    # v1.445 (row DOC28b): the sentence counts the results files of the commands it speaks for, which it
+    # named one by one to v1.444, so a command that adds or drops an `--out` file changes the count.
+    count = len(out_paths(readme_commands(text)))
     return (
         "On GitHub, the `evidence` workflow "
         "([.github/workflows/evidence.yml](.github/workflows/evidence.yml)) reruns the "
@@ -275,7 +276,8 @@ def readme_sentence(text):
         "LLMRouterBench, LLM Routing Response Bank and "
         "delegation "
         "subsections and of the ledger hand-off results below, "
-        f"downloading the pinned files, and fails if {named} changes by a byte; RouterBench "
+        f"downloading the pinned files, and fails if one of the {count} results files those commands write "
+        "changes by a byte; RouterBench "
         f"is left out of it, since its source is a {routerbench_size():,}-byte pickle that "
         "needs pandas and its evaluate step takes about 70 seconds.")
 
@@ -958,7 +960,7 @@ def test_the_workflow_reruns_the_ledger_handoff_line_after_the_readme_commands()
 
 def test_the_workflow_reruns_the_registry_pair_block_last():
     # v1.443 (row E24e, DESIGN 12.13 Registry pair bullet): the four lines of the RESULTS.md block, after
-    # the ledger line, and the results file last in Compare; the README intro names it only with E24c.
+    # the ledger line, and the results file last in Compare; the README intro counts it only with E24c.
     assert registry_commands() == REGISTRY_LINES
     text = workflow_text()
     run = [line.strip() for line in regenerate_lines(text)[1]]

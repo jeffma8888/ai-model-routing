@@ -18,7 +18,8 @@ entry for a smaller count is smaller, so 12.8 shrinks with each trim.
 DESIGN 12.8 v1.444 (row DOC28a): each part over its v1.444 cap at ce21e81 is in ``HELD`` with its size
 there (the opening as ``""``), held at most that size until its row (DOC28b to DOC28h) trims it; a held
 entry at or under its cap fails, so its row removes it, and while ``HELD`` is not empty the projection,
-each held part at its cap and the rest as they are, is at most ``PROJECTED_CAP``, 63,000 bytes.
+each held part at its cap and the rest as they are, is at most ``PROJECTED_CAP``, 63,000 bytes. A row that
+trims a part moves its entry to ``TRIMMED`` (the opening, v1.445, row DOC28b), so the two hold the plan.
 """
 import re
 from pathlib import Path
@@ -50,9 +51,11 @@ CLASS = {
 PENDING = {}
 # DESIGN 12.8 v1.444 (row DOC28a): each part over its v1.444 cap and its size at ce21e81, the opening as
 # "": 427, 776, 1,469, 1,462, 1,199, 880 and 867 bytes over, so the projection is 69,678 - 7,080 = 62,598.
-HELD = {"": 7_927, "tau2-bench": 5_776, "LLMRouterBench": 6_469, "LLM Routing Response Bank": 6_462,
+HELD = {"tau2-bench": 5_776, "LLMRouterBench": 6_469, "LLM Routing Response Bank": 6_462,
         "Delegation on AutoBench": 6_699, "Delegation on LLMRouterBench": 6_380,
         "Delegation on the LLM Routing Response Bank": 6_367}
+# Each part a DOC28 row has trimmed, with its ce21e81 size and its row: out of HELD, at most its cap.
+TRIMMED = {"": (7_927, "DOC28b")}
 PROJECTED_CAP = 63_000
 DESIGN = ROOT / "DESIGN.md"
 DESIGN_12_8 = "### 12.8 "
@@ -390,16 +393,31 @@ def test_the_12_8_clause_states_the_ceiling_in_force():
 def test_held_parts_were_over_their_caps_and_the_room_bullet_names_them():
     # Row DOC28a (v1.444): every held part is the opening or a heading, was over its v1.444 cap at
     # ce21e81 at the size held, and the 12.8 room bullet gives each name and size.
+    # v1.445 (row DOC28b): the opening left HELD, and the bullet names its row and version.
     assert HELD and set(HELD) - {""} <= set(CLASS)
     for name, held in HELD.items():
         assert held > (OPENING_CAP if name == "" else CAPS[CLASS[name]])
     lines = [line for line in DESIGN.read_text(encoding="utf-8").splitlines()
              if line.startswith("  - Room for one more subsection (v1.444, row DOC28a): ")]
     assert len(lines) == 1
-    sizes = ", ".join(f"`{name}` {size:,}" for name, size in HELD.items() if name)
-    stated = sizes.rsplit(", ", 1)[0] + " and " + sizes.rsplit(", ", 1)[1]
-    assert f"at its ce21e81 size: the opening {HELD[''] :,}, {stated}. " in lines[0]
+    sizes = [f"`{name}` {size:,}" if name else f"the opening {size:,}" for name, size in HELD.items()]
+    stated = ", ".join(sizes[:-1]) + " and " + sizes[-1] if len(sizes) > 1 else sizes[0]
+    assert f"at its ce21e81 size: {stated}. " in lines[0]
     assert f"is at most {PROJECTED_CAP:,} bytes" in lines[0]
+    assert "at ce21e81 the section is 69,678 bytes and its opening 7,927, " in lines[0]
+    assert "Rows DOC28b (the opening, v1.445) to DOC28h trim one part each;" in lines[0]
+
+
+def test_trimmed_parts_are_out_of_held_and_at_most_their_caps():
+    # Row DOC28b (v1.445): the opening, 7,927 bytes at ce21e81, is at most its 7,500-byte cap and out of
+    # HELD; HELD and TRIMMED together are the seven parts of the v1.444 plan, each over its cap there.
+    parts = measure(README.read_text(encoding="utf-8"))
+    sizes = dict(parts[1:])
+    assert TRIMMED == {"": (7_927, "DOC28b")} and not set(TRIMMED) & set(HELD)
+    assert len(HELD) + len(TRIMMED) == 7
+    for name, (was, _) in TRIMMED.items():
+        cap = OPENING_CAP if name == "" else CAPS[CLASS[name]]
+        assert was > cap >= sizes[name]
 
 
 def test_the_projection_has_room_for_the_largest_subsection():
@@ -407,8 +425,9 @@ def test_the_projection_has_room_for_the_largest_subsection():
     # size of the largest at ce21e81 (`Delegation on AutoBench`, 6,699 bytes).
     parts = measure(README.read_text(encoding="utf-8"))
     assert projection(parts) <= PROJECTED_CAP <= SECTION_CAP - 6_699
-    # ce21e81 itself: 69,678 bytes less the 7,080 its seven held parts are over their caps.
-    assert projection([(None, 69_678), ("", 7_927)] + [(n, s) for n, s in HELD.items() if n]) == 62_598
+    # ce21e81 itself: 69,678 bytes less the 7,080 its seven held parts (HELD and TRIMMED) are over their caps.
+    plan = {**{name: was for name, (was, _) in TRIMMED.items()}, **HELD}
+    assert projection([(None, 69_678)] + list(plan.items()), held=plan) == 62_598
 
 
 def test_an_unheld_subsection_growing_past_the_margin_fails_the_projection():
