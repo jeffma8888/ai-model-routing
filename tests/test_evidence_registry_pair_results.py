@@ -305,7 +305,6 @@ NOTE_ROW = re.compile(r"^  (0\.\d)  (cost_effective|cost_blind) +(\d\.\d{3}) +(\
                       r"(\d+) of (\d+) +(\d+) +(\d+)$")
 NOTE_SINGLE = re.compile(r"^    (openai/\S+) +(\d\.\d{3}) +(\d+\.\d{6})$")
 NOTE_TASK = re.compile(r"^  ([a-z]+/\S+) +(\d+) +(\d+) +(yes|no) ")
-xfail_no_file = pytest.mark.xfail(strict=True, raises=FileNotFoundError)
 
 
 def results_md():
@@ -442,7 +441,7 @@ def reading_bullets(results):
         f"under `min_samples` {config['min_samples']} on every seed (DESIGN 12.24), so the router falls back "
         f"to the model with the higher Wilson lower bound on that half (`on_no_model=\"best_available\"`, "
         f"DESIGN 5.3), `{LUNA}` on {picks.get(LUNA, 0)} seeds and `{SOL}` on {picks.get(SOL, 0)}, the same "
-        f"seeds at every bar in both flavors",
+        f"counts at every bar in both flavors",
         f"Each cost is the release's estimate from the call's token counts at the list prices its "
         f"`pair.json` names, which the converter checks are the registry's (DESIGN 12.23): `{LUNA}` "
         f"{price[LUNA][0]:g} and {price[LUNA][1]:g}, `{SOL}` {price[SOL][0]:g} and {price[SOL][1]:g} USD "
@@ -517,8 +516,9 @@ def family_held_section(results, block):
     assert worst < nominal, "a committed bar-violation rate reaches the nominal rate"
     lines += ["", f"On all {len(keys)} rows the committed routed success is below the release split's, by "
               f"{min(diffs):.3f} to {max(diffs):.3f}, and so is each single model's: the final split scores "
-              f"higher than the joined set for every strategy, so related questions in both seeded halves "
-              f"show no gain in these rows. No cleared task fell below its bar on the final split, and the "
+              f"higher than the seeded halves for both models alone and for every routed row, so related "
+              f"questions in both seeded halves show no gain in these rows. No cleared task fell below its "
+              f"bar on the final split, and the "
               f"committed bar-violation rates are at most {worst:.3f}, under the nominal one-sided "
               f"{nominal:.3f}."]
     return "\n".join(lines)
@@ -549,13 +549,11 @@ def report_sentence(families, invalid):
             f"release splits and {families['across_tasks']} across tasks (DESIGN 12.23).")
 
 
-@xfail_no_file
 def test_results_md_shows_the_table_of_the_committed_results(rs):
     block = "```text\n" + TABLE_COMMAND + "\n" + rs.table(committed()) + "\n```\n"
     assert block in results_md()
 
 
-@xfail_no_file
 def test_results_md_regenerate_block_sources_and_licence():
     text = results_md()
     results = committed()
@@ -577,22 +575,18 @@ def test_results_md_regenerate_block_sources_and_licence():
     assert not HOME.search(text)
 
 
-@xfail_no_file
 def test_results_md_single_model_sentence_is_the_committed_results():
     assert beats_statement(committed()) in results_md()
 
 
-@xfail_no_file
 def test_results_md_reading_it_is_built_from_the_committed_file():
     assert section(results_md(), "## Reading it") == reading_bullets(committed())
 
 
-@xfail_no_file
 def test_results_md_family_held_check_is_the_note_beside_the_file():
     assert section(results_md(), "## Family-held check") == family_held_section(committed(), note_block())
 
 
-@xfail_no_file
 def test_results_md_sections_in_order():
     heads = [line for line in results_md().split("\n") if line.startswith("## ")]
     assert heads == SECTIONS
@@ -617,7 +611,6 @@ def test_family_held_builder_fails_on_a_note_row_below_its_bar():
         family_held_section(committed(), block.replace(line + "\n", ""))
 
 
-@xfail_no_file
 def test_evidence_readme_states_the_source_pair_tasks_and_row_keys():
     text = evidence_readme()
     assert "(RESULTS.md)" in text and "(results.json)" in text
@@ -635,7 +628,6 @@ def test_evidence_readme_states_the_source_pair_tasks_and_row_keys():
     assert not HOME.search(text)
 
 
-@xfail_no_file
 def test_real_report_matches_the_evidence_readme(real_run):
     report, _ = real_run
     tasks = report["tasks"]
