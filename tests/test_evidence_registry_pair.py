@@ -1,4 +1,4 @@
-"""Registry-pair converter contract (DESIGN 12.23, v1.431), written before the converter and kept as its tests.
+"""Registry-pair converter contract (DESIGN 12.23, v1.431), written before the converter (v1.432) and kept as its tests.
 
 The converter is a standard-library script outside the package (``evidence/registry-pair/convert.py``), so it is
 loaded from its path by an autouse fixture. Every test uses small synthetic records or files in a temporary
@@ -20,8 +20,6 @@ from pathlib import Path
 import pytest
 
 from model_routing import evaluate, outcomes_from_rows
-
-pytestmark = pytest.mark.xfail(strict=True, raises=ModuleNotFoundError)
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "evidence" / "registry-pair" / "convert.py"
