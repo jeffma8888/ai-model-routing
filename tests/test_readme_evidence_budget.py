@@ -5,7 +5,8 @@ heading of the same or a higher level, each line with its newline: the section r
 ``## `` line to the next ``## `` line, its opening to its first ``### `` line, and each subsection to
 the next ``### `` or ``## `` line. The section is at most 70,000 bytes, its opening at most 7,500,
 each routing subsection at most 5,000 and each delegation subsection at most 5,500 (8,000, 6,500 and
-7,500 to v1.443). Rows DOC19a to
+7,500 to v1.443), the opening cap raised to 7,862 by v1.452 (row E24c) for the registry pair's Results at a
+glance bullet. Rows DOC19a to
 DOC19k trim one subsection each; until a row trims it, a subsection is in ``PENDING`` with its size
 at 0b3e142, and is held at most that size, never required at most its cap. The section total is
 required only once ``PENDING`` is empty.
@@ -25,6 +26,11 @@ DOC28e; ``Delegation on LLMRouterBench``, v1.449, row DOC28f; ``Delegation on th
 Bank``, v1.450, row DOC28g; ``tau2-bench``, v1.451, row DOC28h), so the two hold the plan. v1.451 emptied
 ``HELD``, so the projection is the section itself, and it is held at most ``PROJECTED_CAP`` while ``CLASS``
 names ``ROOM_HEADINGS`` (eleven) headings, so the room is kept for a twelfth subsection.
+
+DESIGN 12.8 v1.452 (row E24c): ``Registry pair`` is that twelfth heading, so ``CLASS`` names twelve and the
+hold is lifted; the section is over ``PROJECTED_CAP`` and at most ``SECTION_CAP``, and the hold is checked on
+the README without the new subsection and its glance bullet (``eleven``). ``OPENING_CAP`` rose by that
+bullet's line and newline, 362 bytes, to 7,862, at most the 8,000 the room bullet allows.
 """
 import re
 from pathlib import Path
@@ -461,10 +467,16 @@ def test_the_projection_has_room_for_the_largest_subsection():
     # size of the largest at ce21e81 (`Delegation on AutoBench`, 6,699 bytes).
     # v1.451 (row DOC28h): with HELD empty the projection is the section, held only while CLASS names
     # ROOM_HEADINGS headings (test_the_section_keeps_the_room_while_class_names_eleven_headings).
+    # v1.452 (row E24c, review nit): the room is spent, so the hold no longer binds the real README; the
+    # projection is the section itself, over PROJECTED_CAP and at most SECTION_CAP, and the hold is checked
+    # on the README without the new subsection in the room test above.
     parts = measure(README.read_text(encoding="utf-8"))
     assert PROJECTED_CAP <= SECTION_CAP - 6_699
     if HELD or len(CLASS) == ROOM_HEADINGS:
         assert projection(parts) <= PROJECTED_CAP
+    else:
+        assert PROJECTED_CAP < projection(parts) == parts[0][1] <= SECTION_CAP
+        assert projection(measure(eleven(README.read_text(encoding="utf-8"))[0])) <= PROJECTED_CAP
     # ce21e81 itself: 69,678 bytes less the 7,080 its seven held parts (HELD and TRIMMED) are over their caps.
     plan = {**{name: was for name, (was, _) in TRIMMED.items()}, **HELD}
     # The opening at its v1.444 cap, 7,500, which v1.452 (row E24c) raised for the registry pair's bullet.
