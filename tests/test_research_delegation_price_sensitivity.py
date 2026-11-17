@@ -41,6 +41,13 @@ v1.429 (row T15): a run re-decides only the `cost_effective` cells, as the scrip
 cost comparison is under `cost_effective`): `picks` calls the decision once per `cost_effective` cell; on the
 AutoBench and LLMRouterBench hand matrices the cut prints what re-deciding every cell prints, byte for byte; and the
 cut's premise is run, every model's prices times 0.001 or 1000 moving no `cost_blind` decision of the hand matrix.
+
+v1.440 (row T17): a run also keeps the committed pick of a `cost_effective` cell whose parent and committed delegate
+primary are other models than the run's and whose delegate route, as the script's `routes` gives it per task, seed,
+bar and point, has that primary at the run's prices too, the first decided cell of each group finding it. On the
+hand matrices the cells of a group share one route at the committed and at every scaled registry, every cell the
+cut keeps re-decides to its committed pick, and the cut prints what re-deciding every cell prints in fewer decisions;
+the brute-force tests above check its lines on all four datasets' hand matrices.
 """
 
 import contextlib
@@ -739,11 +746,107 @@ def test_no_price_moves_a_cost_blind_decision(ps, hand, monkeypatch):
     assert moved > 0
 
 
+@pytest.mark.xfail(strict=True, reason="v1.440 (row T17): the docstring states the shared-route cut")
 def test_the_docstring_says_which_cells_are_re_decided(ps):
     doc = " ".join(ps.__doc__.split())
-    for phrase in ("re-decides every `cost_effective` cell", "each `cost_blind` cell keeps its committed pick",
-                   "`routing_cost` is 0.0 outside `cost_effective`", "(v1.429, row T15)"):
+    for phrase in ("re-decides the `cost_effective` cells", "each `cost_blind` cell keeps its committed pick",
+                   "`routing_cost` is 0.0 outside `cost_effective`", "(v1.429, row T15)", "(v1.440, row T17)",
+                   "whose parent and committed delegate primary are other models than the run's",
+                   "13.3 builds the route without the parent", "the parent's and the primary's prices alone"):
         assert phrase in doc, phrase
+    assert "re-decides every `cost_effective` cell" not in doc
+
+
+# --- the shared-route cut (v1.440, row T17) --------------------------------------------------------
+
+def _routes_by_decision(ps, run, config, registry, monkeypatch):
+    """Each `cost_effective` cell's delegate route (primary, below-bar flag, basis) at `registry`'s prices, from its
+    own decision in a run that re-decides every cell, keyed by the cell's index."""
+    seen = []
+    real = Router.decide_delegation
+
+    def recorded(self, *args, **kwargs):
+        decision = real(self, *args, **kwargs)
+        route = decision.route
+        seen.append(None if route is None else (route.primary, route.below_bar, route.basis))
+        return decision
+
+    monkeypatch.setattr(Router, "decide_delegation", recorded)
+    ps.picks(run, config, registry)
+    monkeypatch.setattr(Router, "decide_delegation", real)
+    effective = [i for i, c in enumerate(run.result["cells"]) if c["flavor"] == "cost_effective"]
+    assert len(seen) == len(effective)
+    return dict(zip(effective, seen))
+
+
+@pytest.mark.xfail(strict=True, raises=AttributeError, reason="v1.440 (row T17): `routes` lands with the cut")
+def test_the_cells_of_a_group_share_one_route(ps, hand, monkeypatch):
+    """13.3 builds the delegate route without the parent, so each cell's own decision has its group's route, as
+    `routes` gives it, at the committed prices and at each run's."""
+    run, config, registry = _checked_hand(ps, hand)
+    cells = run.result["cells"]
+    for reg in [registry] + [ps.scaled(registry, m, f) for m in run.models for f in FACTORS]:
+        groups = ps.routes(run, config, reg)
+        own = _routes_by_decision(ps, run, config, reg, monkeypatch)
+        assert {i: groups[ps.group(cells[i])] for i in own} == own
+        # three parents share each group
+        assert len(own) == 3 * len(groups)
+
+
+@pytest.mark.xfail(strict=True, raises=AttributeError, reason="v1.440 (row T17): `routes` lands with the cut")
+def test_a_cell_the_cut_keeps_re_decides_to_its_committed_pick(ps, hand, monkeypatch):
+    """The cut's premise, run by brute force: in every run, each `cost_effective` cell whose parent and committed
+    primary are other models and whose group keeps that primary re-decides to its committed pick; some cells are
+    kept in every run, and some cells outside the rule move."""
+    run, config, registry = _checked_hand(ps, hand)
+    cells = run.result["cells"]
+    committed = ps.routes(run, config, registry)
+    for m in run.models:
+        for f in FACTORS:
+            reg = ps.scaled(registry, m, f)
+            now = ps.routes(run, config, reg)
+            full = ps.picks(run, config, reg)
+            kept = [i for i, c in enumerate(cells) if c["flavor"] == "cost_effective" and c["parent"] != m
+                    and committed[ps.group(c)] is not None and committed[ps.group(c)][0] != m
+                    and now[ps.group(c)] == committed[ps.group(c)]]
+            assert kept, (m, f)
+            assert [full[i] for i in kept] == [(cells[i]["mode"], cells[i]["model"]) for i in kept], (m, f)
+            assert ps.picks(run, config, reg, m, committed) == full, (m, f)
+    # a cell whose parent is the run's model can move, so the cut re-decides those: v/p's own price moves some of
+    # its cells between the paths
+    moved = [c for c, p in zip(cells, ps.picks(run, config, ps.scaled(registry, "v/p", 2.0)))
+             if p != (c["mode"], c["model"])]
+    assert any(c["parent"] == "v/p" and c["mode"] == "inline" for c in moved)
+
+
+@pytest.mark.xfail(strict=True, raises=AttributeError, reason="v1.440 (row T17): `SHARED` lands with the cut")
+@pytest.mark.parametrize("which", ["hand", "lrb_hand", "rb_hand"])
+def test_the_shared_route_cut_prints_the_same_in_fewer_decisions(ps, which, request, monkeypatch):
+    """The fixture's output, made with both cuts, against a run of the same command that re-decides every cell,
+    counting the decisions of each."""
+    fixture = request.getfixturevalue(which)
+    root, matrix = fixture[2], fixture[3]
+    dataset = {"hand": [], "lrb_hand": ["--dataset", "llmrouterbench"], "rb_hand": ["--dataset", "response-bank"]}
+    argv = (["--matrix", str(matrix)] + (["--registry", str(fixture[4])] if which == "hand" else dataset[which])
+            + ["--root", str(root)])
+    code, cut, err = fixture[-3:]
+    assert (code, err) == (0, "")
+    assert ps.SHARED is True
+    calls = []
+    real = Router.decide_delegation
+
+    def counted(self, *args, **kwargs):
+        calls.append(1)
+        return real(self, *args, **kwargs)
+
+    monkeypatch.setattr(Router, "decide_delegation", counted)
+    assert _main(ps, argv) == (0, cut, "")
+    fewer = len(calls)
+    calls.clear()
+    monkeypatch.setattr(ps, "SHARED", False)
+    monkeypatch.setattr(ps, "REDECIDED", EVERY)
+    assert _main(ps, argv) == (0, cut, "")
+    assert 0 < fewer < len(calls)
 
 
 # --- the note --------------------------------------------------------------------------------
@@ -1134,20 +1237,24 @@ def test_the_design_bullet_is_in_12_22():
     section = text.split("\n### 12.22 ", 1)[1].split("\n## 13. ", 1)[0]
     bullet = [line for line in section.splitlines() if line.startswith(BULLET)]
     assert len(bullet) == 1
+    # v1.440 (row T17) shortened the bullet, its v1.424 to v1.429 history kept in those CHANGELOG.md lines
     for phrase in ("`research/delegation-price-sensitivity.md`", "`research/delegation_price_sensitivity.py`",
                    "`research/reread_sensitivity.py`, loaded from its own folder by path", "`inputs` and `checked`",
-                   "exit 2", "at the committed prices", "0.5 and 2.0", "`price_in` and `price_out` times the factor",
-                   "committed 13.2 costs", "tests/test_research_delegation_price_sensitivity.py", "`## Results` block",
-                   "`--dataset llmrouterbench` (v1.425, row R39b) runs the 13.13 grid", "refuses `--registry`",
-                   "names the task count", "one block per dataset",
-                   "`--dataset response-bank` (v1.426, row R39c) runs the 13.14 grid",
-                   "`--dataset tau2-bench` and `--dataset tau2-bench-pooled` (v1.427, row R39d) run the 13.12 grid",
-                   "priced by its `call_cost`", "median call count (13.9 v1.74)", "two for tau2-bench",
-                   "they re-decide every `cost_effective` cell on a registry",
-                   "each `cost_blind` cell keeps its committed pick (v1.429, row T15), which no price can move",
-                   "its 5.2 `routing_cost` is 0.0 and 13.5 compares costs in `cost_effective` alone",
+                   "exit 2", "0.5 and 2.0", "`price_in` and `price_out` times the factor",
+                   "committed 13.2 costs", "tests/test_research_delegation_price_sensitivity.py", "`## Results` blocks",
+                   "`--dataset llmrouterbench` (v1.425) or `response-bank` (v1.426) the 13.13 or 13.14 run",
+                   "`tau2-bench` or `tau2-bench-pooled` (v1.427) the 13.12 run",
+                   "they re-decide the `cost_effective` cells on a registry",
+                   "a `cost_blind` cell (v1.429), whose 5.2 `routing_cost` is 0.0",
+                   "(v1.440, row T17) a cell whose parent and committed delegate primary are other models",
+                   "which 13.3 builds without the parent, so that every cell of its task, seed, bar and point shares it",
+                   "has the same primary at the run's prices, as one decision of the group finds",
+                   "13.2 prices both paths at the parent's and the primary's prices alone",
                    "prints what re-deciding every cell prints"):
         assert phrase in bullet[0], phrase
+    changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    for version in ("v1.424", "v1.425", "v1.426", "v1.427", "v1.429"):
+        assert changelog.count(f"\n- {version} (2026-11-") == 1, version
     assert "they re-decide every cell" not in bullet[0]
     # right after the re-read bullet; from v1.430 (row R40) the registry-pair bullet follows it
     lines = section.rstrip("\n").split("\n")
