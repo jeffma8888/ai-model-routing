@@ -568,6 +568,8 @@ DROPPED_OPENING_CLAUSES = [
     ("the records the [LLMRouterBench](#llmrouterbench) routing results above read",
      "The routing results read the same 9 benchmarks"),
     ("next to always working inline and always delegating", "next to always working inline and always delegating"),
+    # review iter-311 nit 1: the pointer named two sections, each with its own home.
+    ("`DESIGN.md` 13.9 and 13.13", "measured by `evaluate_delegation` (`DESIGN.md` 13.9)"),
     ("`DESIGN.md` 13.9 and 13.13", "(`DESIGN.md` 13.13)"),
     ("which each model answered in one recorded call", "which every model answered in one recorded call"),
     ("4 at a vendor page's list price", "at the list price of a vendor page"),
@@ -668,7 +670,8 @@ def test_readme_subsection_keeps_two_bullets_and_a_link_line():
 
 
 def test_readme_subsection_repeats_the_results_md_lines():
-    # v1.351 (13.13 v1.350): each is one RESULTS.md line; the subsection keeps only README_KEPT_LINES.
+    # v1.351 (13.13 v1.350): each is one RESULTS.md line; the subsection keeps only README_KEPT_LINES,
+    # none from v1.449 (row DOC28f, review iter-311 nit 2).
     sub = readme_subsection()
     for start, heading in [(m, "## Method") for m in METHOD_LINES] + [(a, "## Assumed") for a in ASSUMED_LINES]:
         line = results_md_line(start, heading)
