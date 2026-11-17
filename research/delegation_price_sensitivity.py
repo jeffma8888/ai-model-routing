@@ -19,8 +19,11 @@ each `cost_blind` cell keeps its committed pick (v1.429, row T15): no price can 
 one. So does a `cost_effective` cell whose parent and committed delegate primary are other models than the run's
 and whose delegate route has that primary at the run's prices too (v1.440, row T17): 13.3 builds the route without
 the parent, so the cells of one task, seed, bar, point and flavor share it and the first of them decided finds it,
-and 13.2 prices both paths at the parent's and the primary's prices alone. So the cuts print what re-deciding
-every cell prints, in fewer decisions. A cell's decision changes
+and 13.2 prices both paths at the parent's and the primary's prices alone. A run decides the `cost_effective` cells
+whose parent is its model first (v1.441, row T17b): it re-decides those whatever their route, and every group holds
+one cell of each parent, so where the run's model is a parent each group's route comes from a decision the run makes
+anyway, never from a cell it then keeps. So the cuts print what re-deciding every cell prints, in fewer decisions.
+A cell's decision changes
 when its mode or its model does. Both picks are scored on the cell's held-out half at the committed
 registry's 13.2 costs: the error is in the price the decision believes, and the bill is at the list price,
 as research/price-sensitivity.md scores routing. A run is one model and one factor. Per file, flavor and bar
@@ -70,6 +73,9 @@ REDECIDED = ("cost_effective",)
 # whether a run keeps the pick of a cell whose parent and committed delegate primary are other models and whose
 # route keeps that primary at the run's prices (v1.440, row T17); the tests set it False to run the v1.429 runs
 SHARED = True
+# whether a run decides the cells whose parent is its model first, so that a group's route comes from a decision the
+# run makes anyway (v1.441, row T17b); the tests set it False to run v1.440's cell order
+FIRST = True
 HEADER = ("  flavor          bar  runs moving  most changed / cells  share  to inline  success gap  cost ratio  "
           "all cost ratio  by")
 
@@ -129,21 +135,27 @@ def picks(run, config, registry, model=None, committed=None):
     cell of a flavor outside `REDECIDED` keeps its committed pick (v1.429). Given the run's `model` and the
     `committed` routes (`routes` at the committed prices), so does a cell whose parent and committed primary are
     other models and whose group's route at `registry`'s prices, which the group's first decided cell finds, is the
-    committed one (v1.440): the cell's two paths are priced at its parent's and that primary's prices alone."""
-    routers, now, out = {}, {}, []
-    for cell in run.result["cells"]:
+    committed one (v1.440): the cell's two paths are priced at its parent's and that primary's prices alone. With
+    `FIRST` the cells whose parent is `model` are decided first (v1.441), so that first decided cell is one of them."""
+    cells = run.result["cells"]
+    routers, now, out = {}, {}, [None] * len(cells)
+    order = range(len(cells))
+    if FIRST:
+        order = sorted(order, key=lambda i: cells[i]["parent"] != model)
+    for i in order:
+        cell = cells[i]
         if cell["flavor"] not in REDECIDED:
-            out.append((cell["mode"], cell["model"]))
+            out[i] = (cell["mode"], cell["model"])
             continue
         at = group(cell)
         if committed is not None and cell["parent"] != model:
             was = committed[at]
             if was is not None and was[0] != model and at in now and now[at] == was:
-                out.append((cell["mode"], cell["model"]))
+                out[i] = (cell["mode"], cell["model"])
                 continue
         decision = _decide(routers, run, config, registry, cell)
         now.setdefault(at, _route(decision))
-        out.append((decision.mode, decision.model))
+        out[i] = (decision.mode, decision.model)
     return out
 
 

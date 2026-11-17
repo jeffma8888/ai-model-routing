@@ -835,7 +835,6 @@ def test_a_cell_the_cut_keeps_re_decides_to_its_committed_pick(ps, hand, monkeyp
     assert any(c["parent"] == "v/p" and p == ("inline", "v/p") for c, p in moved)
 
 
-@pytest.mark.xfail(strict=True, raises=AttributeError, reason="v1.441 red: the script's FIRST lands with the cut")
 @pytest.mark.parametrize("which", ["hand", "lrb_hand", "rb_hand"])
 def test_the_shared_route_cut_prints_the_same_in_fewer_decisions(ps, which, request, monkeypatch):
     """The fixture's output, made with both cuts and the v1.441 order, against a run in v1.440's cell order, a run
@@ -875,7 +874,6 @@ def test_the_shared_route_cut_prints_the_same_in_fewer_decisions(ps, which, requ
 
 # --- the cells of the run's own parent first (v1.441, row T17b) ------------------------------------
 
-@pytest.mark.xfail(strict=True, raises=AttributeError, reason="v1.441 red: the script's FIRST lands with the cut")
 def test_a_run_decides_its_own_parents_cells_first_and_no_kept_cell_for_a_route(ps, hand, monkeypatch):
     """v1.441: a run decides the `cost_effective` cells whose parent is its model first, and every group holds one
     cell of each parent, so each group's route at the run's prices comes from one of them and the run decides exactly
