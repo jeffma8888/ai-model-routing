@@ -15,8 +15,8 @@ the next ``#``, ``##`` or ``###`` line, is at most ``DESIGN_12_8_CEILINGS[len(PE
 that removes a ``PENDING`` name adds the entry for the new count, the size its trim leaves, and an
 entry for a smaller count is smaller, so 12.8 shrinks with each trim.
 
-DESIGN 12.8 v1.444 (row DOC28a): each part over its v1.444 cap at ce21e81 is in ``HELD`` with its size
-there (the opening as ``""``), held at most that size until its row (DOC28b to DOC28h) trims it; a held
+DESIGN 12.8 v1.444 (row DOC28a): each part over its v1.444 cap at ce21e81 was put in ``HELD`` with its
+size there (the opening as ``""``), held at most that size until its row (DOC28b to DOC28h) trims it; a held
 entry at or under its cap fails, so its row removes it, and while ``HELD`` is not empty the projection,
 each held part at its cap and the rest as they are, is at most ``PROJECTED_CAP``, 63,000 bytes. A row that
 trims a part moves its entry to ``TRIMMED`` (the opening, v1.445, row DOC28b), so the two hold the plan.
@@ -49,8 +49,9 @@ CLASS = {
 # removed one name, the last (`RouterBench`, 4,731 bytes) v1.373, row DOC19k, so the section total is
 # now required.
 PENDING = {}
-# DESIGN 12.8 v1.444 (row DOC28a): each part over its v1.444 cap and its size at ce21e81, the opening as
-# "": 427, 776, 1,469, 1,462, 1,199, 880 and 867 bytes over, so the projection is 69,678 - 7,080 = 62,598.
+# DESIGN 12.8 v1.444 (row DOC28a): each part still over its v1.444 cap and its size at ce21e81: 776, 1,469,
+# 1,462, 1,199, 880 and 867 bytes over there; with the opening's 427 (TRIMMED) the ce21e81 projection is
+# 69,678 - 7,080 = 62,598.
 HELD = {"tau2-bench": 5_776, "LLMRouterBench": 6_469, "LLM Routing Response Bank": 6_462,
         "Delegation on AutoBench": 6_699, "Delegation on LLMRouterBench": 6_380,
         "Delegation on the LLM Routing Response Bank": 6_367}
