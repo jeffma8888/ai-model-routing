@@ -627,7 +627,7 @@ def test_readme_subsection_shows_the_table_and_links(dr):
                    "(`inline_separate_call` True)", "(`inline_separate_call` False)",
                    "`separate` the point's `inline_separate_call`", "(licence CC-BY-4.0)",
                    "](https://huggingface.co/datasets/AutoBench/router-benchmark-2026-10/tree/43755180be7d8097068982d7a3f37fc04cd15379)",
-                   "list-price estimate"):
+                   "list-price estimate", "records enough real hand-offs with a success label and the same work inline"):
         assert phrase in sub, phrase
     # v1.448 (13.10, row DOC28e): the opening shed these clauses to fit its 5,500-byte cap; each is
     # absent here, and the phrase after it is in its home.
@@ -653,7 +653,14 @@ DROPPED_OPENING_CLAUSES = [
      "the delegate is credited with its recorded answer to the whole question"),
     ("the mean over the 50 seeds of a held-out half's list-price cost", RESULTS_MD,
      "each averaged over the 50 seeds"),
-    ("observed usage only", ROOT / "evidence" / "trail" / "RESULTS.md", "\n- No run of a task without its sub-agent"),
+    ("observed usage only", ROOT / "evidence" / "trail" / "RESULTS.md", "These are observed usage, not the inputs of DESIGN 13.1"),
+    ("no run of a task without its sub-agent", ROOT / "evidence" / "trail" / "RESULTS.md",
+     "\n- No run of a task without its sub-agent"),
+    ("`DESIGN.md` 13.9 and 13.10", RESULTS_MD, "(`DESIGN.md` 13.10)"),
+    # review iter-309 nit 1: the hand-off sentence says "enough", as research/hand-off-data.md finds
+    # paired runs on 12 questions, too few for the evaluator's split
+    ("records a real hand-off together with a success label", ROOT / "research" / "hand-off-data.md",
+     "12 questions are too few for the evaluator's split"),
     ("which the routing evidence above also reads", README,
      "whose items are conversations of 2 to 100 model calls"),
 ]
