@@ -48,6 +48,19 @@ bar, point and flavor, has that primary at the run's prices too, the first decid
 hand matrices the cells of a group share one route at the committed and at every scaled registry, every cell the
 cut keeps re-decides to its committed pick, and the cut prints what re-deciding every cell prints in fewer decisions;
 the brute-force tests above check its lines on all four datasets' hand matrices.
+
+v1.441 (row T17b): the LLMRouterBench block's fixture answers the script's one `evaluate_delegation` call, which
+research/reread_sensitivity.py's `checked` makes in the copy the script loads (`RS`), with the session's run of
+tests/conftest.py `llmrouterbench_delegation_full` when the call's rows, registry, bars, points and seeds are those
+that fixture passes, as v1.439 does for the re-read note, and makes the call otherwise, so a suite pays the 13.13
+evaluation once; the script still checks that run's config, tasks, summary and every cell at the committed prices
+against its own calibration. A test pins that the session's run answered the call and was made on the script's
+grid; on the hand matrix a shared run prints what the script's own call prints, a stand-in whose arguments differ
+makes the call, and a shared run on other seeds exits 2. A run also decides the `cost_effective` cells whose parent
+is its model first, as the script's `FIRST` names it, so each group's route at the run's prices comes from a decision
+the run makes anyway: on the AutoBench hand matrix every run decides exactly the cells the v1.440 rule cannot keep,
+those of its own parent first, in the same picks, and v1.440's cell order decides more in some run; on the three
+hand matrices the order prints the same lines in fewer decisions than v1.440's.
 """
 
 import contextlib
@@ -822,11 +835,12 @@ def test_a_cell_the_cut_keeps_re_decides_to_its_committed_pick(ps, hand, monkeyp
     assert any(c["parent"] == "v/p" and p == ("inline", "v/p") for c, p in moved)
 
 
+@pytest.mark.xfail(strict=True, raises=AttributeError, reason="v1.441 red: the script's FIRST lands with the cut")
 @pytest.mark.parametrize("which", ["hand", "lrb_hand", "rb_hand"])
 def test_the_shared_route_cut_prints_the_same_in_fewer_decisions(ps, which, request, monkeypatch):
-    """The fixture's output, made with both cuts, against a run with the v1.429 cut alone and a run that re-decides
-    every cell, counting the decisions of each, so the shared-route cut's own saving is measured against v1.429
-    (review iter-301 should-fix 2)."""
+    """The fixture's output, made with both cuts and the v1.441 order, against a run in v1.440's cell order, a run
+    with the v1.429 cut alone and a run that re-decides every cell, counting the decisions of each, so each cut's own
+    saving is measured against the one before it (review iter-301 should-fix 2)."""
     fixture = request.getfixturevalue(which)
     root, matrix = fixture[2], fixture[3]
     dataset = {"hand": [], "lrb_hand": ["--dataset", "llmrouterbench"], "rb_hand": ["--dataset", "response-bank"]}
@@ -834,7 +848,7 @@ def test_the_shared_route_cut_prints_the_same_in_fewer_decisions(ps, which, requ
             + ["--root", str(root)])
     code, cut, err = fixture[-3:]
     assert (code, err) == (0, "")
-    assert ps.SHARED is True
+    assert ps.SHARED is True and ps.FIRST is True
     calls = []
     real = Router.decide_delegation
 
@@ -844,6 +858,10 @@ def test_the_shared_route_cut_prints_the_same_in_fewer_decisions(ps, which, requ
 
     monkeypatch.setattr(Router, "decide_delegation", counted)
     assert _main(ps, argv) == (0, cut, "")
+    first = len(calls)
+    calls.clear()
+    monkeypatch.setattr(ps, "FIRST", False)
+    assert _main(ps, argv) == (0, cut, "")
     fewer = len(calls)
     calls.clear()
     monkeypatch.setattr(ps, "SHARED", False)
@@ -852,7 +870,49 @@ def test_the_shared_route_cut_prints_the_same_in_fewer_decisions(ps, which, requ
     calls.clear()
     monkeypatch.setattr(ps, "REDECIDED", EVERY)
     assert _main(ps, argv) == (0, cut, "")
-    assert 0 < fewer < v1_429 < len(calls)
+    assert 0 < first < fewer < v1_429 < len(calls)
+
+
+# --- the cells of the run's own parent first (v1.441, row T17b) ------------------------------------
+
+@pytest.mark.xfail(strict=True, raises=AttributeError, reason="v1.441 red: the script's FIRST lands with the cut")
+def test_a_run_decides_its_own_parents_cells_first_and_no_kept_cell_for_a_route(ps, hand, monkeypatch):
+    """v1.441: a run decides the `cost_effective` cells whose parent is its model first, and every group holds one
+    cell of each parent, so each group's route at the run's prices comes from one of them and the run decides exactly
+    the cells the v1.440 rule cannot keep, in the same picks; v1.440's cell order (`FIRST` False) decides more cells
+    in some run, the extra ones kept cells it decided only to find their group's route."""
+    assert ps.FIRST is True
+    doc = " ".join(ps.__doc__.split())
+    assert "decides the `cost_effective` cells whose parent is its model first (v1.441, row T17b)" in doc
+    run, config, registry = _checked_hand(ps, hand)
+    cells = [c for c in run.result["cells"] if c["flavor"] in ps.REDECIDED]
+    committed = ps.routes(run, config, registry)
+    real, seen, extra = Router.decide_delegation, [], []
+
+    def counted(self, task_name, parent_model, *args, **kwargs):
+        seen.append(parent_model)
+        return real(self, task_name, parent_model, *args, **kwargs)
+
+    for m in run.models:
+        assert m in config["parents"]
+        for f in FACTORS:
+            reg = ps.scaled(registry, m, f)
+            now = ps.routes(run, config, reg)
+            kept = [c["parent"] != m and committed[ps.group(c)] is not None and committed[ps.group(c)][0] != m
+                    and now[ps.group(c)] == committed[ps.group(c)] for c in cells]
+            own = sum(c["parent"] == m for c in cells)
+            monkeypatch.setattr(Router, "decide_delegation", counted)
+            seen.clear()
+            got = ps.picks(run, config, reg, m, committed)
+            assert seen[:own] == [m] * own and m not in seen[own:], (m, f)
+            assert len(seen) == kept.count(False), (m, f)
+            seen.clear()
+            monkeypatch.setattr(ps, "FIRST", False)
+            assert ps.picks(run, config, reg, m, committed) == got, (m, f)
+            extra.append(len(seen) - kept.count(False))
+            monkeypatch.setattr(ps, "FIRST", True)
+            monkeypatch.setattr(Router, "decide_delegation", real)
+    assert min(extra) >= 0 and max(extra) > 0, extra
 
 
 # --- the note --------------------------------------------------------------------------------
@@ -1257,6 +1317,8 @@ def test_the_design_bullet_is_in_12_22():
                    "shares it",
                    "has the same primary at the run's prices, as one decision of the group finds",
                    "13.2 prices both paths at the parent's and the primary's prices alone",
+                   "(from v1.441, row T17b, a run decides the cells whose parent is its model first, so that decision "
+                   "is one it makes anyway)",
                    "prints what re-deciding every cell prints",
                    # what the v1.424 to v1.427 bullet said of the four other datasets (review iter-301 should-fix 1)
                    "a dataset other than AutoBench refuses `--registry`",
@@ -1387,15 +1449,77 @@ def test_note_results_block_is_the_script_output(output):
     assert _block(NOTE.read_text(encoding="utf-8")).split("\n") == output
 
 
+# --- the session's evaluation shared with the LLMRouterBench run (v1.441, row T17b) -----------
+
+def _sharing(lrb, root, kept, full):
+    """A stand-in for the `evaluate_delegation` that the script's copy of research/reread_sensitivity.py (`RS`)
+    calls: it answers with `full` when the call's rows, registry, bars, points and seeds are those tests/conftest.py
+    `llmrouterbench_delegation_full` passes (`kept`, the 13.13 registry.json under `root`, the 13.13 script's
+    `BARS`, `points()` and `range(SEEDS)`), and otherwise makes the call; the list records, per call, whether
+    `full` answered it (tests/test_research_reread_sensitivity.py's `_sharing`, v1.439, does the same)."""
+    session = (kept, Registry.load(root / LRB.relative_to(ROOT) / "registry.json").models,
+               dict(bars=list(lrb.BARS), points=lrb.points(), seeds=range(lrb.SEEDS)))
+    answered = []
+
+    def shared(rows, registry, **kwargs):
+        answered.append((rows, registry.models, kwargs) == session)
+        return full if answered[-1] else evaluate_delegation(rows, registry, **kwargs)
+
+    return shared, answered
+
+
+def test_a_run_answered_by_the_session_evaluation_prints_the_script_lines(ps, lrb, lrb_hand, monkeypatch):
+    _, _, root, matrix, code, out, err = lrb_hand
+    assert (code, err) == (0, "")
+    # the session's evaluation, made as tests/conftest.py makes it: the matrix read back, `select_rows` for the
+    # committed registry.json, then the 13.13 grid
+    pool = Registry.load(root / LRB.relative_to(ROOT) / "registry.json")
+    kept, _dropped = lrb.select_rows(ps.RS.read_rows(matrix), [m.id for m in pool.models])
+    grid = dict(bars=list(lrb.BARS), points=lrb.points())
+    full = evaluate_delegation(kept, pool, seeds=range(lrb.SEEDS), **grid)
+    argv = ["--dataset", "llmrouterbench", "--matrix", str(matrix), "--root", str(root)]
+    shared, answered = _sharing(lrb, root, kept, full)
+    monkeypatch.setattr(ps.RS, "evaluate_delegation", shared)
+    assert _main(ps, argv) == (0, out, "") and answered == [True]
+    # a stand-in whose arguments are not the call's makes the call, so the block test prints the script's own lines
+    shared, answered = _sharing(lrb, root, kept[1:], None)
+    monkeypatch.setattr(ps.RS, "evaluate_delegation", shared)
+    assert _main(ps, argv) == (0, out, "") and answered == [False]
+    # a shared run made on other seeds is refused by the script's own check of the committed config
+    other = evaluate_delegation(kept, pool, seeds=range(lrb.SEEDS - 1), **grid)
+    monkeypatch.setattr(ps.RS, "evaluate_delegation", lambda *_args, **_kwargs: other)
+    assert _main(ps, argv) == (2, "", "error: evidence/llmrouterbench-delegation/results.json: the run's config is "
+                                      "not the committed one\n")
+
+
 @pytest.fixture(scope="module")
-def lrb_output(ps, llmrouterbench_pinned):
+def lrb_output(ps, lrb, llmrouterbench_pinned, llmrouterbench_delegation_full):
+    """The script's lines on the pinned matrix, whether the session's run answered each of its `evaluate_delegation`
+    calls, and that run (v1.441, row T17b): a suite pays the 13.13 evaluation once, in tests/conftest.py
+    `llmrouterbench_delegation_full`, and the script checks that run as it checks its own (`checked`)."""
     code, _report, path = llmrouterbench_pinned
     assert code == 0
-    return ps.run(path, None, ROOT, "llmrouterbench")
+    kept, _dropped, full = llmrouterbench_delegation_full
+    shared, answered = _sharing(lrb, ROOT, kept, full)
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(ps.RS, "evaluate_delegation", shared)
+        lines = ps.run(path, None, ROOT, "llmrouterbench")
+    return lines, answered, full
 
 
 def test_note_llmrouterbench_block_is_the_script_output(lrb_output):
-    assert _block(NOTE.read_text(encoding="utf-8"), LRB_COMMAND).split("\n") == lrb_output
+    assert _block(NOTE.read_text(encoding="utf-8"), LRB_COMMAND).split("\n") == lrb_output[0]
+
+
+def test_the_llmrouterbench_run_shares_the_session_evaluation(lrb, lrb_output):
+    """The script's one call had the arguments the session's call has, so the session's run answered it, and that
+    run records the script's grid and the committed registry's models as its parents."""
+    _lines, answered, full = lrb_output
+    assert answered == [True]
+    config = full["config"]
+    assert (config["bars"], config["points"], config["seeds"]) == (list(lrb.BARS), lrb.points(),
+                                                                     list(range(lrb.SEEDS)))
+    assert config["parents"] == [m.id for m in Registry.load(LRB / "registry.json").models]
 
 
 @pytest.fixture(scope="module")
