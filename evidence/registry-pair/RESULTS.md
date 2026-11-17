@@ -76,7 +76,7 @@ The release keeps each family of related questions in one split, and the seeded 
 - bar 0.8, `cost_blind`: release split 0.922 at 0.864 of `openai/gpt-6.1-sol`'s cost, 25 of 31 tasks cleared, 0 of them below the bar on the final split; committed means 0.918 at 0.897, cleared_rate 0.840, bar_violation_rate 0.002
 - bar 0.9, `cost_blind`: release split 0.922 at 0.864 of `openai/gpt-6.1-sol`'s cost, 15 of 31 tasks cleared, 0 of them below the bar on the final split; committed means 0.918 at 0.897, cleared_rate 0.493, bar_violation_rate 0.004
 
-On all 8 rows the committed routed success is below the release split's, by 0.001 to 0.006, and so is each single model's: the final split scores higher than the seeded halves for both models alone and for every routed row, so related questions in both seeded halves show no gain in these rows. No cleared task fell below its bar on the final split, and the committed bar-violation rates are at most 0.014, under the nominal one-sided 0.025.
+On all 8 rows the committed routed success is below the release split's, by 0.001 to 0.006, and so is each model's alone. The two readings score different questions, so each gap mixes how hard the final split is with what the halves do: this check cannot isolate an effect of related questions in both seeded halves, and shows only that no committed row is above its release-split counterpart. No cleared task fell below its bar on the final split, and the committed bar-violation rates are at most 0.014, under the nominal one-sided 0.025.
 
 ## Regenerate
 

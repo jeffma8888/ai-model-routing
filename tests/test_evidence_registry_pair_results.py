@@ -222,6 +222,7 @@ def test_real_success_span_and_the_12_17_rule(real_rows):
     tasks = sorted({t for t, _ in full})
     assert all(t.startswith("bbh/") for t in tasks)
     lo, hi = 304 / 428, 1.0
+    assert SPAN == {"low": (LUNA, "mmlupro/law", 304, 428), "high": hi, "high_pairs": len(full), "high_tasks": len(tasks)}
     phrase = (f"run from {lo:.3f} (`{LUNA}` on `mmlupro/law`, 304 of 428) to {hi:.3f} ({len(full)} (task, model) "
               f"pairs on {len(tasks)} `bbh` tasks)")
     assert phrase in body()
@@ -293,6 +294,8 @@ NOTICES = ("Exact source notices and revisions are included under `source/notice
            "artifacts in research, and identify the immutable artifact revision used for a reported "
            "reproduction.")
 # The 12.23 Default output on the pinned files (the cached-file test below requires the report's).
+# The per-task, per-model success span on the pinned files (12.24 Bars; the cached span test pins it).
+SPAN = {"low": (LUNA, "mmlupro/law", 304, 428), "high": 1.0, "high_pairs": 18, "high_tasks": 12}
 FAMILIES = {"families": 5567, "shared_families": 276, "shared_items": 808, "in_both_splits": 0, "across_tasks": 0}
 INVALID = {"korbench/cipher": 1}
 DOWNLOAD = 2473 + 3777170 + 3742778
@@ -363,6 +366,70 @@ def beats_statement(results):
                 f"against each of them, every routed row in the table has lower held-out success "
                 f"or a higher cost.")
     return "Routed rows beat these single models on both counts: " + "; ".join(beaten) + "."
+
+
+def join(words):
+    words = list(words)
+    return words[0] if len(words) == 1 else ", ".join(words[:-1]) + " and " + words[-1]
+
+
+def opening(results):
+    """The two paragraphs before `## Source and licence`, every count from the file or SPAN (v1.437)."""
+    config = results["config"]
+    tasks, seeds, bars = results["tasks"], len(config["seeds"]), config["bars"]
+    models = sorted({m for v in tasks.values() for m in v["models"]})
+    groups = {}
+    for task in tasks:
+        groups[task.split("/")[0]] = groups.get(task.split("/")[0], 0) + 1
+    model, low_task, hits, items = SPAN["low"]
+    lo, hi = hits / items, SPAN["high"]
+    rule = [k / 10 for k in range(math.floor(lo * 10) + 1, math.ceil(hi * 10))]
+    assert rule != bars and set(rule) < set(bars), "the bars are the 12.17 rule's"
+    return (
+        f"What `model-routing evaluate` measures on superlinked/train-a-router-reasoning, the public release "
+        f"whose two models and their prices are the registry's own: {join(f'`{m}`' for m in models)}, each "
+        f"graded on the same {sum(v['items'] for v in tasks.values()):,} questions of MMLU-Pro, BIG-Bench Hard "
+        f"and KOR-Bench, as {len(tasks)} routing tasks, one per (dataset, task) pair "
+        f"({join(f'{n} `{g}`' for g, n in sorted(groups.items()))} tasks), a success when the release's "
+        f"strict declared-label equality marks the answer right, and the release's estimated cost of the "
+        f"call, from its token counts at the registry's list prices, as its cost. See [README.md](README.md) "
+        f"for what the converter reads and keeps, and DESIGN 12.24 for this file's contract. For each of "
+        f"{seeds} seeds the items of each task are split in half by a seeded hash; the router calibrates on "
+        f"one half at a bar and is scored on the other half, next to the oracle, the best model on the "
+        f"calibration half, the cheapest model and each single model (DESIGN 12.3). The file behind every "
+        f"number here is [results.json](results.json): the summary rows and the routed per-task rows, "
+        f"including how many of the {seeds} seeds routed to each model. It is made by the RouterBench "
+        f"results script, `evidence/routerbench/results.py`, which does not depend on the dataset.\n\n"
+        f"The bars are {join(str(b) for b in bars)}, the bars of the RouterBench results. Every tenth strictly "
+        f"inside the span of the per-task, per-model success rates, which runs from {lo:.3f} (`{model}` on "
+        f"`{low_task}`, {hits} of {items}) to {hi:.3f} ({SPAN['high_pairs']} (task, model) pairs on "
+        f"{SPAN['high_tasks']} `bbh` tasks), would give only {join(str(b) for b in rule)} (DESIGN 12.24). The "
+        f"two lower bars are kept so that each row has a counterpart in the family-held check below, and "
+        f"since a task clears on its calibration bound, not its rate, they still give different rows.")
+
+
+def results_section(rs, results):
+    """The `## Results` section: the column sentence, the table block and the single-model sentence."""
+    config = results["config"]
+    _, best, _ = single_models(results)
+    seeds, ntasks = len(config["seeds"]), len(results["tasks"])
+    return (
+        f"Routed rows: `success` is the share of held-out items whose answer the release marks right, pooled "
+        f"over the {ntasks} tasks, `cost_usd` is the estimated cost of those calls (both averaged over the "
+        f"{seeds} seeds), `vs_best_model` is that cost divided by the cost of the best single model "
+        f"(`{name(best)}`), `cleared_rate` is the share of the {seeds * ntasks:,} (task, seed) cells where some "
+        f"model cleared the bar on the calibration half, and `bar_violation_rate` is the share of cleared "
+        f"cells whose held-out success fell below the bar. Baseline rows do not depend on the bar or the "
+        f"flavor.\n\n```text\n{TABLE_COMMAND}\n{rs.table(results)}\n```\n\n{beats_statement(results)}")
+
+
+def regenerate_section(cv):
+    """The `## Regenerate` section: the five commands and the download line, its bytes from FILES."""
+    return (f"{REGENERATE}\nThe converter downloads the three pinned files "
+            f"({sum(size for size, _ in cv.FILES.values()):,} bytes) into "
+            f"`~/.cache/ai-model-routing-evidence/registry-pair/` on its first run, the folder "
+            f"`research/registry_pair.py` also reads, and checks each against its pinned size and sha256; "
+            f"converting them takes under a second once they are cached.")
 
 
 def prices():
@@ -515,10 +582,11 @@ def family_held_section(results, block):
         "a committed row is not below the release split's"
     assert worst < nominal, "a committed bar-violation rate reaches the nominal rate"
     lines += ["", f"On all {len(keys)} rows the committed routed success is below the release split's, by "
-              f"{min(diffs):.3f} to {max(diffs):.3f}, and so is each single model's: the final split scores "
-              f"higher than the seeded halves for both models alone and for every routed row, so related "
-              f"questions in both seeded halves show no gain in these rows. No cleared task fell below its "
-              f"bar on the final split, and the "
+              f"{min(diffs):.3f} to {max(diffs):.3f}, and so is each model's alone. The two readings score "
+              f"different questions, so each gap mixes how hard the final split is with what the halves do: "
+              f"this check cannot isolate an effect of related questions in both seeded halves, and shows "
+              f"only that no committed row is above its release-split counterpart. No cleared task fell below "
+              f"its bar on the final split, and the "
               f"committed bar-violation rates are at most {worst:.3f}, under the nominal one-sided "
               f"{nominal:.3f}."]
     return "\n".join(lines)
@@ -555,17 +623,12 @@ def test_results_md_shows_the_table_of_the_committed_results(rs):
 
 
 def test_results_md_regenerate_block_sources_and_licence():
-    text = results_md()
-    results = committed()
-    _, best, _ = single_models(results)
-    assert REGENERATE in text
+    full = results_md()
+    text = section(full, "## Source and licence")
     for needle in [DATASET_URL, f"[`{REVISION}`]({DATASET_URL}/tree/{REVISION})", LICENSES, NOTICES, CARD_SHA256,
-                   "4,824 bytes", "read on 2026-11-16", *CARD_META, "(README.md)", "(results.json)", "DESIGN 12.24",
-                   f"{sum(ITEMS.values()):,} questions", f"{len(ITEMS)} routing tasks", "0.710",
-                   f"`{LUNA}` on `mmlupro/law`, 304 of 428", "18 (task, model) pairs on 12 `bbh` tasks",
-                   f"`{name(best)}`", f"the {50 * len(ITEMS):,} (task, seed) cells",
-                   f"({DOWNLOAD:,} bytes)", "`~/.cache/ai-model-routing-evidence/registry-pair/`"]:
+                   "4,824 bytes", "read on 2026-11-16", *CARD_META, "(README.md)", "(results.json)"]:
         assert needle in text, needle
+    text = full
     for file in FILES:
         size, sha256 = load("registry_pair_convert_for_md", FOLDER / "convert.py").FILES[file]
         assert f"`{file}`, {size:,} bytes, sha256 `{sha256}`" in text, file
@@ -622,6 +685,10 @@ def test_evidence_readme_states_the_source_pair_tasks_and_row_keys():
         assert f"`{file}`, {size:,} bytes, sha256 `{sha256}`" in text, file
     assert pair_table() in text
     assert split_table(note_rows(note_block())[2]) in text
+    total = sum(ITEMS.values())
+    for needle in [f"the same {total:,} questions", f"{total:,} items in all, {2 * total:,} rows (2 per item)",
+                   f"bars {BARS[0]} to {BARS[-1]} over {len(CONFIG['seeds'])} seeds"]:
+        assert needle in text, needle
     for key in ROW_KEYS:
         assert f"`{key}`" in text, key
     assert text.isascii() and "\u2013" not in text and "\u2014" not in text
@@ -634,3 +701,26 @@ def test_real_report_matches_the_evidence_readme(real_run):
     assert split_table({t: (v["calibration"], v["final"]) for t, v in tasks.items()}) in evidence_readme()
     assert report["families"] == FAMILIES
     assert {t: v["invalid_cells"] for t, v in tasks.items() if v["invalid_cells"]} == INVALID
+
+
+def test_results_md_opening_results_and_regenerate_sections_are_built():
+    text, results = results_md(), committed()
+    cv = load("registry_pair_convert_for_sections", FOLDER / "convert.py")
+    rs = load("routerbench_results_for_sections", ROOT / "evidence" / "routerbench" / "results.py")
+    head = "# Registry-pair results\n\n"
+    assert text.startswith(head) and text[len(head):text.index("\n## Source and licence\n")].strip("\n") == opening(results)
+    assert section(text, "## Results") == results_section(rs, results)
+    assert section(text, "## Regenerate") == regenerate_section(cv)
+    assert sum(size for size, _ in cv.FILES.values()) == DOWNLOAD
+
+
+def test_opening_builder_follows_the_file_and_span():
+    fake = json.loads(json.dumps(committed()))
+    fake["config"]["seeds"] = list(range(51))
+    fake["tasks"]["bbh/extra"] = {"items": 1, "models": MODELS}
+    text = opening(fake)
+    assert "For each of 51 seeds" in text and "(15 `bbh`, 3 `korbench` and 14 `mmlupro` tasks)" in text
+    assert "as 32 routing tasks" in text and "6,100 questions" in text
+    fake["config"]["bars"] = [0.8, 0.9]
+    with pytest.raises(AssertionError, match="12.17 rule"):
+        opening(fake)
