@@ -944,6 +944,10 @@ def test_the_workflow_reruns_the_ledger_handoff_line_after_the_readme_commands()
     spec = design.split("\n### 13.15 ", 1)[1].split("\n## ", 1)[0]
     bullets = [line for line in spec.split("\n") if line.startswith("- Workflow (v1.397, row E23c): ")]
     assert len(bullets) == 1 and f"`{LEDGER_LINE}`" in bullets[0]
+    # Review iter-304 must-fix 1 (v1.443): the ledger file is no longer last in Compare.
+    assert ("`Compare` names `evidence/ledger-handoff/results.json` after the files of the README commands, "
+            "and from v1.443 the registry-pair file after it (12.13, row E24e);") in bullets[0]
+    assert "`evidence/ledger-handoff/results.json` last" not in design
     # Review iter-257 must-fix 1: the sentence states the rule in force, in the present tense (v1.401).
     assert ("The line keeps the time limit and its basis, the slowest successful run of the workflow on `main` "
             "whatever its lines (12.13, v1.401)") in bullets[0]
