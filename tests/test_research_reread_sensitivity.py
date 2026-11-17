@@ -41,6 +41,14 @@ times per `cost_effective` cell; on the hand matrices the cut prints what re-dec
 byte; and the premise is run, sigma 0 to 1 and W from B to 1000 B + 1 moving no `cost_blind` decision of the
 AutoBench hand matrix's base and variant grids (K = 1, 2 and 15) or the tau2-bench hand matrices (review iter-298
 should-fix 1).
+
+v1.439 (row T16): the LLMRouterBench block's fixture answers the script's one `evaluate_delegation` call with the
+session's run of tests/conftest.py `llmrouterbench_delegation_full` when the call's rows, registry, bars, points and
+seeds are those that fixture passes, and makes the call otherwise, so a suite pays the 13.13 evaluation once; the
+script still checks that run's config, tasks, summary and every cell at sigma 1.0 and W = B against its own
+calibration. A test pins that the session's run answered the call and was made on the script's grid; on the hand
+matrix a shared run prints what the script's own call prints, a stand-in whose arguments differ makes the call,
+and a shared run on other seeds exits 2.
 """
 
 import contextlib
@@ -1098,6 +1106,48 @@ def test_design_13_1_states_the_reread_sentence():
     assert bullet[0].endswith(clause)
 
 
+# --- the session's evaluation shared with the LLMRouterBench run (v1.439, row T16) -------------
+
+def _sharing(rs, lrb, root, kept, full):
+    """A stand-in for the script's `evaluate_delegation`: it answers with `full` when the call's rows, registry,
+    bars, points and seeds are those tests/conftest.py `llmrouterbench_delegation_full` passes (`kept`, the 13.13
+    registry.json under `root`, the 13.13 script's `BARS`, `points()` and `range(SEEDS)`), and otherwise makes the
+    call; the list records, per call, whether `full` answered it."""
+    session = (kept, Registry.load(root / LRB.relative_to(ROOT) / "registry.json").models,
+               dict(bars=list(lrb.BARS), points=lrb.points(), seeds=range(lrb.SEEDS)))
+    answered = []
+
+    def shared(rows, registry, **kwargs):
+        answered.append((rows, registry.models, kwargs) == session)
+        return full if answered[-1] else evaluate_delegation(rows, registry, **kwargs)
+
+    return shared, answered
+
+
+def test_a_run_answered_by_the_session_evaluation_prints_the_script_lines(rs, lrb, lrb_hand, monkeypatch):
+    _, _, root, matrix, code, out, err = lrb_hand
+    assert (code, err) == (0, "")
+    # the session's evaluation, made as tests/conftest.py makes it: the matrix read back, `select_rows` for the
+    # committed registry.json, then the 13.13 grid
+    pool = Registry.load(root / LRB.relative_to(ROOT) / "registry.json")
+    kept, _dropped = lrb.select_rows(rs.read_rows(matrix), [m.id for m in pool.models])
+    grid = dict(bars=list(lrb.BARS), points=lrb.points())
+    full = evaluate_delegation(kept, pool, seeds=range(lrb.SEEDS), **grid)
+    argv = ["--dataset", "llmrouterbench", "--matrix", str(matrix), "--root", str(root)]
+    shared, answered = _sharing(rs, lrb, root, kept, full)
+    monkeypatch.setattr(rs, "evaluate_delegation", shared)
+    assert _main(rs, argv) == (0, out, "") and answered == [True]
+    # a stand-in whose arguments are not the call's makes the call, so the block test prints the script's own lines
+    shared, answered = _sharing(rs, lrb, root, kept[1:], None)
+    monkeypatch.setattr(rs, "evaluate_delegation", shared)
+    assert _main(rs, argv) == (0, out, "") and answered == [False]
+    # a shared run made on other seeds is refused by the script's own check of the committed config
+    other = evaluate_delegation(kept, pool, seeds=range(lrb.SEEDS - 1), **grid)
+    monkeypatch.setattr(rs, "evaluate_delegation", lambda *_args, **_kwargs: other)
+    assert _main(rs, argv) == (2, "", "error: evidence/llmrouterbench-delegation/results.json: the run's config is "
+                                      "not the committed one\n")
+
+
 @pytest.fixture(scope="module")
 def output(rs, tmp_path_factory):
     cv = _load("research_reread_autobench_convert", ROOT / "evidence" / "autobench-2026" / "convert.py")
@@ -1123,14 +1173,33 @@ def test_note_results_block_is_the_script_output(output):
 
 
 @pytest.fixture(scope="module")
-def lrb_output(rs, llmrouterbench_pinned):
+def lrb_output(rs, lrb, llmrouterbench_pinned, llmrouterbench_delegation_full):
+    """The script's lines on the pinned matrix, whether the session's run answered each of its `evaluate_delegation`
+    calls, and that run (v1.439, row T16): a suite pays the 13.13 evaluation once, in tests/conftest.py
+    `llmrouterbench_delegation_full`, and the script checks that run as it checks its own (`checked`)."""
     code, _report, path = llmrouterbench_pinned
     assert code == 0
-    return rs.run(path, None, ROOT, "llmrouterbench")
+    kept, _dropped, full = llmrouterbench_delegation_full
+    shared, answered = _sharing(rs, lrb, ROOT, kept, full)
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(rs, "evaluate_delegation", shared)
+        lines = rs.run(path, None, ROOT, "llmrouterbench")
+    return lines, answered, full
 
 
 def test_note_llmrouterbench_block_is_the_script_output(lrb_output):
-    assert _block(NOTE.read_text(encoding="utf-8"), LRB_COMMAND).split("\n") == lrb_output
+    assert _block(NOTE.read_text(encoding="utf-8"), LRB_COMMAND).split("\n") == lrb_output[0]
+
+
+def test_the_llmrouterbench_run_shares_the_session_evaluation(lrb, lrb_output):
+    """The script's one call had the arguments the session's call has, so the session's run answered it, and that
+    run records the script's grid and the committed registry's models as its parents."""
+    _lines, answered, full = lrb_output
+    assert answered == [True]
+    config = full["config"]
+    assert (config["bars"], config["points"], config["seeds"]) == (list(lrb.BARS), lrb.points(),
+                                                                     list(range(lrb.SEEDS)))
+    assert config["parents"] == [m.id for m in Registry.load(LRB / "registry.json").models]
 
 
 @pytest.fixture(scope="module")
