@@ -29,6 +29,7 @@ SCRIPT = ROOT / "research" / "no_model_clears.py"
 NOTE = ROOT / "research" / "no-model-clears.md"
 INDEX = ROOT / "research" / "README.md"
 README = ROOT / "README.md"
+DESIGN = ROOT / "DESIGN.md"
 COMMAND = ("$ python research/no_model_clears.py --routerbench routerbench-matrix.jsonl "
            "--autobench autobench-matrix.jsonl --judges autobench-judges.jsonl "
            "--judges-registry autobench-models.json --tau2 tau2-matrix.jsonl "
@@ -335,6 +336,21 @@ def test_count_phrase_says_first_only_while_more_costed_subsections_follow(nmc):
     assert count_phrase(names, more) == "first " + COUNT_WORD[len(names)]
     with pytest.raises(AssertionError, match="LiveCodeBench"):
         count_phrase(names, readme.replace("(LiveCodeBench records neither", "(tau2-bench records neither", 1))
+
+
+def test_the_note_script_and_12_22_count_the_datasets_as_the_readme_does(nmc):
+    """v1.453 (review iter-315 should-fix 2): the note's opening and Facts, the script's docstring and
+    the 12.22 bullet count the datasets with `count_phrase`'s words, `first` included."""
+    count = count_phrase([name for name, _, _ in nmc.DATASETS], README.read_text(encoding="utf-8"))
+    note, design = NOTE.read_text(encoding="utf-8"), DESIGN.read_text(encoding="utf-8")
+    places = [(note, f"Short answer: keep 5.3. On the {count} routing datasets that record a cost its fallback"),
+              (note, f"- Datasets: the {count} routing evidence datasets whose outcomes carry a cost,"),
+              (SCRIPT.read_text(encoding="utf-8"), f"flavor of the {count} routing datasets that\n"),
+              (design, f"the matrices of the {count} routing datasets that record a cost (LiveCodeBench records none)"),
+              (design, f"`measures it on the {count} routing datasets that record a cost,"),
+              (design, f"`On the {count} routing datasets that record a cost (RouterBench,")]
+    for text, phrase in places:
+        assert text.count(phrase) == 1, phrase
 
 
 def test_bullet_and_index_row_list_the_script_datasets(nmc):

@@ -45,6 +45,7 @@ FILES = ["evidence/routerbench/results.json", "evidence/autobench-2026/results.j
 # DESIGN section numbers: the only numbers of the note's prose that are not in the script's output
 ALLOWED = {"5.3", "12.2", "12.3", "12.7", "12.8", "12.10", "12.12", "12.15", "12.17", "12.19"}
 README = ROOT / "README.md"
+DESIGN = ROOT / "DESIGN.md"
 # v1.166: the opening of the dated section, before any number
 FINDING = ("The finding of the first five files does not hold on LLMRouterBench: routing passes the best "
            "single model's held-out success there")
@@ -497,6 +498,15 @@ def test_the_halves_bullet_is_a_whole_sentence():
     assert len(bullets) == 1 and not bullets[0].endswith(" is"), bullets
 
 
+def files_count(wrp, readme=None):
+    """v1.453: the count word of the script's files, after `first ` while `readme` (default README.md)
+    holds more routing subsections than the files; the files' datasets must open them in order."""
+    n = len(wrp.DATASETS)
+    headings = routing_headings(README.read_text(encoding="utf-8") if readme is None else readme)
+    assert headings[:n] == [name for name, _ in wrp.DATASETS], headings
+    return ("first " if len(headings) > n else "") + WORDS[n]
+
+
 def limitations_bullet(wrp, readme=None):
     """README Limitations bullet 2 (v1.166; v1.303, one sentence on the seven files again), its counts,
     dataset names and the cost of each passing dataset's passing rows built from the files; v1.453:
@@ -521,9 +531,7 @@ def limitations_bullet(wrp, readme=None):
         passing.append(f"{ARTICLE.get(name, '')}{name} {cost}")
     n, k = len(wrp.DATASETS), len(passing)
     assert (n, k) == (7, 2), (n, passing)
-    headings = routing_headings(README.read_text(encoding="utf-8") if readme is None else readme)
-    assert headings[:n] == [name for name, _ in wrp.DATASETS], headings
-    first = "first " if len(headings) > n else ""
+    first = files_count(wrp, readme)[:-len(WORDS[n])]
     # v1.384: the third sentence is said of the cost_blind rows, which pass at every bar on both
     assert [p.split(" at ")[0] for p in passing] == ["LLMRouterBench", "the LLM Routing Response Bank"], passing
     for rel in FILES[5:]:
@@ -580,6 +588,19 @@ def test_limitations_bullet_says_first_only_while_more_routing_subsections_follo
     assert swapped != readme
     with pytest.raises(AssertionError, match="LLMRouterBench"):
         limitations_bullet(wrp, swapped)
+
+
+def test_the_note_script_and_12_22_count_the_files_as_the_readme_does(wrp):
+    """v1.453 (review iter-315 should-fix 1): the note's opening, the script's docstring and the 12.22
+    bullet count the files with the builder's words, `first` included while more subsections follow."""
+    count = files_count(wrp)
+    places = [(note(), f"than the best single model on some of its {count} datasets, never reaching"),
+              (note(), f"This note reads those {WORDS[len(wrp.DATASETS)]} committed routing results files"),
+              (SCRIPT.read_text(encoding="utf-8"), f"Reads only the {count} committed routing results files"),
+              (DESIGN.read_text(encoding="utf-8"), f"read only the {count} committed routing results files (12.7,"),
+              (DESIGN.read_text(encoding="utf-8"), f"`Of the {count} routing datasets above, two have")]
+    for text, phrase in places:
+        assert text.count(phrase) == 1, phrase
 
 
 def test_readme_limitations_and_the_index_say_where_routing_passes(wrp):
