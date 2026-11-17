@@ -409,7 +409,7 @@ POINTERS = {
     "- Delegation on tau2-bench (v1.80): ": "v1.92, v1.336, v1.337",
     "- Delegation on LLMRouterBench (v1.200, row E17d): ": "v1.200, v1.316",
     "- LLM Routing Response Bank (v1.296, row E20e): ": "v1.296, v1.299",
-    "  - Limits: the sixth RESULTS.md bullet, ": "v1.296, v1.299",
+    "  - Limits: none from v1.447 (to v1.446 the sixth RESULTS.md bullet, the billed cost), ": "v1.296, v1.299",
     "  - Results at a glance: a seventh bullet, ": "v1.166, v1.303",
     "  - Tests: `tests/test_evidence_response_bank_results.py` ": "v1.296",
     "- Delegation on the LLM Routing Response Bank (v1.316, row E21d): ": "v1.258, v1.316, v1.317, v1.323, v1.324",

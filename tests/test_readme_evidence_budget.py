@@ -20,7 +20,7 @@ size there (the opening as ``""``), held at most that size until its row (DOC28b
 entry at or under its cap fails, so its row removes it, and while ``HELD`` is not empty the projection,
 each held part at its cap and the rest as they are, is at most ``PROJECTED_CAP``, 63,000 bytes. A row that
 trims a part moves its entry to ``TRIMMED`` (the opening, v1.445, row DOC28b; ``LLMRouterBench``, v1.446,
-row DOC28c), so the two hold the plan.
+row DOC28c; ``LLM Routing Response Bank``, v1.447, row DOC28d), so the two hold the plan.
 """
 import re
 from pathlib import Path
@@ -50,14 +50,15 @@ CLASS = {
 # removed one name, the last (`RouterBench`, 4,731 bytes) v1.373, row DOC19k, so the section total is
 # now required.
 PENDING = {}
-# DESIGN 12.8 v1.444 (row DOC28a): each part still over its v1.444 cap and its size at ce21e81: 776, 1,462,
-# 1,199, 880 and 867 bytes over there; with the opening's 427 and LLMRouterBench's 1,469 (TRIMMED) the ce21e81
-# projection is 69,678 - 7,080 = 62,598.
-HELD = {"tau2-bench": 5_776, "LLM Routing Response Bank": 6_462,
+# DESIGN 12.8 v1.444 (row DOC28a): each part still over its v1.444 cap and its size at ce21e81: 776, 1,199,
+# 880 and 867 bytes over there; with the opening's 427, LLMRouterBench's 1,469 and LLM Routing Response Bank's
+# 1,462 (TRIMMED) the ce21e81 projection is 69,678 - 7,080 = 62,598.
+HELD = {"tau2-bench": 5_776,
         "Delegation on AutoBench": 6_699, "Delegation on LLMRouterBench": 6_380,
         "Delegation on the LLM Routing Response Bank": 6_367}
 # Each part a DOC28 row has trimmed, with its ce21e81 size and its row: out of HELD, at most its cap.
-TRIMMED = {"": (7_927, "DOC28b"), "LLMRouterBench": (6_469, "DOC28c")}
+TRIMMED = {"": (7_927, "DOC28b"), "LLMRouterBench": (6_469, "DOC28c"),
+           "LLM Routing Response Bank": (6_462, "DOC28d")}
 PROJECTED_CAP = 63_000
 DESIGN = ROOT / "DESIGN.md"
 DESIGN_12_8 = "### 12.8 "
@@ -407,18 +408,23 @@ def test_held_parts_were_over_their_caps_and_the_room_bullet_names_them():
     assert f"at its ce21e81 size: {stated}. " in lines[0]
     assert f"is at most {PROJECTED_CAP:,} bytes" in lines[0]
     assert "at ce21e81 the section is 69,678 bytes and its opening 7,927, " in lines[0]
-    assert "Rows DOC28b (the opening, v1.445), DOC28c (`LLMRouterBench`, v1.446) to DOC28h trim one part each;" in lines[0]
+    assert ("Rows DOC28b (the opening, v1.445), DOC28c (`LLMRouterBench`, v1.446), DOC28d (`LLM Routing Response "
+            "Bank`, v1.447) to DOC28h trim one part each;") in lines[0]
+    # v1.447 (row DOC28d, review iter-306 nit 1): the bullet names TRIMMED, where a held entry's row moves it.
+    assert "a held entry at or under its cap fails (its row moves it to `TRIMMED`, which v1.445 added), " in lines[0]
     # v1.446 (row DOC28c): a part whose pair does not fit with the second shed keeps its second instead.
     assert "then its second Reading-it bullet (its first instead where only that fits, v1.446), " in lines[0]
 
 
 def test_trimmed_parts_are_out_of_held_and_at_most_their_caps():
     # Row DOC28b (v1.445): the opening, 7,927 bytes at ce21e81, is at most its 7,500-byte cap and out of
-    # HELD; row DOC28c (v1.446): so is `LLMRouterBench`, 6,469 there, at most its 5,000-byte routing cap.
+    # HELD; row DOC28c (v1.446): so is `LLMRouterBench`, 6,469 there, at most its 5,000-byte routing cap;
+    # row DOC28d (v1.447): so is `LLM Routing Response Bank`, 6,462 there, at most the same cap.
     # HELD and TRIMMED together are the seven parts of the v1.444 plan, each over its cap there.
     parts = measure(README.read_text(encoding="utf-8"))
     sizes = dict(parts[1:])
-    assert TRIMMED == {"": (7_927, "DOC28b"), "LLMRouterBench": (6_469, "DOC28c")} and not set(TRIMMED) & set(HELD)
+    assert TRIMMED == {"": (7_927, "DOC28b"), "LLMRouterBench": (6_469, "DOC28c"),
+                       "LLM Routing Response Bank": (6_462, "DOC28d")} and not set(TRIMMED) & set(HELD)
     assert len(HELD) + len(TRIMMED) == 7
     for name, (was, _) in TRIMMED.items():
         cap = OPENING_CAP if name == "" else CAPS[CLASS[name]]
