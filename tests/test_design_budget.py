@@ -46,6 +46,7 @@ v1.422 (row DOC34b): the same lines restate their contract in fewer words; each 
 is stated once and the others name the line that holds it (BORROWED).
 
 The registry pair (v1.431, row E24): 12.23, the registry-pair converter, is a converter.
+12.24, the registry-pair results (v1.433, row E24b), is a routing results subsection.
 """
 import re
 from pathlib import Path
@@ -63,7 +64,7 @@ LINE_CAP = 6_000
 GROUPS = {
     "contract": ("12.1", "12.2", "12.3", "12.4", "12.5", "13.1", "13.2", "13.3", "13.4", "13.5", "13.6", "13.7"),
     "converter": ("12.6", "12.9", "12.11", "12.14", "12.16", "12.18", "12.20", "12.23", "13.11", "13.15"),
-    "routing results": ("12.7", "12.10", "12.12", "12.15", "12.17", "12.19", "12.21"),
+    "routing results": ("12.7", "12.10", "12.12", "12.15", "12.17", "12.19", "12.21", "12.24"),
     "delegation results": ("13.10", "13.12", "13.13", "13.14"),
     "README evidence": ("12.8",),
     "workflow": ("12.13",),
@@ -198,7 +199,7 @@ def test_the_class_table_names_every_heading_once_in_order():
     numbers = [number for number, _ in subsections]
     by_number = sorted(CLASS, key=lambda n: tuple(int(part) for part in n.split(".")))
     assert numbers == by_number
-    assert len(CLASS) == sum(len(group) for group in GROUPS.values()) == 38  # 36 before 13.15 (v1.394), 37 before 12.23 (v1.431)
+    assert len(CLASS) == sum(len(group) for group in GROUPS.values()) == 39  # 36 before 13.15 (v1.394), 37 before 12.23 (v1.431), 38 before 12.24 (v1.433)
     assert set(GROUPS) == set(CAPS)
     assert strays == []
 
