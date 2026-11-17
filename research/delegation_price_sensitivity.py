@@ -12,11 +12,15 @@ and variant grids, as evidence/delegation/results.py makes results.json and vari
 research/reread_sensitivity.py's `inputs` and `checked`: each run's config, tasks and summary must be the
 committed file's, and each cell's decision and held-out sums re-decided at the committed prices (sigma 1.0
 and W = B) the run's. Then, for each model of the run in ID order and each factor 0.5 and 2.0, it
-re-decides every `cost_effective` cell on its router (13.9 `_router`, on the run's own calibration half) rebuilt
+re-decides the `cost_effective` cells on their router (13.9 `_router`, on the run's own calibration half) rebuilt
 on a registry whose one change is that model's `price_in` and `price_out` times the factor, while
 each `cost_blind` cell keeps its committed pick (v1.429, row T15): no price can move it, since a candidate's
 5.2 `routing_cost` is 0.0 outside `cost_effective` and every 13.5 row that compares costs is a `cost_effective`
-one, so the cut prints what re-deciding every cell prints, in half the decisions. A cell's decision changes
+one. So does a `cost_effective` cell whose parent and committed delegate primary are other models than the run's
+and whose delegate route has that primary at the run's prices too (v1.440, row T17): 13.3 builds the route without
+the parent, so the cells of one task, seed, bar, point and flavor share it and the first of them decided finds it,
+and 13.2 prices both paths at the parent's and the primary's prices alone. So the cuts print what re-deciding
+every cell prints, in fewer decisions. A cell's decision changes
 when its mode or its model does. Both picks are scored on the cell's held-out half at the committed
 registry's 13.2 costs: the error is in the price the decision believes, and the bill is at the list price,
 as research/price-sensitivity.md scores routing. A run is one model and one factor. Per file, flavor and bar
@@ -63,6 +67,9 @@ DATASETS = ("autobench", "llmrouterbench", "response-bank", "tau2-bench", "tau2-
 # the flavors whose cells a run re-decides; a `cost_blind` cell keeps its committed pick, which no price can move
 # (v1.429, row T15); the tests set both flavors to run the v1.424 to v1.428 re-decision of every cell
 REDECIDED = ("cost_effective",)
+# whether a run keeps the pick of a cell whose parent and committed delegate primary are other models and whose
+# route keeps that primary at the run's prices (v1.440, row T17); the tests set it False to run the v1.429 runs
+SHARED = True
 HEADER = ("  flavor          bar  runs moving  most changed / cells  share  to inline  success gap  cost ratio  "
           "all cost ratio  by")
 
@@ -83,23 +90,59 @@ def scaled(registry, model, factor):
                     if m.id == model else m for m in registry.models)
 
 
-def picks(run, config, registry):
+def group(cell):
+    """The cells that share one delegate route: 13.3 builds it from the task, the router of its seed and bar, the
+    point's brief and the flavor, never from the parent (v1.440)."""
+    return cell["task"], cell["seed"], cell["bar"], cell["point"], cell["flavor"]
+
+
+def _decide(routers, run, config, registry, cell):
+    """The cell's 13.9 decision by its router rebuilt on `registry`, built once per task, seed and bar."""
+    key = (cell["task"], cell["seed"], cell["bar"])
+    if key not in routers:
+        routers[key] = _router(registry, cell["task"], run.calibrated[cell["task"], cell["seed"]], cell["bar"],
+                               config["min_samples"], config["confidence"])
+    point = config["points"][cell["point"]]
+    k = run.calibrated[cell["task"], cell["seed"]].get("k")
+    return routers[key].decide_delegation(cell["task"], cell["parent"], cell["flavor"],
+                                          **(point if k is None else dict(point, work_calls=k)))
+
+
+def _route(decision):
+    """The decision's delegate route as (primary, below-bar flag, basis), or None where the select found none."""
+    route = decision.route
+    return None if route is None else (route.primary, route.below_bar, route.basis)
+
+
+def routes(run, config, registry):
+    """The delegate route at `registry`'s prices of each `group` of the run's `REDECIDED` cells, from the decision of
+    its first cell (v1.440, row T17)."""
+    out, routers = {}, {}
+    for cell in run.result["cells"]:
+        if cell["flavor"] in REDECIDED and group(cell) not in out:
+            out[group(cell)] = _route(_decide(routers, run, config, registry, cell))
+    return out
+
+
+def picks(run, config, registry, model=None, committed=None):
     """Each cell's (mode, model) re-decided by the 13.9 router rebuilt on `registry`, in the run's cell order; a
-    cell of a flavor outside `REDECIDED` keeps its committed pick (v1.429)."""
-    routers = {}
-    out = []
+    cell of a flavor outside `REDECIDED` keeps its committed pick (v1.429). Given the run's `model` and the
+    `committed` routes (`routes` at the committed prices), so does a cell whose parent and committed primary are
+    other models and whose group's route at `registry`'s prices, which the group's first decided cell finds, is the
+    committed one (v1.440): the cell's two paths are priced at its parent's and that primary's prices alone."""
+    routers, now, out = {}, {}, []
     for cell in run.result["cells"]:
         if cell["flavor"] not in REDECIDED:
             out.append((cell["mode"], cell["model"]))
             continue
-        key = (cell["task"], cell["seed"], cell["bar"])
-        if key not in routers:
-            routers[key] = _router(registry, cell["task"], run.calibrated[cell["task"], cell["seed"]], cell["bar"],
-                                   config["min_samples"], config["confidence"])
-        point = config["points"][cell["point"]]
-        k = run.calibrated[cell["task"], cell["seed"]].get("k")
-        decision = routers[key].decide_delegation(cell["task"], cell["parent"], cell["flavor"],
-                                                  **(point if k is None else dict(point, work_calls=k)))
+        at = group(cell)
+        if committed is not None and cell["parent"] != model:
+            was = committed[at]
+            if was is not None and was[0] != model and at in now and now[at] == was:
+                out.append((cell["mode"], cell["model"]))
+                continue
+        decision = _decide(routers, run, config, registry, cell)
+        now.setdefault(at, _route(decision))
         out.append((decision.mode, decision.model))
     return out
 
@@ -121,7 +164,8 @@ def report(rows, pool, root, name, grid, dr, title, dataset="autobench"):
         point = config["points"][cell["point"]]
         was = (cell["mode"], cell["model"])
         held.append((was, run.held_sum(cell, point, *was, 1.0, point["brief_tokens"])))
-    new = {r: picks(run, config, scaled(pool, *r)) for r in runs}
+    committed = routes(run, config, pool) if SHARED else None
+    new = {r: picks(run, config, scaled(pool, *r), r[0], committed) for r in runs}
     by_point = [0] * len(config["points"])
     by_task = dict.fromkeys(tasks, 0)
     by_model = {r: [0, 0] for r in runs}  # changed cells, of them to inline

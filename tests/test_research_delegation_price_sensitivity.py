@@ -44,7 +44,7 @@ cut's premise is run, every model's prices times 0.001 or 1000 moving no `cost_b
 
 v1.440 (row T17): a run also keeps the committed pick of a `cost_effective` cell whose parent and committed delegate
 primary are other models than the run's and whose delegate route, as the script's `routes` gives it per task, seed,
-bar and point, has that primary at the run's prices too, the first decided cell of each group finding it. On the
+bar, point and flavor, has that primary at the run's prices too, the first decided cell of each group finding it. On the
 hand matrices the cells of a group share one route at the committed and at every scaled registry, every cell the
 cut keeps re-decides to its committed pick, and the cut prints what re-deciding every cell prints in fewer decisions;
 the brute-force tests above check its lines on all four datasets' hand matrices.
@@ -598,7 +598,7 @@ def test_the_most_names_the_first_tied_run_in_model_then_factor_order(ps, hand, 
     title, _files, dr10, rows, registry = ps.RS.inputs(matrix, pool, root, "autobench")
     flips = {("v/d", 2.0): 3, ("v/e", 0.5): 3, ("v/p", 0.5): 2}
 
-    def stub(run, config, scaled):
+    def stub(run, config, scaled, model=None, committed=None):
         moved = [m.id for m in scaled.models if m != run.registry.get(m.id)]
         assert len(moved) == 1
         factor = scaled.get(moved[0]).price_in / run.registry.get(moved[0]).price_in
@@ -746,7 +746,6 @@ def test_no_price_moves_a_cost_blind_decision(ps, hand, monkeypatch):
     assert moved > 0
 
 
-@pytest.mark.xfail(strict=True, reason="v1.440 (row T17): the docstring states the shared-route cut")
 def test_the_docstring_says_which_cells_are_re_decided(ps):
     doc = " ".join(ps.__doc__.split())
     for phrase in ("re-decides the `cost_effective` cells", "each `cost_blind` cell keeps its committed pick",
@@ -760,8 +759,8 @@ def test_the_docstring_says_which_cells_are_re_decided(ps):
 # --- the shared-route cut (v1.440, row T17) --------------------------------------------------------
 
 def _routes_by_decision(ps, run, config, registry, monkeypatch):
-    """Each `cost_effective` cell's delegate route (primary, below-bar flag, basis) at `registry`'s prices, from its
-    own decision in a run that re-decides every cell, keyed by the cell's index."""
+    """Each re-decided cell's delegate route (primary, below-bar flag, basis) at `registry`'s prices, from its own
+    decision in a run that re-decides every cell of the `REDECIDED` flavors, keyed by the cell's index."""
     seen = []
     real = Router.decide_delegation
 
@@ -774,26 +773,30 @@ def _routes_by_decision(ps, run, config, registry, monkeypatch):
     monkeypatch.setattr(Router, "decide_delegation", recorded)
     ps.picks(run, config, registry)
     monkeypatch.setattr(Router, "decide_delegation", real)
-    effective = [i for i, c in enumerate(run.result["cells"]) if c["flavor"] == "cost_effective"]
+    effective = [i for i, c in enumerate(run.result["cells"]) if c["flavor"] in ps.REDECIDED]
     assert len(seen) == len(effective)
     return dict(zip(effective, seen))
 
 
-@pytest.mark.xfail(strict=True, raises=AttributeError, reason="v1.440 (row T17): `routes` lands with the cut")
-def test_the_cells_of_a_group_share_one_route(ps, hand, monkeypatch):
+@pytest.mark.parametrize("flavors", [("cost_effective",), EVERY])
+def test_the_cells_of_a_group_share_one_route(ps, hand, monkeypatch, flavors):
     """13.3 builds the delegate route without the parent, so each cell's own decision has its group's route, as
-    `routes` gives it, at the committed prices and at each run's."""
+    `routes` gives it, at the committed prices and at each run's; with both flavors re-decided, as the tests run
+    v1.424, a group of each flavor has its own route, the two flavors' primaries differing on some groups."""
     run, config, registry = _checked_hand(ps, hand)
     cells = run.result["cells"]
+    monkeypatch.setattr(ps, "REDECIDED", flavors)
     for reg in [registry] + [ps.scaled(registry, m, f) for m in run.models for f in FACTORS]:
         groups = ps.routes(run, config, reg)
         own = _routes_by_decision(ps, run, config, reg, monkeypatch)
         assert {i: groups[ps.group(cells[i])] for i in own} == own
         # three parents share each group
         assert len(own) == 3 * len(groups)
+    if flavors == EVERY:
+        groups = ps.routes(run, config, registry)
+        assert any(groups[k] != groups[k[:-1] + ("cost_blind",)] for k in groups if k[-1] == "cost_effective")
 
 
-@pytest.mark.xfail(strict=True, raises=AttributeError, reason="v1.440 (row T17): `routes` lands with the cut")
 def test_a_cell_the_cut_keeps_re_decides_to_its_committed_pick(ps, hand, monkeypatch):
     """The cut's premise, run by brute force: in every run, each `cost_effective` cell whose parent and committed
     primary are other models and whose group keeps that primary re-decides to its committed pick; some cells are
@@ -812,14 +815,13 @@ def test_a_cell_the_cut_keeps_re_decides_to_its_committed_pick(ps, hand, monkeyp
             assert kept, (m, f)
             assert [full[i] for i in kept] == [(cells[i]["mode"], cells[i]["model"]) for i in kept], (m, f)
             assert ps.picks(run, config, reg, m, committed) == full, (m, f)
-    # a cell whose parent is the run's model can move, so the cut re-decides those: v/p's own price moves some of
-    # its cells between the paths
-    moved = [c for c, p in zip(cells, ps.picks(run, config, ps.scaled(registry, "v/p", 2.0)))
+    # a cell whose parent is the run's model can move, so the cut re-decides those: halving v/p's prices moves some
+    # of its own cells to inline
+    moved = [(c, p) for c, p in zip(cells, ps.picks(run, config, ps.scaled(registry, "v/p", 0.5)))
              if p != (c["mode"], c["model"])]
-    assert any(c["parent"] == "v/p" and c["mode"] == "inline" for c in moved)
+    assert any(c["parent"] == "v/p" and p == ("inline", "v/p") for c, p in moved)
 
 
-@pytest.mark.xfail(strict=True, raises=AttributeError, reason="v1.440 (row T17): `SHARED` lands with the cut")
 @pytest.mark.parametrize("which", ["hand", "lrb_hand", "rb_hand"])
 def test_the_shared_route_cut_prints_the_same_in_fewer_decisions(ps, which, request, monkeypatch):
     """The fixture's output, made with both cuts, against a run of the same command that re-decides every cell,
@@ -1247,7 +1249,8 @@ def test_the_design_bullet_is_in_12_22():
                    "they re-decide the `cost_effective` cells on a registry",
                    "a `cost_blind` cell (v1.429), whose 5.2 `routing_cost` is 0.0",
                    "(v1.440, row T17) a cell whose parent and committed delegate primary are other models",
-                   "which 13.3 builds without the parent, so that every cell of its task, seed, bar and point shares it",
+                   "which 13.3 builds without the parent, so that every cell of its flavor, task, seed, bar and point "
+                   "shares it",
                    "has the same primary at the run's prices, as one decision of the group finds",
                    "13.2 prices both paths at the parent's and the primary's prices alone",
                    "prints what re-deciding every cell prints"):
