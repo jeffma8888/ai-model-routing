@@ -39,7 +39,8 @@ move (both enter only costs, a candidate's 5.2 `routing_cost` is 0.0 outside `co
 comparison is under `cost_effective`): `Run.decide` is called once per `cost_blind` cell, by the check, and four
 times per `cost_effective` cell; on the hand matrices the cut prints what re-deciding every cell prints, byte for
 byte; and the premise is run, sigma 0 to 1 and W from B to 1000 B + 1 moving no `cost_blind` decision of the
-AutoBench and tau2-bench hand matrices.
+AutoBench hand matrix's base and variant grids (K = 1, 2 and 15) or the tau2-bench hand matrices (review iter-298
+should-fix 1).
 """
 
 import contextlib
@@ -933,6 +934,7 @@ def test_a_setting_calls_the_decision_for_the_cost_effective_cells_only(rs, hand
     effective = [c for c in calls if c[0] == "cost_effective"]
     # the check decides every cell once at sigma 1.0 and W = B; the three settings decide the cost_effective ones
     assert blind and all(c[1:3] == (1.0, c[3]) for c in blind)
+    # each grid has as many cost_effective cells as cost_blind ones, one per (bar, point, parent, seed)
     assert len(effective) == 4 * len(blind)
     assert sorted({(c[1], c[2] // c[3]) for c in effective}) == [(0.0, 1), (0.5, 1), (1.0, 1), (1.0, 2)]
     # with both flavors named, as v1.413 to v1.437 ran, every cell is re-decided at each setting, to the same lines
@@ -959,27 +961,34 @@ def test_the_cut_prints_what_re_deciding_every_cell_prints_on_tau2_bench(rs, t2_
 
 
 def _premise(rs, matrix, registry, root, dataset):
-    """Each cell of the dataset's first committed file re-decided at sigma 0, 0.5, 1 and W = B, 2 B, 1000 B + 1:
-    a `cost_blind` one must keep its pick; returns how many `cost_effective` decisions moved."""
+    """Each cell of each of the dataset's committed files re-decided at sigma 0, 0.5, 1 and W = B, 2 B, 1000 B + 1:
+    a `cost_blind` one must keep its pick; returns how many `cost_effective` decisions moved and the work-call
+    counts of the points run."""
     _title, files, dr_, rows, pool = rs.inputs(matrix, registry, root, dataset)
-    run, got, _rel = rs.checked(rows, pool, root, *files[0], dr_, dataset)
-    cells, moved = run.result["cells"], 0
-    assert {c["mode"] for c in cells if c["flavor"] == "cost_blind"} == {"inline", "delegate"}
-    for cell in cells:
-        point = got["config"]["points"][cell["point"]]
-        b = point["brief_tokens"]
-        for sigma in (0.0, 0.5, 1.0):
-            for w in (b, 2 * b, 1000 * b + 1):
-                pick = run.decide(cell, point, sigma, w)
-                if cell["flavor"] == "cost_blind":
-                    assert pick == (cell["mode"], cell["model"]), (cell, sigma, w)
-                else:
-                    moved += pick != (cell["mode"], cell["model"])
-    return moved
+    moved, modes, calls = 0, set(), set()
+    for name, grid in files:
+        run, got, _rel = rs.checked(rows, pool, root, name, grid, dr_, dataset)
+        cells = run.result["cells"]
+        modes |= {c["mode"] for c in cells if c["flavor"] == "cost_blind"}
+        for cell in cells:
+            point = got["config"]["points"][cell["point"]]
+            calls.add(point.get("work_calls", 1))
+            b = point["brief_tokens"]
+            for sigma in (0.0, 0.5, 1.0):
+                for w in (b, 2 * b, 1000 * b + 1):
+                    pick = run.decide(cell, point, sigma, w)
+                    if cell["flavor"] == "cost_blind":
+                        assert pick == (cell["mode"], cell["model"]), (name, cell, sigma, w)
+                    else:
+                        moved += pick != (cell["mode"], cell["model"])
+    assert modes == {"inline", "delegate"}
+    return moved, calls
 
 
 def test_no_setting_moves_a_cost_blind_decision(rs, hand, t2_hand):
-    assert _premise(rs, hand[3], hand[4], hand[2], "autobench") > 0
+    moved, calls = _premise(rs, hand[3], hand[4], hand[2], "autobench")
+    # the base grid's points have K = 1 and the variant grid's K = 2 and 15, so the K > 1 delegate select is run
+    assert moved > 0 and {1, 2, 15} <= calls
     dataset, _rows, _registry, root, matrix = t2_hand[:5]
     _premise(rs, matrix, None, root, dataset)
 
