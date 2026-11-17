@@ -466,9 +466,10 @@ def test_the_projection_has_room_for_the_largest_subsection():
 
 def test_the_section_keeps_the_room_while_class_names_eleven_headings():
     # v1.451 (row DOC28h): HELD is empty, so the projection is the section itself. The margin is
-    # PROJECTED_CAP less the section; one byte more in `### RouterBench` fails the room hold, named last
-    # (the grown subsection is also over its cap; test_a_broken_hold_is_named has a projection-only failure
-    # with a held part), and one byte less passes it. A twelfth heading in CLASS lifts the hold, so the
+    # PROJECTED_CAP less the section; one byte more in `### RouterBench` fails the room hold, the only
+    # problem named, since the grown subsection stays under its cap (4,800 bytes at v1.451) and the section
+    # under 70,000 (review iter-313 nit 1; test_a_broken_hold_is_named has a projection-only failure with a
+    # held part), and one byte less passes it. A twelfth heading in CLASS lifts the hold, so the
     # room can be spent on it, the section still at most SECTION_CAP.
     text = README.read_text(encoding="utf-8")
     assert HELD == {} and len(CLASS) == ROOM_HEADINGS
@@ -476,8 +477,8 @@ def test_the_section_keeps_the_room_while_class_names_eleven_headings():
     assert margin >= 0 and projection(measure(text)) == measure(text)[0][1]
     grown = text.replace("### RouterBench\n", "### RouterBench\n" + "x" * margin + "\n", 1)
     assert measure(grown)[0][1] == PROJECTED_CAP + 1
-    assert problems(grown)[-1] == (f"the section is {PROJECTED_CAP + 1:,} bytes, over {PROJECTED_CAP:,} while "
-                                   f"CLASS names {ROOM_HEADINGS} headings")
+    assert problems(grown) == [f"the section is {PROJECTED_CAP + 1:,} bytes, over {PROJECTED_CAP:,} while "
+                               f"CLASS names {ROOM_HEADINGS} headings"]
     at = text.replace("### RouterBench\n", "### RouterBench\n" + "x" * (margin - 1) + "\n", 1)
     assert not any("while CLASS names" in found for found in problems(at))
     twelve = {**CLASS, "Twelfth": "routing"}
