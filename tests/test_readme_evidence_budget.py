@@ -558,7 +558,8 @@ WORDS = {"four": 4, "eight": 8, "eleventh": 11, "twelfth": 12, "thirteenth": 13}
 def stated_problems(design, readme, classes=CLASS):
     """Every figure of the 12.8 size-budget and room bullets in DESIGN.md `design` that disagrees with this
     module's constants or the README `readme`, as messages; [] when all agree. The registry pair's heading
-    is the one after the ROOM_HEADINGS the room was kept for, whatever CLASS holds later."""
+    is the one after the ROOM_HEADINGS the room was kept for, a count a later heading does not change; the
+    room tests pin len(CLASS) to it today (review iter-317 nit 4)."""
     lines = design.split("\n")
     size_lines = [line for line in lines if line.startswith(SIZE_BULLET)]
     room_lines = [line for line in lines if line.startswith(ROOM_BULLET)]
@@ -580,8 +581,11 @@ def stated_problems(design, readme, classes=CLASS):
             "the glance bullet's bytes": measured, "the raised opening cap": OPENING_CAP}
     got = [*sized[0], ceiling[0], *raised[0]]
     found = []
-    for (label, value), text in zip(want.items(), got):
-        number = WORDS.get(text) if text.isalpha() else int(text.replace(",", ""))
+    # strict: a regex that gains or loses a group fails here (review iter-317 nit 3); a word or a form
+    # such as `12th` that is neither digits nor in WORDS is named, not raised (nit 2).
+    for (label, value), text in zip(want.items(), got, strict=True):
+        digits = text.replace(",", "")
+        number = int(digits) if digits.isdigit() else WORDS.get(text)
         if number != value:
             found.append(f"12.8 states {label} as {text}, but it is {'none' if value is None else f'{value:,}'}")
     return found
@@ -599,6 +603,8 @@ def test_the_12_8_figures_are_the_constants_and_the_readme():
     ("bullet's 362 bytes", "bullet's 361 bytes", "12.8 states the glance bullet's bytes as 361, but it is 362"),
     ("`Registry pair`, the twelfth heading", "`Registry pair`, the eleventh heading",
      "12.8 states the registry pair's heading as eleventh, but it is 12"),
+    ("`Registry pair`, the twelfth heading", "`Registry pair`, the 12th heading",
+     "12.8 states the registry pair's heading as 12th, but it is 12"),
     ("lifts the 63,000 hold", "lifts the 62,000 hold", "12.8 states the hold as 62,000, but it is 63,000"),
     ("to at most 8,000. ", "to at most 8,100. ", "12.8 states the opening ceiling as 8,100, but it is 8,000"),
     ("its opening at most 7,862 (", "its opening at most 7,500 (", "12.8 states the opening cap as 7,500, but it is 7,862"),

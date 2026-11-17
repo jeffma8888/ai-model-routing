@@ -892,7 +892,9 @@ README_CLAUSES = (
     "whose answer the release marks right",
     "estimated cost",
     "the cheapest model marked right, or the cheapest model, counted wrong, when neither was",
+    "and the release's own split in",  # the link line (review iter-317 should-fix 1)
     "and converts them in under a second once they are cached",
+    "while the test suite rebuilds it only where the files are cached",  # review iter-317 nit 1
 )
 
 
