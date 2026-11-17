@@ -74,11 +74,15 @@ def check_pair(pair, registry) -> dict:
     for arm in ARMS:
         try:
             model = pair["arms"][arm]["model"]
+        except (KeyError, TypeError, IndexError):
+            raise ValueError(f"pair: no {arm} model") from None
+        if not isinstance(model, str) or not model:
+            raise ValueError(f"pair: the {arm} model {model!r} is not a non-empty string")
+        try:
             prices = pair["prices_usd_per_million"][model]
             pin, pout = prices["input"], prices["output"]
         except (KeyError, TypeError, IndexError):
-            raise ValueError(f"pair: no {arm} model or no input and output price for it") from None
-        _text(model, f"pair {arm} model")
+            raise ValueError(f"pair: no input and output price for {model!r}") from None
         rid = VENDOR + model
         if rid not in listed:
             raise ValueError(f"model not in the registry: the {arm} model {model!r} as {rid!r}")

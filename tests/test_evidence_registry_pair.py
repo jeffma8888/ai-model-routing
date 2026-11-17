@@ -175,6 +175,10 @@ def _bad_pairs():
     yield "registry:", pair(), {"models": [1]}
     yield "pair:", pair(arms={"cheap": arms["cheap"]}), registry()
     yield "pair:", pair(arms={"cheap": {"arm": "luna"}, "strong": arms["strong"]}), registry()
+    for model in ("", 5, None, ["gpt-6-luna"]):
+        yield "pair: the cheap model", pair(arms={"cheap": {"model": model}, "strong": arms["strong"]}), registry()
+    yield "pair: the cheap model", pair(arms={"cheap": {"model": ""}, "strong": arms["strong"]},
+                                        prices_usd_per_million={**prices, "": prices["gpt-6-luna"]}), registry()
     yield "pair:", pair(prices_usd_per_million={"gpt-6.1-sol": prices["gpt-6.1-sol"]}), registry()
     yield "pair:", pair(prices_usd_per_million={**prices, "gpt-6-luna": {"input": "0.10"}}), registry()
     yield "model not in the registry", pair(), {"models": [m for m in registry()["models"] if m["id"] != SOL]}
@@ -221,29 +225,45 @@ def test_grade_rows_invalid_miss_kept(cv):
 
 
 def _bad_rows():
-    yield "no rows", []
-    yield "calibration row 0: not an object", [1]
-    for key in ("id", "dataset", "task", "family"):
+    """(opening, ending, rows): the message of each refusal opens and ends as 12.23 states it (review iter-294
+    should-fix 1: each case its own words, never an empty opening)."""
+    yield "no rows in the calibration split", "", []
+    yield "calibration row 0: not an object", "", [1]
+    yield "calibration row 1: not an object", "", [row("x"), None]
+    for value in (None, "", 3):
+        r = row("x")
+        r["id"] = value
+        yield "calibration row 0 id must be a non-empty string", f"got {value!r}", [r]
+    for key in ("dataset", "task", "family"):
         for value in (None, "", 3):
             r = row("x")
             r[key] = value
-            yield "", [r]
-    yield "row role", [row("x", split="final")]
-    yield "", [row("x", dataset="b/b")]
+            yield f"calibration row 'x' {key} must be a non-empty string", f"got {value!r}", [r]
+    yield "row role: calibration row 'x' has role 'final'", "", [row("x", split="final")]
+    r = row("x", dataset=None)
+    r["role"] = "final"
+    yield "row role: calibration row 'x'", "", [r]
+    yield "calibration row 'x' dataset 'b/b' holds '/'", "", [row("x", dataset="b/b", task=None)]
     for value in (True, False, 1.0, 2, -1, "1", None):
-        yield "", [row("x", cheap=(value, 0.1, True))]
+        yield f"calibration row 'x': cheap_correct {value!r}", "is not 0 or 1", [row("x", cheap=(value, 0.1, True))]
+    yield "calibration row 'x': strong_correct 2", "is not 0 or 1", [row("x", strong=(2, 0.1, True))]
     for value in (True, -0.1, float("nan"), float("inf"), "0.1", None):
-        yield "", [row("x", strong=(1, value, True))]
+        yield f"calibration row 'x': strong_cost_usd {value!r}", "is not a finite number >= 0", [
+            row("x", strong=(1, value, True))]
+    yield "calibration row 'x': cheap_cost_usd -1", "is not a finite number >= 0", [row("x", cheap=(1, -1, True))]
     for value in (1, None, "true"):
-        yield "", [row("x", cheap=(0, 0.1, value))]
-    yield "invalid cell scored 1", [row("x", strong=(1, 0.1, False))]
+        yield f"calibration row 'x': cheap_valid {value!r}", "is not a bool", [row("x", cheap=(0, 0.1, value))]
+    yield "invalid cell scored 1: calibration row 'x', strong", "", [row("x", strong=(1, 0.1, False))]
+    yield "invalid cell scored 1: calibration row 'x', cheap", "", [row("x", cheap=(1, 0.1, False), strong=(1, 0.1, False))]
+    yield "calibration row 'x': cheap_correct 1.0", "is not 0 or 1", [row("x", cheap=(1.0, -1, 3))]
 
 
-@pytest.mark.parametrize("opening,rows", list(_bad_rows()))
-def test_grade_rows_refusals(cv, opening, rows):
+@pytest.mark.parametrize("opening,ending,rows", list(_bad_rows()))
+def test_grade_rows_refusals(cv, opening, ending, rows):
+    assert opening
     with pytest.raises(ValueError) as exc:
         records(cv, "calibration", rows)
-    assert str(exc.value).startswith(opening)
+    assert str(exc.value).startswith(opening) and str(exc.value).endswith(ending), str(exc.value)
 
 
 @pytest.mark.parametrize("key,value", [("id", ""), ("dataset", None), ("task", 3), ("family", "")])
@@ -590,5 +610,15 @@ def test_pinned_files_default_output(pinned):
     assert report["families"] == {"families": 5567, "shared_families": 276, "shared_items": 808,
                                   "in_both_splits": 0, "across_tasks": 0}
     assert out.stat().st_size == 1630121
+    ranges = {}
+    for name, t in tasks.items():
+        ranges.setdefault(name.split("/")[0], []).append(t["items"])
+    phrase = (f"{len(ranges['bbh'])} `bbh` of {min(ranges['bbh'])} or {max(ranges['bbh'])} items, "
+              f"{len(ranges['korbench'])} `korbench`")
+    body = DESIGN.read_text(encoding="utf-8").split("### 12.23 ", 1)[1].split("\n## 13. ", 1)[0]
+    assert phrase in body  # review iter-294 must-fix 1: the counts are the pinned files'
+    assert f"and {len(ranges['mmlupro'])} `mmlupro` of {min(ranges['mmlupro'])} to {max(ranges['mmlupro'])}\n" in body
+    assert (tasks["korbench/cipher"]["items"], tasks["korbench/counterfactual"]["items"]) == (80, 80)
+    assert "(`cipher` and `counterfactual` 80 each, `logic` 20," in body
     rows = [json.loads(line) for line in out.read_text(encoding="utf-8").splitlines()]
     assert len(rows) == 12198 and not any(r["cost_usd"] == 0.0 for r in rows)
