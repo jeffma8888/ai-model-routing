@@ -32,6 +32,14 @@ the 12 pinned tau2-bench files are cached, with the Facts claims checked against
 v1.420 (row DOC33): README Limitations' inline-or-delegate cost bullet gives the note's bounds in the
 sentence after the `brief_output_tokens` one and links the note, which the test builds from the five
 Results blocks, and the note's Recommendation and DESIGN 13.1 say so.
+
+v1.438 (row T14): at sigma 0, sigma 0.5 and W = 2 B a run re-decides only the `cost_effective` cells, as the
+script's `REDECIDED` names them, and each `cost_blind` cell keeps its committed pick, which neither sigma nor W can
+move (both enter only costs, a candidate's 5.2 `routing_cost` is 0.0 outside `cost_effective` and every 13.5 cost
+comparison is under `cost_effective`): `Run.decide` is called once per `cost_blind` cell, by the check, and four
+times per `cost_effective` cell; on the hand matrices the cut prints what re-deciding every cell prints, byte for
+byte; and the premise is run, sigma 0 to 1 and W from B to 1000 B + 1 moving no `cost_blind` decision of the
+AutoBench and tau2-bench hand matrices.
 """
 
 import contextlib
@@ -898,6 +906,95 @@ def test_the_research_index_lists_the_note():
     assert index.count("- `research/reread-sensitivity.md` ") == 1
 
 
+# --- v1.438 (row T14): a setting re-decides only the `cost_effective` cells -------------------------------------
+
+EVERY = ("cost_effective", "cost_blind")
+
+
+def _decide_calls(rs, monkeypatch, argv):
+    """`main` on argv with `Run.decide` counted: (code, out, err, [(flavor, sigma, w, B) per call])."""
+    calls = []
+    real = rs.Run.decide
+
+    def counted(self, cell, point, sigma, w):
+        calls.append((cell["flavor"], sigma, w, point["brief_tokens"]))
+        return real(self, cell, point, sigma, w)
+
+    monkeypatch.setattr(rs.Run, "decide", counted)
+    return (*_main(rs, argv), calls)
+
+
+def test_a_setting_calls_the_decision_for_the_cost_effective_cells_only(rs, hand, monkeypatch):
+    assert rs.REDECIDED == ("cost_effective",)
+    argv = ["--matrix", str(hand[3]), "--registry", str(hand[4]), "--root", str(hand[2])]
+    code, out, err, calls = _decide_calls(rs, monkeypatch, argv)
+    assert (code, out, err) == (0, hand[6], "")
+    blind = [c for c in calls if c[0] == "cost_blind"]
+    effective = [c for c in calls if c[0] == "cost_effective"]
+    # the check decides every cell once at sigma 1.0 and W = B; the three settings decide the cost_effective ones
+    assert blind and all(c[1:3] == (1.0, c[3]) for c in blind)
+    assert len(effective) == 4 * len(blind)
+    assert sorted({(c[1], c[2] // c[3]) for c in effective}) == [(0.0, 1), (0.5, 1), (1.0, 1), (1.0, 2)]
+    # with both flavors named, as v1.413 to v1.437 ran, every cell is re-decided at each setting, to the same lines
+    monkeypatch.setattr(rs, "REDECIDED", EVERY)
+    code, every, err, calls = _decide_calls(rs, monkeypatch, argv)
+    assert (code, every, err) == (0, out, "")
+    assert sum(c[0] == "cost_blind" for c in calls) == 4 * len(blind)
+
+
+@pytest.mark.parametrize("which, dataset", [("lrb_hand", "llmrouterbench"), ("rb_hand", "response-bank")])
+def test_the_cut_prints_what_re_deciding_every_cell_prints(rs, which, dataset, request, monkeypatch):
+    root, matrix, code, cut, err = request.getfixturevalue(which)[2:]
+    assert (code, err) == (0, "")
+    assert any(line.startswith("  cost_blind ") for line in cut.split("\n"))
+    monkeypatch.setattr(rs, "REDECIDED", EVERY)
+    assert _main(rs, ["--dataset", dataset, "--matrix", str(matrix), "--root", str(root)]) == (0, cut, "")
+
+
+def test_the_cut_prints_what_re_deciding_every_cell_prints_on_tau2_bench(rs, t2_hand, monkeypatch):
+    dataset, _rows, _registry, root, matrix, code, cut, err = t2_hand
+    assert (code, err) == (0, "")
+    monkeypatch.setattr(rs, "REDECIDED", EVERY)
+    assert _main(rs, ["--dataset", dataset, "--matrix", str(matrix), "--root", str(root)]) == (0, cut, "")
+
+
+def _premise(rs, matrix, registry, root, dataset):
+    """Each cell of the dataset's first committed file re-decided at sigma 0, 0.5, 1 and W = B, 2 B, 1000 B + 1:
+    a `cost_blind` one must keep its pick; returns how many `cost_effective` decisions moved."""
+    _title, files, dr_, rows, pool = rs.inputs(matrix, registry, root, dataset)
+    run, got, _rel = rs.checked(rows, pool, root, *files[0], dr_, dataset)
+    cells, moved = run.result["cells"], 0
+    assert {c["mode"] for c in cells if c["flavor"] == "cost_blind"} == {"inline", "delegate"}
+    for cell in cells:
+        point = got["config"]["points"][cell["point"]]
+        b = point["brief_tokens"]
+        for sigma in (0.0, 0.5, 1.0):
+            for w in (b, 2 * b, 1000 * b + 1):
+                pick = run.decide(cell, point, sigma, w)
+                if cell["flavor"] == "cost_blind":
+                    assert pick == (cell["mode"], cell["model"]), (cell, sigma, w)
+                else:
+                    moved += pick != (cell["mode"], cell["model"])
+    return moved
+
+
+def test_no_setting_moves_a_cost_blind_decision(rs, hand, t2_hand):
+    assert _premise(rs, hand[3], hand[4], hand[2], "autobench") > 0
+    dataset, _rows, _registry, root, matrix = t2_hand[:5]
+    _premise(rs, matrix, None, root, dataset)
+
+
+def test_the_docstring_and_the_note_say_which_cells_are_re_decided(rs):
+    doc = " ".join(rs.__doc__.split())
+    for phrase in ("re-decides every `cost_effective` cell while each `cost_blind` cell keeps its committed pick "
+                   "(v1.438, row T14)", "`routing_cost` is 0.0 outside `cost_effective`",
+                   "never a context check"):
+        assert phrase in doc, phrase
+    method = NOTE.read_text(encoding="utf-8").split("\n## Method\n", 1)[1].split("\n## ", 1)[0]
+    assert "only the `cost_effective` cells are re-decided, and a `cost_blind` cell keeps its committed pick " \
+           "(v1.438)" in method
+
+
 def test_the_design_bullet_is_in_12_22():
     text = DESIGN.read_text(encoding="utf-8")
     section = text.split("\n### 12.22 ", 1)[1].split("\n## 13. ", 1)[0]
@@ -907,7 +1004,9 @@ def test_the_design_bullet_is_in_12_22():
                    "sigma 0, sigma 0.5 and W = 2 B", "13.2 costs", "`## Results` blocks",
                    "or with `--dataset llmrouterbench` (v1.414) or `response-bank` (v1.415) the 13.13 or 13.14 run",
                    "or with `tau2-bench` or `tau2-bench-pooled` (v1.416) the 13.12 run",
-                   "pricing each call's re-read of an earlier output at sigma"):
+                   "pricing each call's re-read of an earlier output at sigma",
+                   "then re-decide each `cost_effective` cell (v1.438: no sigma or W moves a `cost_blind` pick) at "
+                   "sigma 0, sigma 0.5 and W = 2 B"):
         assert phrase in bullet[0], phrase
     # it points to the 13.1 clause that specifies the README Limitations sentence linking the note
     # (v1.423, row DOC35), as the price-error bullet points to 9 v1.417
