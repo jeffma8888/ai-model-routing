@@ -60,7 +60,9 @@ makes the call, and a shared run on other seeds exits 2. A run also decides the 
 is its model first, as the script's `FIRST` names it, so each group's route at the run's prices comes from a decision
 the run makes anyway: on the AutoBench hand matrix every run decides exactly the cells the v1.440 rule cannot keep,
 those of its own parent first, in the same picks, and v1.440's cell order decides more in some run; on the three
-hand matrices the order prints the same lines in fewer decisions than v1.440's.
+hand matrices the order prints the same lines in fewer decisions than v1.440's. Where no cell's parent is the
+run's model, or `model` is None, the order is the cell order: the same decisions in the same order as v1.440's
+(review iter-302 should-fix 2).
 """
 
 import contextlib
@@ -911,6 +913,35 @@ def test_a_run_decides_its_own_parents_cells_first_and_no_kept_cell_for_a_route(
             monkeypatch.setattr(ps, "FIRST", True)
             monkeypatch.setattr(Router, "decide_delegation", real)
     assert min(extra) >= 0 and max(extra) > 0, extra
+
+
+def test_without_the_runs_model_as_a_parent_the_order_is_the_cell_order(ps, hand, monkeypatch):
+    """Where no cell's parent is the run's model, or `model` is None, `FIRST` visits the cells in cell order, so the
+    run makes the same decisions in the same order as v1.440's cell order, with the same picks (review iter-302
+    should-fix 2)."""
+    run, config, registry = _checked_hand(ps, hand)
+    committed = ps.routes(run, config, registry)
+    real, seen = Router.decide_delegation, []
+
+    def recorded(self, task_name, parent_model, flavor="cost_effective", **kwargs):
+        seen.append((task_name, parent_model, flavor, sorted(kwargs.items())))
+        return real(self, task_name, parent_model, flavor, **kwargs)
+
+    monkeypatch.setattr(Router, "decide_delegation", recorded)
+    absent = "v/absent"
+    assert absent not in config["parents"] and absent not in run.models
+    for model, reg, given in ((None, ps.scaled(registry, "v/d", 2.0), None), (absent, registry, committed)):
+        orders = []
+        for first in (True, False):
+            monkeypatch.setattr(ps, "FIRST", first)
+            seen.clear()
+            got = ps.picks(run, config, reg, model, given)
+            orders.append((got, list(seen)))
+        assert orders[0] == orders[1] and orders[0][1], model
+        # in cell order: the decided cells' parents and tasks are those of the cells in run order
+        decided = [(c["task"], c["parent"], c["flavor"]) for c in run.result["cells"] if c["flavor"] in ps.REDECIDED]
+        if model is None:
+            assert [x[:3] for x in orders[0][1]] == decided
 
 
 # --- the note --------------------------------------------------------------------------------
