@@ -3,8 +3,9 @@
 Each measure is the UTF-8 bytes from a heading line, included, through the line before the next
 heading of the same or a higher level, each line with its newline: the section runs from its
 ``## `` line to the next ``## `` line, its opening to its first ``### `` line, and each subsection to
-the next ``### `` or ``## `` line. The section is at most 70,000 bytes, its opening at most 8,000,
-each routing subsection at most 6,500 and each delegation subsection at most 7,500. Rows DOC19a to
+the next ``### `` or ``## `` line. The section is at most 70,000 bytes, its opening at most 7,500,
+each routing subsection at most 5,000 and each delegation subsection at most 5,500 (8,000, 6,500 and
+7,500 to v1.443). Rows DOC19a to
 DOC19k trim one subsection each; until a row trims it, a subsection is in ``PENDING`` with its size
 at 0b3e142, and is held at most that size, never required at most its cap. The section total is
 required only once ``PENDING`` is empty.
@@ -13,6 +14,11 @@ DESIGN 12.8 v1.344 (row DOC20): 12.8 itself, measured the same way from its ``##
 the next ``#``, ``##`` or ``###`` line, is at most ``DESIGN_12_8_CEILINGS[len(PENDING)]``; the row
 that removes a ``PENDING`` name adds the entry for the new count, the size its trim leaves, and an
 entry for a smaller count is smaller, so 12.8 shrinks with each trim.
+
+DESIGN 12.8 v1.444 (row DOC28a): each part over its v1.444 cap at ce21e81 is in ``HELD`` with its size
+there (the opening as ``""``), held at most that size until its row (DOC28b to DOC28h) trims it; a held
+entry at or under its cap fails, so its row removes it, and while ``HELD`` is not empty the projection,
+each held part at its cap and the rest as they are, is at most ``PROJECTED_CAP``, 63,000 bytes.
 """
 import re
 from pathlib import Path
@@ -22,8 +28,8 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 README = ROOT / "README.md"
 SECTION = "## Evidence: held-out results on public data"
-SECTION_CAP, OPENING_CAP = 70_000, 8_000
-CAPS = {"routing": 6_500, "delegation": 7_500}
+SECTION_CAP, OPENING_CAP = 70_000, 7_500  # the opening 8,000 to v1.443
+CAPS = {"routing": 5_000, "delegation": 5_500}  # 6,500 and 7,500 to v1.443
 # Every `###` heading of the section and its class; a heading this table lacks fails.
 CLASS = {
     "RouterBench": "routing",
@@ -42,6 +48,12 @@ CLASS = {
 # removed one name, the last (`RouterBench`, 4,731 bytes) v1.373, row DOC19k, so the section total is
 # now required.
 PENDING = {}
+# DESIGN 12.8 v1.444 (row DOC28a): each part over its v1.444 cap and its size at ce21e81, the opening as
+# "": 427, 776, 1,469, 1,462, 1,199, 880 and 867 bytes over, so the projection is 69,678 - 7,080 = 62,598.
+HELD = {"": 7_927, "tau2-bench": 5_776, "LLMRouterBench": 6_469, "LLM Routing Response Bank": 6_462,
+        "Delegation on AutoBench": 6_699, "Delegation on LLMRouterBench": 6_380,
+        "Delegation on the LLM Routing Response Bank": 6_367}
+PROJECTED_CAP = 63_000
 DESIGN = ROOT / "DESIGN.md"
 DESIGN_12_8 = "### 12.8 "
 SAME_OR_HIGHER = re.compile(r"#{1,3} ")
@@ -54,8 +66,9 @@ SAME_OR_HIGHER = re.compile(r"#{1,3} ")
 # for 4 names, v1.362, row DOC19g, 95,282; for 3 names, v1.365, row DOC19h, 95,193; for 2 names,
 # v1.368, row DOC19i, 94,685; for 1 name, v1.370, row DOC19j, 94,563; for 0 names, v1.372, row DOC19k,
 # 94,335; lowered to the size each part of the DESIGN 12 v1.386 trim leaves, v1.388, row DOC21m,
-# 90,830, v1.389, row DOC21n, 84,351, and v1.390, row DOC21o, 45,002, the entry in force).
-DESIGN_12_8_CEILINGS = {0: 45_002, 1: 94_563, 2: 94_685, 3: 95_193, 4: 95_282, 5: 95_429, 6: 95_620, 7: 95_632, 8: 96_008,
+# 90,830, v1.389, row DOC21n, 84,351, and v1.390, row DOC21o, 45,002; raised by v1.444, row DOC28a, for
+# its room bullet to 46,992, the entry in force).
+DESIGN_12_8_CEILINGS = {0: 46_992, 1: 94_563, 2: 94_685, 3: 95_193, 4: 95_282, 5: 95_429, 6: 95_620, 7: 95_632, 8: 96_008,
                         9: 96_312, 10: 96_365}
 
 
@@ -81,12 +94,26 @@ def measure(text):
     return parts
 
 
-def problems(text, classes=CLASS, pending=PENDING):
+def projection(parts, classes=CLASS, held=HELD):
+    """The section's bytes with each held part cut to its cap and the rest as they are (v1.444)."""
+    over = 0
+    for name, got in parts[1:]:
+        if name in held and (name == "" or name in classes):
+            over += max(0, got - (OPENING_CAP if name == "" else CAPS[classes[name]]))
+    return parts[0][1] - over
+
+
+def problems(text, classes=CLASS, pending=PENDING, held=HELD):
     """Every way `text` breaks the budget, as messages; empty when it keeps it."""
     parts = measure(text)
     (_, section), (_, opening), subsections = parts[0], parts[1], parts[2:]
     found = []
-    if opening > OPENING_CAP:
+    if "" in held:
+        if opening > held[""]:
+            found.append(f"the opening is {opening:,} bytes, over its held size {held['']:,}")
+        elif opening <= OPENING_CAP:
+            found.append(f"the opening is {opening:,} bytes, at or under its cap {OPENING_CAP:,}: remove it from HELD")
+    elif opening > OPENING_CAP:
         found.append(f"the opening is {opening:,} bytes, over {OPENING_CAP:,}")
     names = [name for name, _ in subsections]
     if len(set(names)) != len(names):
@@ -94,6 +121,9 @@ def problems(text, classes=CLASS, pending=PENDING):
     for name in pending:
         if name not in names:
             found.append(f"PENDING names `{name}`, which is no `###` heading of the section")
+    for name in held:
+        if name and name not in names:
+            found.append(f"HELD names `{name}`, which is no `###` heading of the section")
     for name, got in subsections:
         if name not in classes:
             found.append(f"`### {name}` has no class in CLASS")
@@ -102,10 +132,19 @@ def problems(text, classes=CLASS, pending=PENDING):
         if name in pending:
             if got > pending[name]:
                 found.append(f"`### {name}` is {got:,} bytes, over its pending size {pending[name]:,}")
+        elif name in held:
+            if got > held[name]:
+                found.append(f"`### {name}` is {got:,} bytes, over its held size {held[name]:,}")
+            elif got <= cap:
+                found.append(f"`### {name}` is {got:,} bytes, at or under its {classes[name]} cap {cap:,}: "
+                             "remove it from HELD")
         elif got > cap:
             found.append(f"`### {name}` is {got:,} bytes, over its {classes[name]} cap {cap:,}")
     if not pending and section > SECTION_CAP:
         found.append(f"the section is {section:,} bytes, over {SECTION_CAP:,}")
+    if held and projection(parts, classes, held) > PROJECTED_CAP:
+        found.append(f"with each held part at its cap the section would be {projection(parts, classes, held):,} bytes, "
+                     f"over {PROJECTED_CAP:,}")
     return found
 
 
@@ -147,6 +186,11 @@ def pad_12_8(text, extra):
     return text[:after] + "x" * extra + text[after:]
 
 
+def limit(name):
+    """A subsection's ceiling: its held size while `HELD` names it (v1.444), else its cap."""
+    return HELD.get(name, CAPS[CLASS[name]])
+
+
 def test_the_readme_keeps_the_budget():
     assert problems(README.read_text(encoding="utf-8")) == []
 
@@ -162,70 +206,70 @@ def test_delegation_on_tau2_bench_is_trimmed():
     # Row DOC19a: out of PENDING and at most its cap (14,187 bytes at 0b3e142).
     sizes = dict(measure(README.read_text(encoding="utf-8"))[2:])
     assert "Delegation on tau2-bench" not in PENDING
-    assert sizes["Delegation on tau2-bench"] <= CAPS["delegation"]
+    assert sizes["Delegation on tau2-bench"] <= limit("Delegation on tau2-bench")
 
 
 def test_delegation_on_autobench_is_trimmed():
     # Row DOC19b: out of PENDING and at most its cap (13,715 bytes at 0b3e142).
     sizes = dict(measure(README.read_text(encoding="utf-8"))[2:])
     assert "Delegation on AutoBench" not in PENDING
-    assert sizes["Delegation on AutoBench"] <= CAPS["delegation"]
+    assert sizes["Delegation on AutoBench"] <= limit("Delegation on AutoBench")
 
 
 def test_delegation_on_llmrouterbench_is_trimmed():
     # Row DOC19c: out of PENDING and at most its cap (12,881 bytes at 0b3e142).
     sizes = dict(measure(README.read_text(encoding="utf-8"))[2:])
     assert "Delegation on LLMRouterBench" not in PENDING
-    assert sizes["Delegation on LLMRouterBench"] <= CAPS["delegation"]
+    assert sizes["Delegation on LLMRouterBench"] <= limit("Delegation on LLMRouterBench")
 
 
 def test_delegation_on_the_response_bank_is_trimmed():
     # Row DOC19d: out of PENDING and at most its cap (11,204 bytes at 0b3e142).
     sizes = dict(measure(README.read_text(encoding="utf-8"))[2:])
     assert "Delegation on the LLM Routing Response Bank" not in PENDING
-    assert sizes["Delegation on the LLM Routing Response Bank"] <= CAPS["delegation"]
+    assert sizes["Delegation on the LLM Routing Response Bank"] <= limit("Delegation on the LLM Routing Response Bank")
 
 
 def test_response_bank_is_trimmed():
     # Row DOC19e: out of PENDING and at most its cap (8,173 bytes at 0b3e142).
     sizes = dict(measure(README.read_text(encoding="utf-8"))[2:])
     assert "LLM Routing Response Bank" not in PENDING
-    assert sizes["LLM Routing Response Bank"] <= CAPS["routing"]
+    assert sizes["LLM Routing Response Bank"] <= limit("LLM Routing Response Bank")
 
 
 def test_llmrouterbench_is_trimmed():
     # Row DOC19f: out of PENDING and at most its cap (8,093 bytes at 0b3e142).
     sizes = dict(measure(README.read_text(encoding="utf-8"))[2:])
     assert "LLMRouterBench" not in PENDING
-    assert sizes["LLMRouterBench"] <= CAPS["routing"]
+    assert sizes["LLMRouterBench"] <= limit("LLMRouterBench")
 
 
 def test_tau2_bench_is_trimmed():
     # Row DOC19g: out of PENDING and at most its cap (7,310 bytes at 0b3e142).
     sizes = dict(measure(README.read_text(encoding="utf-8"))[2:])
     assert "tau2-bench" not in PENDING
-    assert sizes["tau2-bench"] <= CAPS["routing"]
+    assert sizes["tau2-bench"] <= limit("tau2-bench")
 
 
 def test_livecodebench_is_trimmed():
     # Row DOC19h: out of PENDING and at most its cap (6,194 bytes at 0b3e142, under its cap already).
     sizes = dict(measure(README.read_text(encoding="utf-8"))[2:])
     assert "LiveCodeBench" not in PENDING
-    assert sizes["LiveCodeBench"] <= CAPS["routing"]
+    assert sizes["LiveCodeBench"] <= limit("LiveCodeBench")
 
 
 def test_autobench_judges_is_trimmed():
     # Row DOC19i: out of PENDING and at most its cap (5,691 bytes at 0b3e142, under its cap already).
     sizes = dict(measure(README.read_text(encoding="utf-8"))[2:])
     assert "AutoBench judges" not in PENDING
-    assert sizes["AutoBench judges"] <= CAPS["routing"]
+    assert sizes["AutoBench judges"] <= limit("AutoBench judges")
 
 
 def test_autobench_is_trimmed():
     # Row DOC19j: out of PENDING and at most its cap (5,078 bytes at 0b3e142, under its cap already).
     sizes = dict(measure(README.read_text(encoding="utf-8"))[2:])
     assert "AutoBench" not in PENDING
-    assert sizes["AutoBench"] <= CAPS["routing"]
+    assert sizes["AutoBench"] <= limit("AutoBench")
 
 
 def test_routerbench_is_trimmed_and_the_section_total_is_required():
@@ -234,7 +278,7 @@ def test_routerbench_is_trimmed_and_the_section_total_is_required():
     parts = measure(README.read_text(encoding="utf-8"))
     sizes = dict(parts[2:])
     assert PENDING == {}
-    assert sizes["RouterBench"] <= CAPS["routing"]
+    assert sizes["RouterBench"] <= limit("RouterBench")
     assert parts[0][1] <= SECTION_CAP
 
 
@@ -260,9 +304,9 @@ SMALL = {"A": "routing", "B": "delegation"}
 
 
 @pytest.mark.parametrize("text, pending, message", [
-    (small(opening=8_000), {}, "the opening is 8,046 bytes, over 8,000"),  # 45 + 8,001
-    (small(a=6_500), {}, "`### A` is 6,507 bytes, over its routing cap 6,500"),
-    (small(b=7_500), {}, "`### B` is 7,507 bytes, over its delegation cap 7,500"),
+    (small(opening=7_500), {}, "the opening is 7,546 bytes, over 7,500"),  # 45 + 7,501
+    (small(a=5_000), {}, "`### A` is 5,007 bytes, over its routing cap 5,000"),
+    (small(b=5_500), {}, "`### B` is 5,507 bytes, over its delegation cap 5,500"),
     (small(a=101), {"A": 107}, "`### A` is 108 bytes, over its pending size 107"),
     (small(), {"C": 10}, "PENDING names `C`, which is no `###` heading of the section"),
     (small(extra="### D\nd\n"), {}, "`### D` has no class in CLASS"),
@@ -270,7 +314,7 @@ SMALL = {"A": "routing", "B": "delegation"}
     (small(a=34_000, b=34_000, opening=2_000), {}, None),
 ])
 def test_a_broken_budget_is_named(text, pending, message):
-    found = problems(text, classes=SMALL, pending=pending)
+    found = problems(text, classes=SMALL, pending=pending, held={})
     if message is None:
         # Over its own caps too, but the section total is named as well, since PENDING is empty.
         assert found[-1].startswith("the section is ") and found[-1].endswith(", over 70,000")
@@ -280,9 +324,9 @@ def test_a_broken_budget_is_named(text, pending, message):
 
 def test_the_section_total_waits_for_an_empty_pending_and_a_pending_one_may_exceed_its_cap():
     text = small(a=36_000, b=36_000)
-    found = problems(text, classes=SMALL, pending={"A": 36_007, "B": 36_007})
+    found = problems(text, classes=SMALL, pending={"A": 36_007, "B": 36_007}, held={})
     assert found == []
-    assert problems(small(a=6_493, b=7_493), classes=SMALL, pending={}) == []
+    assert problems(small(a=4_993, b=5_493), classes=SMALL, pending={}, held={}) == []
 
 
 def test_a_readme_without_the_section_is_an_error():
@@ -332,11 +376,68 @@ def test_a_broken_12_8_ceiling_table_is_named():
 
 
 def test_the_12_8_clause_states_the_ceiling_in_force():
-    # DESIGN 12.8 v1.390 (row DOC21o): the shrink bullet gives the entry for 0 names, the one in force.
+    # DESIGN 12.8 v1.390 (row DOC21o): the shrink bullet gives the entry for 0 names, the one in force,
+    # raised by v1.444 (row DOC28a) for its room bullet.
     text = DESIGN.read_text(encoding="utf-8")
     lines = [line for line in text.splitlines() if line.startswith("  - 12.8 shrinks with each trim (v1.344, row DOC20): ")]
     assert len(lines) == 1
-    stated = re.findall(r"The entry in force, for 0 names, is this section's size after v1\.390 \(row DOC21o\), "
-                        r"([\d,]+) bytes; ", lines[0])
+    stated = re.findall(r"The entry in force, for 0 names, is this section's size after v1\.444 \(row DOC28a\), "
+                        r"([\d,]+) bytes \(45,002 after v1\.390, row DOC21o\); ", lines[0])
     assert len(stated) == 1 and int(stated[0].replace(",", "")) == DESIGN_12_8_CEILINGS[0]
     assert PENDING == {} and design_12_8(text) <= DESIGN_12_8_CEILINGS[0] <= 50_000
+
+
+def test_held_parts_were_over_their_caps_and_the_room_bullet_names_them():
+    # Row DOC28a (v1.444): every held part is the opening or a heading, was over its v1.444 cap at
+    # ce21e81 at the size held, and the 12.8 room bullet gives each name and size.
+    assert HELD and set(HELD) - {""} <= set(CLASS)
+    for name, held in HELD.items():
+        assert held > (OPENING_CAP if name == "" else CAPS[CLASS[name]])
+    lines = [line for line in DESIGN.read_text(encoding="utf-8").splitlines()
+             if line.startswith("  - Room for one more subsection (v1.444, row DOC28a): ")]
+    assert len(lines) == 1
+    sizes = ", ".join(f"`{name}` {size:,}" for name, size in HELD.items() if name)
+    stated = sizes.rsplit(", ", 1)[0] + " and " + sizes.rsplit(", ", 1)[1]
+    assert f"at its ce21e81 size: the opening {HELD[''] :,}, {stated}. " in lines[0]
+    assert f"is at most {PROJECTED_CAP:,} bytes" in lines[0]
+
+
+def test_the_projection_has_room_for_the_largest_subsection():
+    # v1.444: with each held part at its cap the section leaves room under 70,000 for a subsection the
+    # size of the largest at ce21e81 (`Delegation on AutoBench`, 6,699 bytes).
+    parts = measure(README.read_text(encoding="utf-8"))
+    assert projection(parts) <= PROJECTED_CAP <= SECTION_CAP - 6_699
+    # ce21e81 itself: 69,678 bytes less the 7,080 its seven held parts are over their caps.
+    assert projection([(None, 69_678), ("", 7_927)] + [(n, s) for n, s in HELD.items() if n]) == 62_598
+
+
+def test_an_unheld_subsection_growing_past_the_margin_fails_the_projection():
+    # The margin is PROJECTED_CAP less the projection; one byte more in `### RouterBench`, an unheld
+    # subsection under its cap, fails only the projection.
+    text = README.read_text(encoding="utf-8")
+    margin = PROJECTED_CAP - projection(measure(text))
+    grown = text.replace("### RouterBench\n", "### RouterBench\n" + "x" * margin + "\n", 1)
+    assert projection(measure(grown)) == PROJECTED_CAP + 1
+    assert problems(grown)[-1] == (f"with each held part at its cap the section would be {PROJECTED_CAP + 1:,} "
+                                   f"bytes, over {PROJECTED_CAP:,}")
+    at = text.replace("### RouterBench\n", "### RouterBench\n" + "x" * (margin - 1) + "\n", 1)
+    assert not any(found.startswith("with each held part") for found in problems(at))
+
+
+@pytest.mark.parametrize("text, held, message", [
+    (small(a=5_050), {"A": 5_100}, None),
+    (small(a=5_094), {"A": 5_100}, "`### A` is 5,101 bytes, over its held size 5,100"),
+    (small(a=4_993), {"A": 5_100}, "`### A` is 5,000 bytes, at or under its routing cap 5,000: remove it from HELD"),
+    (small(), {"C": 10}, "HELD names `C`, which is no `###` heading of the section"),
+    (small(opening=7_553), {"": 7_600}, None),  # 45 + 7,554 = 7,599
+    (small(opening=7_555), {"": 7_600}, "the opening is 7,601 bytes, over its held size 7,600"),
+    (small(opening=7_454), {"": 7_600}, "the opening is 7,500 bytes, at or under its cap 7,500: remove it from HELD"),
+    (small(a=57_500, b=8_993), {"B": 9_000}, "with each held part at its cap the section would be 63,054 bytes, over 63,000"),
+    (small(a=57_000, b=8_993), {"B": 9_000}, None),
+])
+def test_a_broken_hold_is_named(text, held, message):
+    # A pending `A` lets the last two texts carry a large unheld part without its cap firing; the
+    # section total waits for an empty PENDING, so the projection is the one total named.
+    pending = {"A": 60_000} if len(text) > 60_000 else {}
+    found = problems(text, classes=SMALL, pending=pending, held=held)
+    assert found == ([] if message is None else [message])
