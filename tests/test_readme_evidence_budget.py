@@ -22,7 +22,9 @@ each held part at its cap and the rest as they are, is at most ``PROJECTED_CAP``
 trims a part moves its entry to ``TRIMMED`` (the opening, v1.445, row DOC28b; ``LLMRouterBench``, v1.446,
 row DOC28c; ``LLM Routing Response Bank``, v1.447, row DOC28d; ``Delegation on AutoBench``, v1.448, row
 DOC28e; ``Delegation on LLMRouterBench``, v1.449, row DOC28f; ``Delegation on the LLM Routing Response
-Bank``, v1.450, row DOC28g), so the two hold the plan.
+Bank``, v1.450, row DOC28g; ``tau2-bench``, v1.451, row DOC28h), so the two hold the plan. v1.451 emptied
+``HELD``, so the projection is the section itself, and it is held at most ``PROJECTED_CAP`` while ``CLASS``
+names ``ROOM_HEADINGS`` (eleven) headings, so the room is kept for a twelfth subsection.
 """
 import re
 from pathlib import Path
@@ -52,17 +54,20 @@ CLASS = {
 # removed one name, the last (`RouterBench`, 4,731 bytes) v1.373, row DOC19k, so the section total is
 # now required.
 PENDING = {}
-# DESIGN 12.8 v1.444 (row DOC28a): each part still over its v1.444 cap and its size at ce21e81: 776 bytes
-# over there; with the opening's 427, LLMRouterBench's 1,469, LLM Routing Response Bank's 1,462, Delegation
-# on AutoBench's 1,199, Delegation on LLMRouterBench's 880 and Delegation on the LLM Routing Response Bank's
-# 867 (TRIMMED) the ce21e81 projection is 69,678 - 7,080 = 62,598.
-HELD = {"tau2-bench": 5_776}
+# DESIGN 12.8 v1.444 (row DOC28a): each part still over its v1.444 cap and its size at ce21e81; empty from
+# v1.451 (row DOC28h). With the opening's 427, LLMRouterBench's 1,469, LLM Routing Response Bank's 1,462,
+# Delegation on AutoBench's 1,199, Delegation on LLMRouterBench's 880, Delegation on the LLM Routing Response
+# Bank's 867 and tau2-bench's 776 (TRIMMED) the ce21e81 projection is 69,678 - 7,080 = 62,598.
+HELD = {}
 # Each part a DOC28 row has trimmed, with its ce21e81 size and its row: out of HELD, at most its cap.
 TRIMMED = {"": (7_927, "DOC28b"), "LLMRouterBench": (6_469, "DOC28c"),
            "LLM Routing Response Bank": (6_462, "DOC28d"), "Delegation on AutoBench": (6_699, "DOC28e"),
            "Delegation on LLMRouterBench": (6_380, "DOC28f"),
-           "Delegation on the LLM Routing Response Bank": (6_367, "DOC28g")}
+           "Delegation on the LLM Routing Response Bank": (6_367, "DOC28g"), "tau2-bench": (5_776, "DOC28h")}
 PROJECTED_CAP = 63_000
+# v1.451 (row DOC28h): with HELD empty the section itself is at most PROJECTED_CAP while CLASS names this
+# many headings, the eleven of ce21e81, so the room is for a twelfth.
+ROOM_HEADINGS = 11
 DESIGN = ROOT / "DESIGN.md"
 DESIGN_12_8 = "### 12.8 "
 SAME_OR_HIGHER = re.compile(r"#{1,3} ")
@@ -154,6 +159,9 @@ def problems(text, classes=CLASS, pending=PENDING, held=HELD):
     if held and projection(parts, classes, held) > PROJECTED_CAP:
         found.append(f"with each held part at its cap the section would be {projection(parts, classes, held):,} bytes, "
                      f"over {PROJECTED_CAP:,}")
+    elif not held and len(classes) == ROOM_HEADINGS and section > PROJECTED_CAP:
+        found.append(f"the section is {section:,} bytes, over {PROJECTED_CAP:,} while CLASS names {ROOM_HEADINGS} "
+                     "headings")
     return found
 
 
@@ -396,25 +404,23 @@ def test_the_12_8_clause_states_the_ceiling_in_force():
     assert PENDING == {} and design_12_8(text) <= DESIGN_12_8_CEILINGS[0] <= 50_000
 
 
-def test_held_parts_were_over_their_caps_and_the_room_bullet_names_them():
-    # Row DOC28a (v1.444): every held part is the opening or a heading, was over its v1.444 cap at
-    # ce21e81 at the size held, and the 12.8 room bullet gives each name and size.
-    # v1.445 (row DOC28b): the opening left HELD, and the bullet names its row and version.
-    assert HELD and set(HELD) - {""} <= set(CLASS)
-    for name, held in HELD.items():
-        assert held > (OPENING_CAP if name == "" else CAPS[CLASS[name]])
+def test_held_is_empty_and_the_room_bullet_names_each_trim():
+    # Row DOC28a (v1.444): every held part was the opening or a heading, over its v1.444 cap at ce21e81 at
+    # the size held, and the 12.8 room bullet gave each name and size. v1.445 (row DOC28b) to v1.451 (row
+    # DOC28h) each moved one entry to TRIMMED; v1.451 emptied HELD, and the bullet says so, names each row
+    # and version, and names the section hold that follows.
+    assert HELD == {} and ROOM_HEADINGS == len(CLASS) == 11
     lines = [line for line in DESIGN.read_text(encoding="utf-8").splitlines()
              if line.startswith("  - Room for one more subsection (v1.444, row DOC28a): ")]
     assert len(lines) == 1
-    sizes = [f"`{name}` {size:,}" if name else f"the opening {size:,}" for name, size in HELD.items()]
-    stated = ", ".join(sizes[:-1]) + " and " + sizes[-1] if len(sizes) > 1 else sizes[0]
-    assert f"at its ce21e81 size: {stated}. " in lines[0]
-    assert f"is at most {PROJECTED_CAP:,} bytes" in lines[0]
+    assert "`HELD` held each part over its cap at its ce21e81 size and is empty from v1.451. " in lines[0]
+    assert (f"is at most {PROJECTED_CAP:,} bytes; once it is empty, the section itself is, while `CLASS` names "
+            "eleven headings (v1.451). ") in lines[0]
     assert "at ce21e81 the section is 69,678 bytes and its opening 7,927, " in lines[0]
     assert ("Rows DOC28b (the opening, v1.445), DOC28c (`LLMRouterBench`, v1.446), DOC28d (`LLM Routing Response "
             "Bank`, v1.447), DOC28e (`Delegation on AutoBench`, v1.448), DOC28f (`Delegation on LLMRouterBench`, "
-            "v1.449), DOC28g (`Delegation on the LLM Routing Response Bank`, v1.450) to DOC28h trim one part "
-            "each;") in lines[0]
+            "v1.449), DOC28g (`Delegation on the LLM Routing Response Bank`, v1.450) and DOC28h (`tau2-bench`, "
+            "v1.451) trimmed one part each.") in lines[0]
     # v1.447 (row DOC28d, review iter-306 nit 1): the bullet names TRIMMED, where a held entry's row moves it.
     assert "a held entry at or under its cap fails (its row moves it to `TRIMMED`, which v1.445 added), " in lines[0]
     # v1.446 (row DOC28c): a part whose pair does not fit with the second shed keeps its second instead.
@@ -427,7 +433,8 @@ def test_trimmed_parts_are_out_of_held_and_at_most_their_caps():
     # row DOC28d (v1.447): so is `LLM Routing Response Bank`, 6,462 there, at most the same cap; row DOC28e
     # (v1.448): so is `Delegation on AutoBench`, 6,699 there, at most its 5,500-byte delegation cap; row
     # DOC28f (v1.449): so is `Delegation on LLMRouterBench`, 6,380 there, at most the same cap; row DOC28g
-    # (v1.450): so is `Delegation on the LLM Routing Response Bank`, 6,367 there, at most the same cap.
+    # (v1.450): so is `Delegation on the LLM Routing Response Bank`, 6,367 there, at most the same cap; row
+    # DOC28h (v1.451): so is `tau2-bench`, 5,776 there, at most its 5,000-byte routing cap.
     # HELD and TRIMMED together are the seven parts of the v1.444 plan, each over its cap there.
     parts = measure(README.read_text(encoding="utf-8"))
     sizes = dict(parts[1:])
@@ -435,8 +442,9 @@ def test_trimmed_parts_are_out_of_held_and_at_most_their_caps():
                        "LLM Routing Response Bank": (6_462, "DOC28d"),
                        "Delegation on AutoBench": (6_699, "DOC28e"),
                        "Delegation on LLMRouterBench": (6_380, "DOC28f"),
-                       "Delegation on the LLM Routing Response Bank": (6_367, "DOC28g")} and not set(TRIMMED) & set(HELD)
-    assert len(HELD) + len(TRIMMED) == 7
+                       "Delegation on the LLM Routing Response Bank": (6_367, "DOC28g"),
+                       "tau2-bench": (5_776, "DOC28h")} and not set(TRIMMED) & set(HELD)
+    assert HELD == {} and len(TRIMMED) == 7
     for name, (was, _) in TRIMMED.items():
         cap = OPENING_CAP if name == "" else CAPS[CLASS[name]]
         assert was > cap >= sizes[name]
@@ -445,25 +453,38 @@ def test_trimmed_parts_are_out_of_held_and_at_most_their_caps():
 def test_the_projection_has_room_for_the_largest_subsection():
     # v1.444: with each held part at its cap the section leaves room under 70,000 for a subsection the
     # size of the largest at ce21e81 (`Delegation on AutoBench`, 6,699 bytes).
+    # v1.451 (row DOC28h): with HELD empty the projection is the section, held only while CLASS names
+    # ROOM_HEADINGS headings (test_the_section_keeps_the_room_while_class_names_eleven_headings).
     parts = measure(README.read_text(encoding="utf-8"))
-    assert projection(parts) <= PROJECTED_CAP <= SECTION_CAP - 6_699
+    assert PROJECTED_CAP <= SECTION_CAP - 6_699
+    if HELD or len(CLASS) == ROOM_HEADINGS:
+        assert projection(parts) <= PROJECTED_CAP
     # ce21e81 itself: 69,678 bytes less the 7,080 its seven held parts (HELD and TRIMMED) are over their caps.
     plan = {**{name: was for name, (was, _) in TRIMMED.items()}, **HELD}
     assert projection([(None, 69_678)] + list(plan.items()), held=plan) == 62_598
 
 
-def test_an_unheld_subsection_growing_past_the_margin_fails_the_projection():
-    # The margin is PROJECTED_CAP less the projection; one byte more in `### RouterBench`, an unheld
-    # subsection under its cap, fails the projection, named last (the grown section is also over 70,000;
-    # test_a_broken_hold_is_named has a projection-only failure). One byte less passes it.
+def test_the_section_keeps_the_room_while_class_names_eleven_headings():
+    # v1.451 (row DOC28h): HELD is empty, so the projection is the section itself. The margin is
+    # PROJECTED_CAP less the section; one byte more in `### RouterBench` fails the room hold, named last
+    # (the grown subsection is also over its cap; test_a_broken_hold_is_named has a projection-only failure
+    # with a held part), and one byte less passes it. A twelfth heading in CLASS lifts the hold, so the
+    # room can be spent on it, the section still at most SECTION_CAP.
     text = README.read_text(encoding="utf-8")
-    margin = PROJECTED_CAP - projection(measure(text))
+    assert HELD == {} and len(CLASS) == ROOM_HEADINGS
+    margin = PROJECTED_CAP - measure(text)[0][1]
+    assert margin >= 0 and projection(measure(text)) == measure(text)[0][1]
     grown = text.replace("### RouterBench\n", "### RouterBench\n" + "x" * margin + "\n", 1)
-    assert projection(measure(grown)) == PROJECTED_CAP + 1
-    assert problems(grown)[-1] == (f"with each held part at its cap the section would be {PROJECTED_CAP + 1:,} "
-                                   f"bytes, over {PROJECTED_CAP:,}")
+    assert measure(grown)[0][1] == PROJECTED_CAP + 1
+    assert problems(grown)[-1] == (f"the section is {PROJECTED_CAP + 1:,} bytes, over {PROJECTED_CAP:,} while "
+                                   f"CLASS names {ROOM_HEADINGS} headings")
     at = text.replace("### RouterBench\n", "### RouterBench\n" + "x" * (margin - 1) + "\n", 1)
-    assert not any(found.startswith("with each held part") for found in problems(at))
+    assert not any("while CLASS names" in found for found in problems(at))
+    twelve = {**CLASS, "Twelfth": "routing"}
+    with_twelfth = grown.replace("\n### RouterBench\n", "\n### Twelfth\n\nx\n\n### RouterBench\n", 1)
+    assert PROJECTED_CAP < measure(with_twelfth)[0][1] <= SECTION_CAP
+    assert not any("while CLASS names" in found for found in problems(with_twelfth, classes=twelve))
+    assert any("while CLASS names" in found for found in problems(with_twelfth.replace("### Twelfth\n", "", 1)))
 
 
 @pytest.mark.parametrize("text, held, message", [

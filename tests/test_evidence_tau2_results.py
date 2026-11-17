@@ -14,6 +14,11 @@ v1.363 (DESIGN 12.15 v1.362, row DOC19g): the subsection is trimmed to the 12.8 
 the `cost_effective` and `cost_blind` Reading it bullets and the first limit, then one line that links
 RESULTS.md ``## Reading it`` and ``## Sensitivity``; the tests require the Reading it phrases of the
 dropped bullets and the dropped limit phrases in RESULTS.md and absent from the subsection.
+
+v1.451 (DESIGN 12.15 and 12.8 v1.444, row DOC28h): the subsection is trimmed to its 5,000-byte routing cap. It
+drops its `Limits:` line and bullet, now the sixth RESULTS.md ``## Reading it`` bullet in full, and its link line
+names that limit; its source lines shed words, each shed clause in RESULTS.md or the evidence README
+(``SHED_SOURCE_CLAUSES``), and it keeps both Reading it bullets.
 """
 
 import importlib.util
@@ -282,20 +287,41 @@ HEADINGS = ["RouterBench", "AutoBench", "AutoBench judges", "tau2-bench", "LiveC
             "LLMRouterBench", "LLM Routing Response Bank", "Delegation on AutoBench", "Delegation on tau2-bench",
             "Delegation on LLMRouterBench",
             "Delegation on the LLM Routing Response Bank"]
-# v1.363 (12.15 v1.362): the subsection keeps the first limit phrase, in its one Limits bullet, and the
-# last, in its link line; the other three are in RESULTS.md alone.
-LIMITS = ["date from 2025, and the costs are those the runs recorded at the prices of their time",
-          "holds on trials 1 and 3 but not on trial 2"]
-DROPPED_LIMITS = ['("airline: 29 tasks differ, retail: 114")',
+# v1.363 (12.15 v1.362): the subsection kept the first limit phrase, in its one Limits bullet, and the
+# last, in its link line; v1.451 (row DOC28h) keeps only the last, and the first, the agents' date and
+# costs, is in RESULTS.md alone with the other three.
+LIMITS = ["holds on trials 1 and 3 but not on trial 2"]
+DROPPED_LIMITS = ["The 4 agents date from 2025, and the costs are those the runs recorded at the prices of their "
+                  "time, not today's list prices\n",
+                  '("airline: 29 tasks differ, retail: 114")',
                   "plays the user in every conversation",
                   "the airline calibration half holds 16 to 35 tasks over the 50 seeds, under "
                   "`min_samples` 30 on 40 of them"]
-# v1.364 (review iter-233 nit 1): the link line says what each of the two RESULTS.md parts holds.
-LINK_LINE = ("The other Reading it bullets and limits are in [RESULTS.md](evidence/tau2-bench/RESULTS.md#reading-it): "
-             "its `## Reading it` has where routing per domain works, the bar violations, the per-item oracle, "
-             "the June 2025 task sets, the simulated user and the calibration split sizes, and its "
-             "[Sensitivity](evidence/tau2-bench/RESULTS.md#sensitivity) part the pooled run and trials 1 to 3, "
-             "where the sentence under the tables holds on trials 1 and 3 but not on trial 2.")
+# v1.364 (review iter-233 nit 1): the link line says what each of the two RESULTS.md parts holds; v1.451
+# (row DOC28h): it names the dropped limit, the agents' date and costs, and no longer lists the bullets.
+LINK_LINE = ("The other Reading it bullets and limits, the agents' date and costs among them, are in "
+             "[RESULTS.md](evidence/tau2-bench/RESULTS.md#reading-it) `## Reading it`, and the pooled run and "
+             "trials 1 to 3, where the sentence under the tables holds on trials 1 and 3 but not on trial 2, in "
+             "its [Sensitivity](evidence/tau2-bench/RESULTS.md#sensitivity) part.")
+# v1.451 (row DOC28h): each clause the source lines shed, the file that holds it and that file's words.
+SHED_SOURCE_CLAUSES = [
+    ("(https://github.com/sierra-research/tau2-bench) on GitHub", None,
+     "(https://github.com/sierra-research/tau2-bench)"),
+    ("checked by size and sha256 before they are read", "RESULTS.md",
+     "checks each against its pinned size and sha256"),
+    ("This repo commits no part of the dataset", "README.md", "This repo commits no part of the run files"),
+    ("of the 4 trials", None, "trial 0 of 4, "),
+    ("each domain is split in half per seed", "RESULTS.md",
+     "the tasks of each domain are split in half by a seeded hash"),
+    ("between an agent model and a simulated user", "RESULTS.md",
+     "one conversation per task and agent with a simulated user"),
+    ("the run's own program checks", "RESULTS.md", "the run's own program checks"),
+    ("the agent's recorded cost of that conversation", "RESULTS.md", "the agent's recorded cost of that conversation"),
+    ("where 0.8 and 0.9 cleared no cell", "RESULTS.md", "where 0.8 and 0.9 cleared no cell"),
+    ("how many seeds were routed to each agent", "RESULTS.md", "how many of the 50 seeds routed to each agent"),
+    ("what the converter reads:", "RESULTS.md", "for what the converter reads and keeps"),
+    ("the pooled and trial 1 to 3 sensitivity runs", "RESULTS.md", "\n## Sensitivity\n"),
+]
 # v1.364 (review iter-233 should-fix 1): the one qualifier of a dropped line that RESULTS.md lacked.
 MOVED = "against a nominal one-sided 0.025 for the 0.95 Wilson bound on one agent."
 REGENERATE_LINE = ("Regenerate (the converter downloads the 12 pinned files, about 296 MB, into a cache folder "
@@ -348,10 +374,10 @@ def readme_counts(results):
     assert len(models) == 1
     sizes = [f"{task} {t['items']}" for task, t in tasks.items()]
     sizes[0] += " tasks"
+    # v1.451 (row DOC28h): `of 4` for `of the 4 trials`, and the split clause is in RESULTS.md alone.
     return (f"{len(models.pop())} agents, one routing task per domain ({', '.join(sizes)}), "
-            f"trial 0 of the 4 trials, {len(config['seeds'])} seeds; each domain is split in half "
-            f"per seed and routed at bars {config['bars'][0]} to {config['bars'][-1]} in both "
-            f"flavors")
+            f"trial 0 of 4, {len(config['seeds'])} seeds, routed at bars {config['bars'][0]} to "
+            f"{config['bars'][-1]} in both flavors")
 
 
 def test_readme_tau2_tables_counts_and_single_agent_sentence_are_the_committed_results():
@@ -362,13 +388,11 @@ def test_readme_tau2_tables_counts_and_single_agent_sentence_are_the_committed_r
 
 
 def kept_bullets(results):
-    """The two Reading it bullets and the one Limits bullet the subsection keeps (12.15 v1.362),
+    """The two Reading it bullets the subsection keeps (12.15 v1.362; its one Limits bullet to v1.450),
     built from the RESULTS.md phrases of the committed file."""
     phrases = reading_phrases(results)
-    agents = len(results["tasks"]["airline"]["models"])
     return [f"- `cost_effective`: {phrases[0]}, and the router {phrases[1]}. {phrases[2]}",
-            f"- {phrases[3]}",
-            f"- The {agents} agents {LIMITS[0]}, not today's list prices"]
+            f"- {phrases[3]}"]
 
 
 def test_readme_tau2_reading_numbers_are_the_committed_results():
@@ -386,24 +410,26 @@ def test_readme_tau2_reading_numbers_are_the_committed_results():
         assert (phrase in section) == (phrase in shown), phrase
 
 
-def test_readme_tau2_keeps_two_bullets_one_limit_and_a_link_line():
+def test_readme_tau2_keeps_two_bullets_and_a_link_line():
     """v1.363 (12.15 v1.362): after its four source bullets the subsection's only bullets are the
-    `cost_effective` and `cost_blind` Reading it bullets and the first limit, then the link line and
-    the regenerate paragraph; the link's anchors are the RESULTS.md `## Reading it` heading, since
-    that file has no `## Caveats` or `## Assumed`, and its `## Sensitivity` heading; each dropped
-    limit phrase is in RESULTS.md alone."""
+    `cost_effective` and `cost_blind` Reading it bullets (and, to v1.450, the first limit), then the
+    link line and the regenerate paragraph; the link's anchors are the RESULTS.md `## Reading it`
+    heading, since that file has no `## Caveats` or `## Assumed`, and its `## Sensitivity` heading;
+    each dropped limit phrase is in RESULTS.md alone. v1.451 (row DOC28h): no `Limits:` line."""
     results, section, md = committed(), readme_subsection(), results_md()
     kept = kept_bullets(results)
-    block = f"Reading it:\n\n{kept[0]}\n{kept[1]}\n\nLimits:\n\n{kept[2]}\n\n{LINK_LINE}\n\n{REGENERATE_LINE}\n\n```bash\n"
+    block = f"Reading it:\n\n{kept[0]}\n{kept[1]}\n\n{LINK_LINE}\n\n{REGENERATE_LINE}\n\n```bash\n"
     assert section.count(block) == 1
+    assert "\nLimits:\n" not in section
     bullets = [line for line in section.splitlines() if line.startswith("- ")]
-    assert len(bullets) == 7 and bullets[4:] == kept
+    assert len(bullets) == 6 and bullets[4:] == kept
     assert section.index(beats_statement(results)) < section.index("\nReading it:\n")
     for heading in ("\n## Reading it\n", "\n## Sensitivity\n"):
         assert md.count(heading) == 1, heading
     assert "\n## Caveats\n" not in md and "\n## Assumed\n" not in md
     for phrase in DROPPED_LIMITS + [MOVED]:
         assert phrase in md and phrase not in section, phrase
+    assert "the agents' date and costs" in LINK_LINE
     for start in ("- Where routing per domain works:", "- Bar violations:", "- The per-item oracle",
                   "- The airline and retail tasks", "- A model, ", "- Routing here is per domain",
                   "- One trial of the 4"):
@@ -425,6 +451,18 @@ def test_readme_tau2_links_source_licence_limits_and_commands(cv):
         assert phrase in section and phrase in md, phrase
     assert REGENERATE in section and REGENERATE in md
     assert section.isascii()
+
+
+def test_readme_tau2_shed_source_clauses_are_in_their_homes():
+    # v1.451 (row DOC28h): each clause the source lines shed is gone from the subsection, and the file
+    # named (RESULTS.md, the evidence README, or the subsection itself for a rewording) holds its fact.
+    section = readme_subsection()
+    homes = {"RESULTS.md": results_md(), "README.md": (FOLDER / "README.md").read_text(encoding="utf-8"),
+             None: section}
+    assert len(SHED_SOURCE_CLAUSES) == 12
+    for gone, home, words in SHED_SOURCE_CLAUSES:
+        assert gone not in section, gone
+        assert words in homes[home], (home, words)
 
 
 def test_readme_tau2_tables_print_a_dash_for_no_rate():

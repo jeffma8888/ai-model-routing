@@ -565,10 +565,10 @@ python evidence/routerbench/results.py --table evidence/autobench-judges/results
 
 ### tau2-bench
 
-- Dataset: the paper results of [sierra-research/tau2-bench](https://github.com/sierra-research/tau2-bench) on GitHub, pinned at revision [`033bf08`](https://github.com/sierra-research/tau2-bench/tree/033bf082f48e4a3c6a1256208e93cf2ce9c3bb6f), folder `data/tau2/results/final`; the 12 default run files the converter reads are checked by size and sha256 before they are read
-- Licence: MIT, as the repo's LICENSE file states, with the line "Copyright (c) 2025 Sierra Research". This repo commits no part of the dataset, only numbers derived from it
-- What was run: 4 agents, one routing task per domain (airline 50 tasks, retail 114, telecom 114), trial 0 of the 4 trials, 50 seeds; each domain is split in half per seed and routed at bars 0.3 to 0.8 in both flavors. The bars were chosen after a first run at 0.6 to 0.9, where 0.8 and 0.9 cleared no cell. Each task is a customer-service conversation between an agent model and a simulated user; a success is a conversation that passed the run's own program checks (`reward_info.reward` of 1), and the cost is the agent's recorded cost of that conversation (`agent_cost`; the simulated user's `user_cost` is never counted)
-- Full results, with how many seeds were routed to each agent in each domain and the pooled and trial 1 to 3 sensitivity runs: [RESULTS.md](evidence/tau2-bench/RESULTS.md) and [results.json](evidence/tau2-bench/results.json); source, the 12 pinned files and what the converter reads: [evidence/tau2-bench/README.md](evidence/tau2-bench/README.md)
+- Dataset: the paper results of [sierra-research/tau2-bench](https://github.com/sierra-research/tau2-bench), pinned at revision [`033bf08`](https://github.com/sierra-research/tau2-bench/tree/033bf082f48e4a3c6a1256208e93cf2ce9c3bb6f), folder `data/tau2/results/final`
+- Licence: MIT, as its LICENSE file states, with the line "Copyright (c) 2025 Sierra Research". The repo commits only derived numbers
+- What was run: 4 agents, one routing task per domain (airline 50 tasks, retail 114, telecom 114), trial 0 of 4, 50 seeds, routed at bars 0.3 to 0.8 in both flavors, chosen after a first run at 0.6 to 0.9. A success is a customer-service conversation that passed the run's program checks (`reward_info.reward` of 1), the cost the agent's recorded `agent_cost`, never the simulated user's `user_cost`
+- Full results: [RESULTS.md](evidence/tau2-bench/RESULTS.md) and [results.json](evidence/tau2-bench/results.json); source: [evidence/tau2-bench/README.md](evidence/tau2-bench/README.md)
 
 Held-out success is the share of held-out tasks whose conversation passed the program checks, pooled over the three domains, and cost is the recorded agent cost of those conversations, both averaged over the seeds. The two ratios divide that cost by the cost of always calling the best single agent and by the cost of the last baseline row, the cheapest agent on the calibration half, per domain, one value for both flavors. The cleared rate is the share of the 150 (domain, seed) cells where some agent cleared the bar on the calibration half, and a `-` means that no cell cleared, so there is no bar-violation rate.
 
@@ -604,11 +604,7 @@ Reading it:
 - `cost_effective`: At bar 0.3 a model clears on 100 of the 150 (domain, seed) cells, and the router spends 0.144 of the best single agent's cost for a held-out success of 0.547, against 0.612 for that agent (`anthropic/claude-3-7-sonnet-20250219`). Always calling the cheapest agent, `openai/gpt-4.1-mini-2025-04-14`, reaches 0.548 at 3.6044 USD, so at bar 0.3 the router pays 2.5 times as much for no more held-out success
 - `cost_blind` reaches 0.589 at 0.639 of the best single agent's cost at every bar, against `best_on_calibration`'s 0.578 at 0.492
 
-Limits:
-
-- The 4 agents date from 2025, and the costs are those the runs recorded at the prices of their time, not today's list prices
-
-The other Reading it bullets and limits are in [RESULTS.md](evidence/tau2-bench/RESULTS.md#reading-it): its `## Reading it` has where routing per domain works, the bar violations, the per-item oracle, the June 2025 task sets, the simulated user and the calibration split sizes, and its [Sensitivity](evidence/tau2-bench/RESULTS.md#sensitivity) part the pooled run and trials 1 to 3, where the sentence under the tables holds on trials 1 and 3 but not on trial 2.
+The other Reading it bullets and limits, the agents' date and costs among them, are in [RESULTS.md](evidence/tau2-bench/RESULTS.md#reading-it) `## Reading it`, and the pooled run and trials 1 to 3, where the sentence under the tables holds on trials 1 and 3 but not on trial 2, in its [Sensitivity](evidence/tau2-bench/RESULTS.md#sensitivity) part.
 
 Regenerate (the converter downloads the 12 pinned files, about 296 MB, into a cache folder outside the repo; the evaluate step takes well under a second; the sensitivity commands are in RESULTS.md):
 

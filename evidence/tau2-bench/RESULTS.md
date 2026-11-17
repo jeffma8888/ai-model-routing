@@ -50,7 +50,7 @@ No routed row beats any of the 4 single agents on both counts: against each of t
 - `cost_blind` reaches 0.589 at 0.639 of the best single agent's cost at every bar, against `best_on_calibration`'s 0.578 at 0.492.
 - Bar violations: 0.033 at bar 0.4 is 2 of the 60 cells that cleared, 0.061 at bar 0.6 is 3 of the 49 cells that cleared, and 0.083 at bar 0.7 is 1 of the 12 cells that cleared, against a nominal one-sided 0.025 for the 0.95 Wilson bound on one agent. Read them as resampling estimates on held-out halves of 15 to 70 tasks, not as a guarantee (DESIGN 12.3)
 - The per-item oracle reaches 0.801 at 7.6369 USD, while the highest routed success of either flavor at any bar is 0.589: on many tasks some agent succeeds where the one routed to that domain fails, and routing per domain cannot pick per task
-- The 4 agents date from 2025, and the costs are those the runs recorded at the prices of their time
+- The 4 agents date from 2025, and the costs are those the runs recorded at the prices of their time, not today's list prices
 - The airline and retail tasks are the June 2025 task sets, which the folder's README says differ from the current base tasks ("airline: 29 tasks differ, retail: 114"); telecom is unchanged
 - A model, `openai/gpt-4.1-2025-04-14`, plays the user in every conversation, so a reward is the agent's success with that simulated user, and a failed conversation can be the simulator's fault
 - Size: the committed file, 44,822 bytes, holds only the summary and the routed per-domain rows (DESIGN 12.7)
