@@ -33,6 +33,12 @@ the first two Reading it bullets and the seventh RESULTS.md bullet, then one lin
 ``## Reading it``, and its dataset and licence bullets lose a clause each; the tests require every
 other Reading it bullet and limit, and the Reading it phrases of the dropped bullets, in RESULTS.md
 and absent from the subsection.
+
+v1.446 (DESIGN 12.19 and 12.8 v1.446, row DOC28c): the subsection is trimmed to its 5,000-byte routing cap
+of 12.8 v1.444. It drops its `Limits:` line and bullet, sheds words of its source lines, and keeps one
+Reading it bullet, the second (`cost_blind`), since with the first kept it would still be over its cap;
+the link line names the `cost_effective` reading and the limit. The tests require each dropped bullet in
+RESULTS.md and absent from the subsection, and each dropped source clause in the file that states it.
 """
 
 import importlib.util
@@ -536,9 +542,8 @@ def readme_counts(results):
     bars = config["bars"]
     return (f"- What was run: {len(models.pop())} API models from 2025, {len(tasks)} benchmarks, each one "
             f"routing task ({join(parts)}, {sum(v['items'] for v in tasks.values()):,} in all), "
-            f"{len(config['seeds'])} seeds; each task is split in half per seed and routed at bars "
-            f"{bars[0]} to {bars[-1]} in both flavors. A success is a record's score of 1, so a 0.5 from "
-            f"the `arenahard` judge is a miss, and the cost is the record's own `cost`")
+            f"{len(config['seeds'])} seeds, routed at bars {bars[0]} to {bars[-1]} in both flavors. A success "
+            "is a score of 1 (a 0.5 from the `arenahard` judge is a miss), the cost the record's own `cost`")
 
 
 def readme_columns(results):
@@ -583,17 +588,13 @@ def readme_tables(results):
 def readme_source_lines(cv, results):
     models = len({tuple(v["models"]) for v in results["tasks"].values()}.pop())
     return [
-        f"- Dataset: [NPULH/LLMRouterBench](https://huggingface.co/datasets/NPULH/LLMRouterBench) on "
-        f"Hugging Face, pinned at revision [`{cv.REVISION[:7]}`](https://huggingface.co/datasets/"
-        f"NPULH/LLMRouterBench/tree/{cv.REVISION}), one file `{cv.FILE}` of {cv.SIZE:,} bytes, checked "
-        "by size and sha256 before it is read",
-        f"- Licence: MIT, as the dataset's LICENSE file states, with the line \"{COPYRIGHT}\"; its scope "
-        "paragraph keeps third-party material under its own licence. This repo commits no part of the "
-        "dataset, only numbers derived from it",
-        f"- Full results, with every one of the {models} single models and the routed rows that beat each "
-        "on both counts: [RESULTS.md](evidence/llmrouterbench/RESULTS.md) and "
-        "[results.json](evidence/llmrouterbench/results.json); source, the pool, the kept and dropped "
-        f"benchmarks and what a row keeps: {EVIDENCE_LINK}"]
+        f"- Dataset: [NPULH/LLMRouterBench](https://huggingface.co/datasets/NPULH/LLMRouterBench), pinned "
+        f"at revision [`{cv.REVISION[:7]}`](https://huggingface.co/datasets/NPULH/LLMRouterBench/tree/"
+        f"{cv.REVISION}), one file `{cv.FILE}` of {cv.SIZE:,} bytes",
+        f"- Licence: MIT, as its LICENSE file states, with the line \"{COPYRIGHT}\"; its scope paragraph "
+        "keeps third-party material under its own licence. The repo commits only derived numbers",
+        f"- Full results, with all {models} single models: [RESULTS.md](evidence/llmrouterbench/RESULTS.md) "
+        f"and [results.json](evidence/llmrouterbench/results.json); source and pool: {EVIDENCE_LINK}"]
 
 
 def test_readme_llmrouterbench_counts_and_tables_are_the_committed_results(cv):
@@ -603,44 +604,50 @@ def test_readme_llmrouterbench_counts_and_tables_are_the_committed_results(cv):
     assert readme_columns(results) + "\n\n" + readme_tables(results) in section
 
 
-LINK_LINE = ("The in-sample gain, the bar violations, the per-item oracle, the half scores and the dropped "
-             "benchmarks are in [RESULTS.md](evidence/llmrouterbench/RESULTS.md#reading-it) `## Reading it`.")
+# v1.446 (row DOC28c): the link line names the dropped `cost_effective` bullet and the dropped limit.
+LINK_LINE = ("The `cost_effective` reading, in-sample gain, bar violations, half scores, dropped benchmarks and "
+             "the models' date and costs are in [RESULTS.md](evidence/llmrouterbench/RESULTS.md#reading-it) "
+             "`## Reading it`.")
 DROPPED_SOURCE_CLAUSES = [" as a stream, with nothing extracted to disk",
-                          ", such as the benchmarks' own questions,"]
+                          ", such as the benchmarks' own questions,",
+                          # v1.446 (row DOC28c): each with the file line that still states it.
+                          " on Hugging Face", "checked by size and sha256", "commits no part of the dataset",
+                          "split in half per seed", "routed rows that beat each", "the kept and dropped benchmarks",
+                          "\nLimits:\n"]
 
 
 def test_readme_llmrouterbench_reading_and_limits_are_results_md_lines():
-    # v1.359 (12.19 v1.358): the first two Reading it bullets and the second limit stay, each a
-    # RESULTS.md line under the rewrites; the other five, and their phrases, are in RESULTS.md alone.
+    # v1.359 (12.19 v1.358): the first two Reading it bullets and the second limit stayed, each a
+    # RESULTS.md line under the rewrites. v1.446 (row DOC28c): only the second Reading it bullet stays;
+    # the other seven, and their phrases, are in RESULTS.md alone.
     section = readme_subsection()
     reading, limits = results_md_bullets()
-    kept, dropped = [reading[0], reading[1], limits[1]], reading[2:] + [limits[0], limits[2]]
-    block = (f"Reading it:\n\n{to_readme(kept[0])}\n{to_readme(kept[1])}\n\nLimits:\n\n"
-             f"{to_readme(kept[2])}\n\n{LINK_LINE}\n\n")
+    kept, dropped = [reading[1]], [reading[0]] + reading[2:] + limits
+    block = f"Reading it:\n\n{to_readme(kept[0])}\n\n{LINK_LINE}\n\n"
     assert section.count(block) == 1
     for bullet in dropped:
         assert bullet[2:] not in section and to_readme(bullet)[2:] not in section, bullet
     phrases = [p for p in reading_phrases(committed()) if not p.startswith("the committed file,")]
     assert len(phrases) == len(reading_phrases(committed())) - 1
-    shown = [p for p in phrases if p in kept[0] or p in kept[1]]
-    assert len(shown) == 7, shown
+    shown = [p for p in phrases if p in kept[0]]
+    assert len(shown) == 3, shown  # the `cost_blind` bullet's; 7 with the `cost_effective` one (v1.359)
     for phrase in phrases:
         assert (to_readme(phrase) in section) == (phrase in shown), phrase
     assert HALF_SCORES not in section and "per benchmark, not per prompt" not in section
     assert "](README.md)" not in section and "](results.json)" not in section and "../" not in section
 
 
-def test_readme_llmrouterbench_keeps_two_bullets_one_limit_and_a_link_line(cv):
-    """v1.359 (12.19 v1.358): after its four source bullets the subsection's only bullets are the first
-    two Reading it ones and the seventh RESULTS.md bullet, after both tables, then the link line and the
-    regenerate paragraph; the link line's anchor is the RESULTS.md `## Reading it` heading, since that
-    file has no `## Caveats` or `## Assumed`; the two source clauses it drops are in the files that
-    state them."""
+def test_readme_llmrouterbench_keeps_one_bullet_and_a_link_line(cv):
+    """v1.359 (12.19 v1.358) kept the first two Reading it bullets and the seventh RESULTS.md bullet;
+    v1.446 (row DOC28c): after its four source bullets the subsection's only bullet is the second Reading
+    it one, after both tables, then the link line and the regenerate paragraph; the link line's anchor is
+    the RESULTS.md `## Reading it` heading, since that file has no `## Caveats` or `## Assumed`; the source
+    clauses it drops are in the files that state them."""
     section = readme_subsection()
     reading, limits = results_md_bullets()
     bullets = [line for line in section.splitlines() if line.startswith("- ")]
-    assert len(bullets) == 7
-    assert bullets[4:] == [to_readme(reading[0]), to_readme(reading[1]), to_readme(limits[1])]
+    assert len(bullets) == 5
+    assert bullets[4:] == [to_readme(reading[1])]
     assert section.count(f"\n{LINK_LINE}\n\n{REGENERATE_LINE}\n\n```bash\n") == 1
     last_row = "| Cheapest model on the calibration half, per task |"
     assert section.count(last_row) == 1 and section.index(last_row) < section.index("\nReading it:\n")
@@ -652,6 +659,12 @@ def test_readme_llmrouterbench_keeps_two_bullets_one_limit_and_a_link_line(cv):
     assert "reading the 1.28 GB file once as a stream with nothing extracted to disk" in evidence_readme()
     source = text.split("\n## Source and licence\n", 1)[1].split("\n## ", 1)[0]
     assert "The benchmarks' own questions are such third-party material" in source
+    # v1.446 (row DOC28c): where each fact of a dropped source clause is still stated.
+    assert "checks it against its pinned size and sha256" in text
+    assert "split in half by a seeded hash" in text
+    assert "Routed rows beat these single models on both counts: " in text
+    assert "This repo commits no part of the dataset" in evidence_readme()
+    assert "The repo commits only derived numbers" in section
 
 
 def test_readme_llmrouterbench_regenerate_and_layout():
@@ -680,8 +693,8 @@ def test_readme_llmrouterbench_tables_follow_the_file(cv):
            "counted wrong, when none did | 0.900 | 33.6900 |" in after
     assert "| Always `openai/gpt-5`, which `cost_blind` takes on every seed of 4 tasks at bar 0.1 " \
            "| 0.591 | 191.4699 |" in before[0]
-    assert "`aime` 60 items, `arc-agi` 400," in before[1] and "12,066 in all), 50 seeds;" in before[1]
-    assert "every one of the 13 single models" in before[2][2]
+    assert "`aime` 60 items, `arc-agi` 400," in before[1] and "12,066 in all), 50 seeds, routed" in before[1]
+    assert "with all 13 single models: " in before[2][2]
     task_row(fake, 0.1, "cost_blind", "hle")["routed_models"] = {"google/gemini-2.5-flash": 50}
     with pytest.raises(AssertionError):
         readme_tables(fake)

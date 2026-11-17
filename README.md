@@ -673,10 +673,10 @@ python evidence/routerbench/results.py --table evidence/livecodebench/results.js
 
 ### LLMRouterBench
 
-- Dataset: [NPULH/LLMRouterBench](https://huggingface.co/datasets/NPULH/LLMRouterBench) on Hugging Face, pinned at revision [`b95870f`](https://huggingface.co/datasets/NPULH/LLMRouterBench/tree/b95870f9e60c589e82f7972c91ffa8de9ca89f85), one file `bench-release.tar.gz` of 1,283,503,080 bytes, checked by size and sha256 before it is read
-- Licence: MIT, as the dataset's LICENSE file states, with the line "Copyright (c) 2025-2026 LLMRouterBench contributors"; its scope paragraph keeps third-party material under its own licence. This repo commits no part of the dataset, only numbers derived from it
-- What was run: 13 API models from 2025, 9 benchmarks, each one routing task (`aime` 60 items, `arc-agi` 400, `arenahard` 749, `gpqa` 198, `hle` 2,157, `livecodebench` 1,055, `livemathbench` 121, `mmlupro` 3,000 and `simpleqa` 4,326, 12,066 in all), 50 seeds; each task is split in half per seed and routed at bars 0.1 to 0.8 in both flavors. A success is a record's score of 1, so a 0.5 from the `arenahard` judge is a miss, and the cost is the record's own `cost`
-- Full results, with every one of the 13 single models and the routed rows that beat each on both counts: [RESULTS.md](evidence/llmrouterbench/RESULTS.md) and [results.json](evidence/llmrouterbench/results.json); source, the pool, the kept and dropped benchmarks and what a row keeps: [evidence/llmrouterbench/README.md](evidence/llmrouterbench/README.md)
+- Dataset: [NPULH/LLMRouterBench](https://huggingface.co/datasets/NPULH/LLMRouterBench), pinned at revision [`b95870f`](https://huggingface.co/datasets/NPULH/LLMRouterBench/tree/b95870f9e60c589e82f7972c91ffa8de9ca89f85), one file `bench-release.tar.gz` of 1,283,503,080 bytes
+- Licence: MIT, as its LICENSE file states, with the line "Copyright (c) 2025-2026 LLMRouterBench contributors"; its scope paragraph keeps third-party material under its own licence. The repo commits only derived numbers
+- What was run: 13 API models from 2025, 9 benchmarks, each one routing task (`aime` 60 items, `arc-agi` 400, `arenahard` 749, `gpqa` 198, `hle` 2,157, `livecodebench` 1,055, `livemathbench` 121, `mmlupro` 3,000 and `simpleqa` 4,326, 12,066 in all), 50 seeds, routed at bars 0.1 to 0.8 in both flavors. A success is a score of 1 (a 0.5 from the `arenahard` judge is a miss), the cost the record's own `cost`
+- Full results, with all 13 single models: [RESULTS.md](evidence/llmrouterbench/RESULTS.md) and [results.json](evidence/llmrouterbench/results.json); source and pool: [evidence/llmrouterbench/README.md](evidence/llmrouterbench/README.md)
 
 Held-out success is the share of held-out items whose record scored 1, pooled over the 9 tasks, and cost is the recorded cost of answering them, both averaged over the seeds; the ratio divides that cost by the cost of the best single model. The cleared rate is the share of the 450 (task, seed) cells where some model cleared the bar on the calibration half, and the bar-violation rate is the share of cleared cells whose held-out success fell below the bar.
 
@@ -710,14 +710,9 @@ Held-out success is the share of held-out items whose record scored 1, pooled ov
 
 Reading it:
 
-- `cost_effective`: At bar 0.1 a model clears on 425 of the 450 (task, seed) cells: on all 50 seeds of every task but `aime`, and on 25 of `aime`'s. The `aime` calibration half holds 22 to 42 of its 60 items over the 50 seeds and is under `min_samples` 30 on 25 of them, where no model can clear (`DESIGN.md` 12.3), so its uncleared cells are those seeds; there the router takes the best model available on the calibration half. At bar 0.1 the router spends 0.108 of the best single model's cost for a held-out success of 0.553, against 0.592 for that model (`google/gemini-2.5-pro`). Always calling the cheapest model, `deepseek/deepseek-v3-0324`, reaches 0.409 at 4.1138 USD, so at bar 0.1 the router pays 9.6 times as much for more held-out success. As the bar rises fewer cells clear and the cost rises: at bar 0.8 it reaches 0.606 at 0.420 of the best single model's cost
 - `cost_blind` reaches 0.615 at 0.473 of the best single model's cost at every bar, 0.0223 above that model's held-out success, against `best_on_calibration`'s 0.615 at 0.468. Routing per task is what pays here: at bar 0.1 it routes every seed of `arc-agi`, `hle`, `livecodebench` and `mmlupro` to `openai/gpt-5`, which is about as good as `google/gemini-2.5-pro` over all items and costs about half as much, while the other 5 tasks split their seeds among two or more models
 
-Limits:
-
-- The 13 models date from 2025. Each cost is the record's own: summed per model it is 0.853 to 1.502 times the dataset README's price list applied to the same token counts (`DESIGN.md` 12.18), so it is a recorded cost from a price table the files do not name, never a list price from `models.json`, which has none of these models
-
-The in-sample gain, the bar violations, the per-item oracle, the half scores and the dropped benchmarks are in [RESULTS.md](evidence/llmrouterbench/RESULTS.md#reading-it) `## Reading it`.
+The `cost_effective` reading, in-sample gain, bar violations, half scores, dropped benchmarks and the models' date and costs are in [RESULTS.md](evidence/llmrouterbench/RESULTS.md#reading-it) `## Reading it`.
 
 Regenerate (the converter downloads the pinned file, about 1.28 GB, into a cache folder outside the repo, and verifying, reading and converting it takes about 13 seconds once it is cached; the `evidence` workflow reruns these commands on GitHub and fails if `results.json` changes by a byte, while the test suite rebuilds `results.json` from them only where the pinned file is cached):
 

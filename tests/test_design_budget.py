@@ -403,7 +403,7 @@ POINTERS = {
         "v1.17, v1.22, v1.28, v1.30, v1.48, v1.55, v1.65, v1.80, v1.84",
     "- Results at a glance (v1.23): ": "v1.28, v1.32, v1.55, v1.65, v1.80",
     "- LLMRouterBench (v1.164, row E16e): ": "v1.164, v1.168",
-    "  - Limits: the seventh RESULTS.md bullet, ": "v1.167, v1.168",
+    "  - Limits: none from v1.446 (to v1.445 the seventh RESULTS.md bullet), ": "v1.167, v1.168",
     "  - Results at a glance: a bullet, after LiveCodeBench, ": "v1.164, v1.166",
     "  - Tests: `tests/test_evidence_llmrouterbench_results.py` ": "v1.164, v1.166",
     "- Delegation on tau2-bench (v1.80): ": "v1.92, v1.336, v1.337",
