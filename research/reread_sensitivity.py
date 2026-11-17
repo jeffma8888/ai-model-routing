@@ -26,7 +26,11 @@ share sigma (`output_reread_share`) at 1.0 and the brief's output W (`brief_outp
 (13.9 `_calibrate` and `_router`), first at sigma 1.0 and W = B, where each cell's mode and model and
 the held-out correct count and cost of its decision, of always inline and of always delegating must
 be the run's, then at sigma 0, sigma 0.5 and
-W = 2 B. A cell's decision changes when its mode or its model does. Both picks are scored on the cell's
+W = 2 B, where it re-decides every `cost_effective` cell while each `cost_blind` cell keeps its committed pick
+(v1.438, row T14): neither sigma nor W can move it, since both enter only costs, never a context check (13.2
+v1.404, 13.1 v1.405), a candidate's 5.2 `routing_cost` is 0.0 outside `cost_effective` and every 13.5 row that
+compares costs is a `cost_effective` one, so the cut prints what re-deciding every cell prints, in half the
+settings' decisions. A cell's decision changes when its mode or its model does. Both picks are scored on the cell's
 held-out half at that setting's 13.2 list-price costs (sigma scales each re-read of a work call's
 output and nothing else, W is the decision turn's output on the delegated path), so the comparison is
 the one a caller sees whose model really re-reads that share or writes that much: the committed pick
@@ -74,6 +78,9 @@ SELECTED = ("llmrouterbench", "response-bank")
 PER_CALL = ("tau2-bench", "tau2-bench-pooled")
 # label, sigma, W as a multiple of B
 SETTINGS = (("sigma 0", 0.0, 1), ("sigma 0.5", 0.5, 1), ("W = 2 B", 1.0, 2))
+# the flavors whose cells a setting re-decides; a `cost_blind` cell keeps its committed pick, which neither sigma
+# nor W can move (v1.438, row T14); the tests set both flavors to run the v1.413 to v1.437 re-decision of every cell
+REDECIDED = ("cost_effective",)
 HEADER = ("  flavor          bar  setting    changed / cells  share  to inline  "
           "success gap  cost ratio  all cost ratio")
 
@@ -269,7 +276,8 @@ def rerun(rows, registry, root, name, grid, dr, dataset="autobench"):
                     point = config["points"][cell["point"]]
                     w = factor * point["brief_tokens"]
                     old = run.held_sum(cell, point, cell["mode"], cell["model"], sigma, w)
-                    pick = run.decide(cell, point, sigma, w)
+                    pick = (run.decide(cell, point, sigma, w) if flavor in REDECIDED
+                            else (cell["mode"], cell["model"]))
                     new = old if pick == (cell["mode"], cell["model"]) else run.held_sum(
                         cell, point, pick[0], pick[1], sigma, w)
                     all_new.append(new[1])
