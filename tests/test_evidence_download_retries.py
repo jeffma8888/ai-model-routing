@@ -211,8 +211,11 @@ def test_design_states_the_retry_rule():
                    "each attempt rewriting `<name>.part` from its first byte",
                    "a download that fails `verify` (bytes unlike the pin mean the source moved, while a short read "
                    "raises and is retried) or a `BaseException` is never retried",
-                   "run 43751236072 on `937399a`"):
+                   # v1.442 (row CI24): run 43751236072 is now an earlier basis run, which the
+                   # bullet no longer names (v1.391), so the Why sentence names its commit.
+                   "Why: the run on `937399a` (2026-11-15), the first of the "):
         assert phrase in bullets[0], phrase
     assert "Retries: none in the converters" not in bullets[0]
+    assert "43751236072" not in bullets[0]
     # Review iter-266 must-fix 1: 12.18 and 12.20 said their fetch had no retry.
     assert "with no retry" not in DESIGN.read_text(encoding="utf-8")
