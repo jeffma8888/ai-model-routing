@@ -413,7 +413,8 @@ def test_the_projection_has_room_for_the_largest_subsection():
 
 def test_an_unheld_subsection_growing_past_the_margin_fails_the_projection():
     # The margin is PROJECTED_CAP less the projection; one byte more in `### RouterBench`, an unheld
-    # subsection under its cap, fails only the projection.
+    # subsection under its cap, fails the projection, named last (the grown section is also over 70,000;
+    # test_a_broken_hold_is_named has a projection-only failure). One byte less passes it.
     text = README.read_text(encoding="utf-8")
     margin = PROJECTED_CAP - projection(measure(text))
     grown = text.replace("### RouterBench\n", "### RouterBench\n" + "x" * margin + "\n", 1)
