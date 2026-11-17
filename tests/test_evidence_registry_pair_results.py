@@ -71,7 +71,6 @@ ITEMS = {
     "mmlupro/physics": 507,
     "mmlupro/psychology": 306,
 }
-RED = pytest.mark.xfail(strict=True, raises=FileNotFoundError)  # v1.433: removed by v1.434
 
 
 def load(name, path):
@@ -128,14 +127,12 @@ def test_design_specifies_the_results_file_and_its_bars():
 
 # --- the committed file -----------------------------------------------------------------------
 
-@RED
 def test_committed_results_are_small_and_reduced(rs):
     assert RESULTS.stat().st_size < 300_000
     text = RESULTS.read_text(encoding="utf-8")
     assert text == json.dumps(rs.reduce(json.loads(text)), indent=2) + "\n"
 
 
-@RED
 def test_committed_results_have_the_config_tasks_and_models():
     results = committed()
     assert results["config"] == CONFIG
@@ -143,7 +140,6 @@ def test_committed_results_have_the_config_tasks_and_models():
     assert list(results["tasks"]) == sorted(ITEMS)
 
 
-@RED
 def test_committed_results_rows_are_unique_routed_and_costed():
     results = committed()
     keys = {(r["bar"], r["flavor"], r["strategy"]) for r in results["summary"]}
@@ -158,7 +154,6 @@ def test_committed_results_rows_are_unique_routed_and_costed():
     assert all(r["cost_usd"] > 0 for r in results["summary"] + results["per_task"])
 
 
-@RED
 def test_committed_korbench_logic_never_clears_and_falls_back():
     rows = [r for r in committed()["per_task"] if r["task"] == "korbench/logic"]
     assert len(rows) == len(BARS) * len(FLAVORS) and all(r["cleared_rate"] == 0 for r in rows)
@@ -168,7 +163,6 @@ def test_committed_korbench_logic_never_clears_and_falls_back():
     assert (f"takes `{LUNA}` on {pick[LUNA]} seeds and `{SOL}` on {pick[SOL]};") in body()
 
 
-@RED
 def test_design_bars_bullet_is_the_committed_file():
     results = committed()
     ce = {bar: routed(results, bar, "cost_effective") for bar in BARS}
@@ -202,7 +196,6 @@ def without_cells(result):
     return {k: v for k, v in result.items() if k != "cells"}
 
 
-@RED
 def test_real_results_regenerate_byte_identical(rs, real_rows):
     result = evaluate(outcomes_from_rows(real_rows), bars=BARS, seeds=range(50))
     assert json.dumps(rs.reduce(without_cells(result)), indent=2) + "\n" == RESULTS.read_text(encoding="utf-8")
