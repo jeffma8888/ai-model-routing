@@ -55,6 +55,8 @@ def tokens(cost_usd, price_in) -> tuple:
 
 
 def _check_ratio(model) -> None:
+    if Fraction(str(model.price_in)) <= 0:  # E divides by it (13.17 Refused, v1.470)
+        raise ValueError(f"input price of {model.id}: {model.price_in} is not above 0")
     if model.price_tiers or Fraction(str(model.price_out)) != RATIO * Fraction(str(model.price_in)):
         raise ValueError(f"output price of {model.id}: {model.price_out} is not {RATIO} times its input price "
                          f"{model.price_in}, or the model has price tiers")

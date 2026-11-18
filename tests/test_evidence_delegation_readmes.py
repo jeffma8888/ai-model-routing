@@ -8,8 +8,8 @@ is checked the same way; its README lands in v1.320, which removes the strict xf
 its six per-folder cases until then.
 
 DESIGN 13.17 v1.470 (row E25b): the fifth, registry-pair-delegation, the same way; its README and
-RESULTS.md land in v1.471, which removes the strict xfail that holds its six cases until then (the
-file-set case fails on the missing RESULTS.md before it reads the README)."""
+RESULTS.md land in v1.471, which removes the strict xfail that held its six cases in v1.470 (the
+file-set case failed on the missing RESULTS.md before it read the README)."""
 
 import re
 from pathlib import Path
@@ -62,8 +62,7 @@ FOLDERS = {
     },
 }
 LINK = re.compile(r"\]\(([^)\s]+)\)")
-HELD = pytest.mark.xfail(strict=True, raises=(FileNotFoundError, AssertionError))  # v1.470; v1.471 writes both files
-NAMES = [pytest.param(n, marks=HELD) if n == "registry-pair-delegation" else n for n in sorted(FOLDERS)]
+NAMES = sorted(FOLDERS)
 
 
 def readme(name):

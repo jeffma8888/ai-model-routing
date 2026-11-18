@@ -11,8 +11,8 @@ the converter runs in process once per module and the file is rebuilt byte for b
 
 DESIGN 13.17 v1.470 (row E25b): RESULTS.md, built by tests from results.json (its tables and 13.13's five
 Reading it bullets, by 13.14's builder) and from research/registry-pair-delegation.md's Results block (its
-`## The high end` bullets), and the `input price` refusal (review iter-333 nit 2). The tests that read
-RESULTS.md are held as a strict xfail until v1.471 writes it, and the refusal's test until v1.471 adds it.
+`## The high end` bullets), and the `input price` refusal (review iter-333 nit 2). v1.471 writes RESULTS.md and
+the refusal and removes the strict xfails that held their tests in v1.470.
 """
 
 import contextlib
@@ -66,7 +66,6 @@ METHOD_PHRASES = ("`openai/gpt-6-luna`", "`openai/gpt-6.1-sol`", "0.1 and 0.5", 
                   "0.8 and 0.9", "rounded-up mean", "`decision`", "`inline`", "`delegate`", "C = 8,000")
 ASSUMED_PHRASES = ("lossless", "list price", "never a bill", "bounded, not measured", "reasoning", "rounded up",
                    "one vendor", "contamination", "`DESIGN.md` 13.8")
-NEEDS_MD = pytest.mark.xfail(strict=True, raises=FileNotFoundError)  # v1.470: RESULTS.md lands in v1.471
 
 
 def load(name, path):
@@ -311,7 +310,6 @@ def test_the_token_rule_is_the_note_scripts_low_end_on_every_row(rpd, registry, 
 
 # --- the input price (13.17 Refused, v1.470, review iter-333 nit 2) ---------------------------------------
 
-@pytest.mark.xfail(strict=True, raises=ZeroDivisionError)  # v1.470: the refusal lands in v1.471
 def test_matrix_refuses_a_model_priced_at_zero(rpd, tmp_path):
     with pytest.raises(ValueError) as caught:
         rpd.matrix(hand_rows(), edited_registry(tmp_path, lambda m: m.update(price_in=0, price_out=0)))
@@ -429,7 +427,6 @@ def test_high_end_bullets_on_the_note_numbers():
         assert amount in bullets[5], amount
 
 
-@NEEDS_MD
 def test_results_md_structure():
     text = RESULTS_MD.read_text(encoding="utf-8")
     assert text.split("\n")[0] == "# Delegation on the registry pair: inline or sub-agent on held-out questions"
@@ -449,7 +446,6 @@ def test_results_md_structure():
         assert phrase in assumed, phrase
 
 
-@NEEDS_MD
 def test_results_md_tables_are_the_committed_file(dr):
     results = json.loads(committed())
     blocks = fenced(section(RESULTS_MD.read_text(encoding="utf-8"), "## Results"), "text")
@@ -458,13 +454,11 @@ def test_results_md_tables_are_the_committed_file(dr):
     assert blocks[1] == PARENT_CMD + "\n" + dr.parent_table(results, 0.8, 0).rstrip("\n")
 
 
-@NEEDS_MD
 def test_results_md_reading_it_is_built_from_the_committed_file():
     reading = section(RESULTS_MD.read_text(encoding="utf-8"), "## Reading it")
     assert [line[2:] for line in reading.split("\n") if line.startswith("- ")] == reading_bullets(json.loads(committed()))
 
 
-@NEEDS_MD
 def test_results_md_high_end_is_built_from_the_note():
     high = section(RESULTS_MD.read_text(encoding="utf-8"), "## The high end")
     assert [line[2:] for line in high.split("\n") if line.startswith("- ")] == high_end_bullets(*note_results())
@@ -474,7 +468,6 @@ def test_results_md_high_end_is_built_from_the_note():
         assert needle in opening, needle
 
 
-@NEEDS_MD
 def test_results_md_regenerate_block():
     regenerate = section(RESULTS_MD.read_text(encoding="utf-8"), "## Regenerate")
     blocks = fenced(regenerate, "bash")
