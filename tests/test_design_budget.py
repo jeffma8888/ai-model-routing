@@ -944,6 +944,8 @@ DOC38B_DROPPED = (
     "A second test checks that on LLMRouterBench",
     "A fourth test checks that the registry pair",
     "in option order with a blank line between datasets",
+    # review iter-324 must-fix 1: the script prints the cells' held-out items in all, and per task the cells
+    "with their held-out items per task",
 )
 
 
@@ -959,7 +961,9 @@ def test_12_22_holds_none_of_the_wordings_v1_460_replaced():
                   "buys on public data, for a check as good as the record's score.",
                   "`## Facts` (its first bullet: every number is an upper bound, as in the check fallback note)",
                   "and tests check: (v1.126) on the first five files (v1.166) and the eighth (v1.458), that no routed",
-                  "Per dataset, in option order, a blank line between, it prints"):
+                  "Per dataset, in option order, a blank line between, it prints",
+                  "with their held-out items in all and their count by task for at most five tasks, else the count "
+                  "of tasks with such a cell"):
         assert body.count(words) == 1, words
     assert dict(measure(text)[1])["12.22"] <= CAPS["research notes"]
 
