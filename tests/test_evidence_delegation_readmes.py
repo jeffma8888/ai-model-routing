@@ -5,7 +5,11 @@ and points to the `## Regenerate` block instead of repeating its commands.
 
 DESIGN 13.10 and 13.14 v1.319 (row E21f): the fourth delegation folder, response-bank-delegation,
 is checked the same way; its README lands in v1.320, which removes the strict xfail that held
-its six per-folder cases until then."""
+its six per-folder cases until then.
+
+DESIGN 13.17 v1.470 (row E25b): the fifth, registry-pair-delegation, the same way; its README and
+RESULTS.md land in v1.471, which removes the strict xfail that holds its six cases until then (the
+file-set case fails on the missing RESULTS.md before it reads the README)."""
 
 import re
 from pathlib import Path
@@ -48,9 +52,18 @@ FOLDERS = {
         "dataset_readme": "../response-bank/README.md",
         "files": ("results.py", "registry.json", "results.json", "RESULTS.md"),
     },
+    "registry-pair-delegation": {
+        "title": "# Delegation evidence on the registry pair",
+        "section": "13.17",
+        "converter": "../registry-pair/convert.py",
+        "options": (),
+        "dataset_readme": "../registry-pair/README.md",
+        "files": ("results.py", "results.json", "RESULTS.md"),
+    },
 }
 LINK = re.compile(r"\]\(([^)\s]+)\)")
-NAMES = sorted(FOLDERS)
+HELD = pytest.mark.xfail(strict=True, raises=(FileNotFoundError, AssertionError))  # v1.470; v1.471 writes both files
+NAMES = [pytest.param(n, marks=HELD) if n == "registry-pair-delegation" else n for n in sorted(FOLDERS)]
 
 
 def readme(name):
