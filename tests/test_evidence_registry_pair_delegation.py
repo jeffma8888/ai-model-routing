@@ -483,5 +483,8 @@ def test_results_md_regenerate_block():
     blocks = fenced(regenerate, "bash")
     assert len(blocks) == 1 and blocks[0].split("\n") == REGENERATE
     before = regenerate[:regenerate.index("```bash")]
-    for needle in ("7,522,421", "`~/.cache/ai-model-routing-evidence/registry-pair/`", "sha256", "not committed"):
+    for needle in ("7,522,421", "`~/.cache/ai-model-routing-evidence/registry-pair/`", "sha256", "not committed",
+                   # v1.472 (row E25c): the line says the workflow reruns the block (DESIGN 12.13, 13.17)
+                   "The `evidence` workflow reruns these commands on GitHub and fails if `results.json` "
+                   "changes by a byte (`DESIGN.md` 12.13, v1.472)."):
         assert needle in before, needle

@@ -82,7 +82,7 @@ The tables above price every row at the `low` end (Method). [The research note](
 
 ## Regenerate
 
-The converter downloads the three pinned files (7,522,421 bytes) into `~/.cache/ai-model-routing-evidence/registry-pair/` on its first run and checks each against its pinned size and sha256 (`DESIGN.md` 12.23); the matrix it writes is not committed. The results script then runs in about 3 seconds.
+The converter downloads the three pinned files (7,522,421 bytes) into `~/.cache/ai-model-routing-evidence/registry-pair/` on its first run and checks each against its pinned size and sha256 (`DESIGN.md` 12.23); the matrix it writes is not committed. The results script then runs in about 3 seconds. The `evidence` workflow reruns these commands on GitHub and fails if `results.json` changes by a byte (`DESIGN.md` 12.13, v1.472).
 
 ```bash
 python -m pip install -e .
