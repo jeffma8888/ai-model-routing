@@ -12,6 +12,8 @@
 - No routed row reaches `openai/gpt-6.1-sol` alone (0.926).
 - The per-question oracle: 0.936 at 0.207, above every routed row and above `openai/gpt-6.1-sol` alone.
 - Recommendation: a routing results file for this dataset, as row E24, its README subsection after row DOC28.
+- Calibrated on the training split (9,111 questions, none of its families in the final split) or on it joined with the calibration split (12,167), and scored on the same final split: at bars 0.6 to 0.9 `cost_effective` clears 30, 30, 26 and 16 of 31 tasks on the training split and 30, 30, 28 and 17 joined, against 30, 28, 25 and 15; no cleared task falls below its bar; `cost_blind` gives 0.926 at 0.962 at every bar on both, level with `openai/gpt-6.1-sol` alone to three places.
+- More calibration data: the results file (DESIGN 12.24) keeps its two splits; `cost_effective` at bar 0.8 gives 0.911 at 0.500 on the training split against 0.912 at 0.487.
 
 ## Method
 
@@ -115,11 +117,122 @@ superlinked/train-a-router-reasoning at 63336f2 (grades-calibration.json calibra
 - The costs are the release's estimates from token counts at frozen list prices, the registry's own; a price change moves both models' costs.
 - The card says that repeating the recipe on published outcomes `is a reproduction, not a new blind test`, that public benchmark contamination `has not been ruled out`, and that KOR-Bench contributes `only nine independent families to the final split`.
 - One fixed split and no seeds, so no spread over splits; the `bbh` and `korbench` tasks have few questions each.
-- The training split, `recordings/grades-train.json`, is not read.
+- The training split, `recordings/grades-train.json`, is read only with `--train`, in the dated section below; `## Results` calibrates on the calibration split alone.
+
+## Calibrated on the training split (2026-11-18)
+
+- Question (row R41): with about three times as many calibration questions of the registry's own pair, the release's training split, alone or joined with its calibration split, does the router give more on the same final split?
+- File, read only with `--train`, checked by size and sha256 before it is read, and downloaded at the pinned revision into the same cache when absent; the size and sha256 are the file's entry in the release's `manifest.json` and the LFS `oid` that the Hugging Face tree API gives for it, both read on 2026-11-18:
+
+| File | Bytes | sha256 |
+|---|---|---|
+| `recordings/grades-train.json` | 11,354,942 | `76b7eb8b8b53ec108ceebfe1caa116a08d8db0b94a21d8c5de911734aa0b0f36` |
+
+- Method: the script checks the training split's `format`, its `split` and every row's `role` as it checks the other two, and that no row `id` of it is in another split, then calibrates three ways, on the calibration split (the rows of `## Results` above), on the training split and on the two joined, and scores each on the final split with the same cell, bars, `min_samples`, confidence and flavors. A task's pick is its routed model, `cheap` or `strong`, with `*` when it cleared.
+
+```text
+$ python research/registry_pair.py --train
+superlinked/train-a-router-reasoning at 63336f2 (grades-calibration.json, grades-train.json and the two joined each calibrate, grades-final.json scores): 31 tasks, 2 models, bars 0.6 0.7 0.8 0.9, min_samples 30, confidence 0.95 (evidence/routerbench/results.json config)
+  families: train 9,111 questions in 8,337, 0 of them in the final split and 0 in the calibration split
+  task                                        train   cal  train+cal  final  below min_samples (train, train+cal)
+  bbh/boolean_expressions                       137    46        183     46  no, no
+  bbh/date_understanding                        137    46        183     46  no, no
+  bbh/formal_fallacies                          137    46        183     46  no, no
+  bbh/logical_deduction_five_objects            136    46        182     46  no, no
+  bbh/logical_deduction_seven_objects           136    46        182     46  no, no
+  bbh/logical_deduction_three_objects           136    46        182     46  no, no
+  bbh/navigate                                  136    47        183     46  no, no
+  bbh/object_counting                           136    46        182     46  no, no
+  bbh/reasoning_about_colored_objects           136    46        182     46  no, no
+  bbh/temporal_sequences                        137    46        183     46  no, no
+  bbh/tracking_shuffled_objects_five_objects    136    47        183     45  no, no
+  bbh/tracking_shuffled_objects_seven_objects   136    48        184     45  no, no
+  bbh/tracking_shuffled_objects_three_objects   137    46        183     46  no, no
+  bbh/web_of_lies                               137    46        183     46  no, no
+  korbench/cipher                               120    40        160     40  no, no
+  korbench/counterfactual                       120    40        160     40  no, no
+  korbench/logic                                 10    10         20     10  yes, yes
+  mmlupro/biology                               411   137        548    137  no, no
+  mmlupro/business                              454   152        606    151  no, no
+  mmlupro/chemistry                             658   220        878    220  no, no
+  mmlupro/computer_science                      226    76        302     75  no, no
+  mmlupro/economics                             489   162        651    161  no, no
+  mmlupro/engineering                           562   188        750    187  no, no
+  mmlupro/health                                474   156        630    156  no, no
+  mmlupro/history                               208    71        279     70  no, no
+  mmlupro/law                                   641   214        855    214  no, no
+  mmlupro/math                                  793   263       1056    263  no, no
+  mmlupro/other                                 535   179        714    178  no, no
+  mmlupro/philosophy                            280    93        373     93  no, no
+  mmlupro/physics                               760   254       1014    253  no, no
+  mmlupro/psychology                            460   153        613    153  no, no
+  all                                         9,111 3,056     12,167  3,043
+  best_on_calibration, calibrated on calibration: 0.922 at 0.864 of openai/gpt-6.1-sol's cost
+  best_on_calibration, calibrated on train: 0.926 at 0.962 of openai/gpt-6.1-sol's cost
+  best_on_calibration, calibrated on train+calibration: 0.926 at 0.962 of openai/gpt-6.1-sol's cost
+  bar  flavor          calibrated on      routed  cost (USD)  cost / strong  cleared   tasks on cheap  cleared below the bar on final
+  0.6  cost_effective  calibration        0.886   0.479661    0.112          30 of 31              30   0
+  0.6  cost_effective  train              0.886   0.479661    0.112          30 of 31              30   0
+  0.6  cost_effective  train+calibration  0.886   0.479661    0.112          30 of 31              30   0
+  0.7  cost_effective  calibration        0.898   1.025460    0.240          28 of 31              27   0
+  0.7  cost_effective  train              0.896   0.912083    0.214          30 of 31              28   0
+  0.7  cost_effective  train+calibration  0.896   0.912083    0.214          30 of 31              28   0
+  0.8  cost_effective  calibration        0.912   2.077228    0.487          25 of 31              22   0
+  0.8  cost_effective  train              0.911   2.133962    0.500          26 of 31              22   0
+  0.8  cost_effective  train+calibration  0.911   2.133962    0.500          28 of 31              22   0
+  0.9  cost_effective  calibration        0.920   3.404776    0.798          15 of 31              13   0
+  0.9  cost_effective  train              0.922   3.504115    0.821          16 of 31              14   0
+  0.9  cost_effective  train+calibration  0.922   3.504115    0.821          17 of 31              14   0
+  0.6  cost_blind      calibration        0.922   3.688022    0.864          30 of 31              12   0
+  0.6  cost_blind      train              0.926   4.103076    0.962          30 of 31               5   0
+  0.6  cost_blind      train+calibration  0.926   4.103076    0.962          30 of 31               5   0
+  0.7  cost_blind      calibration        0.922   3.688022    0.864          28 of 31              12   0
+  0.7  cost_blind      train              0.926   4.103076    0.962          30 of 31               5   0
+  0.7  cost_blind      train+calibration  0.926   4.103076    0.962          30 of 31               5   0
+  0.8  cost_blind      calibration        0.922   3.688022    0.864          25 of 31              12   0
+  0.8  cost_blind      train              0.926   4.103076    0.962          26 of 31               5   0
+  0.8  cost_blind      train+calibration  0.926   4.103076    0.962          28 of 31               5   0
+  0.9  cost_blind      calibration        0.922   3.688022    0.864          15 of 31              12   0
+  0.9  cost_blind      train              0.926   4.103076    0.962          16 of 31               5   0
+  0.9  cost_blind      train+calibration  0.926   4.103076    0.962          17 of 31               5   0
+  tasks whose pick differs from the calibration split's (calibration -> this one; cheap or strong, * cleared):
+    0.6 cost_effective train: none
+    0.6 cost_effective train+calibration: none
+    0.7 cost_effective train: mmlupro/history strong -> strong*, mmlupro/law strong -> strong*, mmlupro/philosophy strong* -> cheap*
+    0.7 cost_effective train+calibration: mmlupro/history strong -> strong*, mmlupro/law strong -> strong*, mmlupro/philosophy strong* -> cheap*
+    0.8 cost_effective train: bbh/date_understanding strong* -> cheap*, korbench/cipher cheap -> strong*, korbench/counterfactual cheap* -> strong, mmlupro/philosophy strong -> strong*, mmlupro/psychology strong* -> cheap*
+    0.8 cost_effective train+calibration: bbh/date_understanding strong* -> cheap*, korbench/cipher cheap -> strong*, korbench/counterfactual cheap* -> strong*, mmlupro/health strong -> strong*, mmlupro/philosophy strong -> strong*, mmlupro/psychology strong* -> cheap*
+    0.9 cost_effective train: bbh/date_understanding strong -> strong*, bbh/tracking_shuffled_objects_five_objects strong* -> cheap*, bbh/tracking_shuffled_objects_seven_objects strong* -> cheap*, bbh/tracking_shuffled_objects_three_objects strong* -> cheap*, korbench/cipher cheap -> strong, korbench/counterfactual cheap -> strong, mmlupro/biology strong -> strong*, mmlupro/physics strong* -> strong
+    0.9 cost_effective train+calibration: bbh/date_understanding strong -> strong*, bbh/tracking_shuffled_objects_five_objects strong* -> cheap*, bbh/tracking_shuffled_objects_seven_objects strong* -> cheap*, bbh/tracking_shuffled_objects_three_objects strong* -> cheap*, korbench/cipher cheap -> strong, korbench/counterfactual cheap -> strong, mmlupro/biology strong -> strong*, mmlupro/chemistry strong -> strong*, mmlupro/physics strong* -> strong
+    0.6 cost_blind train: bbh/boolean_expressions cheap* -> strong*, bbh/logical_deduction_five_objects cheap* -> strong*, bbh/logical_deduction_seven_objects cheap* -> strong*, bbh/navigate cheap* -> strong*, bbh/object_counting cheap* -> strong*, korbench/cipher cheap* -> strong*, korbench/counterfactual cheap* -> strong*
+    0.6 cost_blind train+calibration: bbh/boolean_expressions cheap* -> strong*, bbh/logical_deduction_five_objects cheap* -> strong*, bbh/logical_deduction_seven_objects cheap* -> strong*, bbh/navigate cheap* -> strong*, bbh/object_counting cheap* -> strong*, korbench/cipher cheap* -> strong*, korbench/counterfactual cheap* -> strong*
+    0.7 cost_blind train: bbh/boolean_expressions cheap* -> strong*, bbh/logical_deduction_five_objects cheap* -> strong*, bbh/logical_deduction_seven_objects cheap* -> strong*, bbh/navigate cheap* -> strong*, bbh/object_counting cheap* -> strong*, korbench/cipher cheap* -> strong*, korbench/counterfactual cheap* -> strong*, mmlupro/history strong -> strong*, mmlupro/law strong -> strong*
+    0.7 cost_blind train+calibration: bbh/boolean_expressions cheap* -> strong*, bbh/logical_deduction_five_objects cheap* -> strong*, bbh/logical_deduction_seven_objects cheap* -> strong*, bbh/navigate cheap* -> strong*, bbh/object_counting cheap* -> strong*, korbench/cipher cheap* -> strong*, korbench/counterfactual cheap* -> strong*, mmlupro/history strong -> strong*, mmlupro/law strong -> strong*
+    0.8 cost_blind train: bbh/boolean_expressions cheap* -> strong*, bbh/logical_deduction_five_objects cheap* -> strong*, bbh/logical_deduction_seven_objects cheap* -> strong*, bbh/navigate cheap* -> strong*, bbh/object_counting cheap* -> strong*, korbench/cipher cheap -> strong*, korbench/counterfactual cheap* -> strong, mmlupro/philosophy strong -> strong*
+    0.8 cost_blind train+calibration: bbh/boolean_expressions cheap* -> strong*, bbh/logical_deduction_five_objects cheap* -> strong*, bbh/logical_deduction_seven_objects cheap* -> strong*, bbh/navigate cheap* -> strong*, bbh/object_counting cheap* -> strong*, korbench/cipher cheap -> strong*, korbench/counterfactual cheap* -> strong*, mmlupro/health strong -> strong*, mmlupro/philosophy strong -> strong*
+    0.9 cost_blind train: bbh/boolean_expressions cheap* -> strong*, bbh/date_understanding strong -> strong*, bbh/logical_deduction_five_objects cheap* -> strong*, bbh/logical_deduction_seven_objects cheap* -> strong*, bbh/navigate cheap* -> strong*, bbh/object_counting cheap* -> strong*, korbench/cipher cheap -> strong, korbench/counterfactual cheap -> strong, mmlupro/biology strong -> strong*, mmlupro/physics strong* -> strong
+    0.9 cost_blind train+calibration: bbh/boolean_expressions cheap* -> strong*, bbh/date_understanding strong -> strong*, bbh/logical_deduction_five_objects cheap* -> strong*, bbh/logical_deduction_seven_objects cheap* -> strong*, bbh/navigate cheap* -> strong*, bbh/object_counting cheap* -> strong*, korbench/cipher cheap -> strong, korbench/counterfactual cheap -> strong, mmlupro/biology strong -> strong*, mmlupro/chemistry strong -> strong*, mmlupro/physics strong* -> strong
+  cleared tasks below the bar on the final split:
+    none
+```
+
+### Reading it
+
+- The training split shares no family of related questions with the final or the calibration split (0 and 0 in the families line), so calibrating on it keeps the final split held out, as the calibration split does.
+- More calibration questions clear more tasks at bars 0.7 to 0.9 (the counts are in Facts), and no cleared task falls below its bar on the final split in any row, so with three or four times the questions the calibration bound at `min_samples` 30 stays a safe floor.
+- `cost_effective`'s routed success moves only in the third decimal place: 0.896, 0.911 and 0.922 at bars 0.7 to 0.9 on both, against 0.898, 0.912 and 0.920. Its cost moves both ways, 0.214 of the strong model's cost against 0.240 at bar 0.7 and 0.821 against 0.798 at bar 0.9, because more data lets a model clear a task it did not: at bar 0.7 `openai/gpt-6-luna` clears `mmlupro/philosophy`, which moves to it, and at bar 0.8 `openai/gpt-6.1-sol` clears `korbench/cipher`, which moves to it from the fallback.
+- `cost_blind` keeps `openai/gpt-6-luna` on 5 tasks, against 12: on the calibration split both models were right on all 46 questions of `bbh/boolean_expressions`, among others, so their bounds tied and the cheap model was kept, while on its 137 training questions the strong model's bound is the higher. So it gives 0.926 at 0.962 of the strong model's cost, against 0.922 at 0.864.
+- `korbench/logic` stays below `min_samples` on every set, with 10 training questions and 20 joined, so it still takes the fallback.
+
+### Recommendation
+
+- The results file (DESIGN 12.24) keeps its two splits, and no row follows from this section. On this pair three or four times the calibration questions clear a few more tasks at the higher bars, but they move `cost_effective`'s success only in the third decimal place and its cost both ways, and the file's readings hold on all three calibration sets: `cost_effective` keeps most of the strong model's success at a fraction of its cost, no routed row is above the strong model alone, and every cleared task holds its bar. Only the `cost_blind` row moves, toward the strong model, as above.
+- Taking the training split into the file would need either a 12.3 option for a fixed calibration set, a package change, or its rows in the outcome matrix, where the seeded halves would also score on them; either way the converter and the `evidence` workflow would download the training file too, for a change the final split hardly shows.
 
 ## Regenerate
 
 ```text
 python -m pip install -e .
 python research/registry_pair.py
+python research/registry_pair.py --train
 ```

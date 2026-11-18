@@ -401,7 +401,8 @@ def test_train_facts_are_built_from_the_block():
             f"families in the final split) or on it joined with the calibration split ({total[0][2]}), and scored on the "
             f"same final split: at bars 0.6 to 0.9 `cost_effective` clears {clears('train')} of {tasks} tasks on the "
             f"training split and {clears('train+calibration')} joined, against {clears('calibration')}; no cleared task "
-            f"falls below its bar; `cost_blind` gives {bs} at {bc} at every bar on both, the success of `{STRONG}` alone."
+            f"falls below its bar; `cost_blind` gives {bs} at {bc} at every bar on both, level with `{STRONG}` alone to three "
+            f"places."
             ) in text
     assert all(r[6] == "0" for r in rows.values())
     assert block.endswith("  cleared tasks below the bar on the final split:\n    none\n")

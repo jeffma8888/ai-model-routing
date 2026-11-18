@@ -8,10 +8,13 @@ the calibration split and scores on the final split, the release's own held-out 
 evaluator's own cell (`_split_sums`, `_cell`, `_strategies` and `_summary` of
 model_routing/evaluate.py, private names this script may use as research/response_bank_split.py
 does), one task per (dataset, task) pair, at the bars, `min_samples` and confidence of the committed
-evidence/routerbench/results.json, both flavors. Standard library and `model_routing` only. Exit 0,
-or 2 with one `error: ...` line, a carriage return or newline escaped.
+evidence/routerbench/results.json, both flavors. With `--train` (v1.467, row R41) it also reads the
+release's training split, `recordings/grades-train.json`, pinned as `TRAIN` and `TRAIN_PIN` apart
+from FILES, and prints the final split scored after calibrating on the calibration split, on the
+training split and on the two joined. Standard library and `model_routing` only. Exit 0, or 2 with
+one `error: ...` line, a carriage return or newline escaped.
 
-  python research/registry_pair.py [--cache DIR] [--root PATH]
+  python research/registry_pair.py [--cache DIR] [--root PATH] [--train]
 """
 
 import argparse
@@ -34,7 +37,10 @@ FILES = {
     "recordings/grades-calibration.json": (3777170, "2f47b9df61b131879f30b4ea36693a8ce8bc43e46afd17d7fbd5d7a93922e8ac"),
     "recordings/grades-final.json": (3742778, "8d66442ad94b5e846a856084adfaba7a2915bab6253008e93ed44348dc264a5f"),
 }
+TRAIN = "recordings/grades-train.json"
+TRAIN_PIN = (11354942, "76b7eb8b8b53ec108ceebfe1caa116a08d8db0b94a21d8c5de911734aa0b0f36")
 SPLITS = ("calibration", "final")
+CALIBRATIONS = ("calibration", "train", "train+calibration")
 ARMS = ("cheap", "strong")
 VENDOR = "openai/"
 CONFIG = "evidence/routerbench/results.json"
@@ -60,11 +66,12 @@ def verify(path, size, sha256, name=None):
         raise ValueError(f"{name}: sha256 {digest}, expected {sha256}")
 
 
-def fetch(cache, opener=urllib.request.urlopen):
-    """Each pinned file's path, in FILES order, once it is in `cache` and verified; an absent file
-    is downloaded at the pinned revision to a `.part` file, verified, then renamed."""
+def fetch(cache, opener=urllib.request.urlopen, files=None):
+    """Each pinned file's path, in the order of `files` (default FILES), once it is in `cache` and
+    verified; an absent file is downloaded at the pinned revision to a `.part` file, verified, then
+    renamed."""
     out = {}
-    for name, (size, sha256) in FILES.items():
+    for name, (size, sha256) in (FILES if files is None else files).items():
         dest = Path(cache) / name
         if not dest.exists():
             dest.parent.mkdir(parents=True, exist_ok=True)
@@ -223,21 +230,103 @@ def report(pair, ids, grades_calibration, grades_final, config):
     return lines
 
 
+def _pick(cell, cheap):
+    return ("cheap" if cell["models"]["routed"] == cheap else "strong") + ("*" if cell["cleared"] else "")
+
+
+def train_report(ids, grades_calibration, grades_final, grades_train, config):
+    """The final split scored after calibrating on each of CALIBRATIONS: the release's calibration
+    split (the rows `report` prints), its training split, and the two joined."""
+    calibration = outcomes(grades_calibration, "calibration", ids)
+    final = outcomes(grades_final, "final", ids)
+    train = outcomes(grades_train, "train", ids)
+    shared = {o.item for o in train} & {o.item for o in calibration}
+    if shared:
+        raise ValueError(f"{len(shared)} items are in the training and calibration splits, such as {min(shared)!r}")
+    runs = {name: release_split(rows, final, config)
+            for name, rows in zip(CALIBRATIONS, (calibration, train, train + calibration))}
+    models, tasks = runs["calibration"][0], runs["calibration"][1]
+    cheap, strong = ids["cheap"], ids["strong"]
+    floor = config["min_samples"]
+    lines = [f"{REPO} at {REVISION[:7]} (grades-calibration.json, grades-train.json and the two joined each "
+             f"calibrate, grades-final.json scores): "
+             f"{len(tasks)} tasks, {len(models)} models, bars " + " ".join(str(b) for b in config["bars"])
+             + f", min_samples {floor}, confidence {config['confidence']} ({CONFIG} config)"]
+    (n_train, fam_train), (_, fam_cal), (_, fam_final) = (families(g) for g in (grades_train, grades_calibration,
+                                                                                grades_final))
+    lines.append(f"  families: train {n_train:,} questions in {len(fam_train):,}, {len(fam_train & fam_final)} of them "
+                 f"in the final split and {len(fam_train & fam_cal)} in the calibration split")
+    lines.append(f"  {'task':<44}train   cal  train+cal  final  below min_samples (train, train+cal)")
+    for task in tasks:
+        n = {name: len(run[2][task][0]) for name, run in runs.items()}
+        held = len(runs["calibration"][2][task][1])
+        below = ", ".join("yes" if n[k] < floor else "no" for k in ("train", "train+calibration"))
+        lines.append(f"  {task:<44}{n['train']:>5}{n['calibration']:>6}{n['train+calibration']:>11}{held:>7}  {below}")
+    total = {name: sum(len(c) for c, _ in run[2].values()) for name, run in runs.items()}
+    lines.append(f"  {'all':<44}{total['train']:>5,}{total['calibration']:>6,}{total['train+calibration']:>11,}"
+                 f"{sum(len(h) for _, h in runs['calibration'][2].values()):>7,}")
+    first = (config["bars"][0], config["flavors"][0])
+    strong_cost = _row(runs["calibration"][5], *first, f"model:{strong}")["cost_usd"]
+    for name, run in runs.items():
+        r = _row(run[5], *first, "best_on_calibration")
+        lines.append(f"  best_on_calibration, calibrated on {name}: {r['success']:.3f} at {r['cost_usd'] / strong_cost:.3f}"
+                     f" of {strong}'s cost")
+    lines.append("  bar  flavor          calibrated on      routed  cost (USD)  cost / strong  cleared   tasks on cheap  "
+                 "cleared below the bar on final")
+    for flavor in config["flavors"]:
+        for bar in config["bars"]:
+            for name, run in runs.items():
+                r = _row(run[5], bar, flavor, "routed")
+                group = [x for x in run[4] if (x["bar"], x["flavor"]) == (bar, flavor)]
+                cleared = sum(x["cleared"] for x in group)
+                on_cheap = sum(x["models"]["routed"] == cheap for x in group)
+                under = sum(x["cleared"] and x["success"]["routed"] < bar for x in group)
+                lines.append(f"  {bar:<4} {flavor:<15} {name:<18} {r['success']:.3f}   {r['cost_usd']:<11.6f} "
+                             f"{r['cost_usd'] / strong_cost:<14.3f} {cleared:>2} of {len(tasks)}  {on_cheap:>14}  "
+                             f"{under:>2}")
+    lines.append("  tasks whose pick differs from the calibration split's (calibration -> this one; cheap or strong, "
+                 "* cleared):")
+    for flavor in config["flavors"]:
+        for bar in config["bars"]:
+            base = {x["task"]: x for x in runs["calibration"][4] if (x["bar"], x["flavor"]) == (bar, flavor)}
+            for name in CALIBRATIONS[1:]:
+                moved = [f"{x['task']} {_pick(base[x['task']], cheap)} -> {_pick(x, cheap)}" for x in runs[name][4]
+                         if (x["bar"], x["flavor"]) == (bar, flavor) and _pick(x, cheap) != _pick(base[x["task"]], cheap)]
+                lines.append(f"    {bar} {flavor} {name}: " + (", ".join(moved) if moved else "none"))
+    lines.append("  cleared tasks below the bar on the final split:")
+    found = []
+    for flavor in config["flavors"]:
+        for bar in config["bars"]:
+            for name, run in runs.items():
+                under = [f"{x['task']} {x['success']['routed']:.3f}" for x in run[4]
+                         if (x["bar"], x["flavor"]) == (bar, flavor) and x["cleared"] and x["success"]["routed"] < bar]
+                if under:
+                    found.append(f"    {bar} {flavor} {name}: " + ", ".join(under))
+    return lines + (found or ["    none"])
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="registry_pair.py", description=__doc__.splitlines()[0])
     parser.add_argument("--cache", type=Path, help="folder for the pinned files (default: the evidence cache)")
     parser.add_argument("--root", type=Path, default=ROOT, help="repository root (default: this checkout)")
+    parser.add_argument("--train", action="store_true",
+                        help=f"also read {TRAIN} and calibrate on it alone and joined with the calibration split")
     args = parser.parse_args(argv)
     try:
-        paths = fetch(args.cache if args.cache is not None else default_cache_dir())
+        files = {**FILES, TRAIN: TRAIN_PIN} if args.train else FILES
+        paths = fetch(args.cache if args.cache is not None else default_cache_dir(), files=files)
         read = {name: json.loads(path.read_text(encoding="utf-8")) for name, path in paths.items()}
         with open(args.root / CONFIG, encoding="utf-8") as fh:
             config = json.load(fh)["config"]
         registry = Registry.load(args.root / "model_routing" / "data" / "models.json")
         pair = read["pair.json"]
         ids = check_pair(pair, registry)
-        lines = report(pair, ids, read["recordings/grades-calibration.json"],
-                       read["recordings/grades-final.json"], config)
+        if args.train:
+            lines = train_report(ids, read["recordings/grades-calibration.json"], read["recordings/grades-final.json"],
+                                 read[TRAIN], config)
+        else:
+            lines = report(pair, ids, read["recordings/grades-calibration.json"],
+                           read["recordings/grades-final.json"], config)
     except (OSError, ValueError, KeyError, TypeError, AttributeError, ZeroDivisionError) as exc:
         message = str(exc).replace("\r", "\\r").replace("\n", "\\n")
         print(f"error: {message}", file=sys.stderr)
