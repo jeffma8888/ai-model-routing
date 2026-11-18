@@ -660,17 +660,35 @@ def test_a_broken_hold_is_named(text, held, message):
 
 # v1.464 (row DOC39b, review iter-313 nit 3): `This repo` for `The repo` in three licence bullets grew
 # `### tau2-bench` and `### LLMRouterBench` by a byte each, and 12.15 and 12.19 give each size from v1.464.
-TRIM_SIZES = {"tau2-bench": "from v1.464 the README subsection `### tau2-bench` is {:,} bytes by the 12.8 measure "
-                            "(4,992 from v1.451, ",
-              "LLMRouterBench": "from v1.464 the subsection is {:,} bytes by that measure (4,992 from v1.446, "}
+TRIM_SIZES = {"tau2-bench": ("12.15", "from v1.464 the README subsection `### tau2-bench` is {:,} bytes by the 12.8 "
+                                      "measure (4,992 from v1.451, "),
+              "LLMRouterBench": ("12.19", "from v1.464 the subsection is {:,} bytes by that measure (4,992 from "
+                                          "v1.446, ")}
+
+
+def design_subsection(text, number):
+    """DESIGN.md `text` from its `### <number> ` line to the next `#`, `##` or `###` line (review iter-328
+    should-fix 1: each size clause is found in its own subsection, not anywhere in the file)."""
+    lines = text.split("\n")
+    starts = [i for i, line in enumerate(lines) if line.startswith(f"### {number} ")]
+    assert len(starts) == 1, f"DESIGN.md has {len(starts)} `### {number}` lines, not one"
+    end = next((i for i in range(starts[0] + 1, len(lines)) if SAME_OR_HIGHER.match(lines[i])), len(lines))
+    return "\n".join(lines[starts[0]:end])
 
 
 def test_the_12_15_and_12_19_trim_bullets_give_the_subsections_size():
     readme, design = README.read_text(encoding="utf-8"), DESIGN.read_text(encoding="utf-8")
     sizes = dict(measure(readme)[1:])
-    for name, clause in TRIM_SIZES.items():
-        assert design.count(clause.format(sizes[name])) == 1, name
+    for name, (number, clause) in TRIM_SIZES.items():
+        stated = clause.format(sizes[name])
+        assert design.count(stated) == 1 and design_subsection(design, number).count(stated) == 1, name
         assert sizes[name] <= CAPS[CLASS[name]]
+    # The 12.15 bullet moved to the end of 12.19 is in the file once but no longer in its own subsection.
+    tau2 = TRIM_SIZES["tau2-bench"][1].format(sizes["tau2-bench"])
+    line = next(line for line in design.split("\n") if tau2 in line)
+    moved = design.replace(line + "\n", "", 1).replace("\n### 12.20 ", "\n" + line + "\n### 12.20 ", 1)
+    assert moved.count(tau2) == 1 and design_subsection(moved, "12.15").count(tau2) == 0
+    assert design_subsection(moved, "12.19").count(tau2) == 1
     assert readme.count("This repo commits only derived numbers\n") == 3 and "The repo commits" not in readme
     grown = readme.replace("\n### tau2-bench\n", "\n### tau2-bench\nx\n", 1)
-    assert design.count(TRIM_SIZES["tau2-bench"].format(dict(measure(grown)[1:])["tau2-bench"])) == 0
+    assert design.count(TRIM_SIZES["tau2-bench"][1].format(dict(measure(grown)[1:])["tau2-bench"])) == 0
