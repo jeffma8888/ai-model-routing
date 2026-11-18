@@ -899,6 +899,7 @@ DOC38A_DROPPED = (
     ("`split_items` halves of the matrix, then 12.3's registry and `Task`", ()),
     ("(every passing model when one passes, else every eligible measured one)", ()),
     ("which 5.3 does not do by default", ()),
+    ("come from the passing list alone", ()),  # review iter-321 nit 1
     ("whose 5.2 `routing_cost` is 0.0", ()),
     ("so that decision is one it makes anyway", ()),
     ("since 13.2 prices both paths at the parent's and the primary's prices alone", ()),
