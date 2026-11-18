@@ -93,6 +93,8 @@ def test_design_specifies_the_grok_tier_and_where_its_rates_come_from():
     for fragment in [
         "- v1.455 where a tier's rates come from (row P4):",
         "whose base prices, in the data's units, are the page's visible prices",
+        "and the objects read must give the same tier rates",
+        "the whole request paying the tier are readings, not stated",
         "- v1.455 the `xai/grok-4.7` tier (row P4):",
         "`promptTextTokenPrice` 20000, `cachedPromptTokenPrice` 5000 and "
         "`completionTextTokenPrice` 60000, the visible 2.00, 0.50 and 6.00 USD",
@@ -306,7 +308,7 @@ def test_evaluate_prices_a_token_form_row_as_one_call():
 
 
 README_HEADER = ("Pricing notes (a row's `price_tiers` in `models.json` prices a long-prompt tier "
-                 "whose page states its rates; see Limitations):")
+                 "whose page gives its rates; see Limitations):")  # v1.455: `gives`, was `states`
 README_NOTES = [
     "- claude-haiku-5.5: short-prompt tier, prompts up to 100K tokens; longer prompts cost 0.50 "
     "in and 2.50 out, and its `models.json` row prices them as a tier over 100,000 input tokens",
@@ -317,7 +319,7 @@ README_NOTES = [
     "row prices them as a tier over 200,000 input tokens",
 ]
 README_LIMITATION = (
-    "- A long-prompt tier is costed per call where `models.json` gives its rates (`price_tiers`, `DESIGN.md` 4.1): a call whose input is over the tier's threshold pays the tier's prices on all of its input and output tokens, as the claude-haiku-5.5 and gpt-6-astra pages state, and the inline-or-delegate cost and the held-out costs of the delegation evidence price each work call and each later parent call at its own tier (`DESIGN.md` 13.2, 13.9). The grok-4.7 tier, 4 in and 12 out over 200,000 input tokens, is read from the price data its page embeds, since its text says only that requests over 200K tokens are charged different rates, so that the whole request pays them is read from that sentence, not stated. The parent's own output in a later call, its next step after the work, is charged on neither path, since no input gives it a size, so where a path's additions take that call over a threshold the higher price of that output is left out. A task whose line is a whole conversation, such as `tool_calling_support_agent`, is costed as one call of the conversation's summed sizes, so a tiered model can be costed at its higher price although each of its calls is shorter")
+    "- A long-prompt tier is costed per call where `models.json` gives its rates (`price_tiers`, `DESIGN.md` 4.1): a call whose input is over the tier's threshold pays the tier's prices on all of its input and output tokens, as the claude-haiku-5.5 and gpt-6-astra pages state, and the inline-or-delegate cost and the held-out costs of the delegation evidence price each work call and each later parent call at its own tier (`DESIGN.md` 13.2, 13.9). The grok-4.7 tier, 4 in and 12 out over 200,000 input tokens, is read from the price data its page embeds, since its text says only that requests which exceed the 200K context window are charged different rates; that the 200K counts input tokens and that the whole request pays the tier are readings of that sentence and of the data, not stated (`DESIGN.md` 9). The parent's own output in a later call, its next step after the work, is charged on neither path, since no input gives it a size, so where a path's additions take that call over a threshold the higher price of that output is left out. A task whose line is a whole conversation, such as `tool_calling_support_agent`, is costed as one call of the conversation's summed sizes, so a tiered model can be costed at its higher price although each of its calls is shorter")
 
 
 def section(text, heading):
