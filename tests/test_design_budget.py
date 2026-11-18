@@ -896,8 +896,8 @@ def test_the_12_8_size_budget_clause_holds_no_history():
     start = [i for i, line in enumerate(body) if line.startswith("- Size budget (v1.334, row DOC19): ")]
     assert len(start) == 1
     clause = body[start[0]:]
-    # Ten lines to v1.443; v1.444 (row DOC28a) adds the room bullet.
-    assert clause[-1] == "" and all(line.startswith("  - ") for line in clause[1:-1]) and len(clause) == 11
+    # Ten lines to v1.443; v1.444 (row DOC28a) adds the room bullet, and v1.473 (row DOC44a) the plan bullet.
+    assert clause[-1] == "" and all(line.startswith("  - ") for line in clause[1:-1]) and len(clause) == 12
     for words in ("0b3e142", "DOC19a to DOC19k", "from review", "This clause changes no README text",
                   "for 10 names", "v1.346 and v1.347"):
         assert not [line[:60] for line in clause if words in line], words
