@@ -17,7 +17,8 @@ or the smaller size a part of its trim leaves (v1.388),
 never required at most its cap, and must stay over its cap: the row that trims it removes its number.
 Each line of the two sections is at most LINE_CAP bytes but the ones PENDING_LINES names by their
 opening text, each held at most its size and required to stay over LINE_CAP; an opening must open
-exactly one line. The section totals, SECTION_CAPS, are required once PENDING is empty.
+exactly one line. The section totals, SECTION_CAPS, are required once PENDING is empty, and until then
+of each section with every PENDING subsection cut to its cap (v1.456).
 
 History pointers (v1.388, row DOC21m): each ``(history: CHANGELOG.md ...)`` pointer of the two sections
 lists ``vX.Y`` and ``vX.Y to vX.Z`` items joined by ``, ``, each version (both ends of a range) with a
@@ -26,7 +27,8 @@ it gives, so a pointer that is moved, changed or added without an entry fails.
 
 Research notes out of 12.8 (v1.390, row DOC21o): the seven research-note bullets of 12.8, with the README
 sub-bullet of the first, are 12.22, a research-notes spec with a cap of 40,000 bytes, in the same order
-(RESEARCH_NOTES); 12.8 holds none of them and leaves PENDING, and the `## 12.` total is 300,000 bytes.
+(RESEARCH_NOTES); 12.8 holds none of them and leaves PENDING, and the `## 12.` total is 300,000 bytes
+(330,000 from v1.456).
 
 The time-limit line (v1.391, row DOC26): the 12.13 time-limit bullet keeps its contract and puts its earlier
 bases behind one history pointer (POINTERS), so it is at most LINE_CAP and PENDING_LINES is empty; 12.13
@@ -51,6 +53,14 @@ The registry pair (v1.431, row E24): 12.23, the registry-pair converter, is a co
 The registry pair in the workflow (v1.443, row E24e): three `is rerun` lines of 12.13 drop what the Steps,
 RouterBench and Tests lines already state for every rerun block (its place in `Regenerate`, `Compare` and the
 top comment, and the test reading it), so 12.13 has room for the registry pair's lines.
+
+The section totals (v1.456, row DOC37): each total is the one last set with the subsections it counted,
+`## 12.` 300,000 at v1.390 with 12.1 to 12.22 and `## 13.` 185,000 at v1.386 with 13.1 to 13.14
+(TOTAL_BASES), raised by the cap of each subsection added after them (12.23 and 12.24, 13.15), so 330,000
+and 200,000. While PENDING is not empty, each section with every PENDING subsection cut to its cap
+(`projected`) must fit its total; the DESIGN 12 Caps bullet names each subsection of GROUPS in its class,
+with that class's cap, and states the totals (CAPS_CLAUSES, `caps_bullet_problems`). So a subsection
+added without a class, a Caps clause or a raised total fails in its own slice, not at the last trim.
 """
 import re
 from pathlib import Path
@@ -62,7 +72,11 @@ from test_readme_evidence_budget import design_12_8
 ROOT = Path(__file__).resolve().parents[1]
 DESIGN = ROOT / "DESIGN.md"
 SECTIONS = ("12", "13")
-SECTION_CAPS = {"12": 300_000, "13": 185_000}  # 12 v1.390; 260,000 at v1.386
+SECTION_CAPS = {"12": 330_000, "13": 200_000}  # v1.456; 12 300,000 at v1.390 and 260,000 at v1.386, 13 185,000
+# The total each section had when it last counted its subsections, the version that set it, and the last
+# subsection number it counted (12 v1.390 with 12.1 to 12.22, 13 v1.386 with 13.1 to 13.14); each
+# subsection numbered after it raises its section's total by the cap of its class (v1.456, row DOC37).
+TOTAL_BASES = {"12": (300_000, "v1.390", 22), "13": (185_000, "v1.386", 14)}
 LINE_CAP = 6_000
 # The class of each subsection number (DESIGN 12 v1.386 Caps bullet; research notes v1.390) and the cap of each class.
 GROUPS = {
@@ -144,7 +158,18 @@ def measure(text):
     return sections, subsections, measured, strays
 
 
-def problems(text, classes=CLASS, pending=PENDING, pending_lines=PENDING_LINES):
+def projected(sections, subsections, classes=CLASS, pending=PENDING):
+    """Each section's bytes with every `pending` subsection cut to exactly its cap and the rest as measured
+    (v1.456, row DOC37), from the `sections` and `subsections` that `measure` gives; a pending subsection
+    at or under its cap, or with no class, takes nothing off."""
+    totals = dict(sections)
+    for number, got in subsections:
+        if number in pending and number in classes:
+            totals[number.split(".")[0]] -= max(0, got - CAPS[classes[number]])
+    return totals
+
+
+def problems(text, classes=CLASS, pending=PENDING, pending_lines=PENDING_LINES, section_caps=SECTION_CAPS):
     """Every way DESIGN.md `text` breaks the budget of sections 12 and 13, as messages; empty when it
     keeps it."""
     sections, subsections, lines, strays = measure(text)
@@ -189,8 +214,15 @@ def problems(text, classes=CLASS, pending=PENDING, pending_lines=PENDING_LINES):
                          f"{LINE_CAP:,}: remove it from PENDING_LINES")
     if not pending:
         for number in SECTIONS:
-            if sections[number] > SECTION_CAPS[number]:
-                found.append(f"`## {number}.` is {sections[number]:,} bytes, over {SECTION_CAPS[number]:,}")
+            if sections[number] > section_caps[number]:
+                found.append(f"`## {number}.` is {sections[number]:,} bytes, over {section_caps[number]:,}")
+    else:
+        # v1.456 (row DOC37): until then, each section with every pending subsection cut to its cap.
+        totals = projected(sections, subsections, classes, pending)
+        for number in SECTIONS:
+            if totals[number] > section_caps[number]:
+                found.append(f"`## {number}.` would be {totals[number]:,} bytes with each PENDING subsection "
+                             f"at its cap, over {section_caps[number]:,}")
     return found
 
 
@@ -354,21 +386,37 @@ def test_at_each_cap_and_size_the_budget_holds():
     assert problems(text, classes=SMALL, pending=HELD, pending_lines={LONG: 7_000}) == []
 
 
-def test_the_section_totals_wait_for_an_empty_pending():
+def test_the_section_totals_bind_the_projection_until_pending_is_empty():
     # Eighteen 16,000-byte contract subsections and one of 11,986 make `## 12.` 14 + 288,000 + 11,986 =
-    # 300,000 bytes, at its cap (v1.390); one byte more is over it, but only once PENDING is empty.
+    # 300,000 bytes, at a total of 300,000; one byte more is over it.
     twelve = "".join(sub(f"12.{n}", 16_000) for n in range(4, 22)) + sub("12.22", 11_986)
     # Eight 22,000-byte delegation results subsections and one of 8,984 make `## 13.` 16 + 176,000 +
-    # 8,984 = 185,000 bytes, at its cap.
+    # 8,984 = 185,000 bytes, at a total of 185,000.
     thirteen = "".join(sub(f"13.{n}", 22_000) for n in range(1, 9)) + sub("13.9", 8_984)
+    totals = {"12": 300_000, "13": 185_000}
     at_caps = small(twelve, thirteen)
-    assert measure(at_caps)[0] == {"12": 300_000, "13": 185_000} == SECTION_CAPS
-    assert problems(at_caps, classes=SMALL, pending={}, pending_lines={}) == []
+    assert measure(at_caps)[0] == totals
+    assert problems(at_caps, classes=SMALL, pending={}, pending_lines={}, section_caps=totals) == []
     over = small(twelve + "\n", thirteen + "\n")
-    assert problems(over, classes=SMALL, pending={}, pending_lines={}) == [
+    assert problems(over, classes=SMALL, pending={}, pending_lines={}, section_caps=totals) == [
         "`## 12.` is 300,001 bytes, over 300,000", "`## 13.` is 185,001 bytes, over 185,000"]
-    held = small(twelve + "\n" + sub("12.3", 50_001), thirteen + "\n")
-    assert problems(held, classes=SMALL, pending=HELD, pending_lines={}) == []
+    # v1.456 (row DOC37): while PENDING is not empty a total binds its section with each pending subsection
+    # cut to its cap. 12.3, held at 50,001 of its 50,000, counts 50,000, so beside it fifteen contract
+    # subsections and one of 9,986 make 14 + 50,000 + 240,000 + 9,986 = 300,000, though 300,001 are measured.
+    room = sub("12.3", 50_001) + "".join(sub(f"12.{n}", 16_000) for n in range(4, 19)) + sub("12.22", 9_986)
+    held = small(room, thirteen)
+    sections, subsections, _, _ = measure(held)
+    assert sections == {"12": 300_001, "13": 185_000}
+    assert projected(sections, subsections, classes=SMALL, pending=HELD) == totals
+    assert projected(sections, subsections, classes=SMALL, pending={}) == sections
+    assert problems(held, classes=SMALL, pending=HELD, pending_lines={}, section_caps=totals) == []
+    assert problems(small(room + "\n", thirteen + "\n"), classes=SMALL, pending=HELD, pending_lines={},
+                    section_caps=totals) == [
+        "`## 12.` would be 300,001 bytes with each PENDING subsection at its cap, over 300,000",
+        "`## 13.` would be 185,001 bytes with each PENDING subsection at its cap, over 185,000"]
+    # With nothing pending, the same text has 12.3 over its cap and `## 12.` over its total as measured.
+    assert problems(held, classes=SMALL, pending={}, pending_lines={}, section_caps=totals) == [
+        "`### 12.3` is 50,001 bytes, over its README evidence cap 50,000", "`## 12.` is 300,001 bytes, over 300,000"]
 
 
 def test_a_text_without_one_section_line_each_is_an_error():
@@ -607,14 +655,144 @@ def test_the_12_opening_gives_the_research_notes_cap_and_the_12_total():
     caps = [line for line in opening if line.startswith("- Caps, each a ceiling ")]
     assert len(caps) == 1
     assert "; the research notes 12.22 40,000 (v1.390, row DOC21o);" in caps[0]
-    assert "`## 12.` 300,000 (v1.390) and `## 13.` 185,000." in caps[0]
-    assert (CAPS["research notes"], SECTION_CAPS["12"], SECTION_CAPS["13"]) == (40_000, 300_000, 185_000)
+    assert "; and the totals `## 12.` 330,000 and `## 13.` 200,000 (v1.456, row DOC37), " in caps[0]
+    assert (CAPS["research notes"], SECTION_CAPS["12"], SECTION_CAPS["13"]) == (40_000, 330_000, 200_000)
     moved = [line for line in opening if line.startswith("- Research notes out of 12.8 (v1.390, row DOC21o): ")]
     assert len(moved) == 1
     for words in ("are 12.22, a research-notes spec with a cap of 40,000 bytes, in the same order",
-                  "The `## 12.` total is 300,000 bytes: the 260,000 of v1.386 counted these bullets inside the "
+                  "The `## 12.` total was 300,000 bytes from v1.390 to v1.455: the 260,000 of v1.386 counted these "
+                  "bullets inside the "
                   "50,000 of 12.8, and they now have a cap of their own, 40,000"):
         assert words in moved[0], words
+
+
+# --- the section totals (DESIGN 12 v1.456, row DOC37) ---------------------------------------------
+
+CAPS_OPENING = ("- Caps, each a ceiling that stops a subsection from growing back, while the keep rules below "
+                "set its size: ")
+# The opening of each class's clause in the Caps bullet, whose clauses are joined by `; `.
+CAPS_CLAUSES = {
+    "contract": "the contract, ",
+    "converter": "a converter spec, ",
+    "routing results": "a routing results spec, ",
+    "delegation results": "a delegation results spec, ",
+    "README evidence": "the README evidence spec ",
+    "research notes": "the research notes ",
+    "workflow": "the workflow ",
+    "limits and test status": "the limits and test status ",
+    "delegation evaluator": "the delegation evaluator ",
+}
+NAMED = re.compile(r"(?<![\d.])(1[23])\.(\d+)(?: to \1\.(\d+))?(?!\d)")
+# An amount ends before a digit or a comma and a digit, so `50,000, with` gives 50,000.
+AMOUNT = re.compile(r"(?<![\d.,])\d{1,3}(?:,\d{3})+(?!,?\d)")
+TOTAL = re.compile(r"`## (1[23])\.` (\d{1,3}(?:,\d{3})+)")
+
+
+def by_number(number):
+    return tuple(int(part) for part in number.split("."))
+
+
+def caps_bullet(text):
+    """The one Caps bullet of the DESIGN 12 opening in `text`."""
+    opening = text.split("\n## 12. ", 1)[1].split("\n### ", 1)[0].splitlines()
+    caps = [line for line in opening if line.startswith(CAPS_OPENING)]
+    assert len(caps) == 1
+    return caps[0]
+
+
+def caps_bullet_problems(bullet, groups=GROUPS, caps=CAPS, section_caps=SECTION_CAPS):
+    """Every way the Caps bullet disagrees with `groups`, `caps` and `section_caps`, as messages: each class
+    has one clause, which names exactly the subsections of its class (`12.1 to 12.5` names five) and gives
+    its cap as its first amount, and the bullet gives each section total once, as `## N.` and the amount."""
+    if not bullet.startswith(CAPS_OPENING):
+        return ["the Caps bullet does not open with its opening"]
+    parts = bullet[len(CAPS_OPENING):].split("; ")
+    found = []
+    for kind, opening in CAPS_CLAUSES.items():
+        clauses = [part for part in parts if part.startswith(opening)]
+        if len(clauses) != 1:
+            found.append(f"the Caps bullet has {len(clauses)} clauses opening `{opening.strip()}`, not one")
+            continue
+        named = set()
+        for section, first, last in NAMED.findall(clauses[0]):
+            named.update(f"{section}.{n}" for n in range(int(first), int(last or first) + 1))
+        missing = sorted(set(groups[kind]) - named, key=by_number)
+        extra = sorted(named - set(groups[kind]), key=by_number)
+        if missing:
+            found.append(f"the {kind} clause lacks {', '.join(missing)}")
+        if extra:
+            found.append(f"the {kind} clause names {', '.join(extra)}, not of its class")
+        amounts = AMOUNT.findall(clauses[0])
+        if not amounts or number_of(amounts[0]) != caps[kind]:
+            found.append(f"the {kind} clause gives {amounts[0] if amounts else 'no amount'}, not its cap "
+                         f"{caps[kind]:,}")
+    for section in SECTIONS:
+        given = [amount for number, amount in TOTAL.findall(bullet) if number == section]
+        if len(given) != 1:
+            found.append(f"the Caps bullet gives `## {section}.` {len(given)} times, not once")
+        elif number_of(given[0]) != section_caps[section]:
+            found.append(f"the Caps bullet gives `## {section}.` {given[0]}, not {section_caps[section]:,}")
+    return found
+
+
+def test_the_caps_bullet_names_each_subsection_in_its_class_and_the_totals():
+    assert set(CAPS_CLAUSES) == set(GROUPS)
+    assert caps_bullet_problems(caps_bullet(DESIGN.read_text(encoding="utf-8"))) == []
+
+
+@pytest.mark.parametrize("old, new, message", [
+    (", the registry-pair converter 12.23 (v1.431)", "", ["the converter clause lacks 12.23"]),
+    (" and the ledger hand-off converter 13.15 (v1.394)", "", ["the converter clause lacks 13.15"]),
+    ("12.21 and the registry-pair results 12.24 (v1.433)", "12.21, 12.24 and 12.25",
+     ["the routing results clause names 12.25, not of its class"]),
+    ("the contract, 12.1 to 12.5 and", "the contract, 12.1 to 12.4 and",
+     ["the contract clause lacks 12.5"]),
+    ("16,000 bytes each", "15,000 bytes each", ["the contract clause gives 15,000, not its cap 16,000"]),
+    ("; the workflow 12.13 25,000", "", ["the Caps bullet has 0 clauses opening `the workflow`, not one"]),
+    ("`## 12.` 330,000", "`## 12.` 300,000", ["the Caps bullet gives `## 12.` 300,000, not 330,000"]),
+    ("`## 13.` 200,000", "`## 13.` 185,000", ["the Caps bullet gives `## 13.` 185,000, not 200,000"]),
+    (" and `## 13.` 200,000", "", ["the Caps bullet gives `## 13.` 0 times, not once"]),
+])
+def test_a_broken_caps_bullet_is_named(old, new, message):
+    bullet = caps_bullet(DESIGN.read_text(encoding="utf-8"))
+    assert bullet.count(old) == 1, old
+    assert caps_bullet_problems(bullet.replace(old, new, 1)) == message
+
+
+def test_each_total_is_its_base_raised_by_the_cap_of_each_subsection_added_after_it():
+    raised, added = {}, []
+    for section, (base, _, last) in TOTAL_BASES.items():
+        later = [number for number in CLASS if number.split(".")[0] == section and by_number(number)[1] > last]
+        added += later
+        raised[section] = base + sum(CAPS[CLASS[number]] for number in later)
+    assert sorted(added, key=by_number) == ["12.23", "12.24", "13.15"]
+    assert raised == SECTION_CAPS == {"12": 330_000, "13": 200_000}
+
+
+def test_the_projected_totals_fit_the_totals_the_caps_bullet_states():
+    # v1.456 (row DOC37): before it, the 12.23, 12.24 and 13.15 growth left the projected totals over the
+    # stated 300,000 and 185,000, which only the last trim would have found.
+    text = DESIGN.read_text(encoding="utf-8")
+    stated = {number: number_of(amount) for number, amount in TOTAL.findall(caps_bullet(text))}
+    assert PENDING and stated == SECTION_CAPS
+    sections, subsections, _, _ = measure(text)
+    totals = projected(sections, subsections)
+    assert {number: (totals[number], stated[number]) for number in SECTIONS if totals[number] > stated[number]} == {}
+
+
+def test_the_section_totals_bullet_gives_each_base_and_each_raise():
+    opening = DESIGN.read_text(encoding="utf-8").split("\n## 12. ", 1)[1].split("\n### ", 1)[0].splitlines()
+    bullets = [line for line in opening if line.startswith("- Section totals (v1.456, row DOC37): ")]
+    assert len(bullets) == 1
+    (base12, set12, last12), (base13, set13, last13) = TOTAL_BASES["12"], TOTAL_BASES["13"]
+    for words in (f"`## 12.` the {base12:,} of {set12}, which counts 12.1 to 12.{last12}, plus 15,000 for each of "
+                  f"12.23 (v1.431) and 12.24 (v1.433), so {SECTION_CAPS['12']:,}",
+                  f"`## 13.` the {base13:,} of {set13}, which counts 13.1 to 13.{last13}, plus 15,000 for 13.15 "
+                  f"(v1.394), so {SECTION_CAPS['13']:,}",
+                  "once `PENDING` is empty and, until then, the section with each `PENDING` subsection cut to "
+                  "exactly its cap and the rest as measured"):
+        assert words in bullets[0], words
+    assert (CAPS["converter"], CAPS["routing results"]) == (15_000, 15_000)
 
 
 def test_the_12_8_size_budget_clause_holds_no_history():
