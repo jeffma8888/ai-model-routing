@@ -1,4 +1,4 @@
-"""Whether the re-read share and the brief's output size move a committed delegation decision (DESIGN 12.22 v1.413, row R38).
+"""Whether the re-read share and the brief's output size move a committed delegation decision (DESIGN 13.16 v1.413, row R38).
 
 Usage:
   python research/reread_sensitivity.py --matrix autobench-tokens.jsonl --registry autobench-pool.json [--root PATH]

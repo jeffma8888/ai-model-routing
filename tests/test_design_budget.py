@@ -658,7 +658,8 @@ def test_the_research_notes_are_12_22_and_12_8_holds_none():
     assert body[0].startswith("Purpose: the research-note bullets 12.8 held through v1.389, in the same order "
                               "(12 v1.390): ")
     assert body[0].endswith(" A reference to one of them as 12.8, `12.8 vX.Y` or `12.8` alone, in this file, a "
-                            "test or a research note, names its bullet here.")  # review iter-248 nit 1
+                            "test or a research note, names its bullet here or, for the four, in 13.16.")
+    # review iter-248 nit 1; v1.465 (row DOC43, review iter-325 nit 2): `for the four`
     assert len(body) == len(RESEARCH_NOTES) + 2 and body[-1] == ""
     for line, opening in zip(body[1:-1], RESEARCH_NOTES):
         assert line.startswith(opening), (line[:60], opening)
@@ -693,6 +694,28 @@ def test_the_delegation_notes_are_13_16_and_12_22_holds_none():
     assert CLASS["13.16"] == CLASS["12.22"] == "research notes"
     sizes = dict(measure(text)[1])
     assert sizes["13.16"] <= CAPS["research notes"] and sizes["12.22"] <= CAPS["research notes"]
+
+
+def test_the_references_to_the_13_16_lines_name_13_16():
+    """v1.465 (row DOC43, review iter-325 nits 1 and 2): DESIGN, the research scripts and notes refer to the four
+    13.16 lines as 13.16, never as the 12.8 or 12.22 they were before v1.390 or v1.461; the redirects of the 12.22
+    and 13.16 Purpose lines stay for references elsewhere."""
+    stale = re.compile(r"(?:12\.8|12\.22) v1\.(?:258|402|413|424)\b")
+    research = ROOT / "research"
+    for path in [DESIGN, *sorted(research.glob("*.py")), *sorted(research.glob("*.md"))]:
+        assert not stale.search(path.read_text(encoding="utf-8")), path.name
+    pointers = {"reread_sensitivity.py": "(DESIGN 13.16 v1.413, row R38)",
+                "delegation_price_sensitivity.py": "(DESIGN 13.16 v1.424, row R39)",
+                "ledger_cost_model.py": "(DESIGN 13.16 v1.402)"}
+    for name, pointer in pointers.items():
+        docstring = (research / name).read_text(encoding="utf-8").split('"""', 2)[1]
+        assert pointer in docstring and "DESIGN 12.22" not in docstring, name
+    note = (research / "delegation-price-sensitivity.md").read_text(encoding="utf-8")
+    assert "([DESIGN.md](../DESIGN.md) 13.16)" in note and "([DESIGN.md](../DESIGN.md) 12.22)" not in note
+    text = DESIGN.read_text(encoding="utf-8")
+    v1328 = [line for line in subsection_body(text, "13.8")
+             if line.startswith("- v1.328, per-item delegation paths on the response bank (row R29): ")]
+    assert len(v1328) == 1 and "the Where delegation pays at a glance paragraph (13.16 v1.258) " in v1328[0]
 
 
 def test_the_12_opening_gives_the_research_notes_cap_and_the_12_total():

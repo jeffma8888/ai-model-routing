@@ -1,4 +1,4 @@
-"""How far one model's wrong list price moves a committed delegation decision (DESIGN 12.22 v1.424, row R39).
+"""How far one model's wrong list price moves a committed delegation decision (DESIGN 13.16 v1.424, row R39).
 
 Usage:
   python research/delegation_price_sensitivity.py --matrix autobench-tokens.jsonl --registry autobench-pool.json [--root PATH]

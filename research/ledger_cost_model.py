@@ -14,7 +14,7 @@ chain each fresh context starts again from its own first prompt (the system mess
 the first transaction), and a note's call reads its context's history as one more call would,
 without a transaction (13.2 gives the request no size). The `reply` rule is the same with each
 earlier completion less its `reasoning_tokens`, the reply the history keeps. Standard library
-only. Read by research/ledger-cost-model.md (DESIGN 12.22).
+only. Read by research/ledger-cost-model.md (DESIGN 13.16 v1.402).
 """
 
 from __future__ import annotations

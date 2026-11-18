@@ -650,7 +650,7 @@ def test_design_bullet_v1328_states_the_response_bank_run():
                    "`evidence/response-bank-delegation/registry.json`", "`results.json` one", "v1.230 message",
                    "`the LLM Routing Response Bank`", "keeps its four `--dataset` choices",
                    "`### LLM Routing Response Bank`", RB_CONVERT, "five blocks", "`on the LLM Routing Response Bank`",
-                   "under 2%", "N of the four datasets", "12.8 v1.258", "strict xfails", "`response_bank_pinned`",
+                   "under 2%", "N of the four datasets", "13.16 v1.258", "strict xfails", "`response_bank_pinned`",
                    "No library code"):
         assert phrase in bullets[0], phrase
 
