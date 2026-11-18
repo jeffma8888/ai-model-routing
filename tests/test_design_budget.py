@@ -46,6 +46,10 @@ sentences of the slices that added them (`No change under ...`), their explanato
 definitions they restated from 12.3, each keeping its contract with one history pointer (POINTERS).
 v1.422 (row DOC34b): the same lines restate their contract in fewer words; each rule several of them repeated
 is stated once and the others name the line that holds it (BORROWED).
+v1.457 (row DOC38a): 12.22 drops its explanatory clauses (why a rule holds, what another section
+defines, what a later slice would do), each contract item staying; the seed by seed line takes the
+best single model from the where-routing-pays line (BORROWED), and the versions the dropped clauses
+named have their CHANGELOG.md lines (DOC38A_DROPPED).
 
 The registry pair (v1.431, row E24): 12.23, the registry-pair converter, is a converter.
 12.24, the registry-pair results (v1.433, row E24b), is a routing results subsection.
@@ -851,6 +855,10 @@ BORROWED = (
      "It stops unless, at both bars and in each flavor, `max_fallbacks` 0's success and cost are the committed "
      "summary's `routed` row and each task's are the committed `per_task` `routed` row, and the oracle's (12.3) "
      "the committed `oracle` row, each within a relative 1e-12."),
+    # v1.457 (row DOC38a)
+    ("The best single model is the where-routing-pays bullet's", "- Where routing pays (v1.124): ",
+     "the best single model of 12.7 (highest held-out success, then lower cost, then ID; a file where it differs "
+     "between bars or flavors is an error)"),
 )
 
 
@@ -861,13 +869,57 @@ def test_the_12_22_lines_that_borrow_a_rule_find_it_in_the_line_they_name():
     for phrase, lender, rule in BORROWED:
         borrowers = [line[:40] for line in trimmed if phrase in line]
         assert borrowers and all(not b.startswith(lender[:40]) for b in borrowers), phrase
-        assert [line[:40] for line in trimmed if rule in line] == [lender[:40]], rule[:60]
+        # v1.457: by the whole opening, since the where-routing-pays one is shorter than 40 characters
+        holders = [line for line in trimmed if rule in line]
+        assert len(holders) == 1 and holders[0].startswith(lender), rule[:60]
     # the words v1.422 dropped: explanations, a restated 12.3 seed value, and the rules now borrowed
     for words in ("its script `research/", "so a file added later moves the range", "the note's main claim",
                   "a code span holds a model ID", "instead of being skipped", "so the README test runs in CI",
                   "The second finding names", "checked reader", "with the whole list", "whole-list route",
                   "and so is the attempts per held-out item", "correct held-out items over held-out items"):
         assert not [line[:60] for line in trimmed if words in line], words
+
+
+# --- room in 12.22 again (v1.457, row DOC38a) ------------------------------------------------------
+
+# Each clause v1.457 dropped from 12.22, with the versions it named (each must keep its CHANGELOG.md line):
+# explanations of why a rule holds, definitions another section owns, and what a later slice would do.
+DOC38A_DROPPED = (
+    ("a note the script does not read", ()),
+    ("(the highest calibration bound)", ()),
+    ("(size and sha256)", ()),
+    ("(the restricted unpickler)", ()),
+    ("so the matrix is the 12.6 default one", ()),
+    ("from which the shortfall at that success is within the margin", ()),
+    ("the one of the committed routing files (the v1.166 clauses", ("v1.166",)),
+    ("(the `model:` row with the highest held-out success, then lower cost, then ID; a file where it differs", ()),
+    ("(the same at every one, 12.3 v1.135)", ("v1.135",)),
+    ("which the README's LLMRouterBench lines rest on", ()),
+    ("since LLMRouterBench records every pool model on every item", ()),
+    ("`split_items` halves of the matrix, then 12.3's registry and `Task`", ()),
+    ("(every passing model when one passes, else every eligible measured one)", ()),
+    ("which 5.3 does not do by default", ()),
+    ("whose 5.2 `routing_cost` is 0.0", ()),
+    ("so that decision is one it makes anyway", ()),
+    ("since 13.2 prices both paths at the parent's and the primary's prices alone", ()),
+    ("policies frozen before the final answers", ()),
+)
+
+
+def test_12_22_holds_none_of_the_clauses_v1_457_dropped():
+    text = DESIGN.read_text(encoding="utf-8")
+    body = "\n".join(subsection_body(text, "12.22"))
+    logged = set(CHANGELOG_LINE.findall(CHANGELOG.read_text(encoding="utf-8")))
+    for words, versions in DOC38A_DROPPED:
+        assert words not in body, words
+        for version in versions:
+            assert version[1:] in logged, version
+    # what stays of the clauses it shortened
+    for words in ("which 5.3 does only with the task's `fallback_below_bar` (4.2, v1.201) on.",
+                  "The best single model is the where-routing-pays bullet's, read from the committed summary.",
+                  "the release's own protocol (each question family in one split, which the script counts)"):
+        assert body.count(words) == 1, words
+    assert dict(measure(text)[1])["12.22"] <= CAPS["research notes"]
 
 
 # --- the rest of 12.13 (DESIGN 12 v1.392, row DOC21c) ---------------------------------------------

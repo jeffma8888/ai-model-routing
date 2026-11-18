@@ -1340,14 +1340,14 @@ def test_the_design_bullet_is_in_12_22():
                    "`--dataset llmrouterbench` (v1.425) or `response-bank` (v1.426) the 13.13 or 13.14 run",
                    "`tau2-bench` or `tau2-bench-pooled` (v1.427) the 13.12 run",
                    "they re-decide the `cost_effective` cells on a registry",
-                   "a `cost_blind` cell (v1.429), whose 5.2 `routing_cost` is 0.0",
+                   "a `cost_blind` cell (v1.429) and (v1.440, row T17)",
                    "(v1.440, row T17) a cell whose parent and committed delegate primary are other models",
                    "which 13.3 builds without the parent, so that every cell of its flavor, task, seed, bar and point "
                    "shares it",
                    "has the same primary at the run's prices, as one decision of the group finds",
-                   "13.2 prices both paths at the parent's and the primary's prices alone",
-                   "(from v1.441, row T17b, a run decides the cells whose parent is its model first, so that decision "
-                   "is one it makes anyway)",
+                   # v1.457 (row DOC38a): the reasons why a cell keeps its pick are in the script docstring
+                   # (test_the_docstring_says_which_cells_are_re_decided), no longer in the bullet
+                   "(from v1.441, row T17b, a run decides the cells whose parent is its model first); so a run",
                    "prints what re-deciding every cell prints",
                    # what the v1.424 to v1.427 bullet said of the four other datasets (review iter-301 should-fix 1)
                    "a dataset other than AutoBench refuses `--registry`",
@@ -1359,6 +1359,8 @@ def test_the_design_bullet_is_in_12_22():
     for version in ("v1.424", "v1.425", "v1.426", "v1.427", "v1.429"):
         assert changelog.count(f"\n- {version} (2026-11-") == 1, version
     assert "they re-decide every cell" not in bullet[0]
+    for words in ("whose 5.2 `routing_cost` is 0.0", "prices alone", "makes anyway"):
+        assert words not in bullet[0], words
     # right after the re-read bullet; from v1.430 (row R40) the registry-pair bullet follows it
     lines = section.rstrip("\n").split("\n")
     at = lines.index(bullet[0])
