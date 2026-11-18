@@ -17,8 +17,8 @@ or the smaller size a part of its trim leaves (v1.388),
 never required at most its cap, and must stay over its cap: the row that trims it removes its number.
 Each line of the two sections is at most LINE_CAP bytes but the ones PENDING_LINES names by their
 opening text, each held at most its size and required to stay over LINE_CAP; an opening must open
-exactly one line. The section totals, SECTION_CAPS, are required once PENDING is empty, and until then
-of each section with every PENDING subsection cut to its cap (v1.456).
+exactly one line. The section totals, SECTION_CAPS, bind each section as measured once PENDING is empty,
+and until then each section with every PENDING subsection cut to its cap (v1.456).
 
 History pointers (v1.388, row DOC21m): each ``(history: CHANGELOG.md ...)`` pointer of the two sections
 lists ``vX.Y`` and ``vX.Y to vX.Z`` items joined by ``, ``, each version (both ends of a range) with a
@@ -726,6 +726,9 @@ def caps_bullet_problems(bullet, groups=GROUPS, caps=CAPS, section_caps=SECTION_
         if not amounts or number_of(amounts[0]) != caps[kind]:
             found.append(f"the {kind} clause gives {amounts[0] if amounts else 'no amount'}, not its cap "
                          f"{caps[kind]:,}")
+    # Review iter-319 nit 3: the line cap's clause too, which no class clause holds.
+    if [part for part in parts if part.startswith("any line of 12 or 13 ")] != [f"any line of 12 or 13 {LINE_CAP:,}"]:
+        found.append(f"the Caps bullet does not give the line cap once as `any line of 12 or 13 {LINE_CAP:,}`")
     for section in SECTIONS:
         given = [amount for number, amount in TOTAL.findall(bullet) if number == section]
         if len(given) != 1:
@@ -752,6 +755,10 @@ def test_the_caps_bullet_names_each_subsection_in_its_class_and_the_totals():
     ("`## 12.` 330,000", "`## 12.` 300,000", ["the Caps bullet gives `## 12.` 300,000, not 330,000"]),
     ("`## 13.` 200,000", "`## 13.` 185,000", ["the Caps bullet gives `## 13.` 185,000, not 200,000"]),
     (" and `## 13.` 200,000", "", ["the Caps bullet gives `## 13.` 0 times, not once"]),
+    ("; any line of 12 or 13 6,000", "",
+     ["the Caps bullet does not give the line cap once as `any line of 12 or 13 6,000`"]),
+    ("any line of 12 or 13 6,000", "any line of 12 or 13 8,000",
+     ["the Caps bullet does not give the line cap once as `any line of 12 or 13 6,000`"]),
 ])
 def test_a_broken_caps_bullet_is_named(old, new, message):
     bullet = caps_bullet(DESIGN.read_text(encoding="utf-8"))
