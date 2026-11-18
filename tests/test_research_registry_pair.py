@@ -7,6 +7,11 @@ evidence/routerbench/results.json. When the three pinned files are in the script
 the note's Results block is compared byte for byte with a fresh run (never a download here); on
 every machine the report is checked on a hand-made pair worked out by hand, the refusals and the
 download path offline, and each prose number of the note against its Results block.
+
+DESIGN 12.22 v1.467 (row R41): `--train` also reads the release's training split, pinned apart from
+FILES, and calibrates on it alone and joined with the calibration split, each scored on the final
+split. Its block in the note's dated section is compared with a fresh run when the four files are
+cached, and its report is checked on a hand-made training split worked out by hand.
 """
 
 import ast
@@ -27,10 +32,13 @@ SCRIPT = ROOT / "research" / "registry_pair.py"
 NOTE = ROOT / "research" / "registry-pair.md"
 INDEX = ROOT / "research" / "README.md"
 COMMAND = "$ python research/registry_pair.py"
+TRAIN_COMMAND = "$ python research/registry_pair.py --train"
+TRAIN_HEADING = "## Calibrated on the training split (2026-11-18)"
+TRAIN_PIN = (11354942, "76b7eb8b8b53ec108ceebfe1caa116a08d8db0b94a21d8c5de911734aa0b0f36")
 SECTIONS = ["## Facts", "## Method", "## Results", "## Reading it", "## Recommendation", "## Limits",
-            "## Regenerate"]
+            TRAIN_HEADING, "## Regenerate"]
 # DESIGN section numbers: the only numbers of the note's prose that are not in the script's output
-ALLOWED = {"5.3", "12.2", "12.3", "12.22"}
+ALLOWED = {"5.3", "12.2", "12.3", "12.22", "12.24"}
 NUMBER = re.compile(r"(?<![\w.])\d+(?:,\d{3})*(?:\.\d+)?%?")
 CHEAP, STRONG = "openai/gpt-6-luna", "openai/gpt-6.1-sol"
 
@@ -58,11 +66,19 @@ def note():
     return NOTE.read_text(encoding="utf-8")
 
 
-def results_block(text):
-    section = text.split("\n## Results\n", 1)[1].split("\n## ", 1)[0]
+def results_block(text, heading="## Results"):
+    section = text.split(f"\n{heading}\n", 1)[1].split("\n## ", 1)[0]
     blocks = re.findall(r"^```text\n(.*?)^```$", section, re.M | re.S)
-    assert len(blocks) == 1, "one text block in ## Results"
+    assert len(blocks) == 1, f"one text block in {heading}"
     return blocks[0]
+
+
+def train_block(text):
+    return results_block(text, TRAIN_HEADING)
+
+
+TRAIN_ROUTED = re.compile(r"^  (0\.\d+) +(cost_effective|cost_blind) +(calibration|train|train\+calibration) +([\d.]+) "
+                          r"+([\d.]+) +([\d.]+) +(\d+) of (\d+) +(\d+) +(\d+)$", re.M)
 
 
 ROUTED = re.compile(r"^  (0\.\d+) +(cost_effective|cost_blind) +([\d.]+) +([\d.]+) +([\d.]+) +(\d+) of (\d+) "
@@ -104,8 +120,9 @@ def test_note_sections_in_order():
 
 
 def test_prose_numbers_are_in_the_results_block():
+    # v1.467: a number of the prose may come from either block, the dated section's included
     text = note()
-    known = set(NUMBER.findall(results_block(text))) | ALLOWED
+    known = set(NUMBER.findall(results_block(text))) | set(NUMBER.findall(train_block(text))) | ALLOWED
     prose = re.sub(r"^```[a-z]*\n.*?^```$", "", text, flags=re.M | re.S)
     prose = re.sub(r"https?://\S+", "", prose)
     prose = re.sub(r"\b\d{4}-\d{2}-\d{2}\b", "", prose)
@@ -161,7 +178,7 @@ def test_note_states_the_pins_and_the_licence(rp):
 def test_regenerate_section_states_the_commands():
     section = note().split("\n## Regenerate\n", 1)[1]
     assert "python -m pip install -e ." in section
-    assert COMMAND[2:] in section
+    assert COMMAND[2:] + "\n" in section and TRAIN_COMMAND[2:] + "\n" in section
 
 
 def test_recommendation_names_the_next_row():
@@ -338,3 +355,150 @@ def test_an_error_holding_a_newline_is_escaped(rp, monkeypatch, tmp_path):
     assert (code, out) == (2, "")
     assert err.startswith("error: ") and err.count("\n") == 1 and "\r" not in err
     assert "no\\nsuch\\r" in err
+
+
+# --- the training split (DESIGN 12.22 v1.467, row R41) ---
+
+def test_note_train_block_is_the_script_output(rp):
+    cache = rp.default_cache_dir()
+    if not all((cache / name).is_file() for name in [*rp.FILES, rp.TRAIN]):
+        pytest.skip("the four pinned files are not in the default cache")
+    code, out, err = run(rp, ["--train"])
+    assert (code, err) == (0, "")
+    assert train_block(note()) == TRAIN_COMMAND + "\n" + out
+
+
+def test_the_training_file_is_pinned_apart_from_the_three(rp):
+    # the default run, the 13.16 delegation script and the 12.23 converter read FILES and download nothing more
+    assert rp.TRAIN == "recordings/grades-train.json" and rp.TRAIN not in rp.FILES
+    assert rp.TRAIN_PIN == TRAIN_PIN
+    section = note().split(f"\n{TRAIN_HEADING}\n", 1)[1].split("\n## ", 1)[0]
+    assert f"| `{rp.TRAIN}` | {TRAIN_PIN[0]:,} | `{TRAIN_PIN[1]}` |" in section
+    assert "`manifest.json`" in section and "`oid`" in section and "12.24" in section
+
+
+def test_train_facts_are_built_from_the_block():
+    text, block = note(), train_block(note())
+    rows = {(b, f, k): rest for b, f, k, *rest in TRAIN_ROUTED.findall(block)}
+    bars, sets = ("0.6", "0.7", "0.8", "0.9"), ("calibration", "train", "train+calibration")
+    assert sorted(rows) == sorted((b, f, k) for b in bars for f in ("cost_effective", "cost_blind") for k in sets)
+    head = re.findall(r"^  families: train ([\d,]+) questions in [\d,]+, (\d+) of them in the final split and (\d+) in "
+                      r"the calibration split$", block, re.M)
+    total = re.findall(r"^  all +([\d,]+) +([\d,]+) +([\d,]+) +([\d,]+)$", block, re.M)
+    assert len(head) == 1 and len(total) == 1
+    n_train, in_final, _ = head[0]
+    tasks = rows["0.6", "cost_effective", "calibration"][4]
+
+    def clears(k):
+        found = [rows[b, "cost_effective", k][3] for b in bars]
+        return ", ".join(found[:-1]) + " and " + found[-1]
+    blind = {(rows[b, "cost_blind", k][0], rows[b, "cost_blind", k][2]) for b in bars for k in sets[1:]}
+    assert len(blind) == 1
+    (bs, bc), = blind
+    s2 = single(results_block(text), STRONG)[0]
+    assert bs == s2
+    assert (f"- Calibrated on the training split ({n_train} questions, {'none' if in_final == '0' else in_final} of its "
+            f"families in the final split) or on it joined with the calibration split ({total[0][2]}), and scored on the "
+            f"same final split: at bars 0.6 to 0.9 `cost_effective` clears {clears('train')} of {tasks} tasks on the "
+            f"training split and {clears('train+calibration')} joined, against {clears('calibration')}; no cleared task "
+            f"falls below its bar; `cost_blind` gives {bs} at {bc} at every bar on both, the success of `{STRONG}` alone."
+            ) in text
+    assert all(r[6] == "0" for r in rows.values())
+    assert block.endswith("  cleared tasks below the bar on the final split:\n    none\n")
+    e8, t8 = rows["0.8", "cost_effective", "calibration"], rows["0.8", "cost_effective", "train"]
+    assert (f"- More calibration data: the results file (DESIGN 12.24) keeps its two splits; `cost_effective` at bar 0.8 "
+            f"gives {t8[0]} at {t8[2]} on the training split against {e8[0]} at {e8[2]}.") in text
+
+
+# d/t_x: 30 training rows, v/cheap right on 27 (k >= 3), v/strong on all 30; d/u: 5, v/cheap right on 3, v/strong on 5.
+# One d/t_x family is a calibration one (f0) and the d/u family is a final one (g2)
+def _train():
+    rows = [dict(_row("train", k, k >= 3, True, "f0" if k == 0 else f"k{k}"), role="train") for k in range(30)]
+    rows += [dict(_row("train", k, k < 3, True, "g2", "u"), role="train") for k in range(5)]
+    return {"format": "routerbench-paired-grades-v1", "split": "train", "rows": rows}
+
+
+def test_train_report_on_a_hand_made_split(rp):
+    # Wilson bounds at 0.95 (z^2 = 3.8415). d/t_x: v/cheap 27 of 30 on training, (0.9 + 0.0640 - 1.96 * sqrt(0.003 +
+    # 0.001067)) / 1.1280 = 0.744, under 0.8, so only v/strong (30 of 30, 0.886) clears and both flavors take it,
+    # right on 4 of 4 final items; joined, v/cheap 56 of 60, (0.9333 + 0.0320 - 1.96 * sqrt(0.001037 + 0.000267)) /
+    # 1.0640 = 0.841, which clears, so cost_effective takes the cheaper v/cheap (2 of 4 right, 0.500, under the bar)
+    # and cost_blind v/strong's higher bound (60 of 60, 60 / 63.8415 = 0.940). d/u: 5 training items and 15 joined,
+    # both below min_samples 30, so it never clears and falls back to the higher bound, v/strong on both (5 of 5
+    # against 3 of 5, 14 of 15 against 13 of 15), right on 4 of 4. So cost_effective on training: 8 of 8 for 16.0,
+    # 1.000, 0 on cheap; joined: 6 of 8 for 12.0, 0.750, 1 on cheap, d/t_x cleared below the bar; cost_blind on both:
+    # 8 of 8 for 16.0. best_on_calibration on training and joined: v/strong on both tasks (30 > 27, 5 > 3; 60 > 56,
+    # 14 > 13), 1.000 at 1.000. The calibration rows are test_report_on_a_hand_made_pair's. Families: 35 training
+    # questions in 31 (f0, k1 to k29, g2), g2 in the final split and f0 in the calibration split
+    cal, final = _grades()
+    lines = [" ".join(line.split()) for line in rp.train_report(IDS, cal, final, _train(), CONFIG)]
+    for want in ("families: train 35 questions in 31, 1 of them in the final split and 1 in the calibration split",
+                 "d/t_x 30 30 60 4 no, no", "d/u 5 10 15 4 yes, yes", "all 35 40 75 8",
+                 "best_on_calibration, calibrated on calibration: 0.750 at 0.750 of v/strong's cost",
+                 "best_on_calibration, calibrated on train: 1.000 at 1.000 of v/strong's cost",
+                 "best_on_calibration, calibrated on train+calibration: 1.000 at 1.000 of v/strong's cost",
+                 "0.8 cost_effective calibration 0.500 8.000000 0.500 1 of 2 2 1",
+                 "0.8 cost_effective train 1.000 16.000000 1.000 1 of 2 0 0",
+                 "0.8 cost_effective train+calibration 0.750 12.000000 0.750 1 of 2 1 1",
+                 "0.8 cost_blind calibration 0.750 12.000000 0.750 1 of 2 1 0",
+                 "0.8 cost_blind train 1.000 16.000000 1.000 1 of 2 0 0",
+                 "0.8 cost_blind train+calibration 1.000 16.000000 1.000 1 of 2 0 0",
+                 "0.8 cost_effective train: d/t_x cheap* -> strong*, d/u cheap -> strong",
+                 "0.8 cost_effective train+calibration: d/u cheap -> strong",
+                 "0.8 cost_blind train: d/u cheap -> strong", "0.8 cost_blind train+calibration: d/u cheap -> strong",
+                 "0.8 cost_effective calibration: d/t_x 0.500", "0.8 cost_effective train+calibration: d/t_x 0.500"):
+        assert want in lines, want
+    assert "none" not in lines and lines[0].endswith(", bars 0.8, min_samples 30, confidence 0.95 "
+                                                     "(evidence/routerbench/results.json config)")
+
+
+@pytest.mark.parametrize("change, message", [
+    (lambda t: dict(t, split="calibration"), "format"),
+    (lambda t: {**t, "rows": [dict(t["rows"][0], role="final")] + t["rows"][1:]}, "role"),
+    (lambda t: {**t, "rows": t["rows"] + t["rows"][:1]}, "repeated"),
+    (lambda t: {**t, "rows": [dict(t["rows"][0], id="calibration:u0")] + t["rows"][1:]}, "training and calibration"),
+    (lambda t: {**t, "rows": [dict(t["rows"][0], id="final:t0")] + t["rows"][1:]}, "in both splits"),
+    (lambda t: {**t, "rows": [r for r in t["rows"] if r["task"] != "u"]}, "split is empty"),
+])
+def test_train_refusals(rp, change, message):
+    cal, final = _grades()
+    with pytest.raises(ValueError, match=message):
+        rp.train_report(IDS, cal, final, change(_train()), CONFIG)
+
+
+def test_fetch_reads_the_training_file_only_when_asked(rp, monkeypatch, tmp_path):
+    blobs = _tiny_pins(rp, monkeypatch, tmp_path)
+    blobs[rp.TRAIN] = json.dumps({"name": rp.TRAIN}).encode()
+    pins = {**rp.FILES, rp.TRAIN: (len(blobs[rp.TRAIN]), hashlib.sha256(blobs[rp.TRAIN]).hexdigest())}
+    asked = []
+
+    def opener(url, timeout):
+        asked.append(url)
+        return _Response(blobs[url.split(f"/resolve/{rp.REVISION}/", 1)[1]])
+    assert list(rp.fetch(tmp_path, opener)) == list(rp.FILES) and rp.url(rp.TRAIN) not in asked
+    paths = rp.fetch(tmp_path, opener, files=pins)
+    assert asked[len(rp.FILES):] == [rp.url(rp.TRAIN)]
+    assert list(paths) == list(pins) and paths[rp.TRAIN].read_bytes() == blobs[rp.TRAIN]
+
+
+def test_main_train_runs_on_cached_files(rp, monkeypatch, tmp_path):
+    # the hand-made pair at the registry's own models and prices, written as the four cached files under tiny pins
+    cal, final = _grades()
+    blobs = {"pair.json": _pair(), "recordings/grades-calibration.json": cal, "recordings/grades-final.json": final,
+             rp.TRAIN: _train()}
+    blobs = {name: json.dumps(value).encode() for name, value in blobs.items()}
+    pins = {name: (len(b), hashlib.sha256(b).hexdigest()) for name, b in blobs.items()}
+    monkeypatch.setattr(rp, "FILES", {name: pins[name] for name in rp.FILES})
+    monkeypatch.setattr(rp, "TRAIN_PIN", pins[rp.TRAIN])
+    for name, b in blobs.items():
+        (tmp_path / name).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / name).write_bytes(b)
+    code, out, err = run(rp, ["--cache", str(tmp_path), "--train"])
+    assert (code, err) == (0, "")
+    lines = [" ".join(line.split()) for line in out.splitlines()]
+    assert lines[0].endswith(", bars 0.6 0.7 0.8 0.9, min_samples 30, confidence 0.95 "
+                             "(evidence/routerbench/results.json config)")
+    assert "families: train 35 questions in 31, 1 of them in the final split and 1 in the calibration split" in lines
+    assert "0.8 cost_effective train 1.000 16.000000 1.000 1 of 2 0 0" in lines
+    code, out, err = run(rp, ["--cache", str(tmp_path)])
+    assert (code, err) == (0, "") and "families: train" not in out
