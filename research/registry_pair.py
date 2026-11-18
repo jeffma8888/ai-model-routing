@@ -284,6 +284,12 @@ def train_report(ids, grades_calibration, grades_final, grades_train, config):
                 lines.append(f"  {bar:<4} {flavor:<15} {name:<18} {r['success']:.3f}   {r['cost_usd']:<11.6f} "
                              f"{r['cost_usd'] / strong_cost:<14.3f} {cleared:>2} of {len(tasks)}  {on_cheap:>14}  "
                              f"{under:>2}")
+    lines.append("  tasks that clear:")
+    for flavor in config["flavors"]:
+        for bar in config["bars"]:
+            for name, run in runs.items():
+                cleared = [x["task"] for x in run[4] if (x["bar"], x["flavor"]) == (bar, flavor) and x["cleared"]]
+                lines.append(f"    {bar} {flavor} {name}: " + (", ".join(cleared) if cleared else "none"))
     lines.append("  tasks whose pick differs from the calibration split's (calibration -> this one; cheap or strong, "
                  "* cleared):")
     for flavor in config["flavors"]:

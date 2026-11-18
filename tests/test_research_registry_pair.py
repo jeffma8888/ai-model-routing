@@ -406,6 +406,18 @@ def test_train_facts_are_built_from_the_block():
             ) in text
     assert all(r[6] == "0" for r in rows.values())
     assert block.endswith("  cleared tasks below the bar on the final split:\n    none\n")
+    # review iter-332 must-fix 1: every row's tasks that clear are named, as many as its cleared count
+    part = block.split("\n  tasks that clear:\n", 1)[1].split("\n  tasks whose pick differs ", 1)[0]
+    named = {}
+    for line in part.splitlines():
+        found = re.fullmatch(r"    (0\.\d) (cost_effective|cost_blind) (calibration|train|train\+calibration): (.+)", line)
+        assert found, line
+        named[found[1], found[2], found[3]] = [] if found[4] == "none" else found[4].split(", ")
+    assert sorted(named) == sorted(rows)
+    order = re.findall(r"^  ([a-z]+/\S+) +\d+ +\d+ +\d+ +\d+  (?:yes|no), (?:yes|no)$", block, re.M)
+    assert len(order) == int(tasks)
+    for key, cleared in named.items():
+        assert len(cleared) == int(rows[key][3]) and cleared == [t for t in order if t in cleared], key
     e8, t8 = rows["0.8", "cost_effective", "calibration"], rows["0.8", "cost_effective", "train"]
     assert (f"- More calibration data: the results file (DESIGN 12.24) keeps its two splits; `cost_effective` at bar 0.8 "
             f"gives {t8[0]} at {t8[2]} on the training split against {e8[0]} at {e8[2]}.") in text
@@ -449,6 +461,11 @@ def test_train_report_on_a_hand_made_split(rp):
                  "0.8 cost_blind train: d/u cheap -> strong", "0.8 cost_blind train+calibration: d/u cheap -> strong",
                  "0.8 cost_effective calibration: d/t_x 0.500", "0.8 cost_effective train+calibration: d/t_x 0.500"):
         assert want in lines, want
+    # review iter-332 must-fix 1: d/t_x clears on every set and d/u, below min_samples, on none
+    clear = lines[lines.index("tasks that clear:") + 1:lines.index("tasks whose pick differs from the calibration split's "
+                                                                    "(calibration -> this one; cheap or strong, * cleared):")]
+    assert clear == [f"0.8 {f} {k}: d/t_x" for f in ("cost_effective", "cost_blind")
+                     for k in ("calibration", "train", "train+calibration")]
     assert "none" not in lines and lines[0].endswith(", bars 0.8, min_samples 30, confidence 0.95 "
                                                      "(evidence/routerbench/results.json config)")
 
