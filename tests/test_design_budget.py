@@ -50,6 +50,10 @@ v1.457 (row DOC38a): 12.22 drops its explanatory clauses (why a rule holds, what
 defines, what a later slice would do), each contract item staying; the seed by seed line takes the
 best single model from the where-routing-pays line (BORROWED), and the versions the dropped clauses
 named have their CHANGELOG.md lines (DOC38A_DROPPED).
+v1.460 (row DOC38b): the per-task ceiling, seed by seed, check fallback and below-bar lines restate their
+contract in fewer words, and the where-routing-pays and no-model-clears lines their test and output
+sentences, each contract item staying (DOC38B_DROPPED); the seed by seed exit list names a best single
+model that differs between bars or flavors (review iter-321 nit 3, BORROWED).
 
 The registry pair (v1.431, row E24): 12.23, the registry-pair converter, is a converter.
 12.24, the registry-pair results (v1.433, row E24b), is a routing results subsection.
@@ -846,9 +850,11 @@ BORROWED = (
     ("compared as in the seed by seed bullet", "- Seed by seed on LLMRouterBench (v1.177): ",
      "compared byte for byte with the script's lines on the matrix that the 12.19 session fixture "
      "`llmrouterbench_pinned` writes when the pinned file is cached, skipped otherwise"),
+    # v1.460 (row DOC38b, review iter-321 nit 3): the exit list names the best single model's error
     ("on what stops the seed by seed script", "- Seed by seed on LLMRouterBench (v1.177): ",
      "Exit 0, or 2 with one `error: ` line on a missing or unreadable file, a row `load_outcomes` refuses, a "
-     "missing key or a row that differs from the committed one."),
+     "missing key, a best single model that differs between bars or flavors or a row that differs from the "
+     "committed one."),
     ("`max_fallbacks` M as there", "- Fallback on a failed check, on LLMRouterBench (v1.181): ",
      "`max_fallbacks` of 0, 2 and M, the number of pool models minus one, M giving the whole list that 5.3 sorts"),
     ("pass that bullet's checks against the committed rows", "- Fallback on a failed check, on LLMRouterBench (v1.181): ",
@@ -919,6 +925,41 @@ def test_12_22_holds_none_of_the_clauses_v1_457_dropped():
     for words in ("which 5.3 does only with the task's `fallback_below_bar` (4.2, v1.201) on.",
                   "The best single model is the where-routing-pays bullet's, read from the committed summary.",
                   "the release's own protocol (each question family in one split, which the script counts)"):
+        assert body.count(words) == 1, words
+    assert dict(measure(text)[1])["12.22"] <= CAPS["research notes"]
+
+
+# --- room in 12.22, second part (v1.460, row DOC38b) ----------------------------------------------
+
+# Each wording v1.460 replaced with a shorter one stating the same contract (none names a version).
+DOC38B_DROPPED = (
+    "(the `model:` summary row with the highest held-out success, then lower cost, then ID)",
+    "one line with the file, its revision",
+    "the matrix of the 12.19 commands",
+    "the repository root that holds",
+    "replaying a check as good as the record's score",
+    "one line saying what a route and an attempt are",
+    "whose first bullet says, as the check fallback note's does,",
+    "(its success minus the 5.3 route's) over (the oracle's minus the 5.3 route's)",
+    "A second test checks that on LLMRouterBench",
+    "A fourth test checks that the registry pair",
+    "in option order with a blank line between datasets",
+)
+
+
+def test_12_22_holds_none_of_the_wordings_v1_460_replaced():
+    text = DESIGN.read_text(encoding="utf-8")
+    body = "\n".join(subsection_body(text, "12.22"))
+    for words in DOC38B_DROPPED:
+        assert words not in body, words
+    # what replaced them, each once
+    for words in ("and runs `evaluate` (12.3) on `cost_blind` alone at the first bar",
+                  "whose best single model is 12.7's.",
+                  "the 12.18 converter's output that the 12.19 commands write",
+                  "buys on public data, for a check as good as the record's score.",
+                  "`## Facts` (its first bullet: every number is an upper bound, as in the check fallback note)",
+                  "and tests check: (v1.126) on the first five files (v1.166) and the eighth (v1.458), that no routed",
+                  "Per dataset, in option order, a blank line between, it prints"):
         assert body.count(words) == 1, words
     assert dict(measure(text)[1])["12.22"] <= CAPS["research notes"]
 
