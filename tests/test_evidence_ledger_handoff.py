@@ -10,6 +10,10 @@ already in the default cache and skips otherwise (CI never downloads them).
 DESIGN 13.15 v1.396 (row E23b): the README evidence opening ends with a paragraph built from the committed
 results file, its sixth and last before the first ``###``; ``readme_paragraph`` builds it and refuses a file
 that would make its ``but`` or ``yet`` one-sided.
+
+DESIGN 13.15 v1.462 (row DOC29): README Limitations holds, directly after the per-item bullet, a bullet on
+the three limits of RESULTS.md ``## Limits``, built from the committed results file; ``limitations_bullet``
+builds it and refuses a file that would make one of those limits false.
 """
 
 import ast
@@ -583,3 +587,142 @@ def test_design_specifies_the_readme_paragraph():
     text = DESIGN.read_text(encoding="utf-8")
     section = text.split("\n### 12.8 ", 1)[1].split("\n### ", 1)[0]
     assert "then (v1.396) a blank line and the 13.15 README paragraph, and by nothing else." in section
+
+
+# --- the README Limitations bullet (DESIGN 13.15 v1.462, row DOC29) ---------------------------
+
+LIMITATIONS = "## Limitations and non-goals (v1)"
+PER_ITEM = "- Choosing the path per item instead would add little "
+SPREAD_CAP = 5  # a few of 100 items; a larger spread could rank one note budget above another
+REGISTRY = ROOT / "model_routing" / "data" / "models.json"
+
+
+def note_spread(probe):
+    """The largest difference between two note arms' all-`inc_ok` counts or between their all-`abs_ok` counts."""
+    notes = probe["arms"][1:]
+    return max(max(arm[key] for arm in notes) - min(arm[key] for arm in notes) for key in ("all_inc_ok", "all_abs_ok"))
+
+
+def registry_ids():
+    return {row["id"] for row in json.loads(REGISTRY.read_text(encoding="utf-8"))["models"]}
+
+
+def limitations_bullet(results, registry=None):
+    """The README Limitations bullet on the ledger runs' three limits, built from a ledger results file."""
+    depths, probe = results["depths"], results["probe"]
+    items = {row["items"] for row in depths}
+    if len(items) != 1:
+        raise ValueError("the depths differ in items")
+    if probe["arms"][0]["arm"] != "history":
+        raise ValueError("the first probe arm is not `history`")
+    spread = note_spread(probe)
+    if spread > SPREAD_CAP:
+        raise ValueError(f"the note arms differ by {spread} items, over {SPREAD_CAP}, so `ranks no note budget` "
+                         "may not hold")
+    if results["model"] in (registry_ids() if registry is None else registry):
+        raise ValueError(f"the registry has a row for {results['model']}, so `no price` does not hold")
+    return ("- The ledger runs (" + LINK + ") measure work handed to a fresh context, not a delegation decision, and "
+            "have three limits. First, a synthetic ledger task with one open model, "
+            f"`{results['model']}`, in every role, one run per item at temperature 0.7: the delegate is never cheaper "
+            "per token than the parent and none is chosen from a pool, and on the probe's "
+            f"{probe['items']:,} items the note arms' all-`inc_ok` and all-`abs_ok` counts differ by at most "
+            f"{spread:,}, which ranks no note budget above another. Second, the hand-off is serial: on "
+            f"{items.pop():,} items at each of depths {listed(row['depth'] for row in depths)} and in the probe, a "
+            "successor takes over from a note and no parent reads a result back. Third, no price, since "
+            "`models.json` has no row for that model. So they show what a note carries forward and at how many "
+            "prompt and completion tokens, but not the cost or the success of a delegate whose result a parent "
+            "reads, and no `Router.decide_delegation` decision is set beside them (`DESIGN.md` 13.15)")
+
+
+def limitations_bullets():
+    readme = README.read_text(encoding="utf-8")
+    assert readme.count("\n" + LIMITATIONS + "\n") == 1
+    limits = readme.split("\n" + LIMITATIONS + "\n", 1)[1].split("\n## ", 1)[0]
+    return [line for line in limits.splitlines() if line.startswith("- ")]
+
+
+def test_readme_limitations_name_the_ledger_runs_after_the_per_item_bullet():
+    bullets = limitations_bullets()
+    per_item = [i for i, b in enumerate(bullets) if b.startswith(PER_ITEM)]
+    assert len(per_item) == 1
+    assert bullets[per_item[0] + 1] == limitations_bullet(committed())
+    assert sum(b.startswith("- The ledger runs (") for b in bullets) == 1
+    assert sum(LINK in b for b in bullets) == 1
+
+
+def test_limitations_bullet_states_the_committed_numbers():
+    assert MODEL not in registry_ids()
+    assert note_spread(committed()["probe"]) == 3  # all-inc_ok 79, 77 and 80; all-abs_ok 58, 59 and 60
+    text = limitations_bullet(committed())
+    for needle in (f"one open model, `{MODEL}`, in every role", "on the probe's 100 items",
+                   "counts differ by at most 3, which ranks no note budget above another",
+                   "on 100 items at each of depths 20, 50 and 100 and in the probe",
+                   "no parent reads a result back", "Third, no price, since `models.json` has no row for that model",
+                   "not the cost or the success of a delegate whose result a parent reads"):
+        assert needle in text, needle
+    assert "lossless" not in text.lower()
+
+
+def test_limitations_bullet_follows_the_file():
+    got = copy.deepcopy(committed())
+    got["model"] = "acme/ledger-1"
+    for row in got["depths"]:
+        row["items"] = 1200
+    got["depths"].append(dict(got["depths"][-1], depth=200))
+    got["probe"]["items"] = 150
+    got["probe"]["arms"][3]["all_abs_ok"] = 62  # 58 to 62 on all-abs_ok, over the 3 of all-inc_ok
+    text = limitations_bullet(got)
+    assert "one open model, `acme/ledger-1`, in every role" in text
+    assert "on the probe's 150 items" in text and "differ by at most 4, which" in text
+    assert "on 1,200 items at each of depths 20, 50, 100 and 200 and in the probe" in text
+
+
+@pytest.mark.parametrize("change, registry, message", [
+    (lambda r: r["depths"][2].update(items=99), set(), "differ in items"),
+    (lambda r: r["probe"]["arms"].reverse(), set(), "first probe arm"),
+    (lambda r: r["probe"]["arms"][1].update(all_inc_ok=86), set(), "differ by 9 items, over 5"),
+    (lambda r: r["probe"]["arms"][2].update(all_abs_ok=53), set(), "differ by 7 items, over 5"),
+    (lambda r: None, {MODEL}, "`no price`"),
+])
+def test_limitations_bullet_refuses_a_file_that_breaks_a_limit(change, registry, message):
+    got = copy.deepcopy(committed())
+    change(got)
+    with pytest.raises(ValueError, match=message):
+        limitations_bullet(got, registry)
+
+
+def test_limitations_bullet_holds_at_the_spread_cap():
+    got = copy.deepcopy(committed())
+    got["probe"]["arms"][1]["all_inc_ok"] = 82  # 77 to 82
+    assert "differ by at most 5, which" in limitations_bullet(got, set())
+
+
+def test_results_md_limits_hold_the_bullets_three_limits():
+    text = RESULTS_MD.read_text(encoding="utf-8")
+    limits = text.split("\n## Limits\n", 1)[1].split("\n## ", 1)[0]
+    bullets = [line for line in limits.splitlines() if line.startswith("- ")]
+    assert len(bullets) == 3
+    assert bullets[0].startswith("- A synthetic ledger task and one open model in every role, one run per item at "
+                                 "temperature 0.7 (the run settings), so the delegate is never cheaper per token than "
+                                 "the parent and none is chosen from a pool")
+    assert bullets[0].endswith("which ranks no note budget above another")
+    assert bullets[1].startswith("- The hand-off is serial: a successor takes over from a note and no parent reads a "
+                                 "result back, so these runs measure what a brief carries forward, not the cost or the "
+                                 "success of a delegate whose result a parent reads")
+    assert bullets[2].startswith(f"- No price: the registry (`model_routing/data/models.json`) has no row for `{MODEL}`")
+
+
+def test_design_specifies_the_limitations_bullet():
+    spec = design_13_15()
+    bullets = [line for line in spec.splitlines() if line.startswith("- README Limitations (v1.462, row DOC29): ")]
+    assert len(bullets) == 1
+    assert bullets[0].startswith("- README Limitations (v1.462, row DOC29): directly after the per-item bullet "
+                                 "(13.8 v1.236), ")
+    template = bullets[0].split(' "', 1)[1].split('". ', 1)[0]
+    filled = (template.replace("{model}", MODEL).replace("{probe `items`}", "100").replace("{spread}", "3")
+              .replace("{items}", "100").replace("{depth}", "20, 50 and 100"))
+    assert "- " + filled == limitations_bullet(committed())
+    for needle in ("{spread} is the largest difference between two note arms'", "whose {spread} is over 5",
+                   "whose `model` has a `models.json` row is refused", "RESULTS.md `## Limits` to state it"):
+        assert needle in bullets[0], needle
+    assert "from v1.462 (row DOC29) it builds the Limitations bullet above from the committed results file" in spec
