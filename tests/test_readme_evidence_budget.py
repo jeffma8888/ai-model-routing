@@ -42,7 +42,7 @@ the registry-pair delegation one (row E25e), fits with its glance bullet. ``HELD
 their a531339 sizes until rows DOC44b to DOC44j trim each to its cap and move it to ``RETRIMMED``; while ``HELD`` is
 not empty the projection is at most ``HOLD_CAP``, 64,500 bytes, and once it is empty the section itself is, while
 ``CLASS`` names twelve headings. ``TRIMMED`` keeps the v1.444 plan, each part at most its ``V1_444_CAPS`` cap.
-Row DOC44b (v1.474) moved ``AutoBench`` and ``AutoBench judges`` to ``RETRIMMED``.
+Row DOC44b (v1.474) moved ``AutoBench`` and ``AutoBench judges`` to ``RETRIMMED``, and row DOC44c (v1.475) ``tau2-bench``.
 """
 import re
 from pathlib import Path
@@ -83,7 +83,7 @@ PENDING = {}
 # Delegation on AutoBench's 1,199, Delegation on LLMRouterBench's 880, Delegation on the LLM Routing Response
 # Bank's 867 and tau2-bench's 776 (TRIMMED) the ce21e81 projection is 69,678 - 7,080 = 62,598.
 # v1.473 (row DOC44a): each part over the v1.473 caps and its size at a531339, until its row trims it.
-HELD = {"tau2-bench": 4_993, "LiveCodeBench": 4_929, "LLMRouterBench": 4_993, "LLM Routing Response Bank": 4_997, "Registry pair": 4_957,
+HELD = {"LiveCodeBench": 4_929, "LLMRouterBench": 4_993, "LLM Routing Response Bank": 4_997, "Registry pair": 4_957,
         "Delegation on AutoBench": 5_499, "Delegation on LLMRouterBench": 5_494,
         "Delegation on the LLM Routing Response Bank": 5_498}
 # The row that trims each held part (v1.473); it moves the part to RETRIMMED as (its a531339 size, its row).
@@ -91,7 +91,8 @@ PLAN_ROWS = {"AutoBench": "DOC44b", "AutoBench judges": "DOC44b", "tau2-bench": 
              "LLMRouterBench": "DOC44e", "LLM Routing Response Bank": "DOC44f", "Registry pair": "DOC44g",
              "Delegation on AutoBench": "DOC44h", "Delegation on LLMRouterBench": "DOC44i",
              "Delegation on the LLM Routing Response Bank": "DOC44j"}
-RETRIMMED = {"AutoBench": (4_664, "DOC44b"), "AutoBench judges": (4_742, "DOC44b")}  # v1.474
+RETRIMMED = {"AutoBench": (4_664, "DOC44b"), "AutoBench judges": (4_742, "DOC44b"),  # v1.474
+             "tau2-bench": (4_993, "DOC44c")}  # v1.475
 # v1.473: the section at a531339, and with each held part at its cap; HOLD_CAP leaves room under SECTION_CAP for
 # a subsection at the delegation cap and GLANCE_ROOM bytes for its glance bullet, its line and newline.
 PLAN_SECTION, PLAN_PROJECTION, HOLD_CAP, GLANCE_ROOM = 67_878, 64_312, 64_500, 500
@@ -695,8 +696,8 @@ def test_a_broken_hold_is_named(text, held, message):
 
 # v1.464 (row DOC39b, review iter-313 nit 3): `This repo` for `The repo` in three licence bullets grew
 # `### tau2-bench` and `### LLMRouterBench` by a byte each, and 12.15 and 12.19 give each size from v1.464.
-TRIM_SIZES = {"tau2-bench": ("12.15", "from v1.464 the README subsection `### tau2-bench` is {:,} bytes by the 12.8 "
-                                      "measure (4,992 from v1.451, "),
+# v1.475 (row DOC44c): the 12.15 bullet of row DOC44c gives the size its trim leaves.
+TRIM_SIZES = {"tau2-bench": ("12.15", "from v1.475 the subsection is {:,} bytes by that measure (4,993 from v1.464)"),
               "LLMRouterBench": ("12.19", "from v1.464 the subsection is {:,} bytes by that measure (4,992 from "
                                           "v1.446, "),
               # v1.474 (row DOC44b): 12.10 and 12.12 give the size each trim leaves.
@@ -715,13 +716,13 @@ def design_subsection(text, number):
     return "\n".join(lines[starts[0]:end])
 
 
-def test_the_trim_bullets_give_the_subsections_size():  # 12.15 and 12.19 to v1.473, with 12.10 and 12.12 from v1.474
+def test_the_trim_bullets_give_the_subsections_size():  # 12.15 and 12.19 to v1.473, 12.10 and 12.12 from v1.474
     readme, design = README.read_text(encoding="utf-8"), DESIGN.read_text(encoding="utf-8")
     sizes = dict(measure(readme)[1:])
     for name, (number, clause) in TRIM_SIZES.items():
         stated = clause.format(sizes[name])
         assert design.count(stated) == 1 and design_subsection(design, number).count(stated) == 1, name
-        assert sizes[name] <= limit(name)  # v1.473: held, until rows DOC44c and DOC44e
+        assert sizes[name] <= limit(name)  # v1.473: held, until rows DOC44c (v1.475) and DOC44e
     # The 12.15 bullet moved to the end of 12.19 is in the file once but no longer in its own subsection.
     tau2 = TRIM_SIZES["tau2-bench"][1].format(sizes["tau2-bench"])
     line = next(line for line in design.split("\n") if tau2 in line)

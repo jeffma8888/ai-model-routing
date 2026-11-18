@@ -19,6 +19,11 @@ v1.451 (DESIGN 12.15 and 12.8 v1.444, row DOC28h): the subsection is trimmed to 
 drops its `Limits:` line and bullet, now the sixth RESULTS.md ``## Reading it`` bullet in full, and its link line
 names that limit; its source lines shed words, each shed clause in RESULTS.md or the evidence README
 (``SHED_SOURCE_CLAUSES``), and it keeps both Reading it bullets.
+
+v1.475 (DESIGN 12.15 v1.475, row DOC44c): to the 12.8 v1.473 routing cap of 4,600 bytes its source lines shed the
+folder and ``customer-service`` (two more ``SHED_SOURCE_CLAUSES``), and, since shedding its `cost_blind` bullet
+instead would leave it over the cap, it drops its `cost_effective` bullet, the start of the first RESULTS.md
+``## Reading it`` bullet, and its link line names that reading.
 """
 
 import importlib.util
@@ -298,8 +303,10 @@ DROPPED_LIMITS = ["The 4 agents date from 2025, and the costs are those the runs
                   "the airline calibration half holds 16 to 35 tasks over the 50 seeds, under "
                   "`min_samples` 30 on 40 of them"]
 # v1.364 (review iter-233 nit 1): the link line says what each of the two RESULTS.md parts holds; v1.451
-# (row DOC28h): it names the dropped limit, the agents' date and costs, and no longer lists the bullets.
-LINK_LINE = ("The other Reading it bullets and limits, the agents' date and costs among them, are in "
+# (row DOC28h): it names the dropped limit, the agents' date and costs, and no longer lists the bullets; v1.475
+# (row DOC44c): it names the dropped `cost_effective` reading (LINK_GROWTH) first.
+LINK_GROWTH = "`cost_effective` reading and the "
+LINK_LINE = ("The " + LINK_GROWTH + "other Reading it bullets and limits, the agents' date and costs among them, are in "
              "[RESULTS.md](evidence/tau2-bench/RESULTS.md#reading-it) `## Reading it`, and the pooled run and "
              "trials 1 to 3, where the sentence under the tables holds on trials 1 and 3 but not on trial 2, in "
              "its [Sensitivity](evidence/tau2-bench/RESULTS.md#sensitivity) part.")
@@ -321,6 +328,9 @@ SHED_SOURCE_CLAUSES = [
     ("how many seeds were routed to each agent", "RESULTS.md", "how many of the 50 seeds routed to each agent"),
     ("what the converter reads:", "RESULTS.md", "for what the converter reads and keeps"),
     ("the pooled and trial 1 to 3 sensitivity runs", "RESULTS.md", "\n## Sensitivity\n"),
+    # v1.475 (row DOC44c): two more, the folder after the revision link and the kind of conversation.
+    ("`data/tau2/results/final`", "RESULTS.md", ", folder `data/tau2/results/final`, the 12 default run files"),
+    ("customer-service", "RESULTS.md", "each in 3 customer-service domains"),
 ]
 # v1.364 (review iter-233 should-fix 1): the one qualifier of a dropped line that RESULTS.md lacked.
 MOVED = "against a nominal one-sided 0.025 for the 0.95 Wilson bound on one agent."
@@ -387,42 +397,61 @@ def test_readme_tau2_tables_counts_and_single_agent_sentence_are_the_committed_r
     assert beats_statement(results) in section
 
 
-def kept_bullets(results):
-    """The two Reading it bullets the subsection keeps (12.15 v1.362; its one Limits bullet to v1.450),
-    built from the RESULTS.md phrases of the committed file."""
+def reading_bullets(results):
+    """The two Reading it bullets the subsection kept (12.15 v1.362; its one Limits bullet to v1.450), the
+    `cost_effective` one and the `cost_blind` one, built from the RESULTS.md phrases of the committed file;
+    from v1.475 (12.15 v1.475, row DOC44c) it keeps the second alone (kept_bullets)."""
     phrases = reading_phrases(results)
     return [f"- `cost_effective`: {phrases[0]}, and the router {phrases[1]}. {phrases[2]}",
             f"- {phrases[3]}"]
 
 
+def kept_bullets(results):
+    return reading_bullets(results)[1:]
+
+
 def test_readme_tau2_reading_numbers_are_the_committed_results():
     # v1.363 (12.15 v1.362): only the phrases of the two kept bullets are in the subsection; the
     # others, which test_results_md_reading_numbers_are_the_committed_results requires in RESULTS.md,
-    # are not.
+    # are not. v1.475 (row DOC44c): one kept bullet, so the three `cost_effective` phrases are not either.
     results, section = committed(), readme_subsection()
     phrases = [p for p in reading_phrases(results) if not p.startswith("the committed file,")]
     assert len(phrases) == len(reading_phrases(results)) - 1
-    kept = kept_bullets(results)[:2]
-    shown = [p for p in phrases if p in kept[0] or p in kept[1]]
-    # A guard on which phrases the kept bullets hold (the first four); the check is the loop below.
-    assert shown == phrases[:4], shown
+    kept = kept_bullets(results)
+    assert len(kept) == 1
+    shown = [p for p in phrases if p in kept[0]]
+    # A guard on which phrases the kept bullet holds (the fourth, `cost_blind`); the check is the loop below.
+    assert shown == phrases[3:4], shown
     for phrase in phrases:
         assert (phrase in section) == (phrase in shown), phrase
 
 
-def test_readme_tau2_keeps_two_bullets_and_a_link_line():
+def test_readme_tau2_keeps_one_bullet_and_a_link_line():
     """v1.363 (12.15 v1.362): after its four source bullets the subsection's only bullets are the
     `cost_effective` and `cost_blind` Reading it bullets (and, to v1.450, the first limit), then the
     link line and the regenerate paragraph; the link's anchors are the RESULTS.md `## Reading it`
     heading, since that file has no `## Caveats` or `## Assumed`, and its `## Sensitivity` heading;
-    each dropped limit phrase is in RESULTS.md alone. v1.451 (row DOC28h): no `Limits:` line."""
+    each dropped limit phrase is in RESULTS.md alone. v1.451 (row DOC28h): no `Limits:` line. v1.475
+    (12.15 v1.475, row DOC44c): `cost_blind` alone; the dropped `cost_effective` bullet opens the first
+    RESULTS.md `## Reading it` bullet, and with the second shed instead the subsection would be over its
+    cap, the number 12.15 states."""
     results, section, md = committed(), readme_subsection(), results_md()
     kept = kept_bullets(results)
-    block = f"Reading it:\n\n{kept[0]}\n{kept[1]}\n\n{LINK_LINE}\n\n{REGENERATE_LINE}\n\n```bash\n"
+    block = f"Reading it:\n\n{kept[0]}\n\n{LINK_LINE}\n\n{REGENERATE_LINE}\n\n```bash\n"
     assert section.count(block) == 1
     assert "\nLimits:\n" not in section
     bullets = [line for line in section.splitlines() if line.startswith("- ")]
-    assert len(bullets) == 6 and bullets[4:] == kept
+    assert len(bullets) == 5 and bullets[4:] == kept
+    dropped = reading_bullets(results)[0]
+    assert dropped not in section and "- `cost_effective`:" not in section
+    reading = md.split("\n## Reading it\n\n", 1)[1]
+    assert reading.startswith(dropped + ". As the bar rises fewer cells clear")
+    assert LINK_LINE.startswith("The `cost_effective` reading and the other Reading it bullets")
+    size = len(f"### tau2-bench\n{section}\n".encode())
+    instead = size - len(LINK_GROWTH.encode()) + len(dropped.encode()) - len(kept[0].encode())
+    assert size <= 4_600 < instead
+    design = (ROOT / "DESIGN.md").read_text(encoding="utf-8")
+    assert design.count(f"`cost_blind`, shed instead it would be {instead:,} bytes, over its cap") == 1
     assert section.index(beats_statement(results)) < section.index("\nReading it:\n")
     for heading in ("\n## Reading it\n", "\n## Sensitivity\n"):
         assert md.count(heading) == 1, heading
@@ -441,7 +470,7 @@ def test_readme_tau2_links_source_licence_limits_and_commands(cv):
     revision = cv.REVISION
     for needle in ("[sierra-research/tau2-bench](https://github.com/sierra-research/tau2-bench)",
                    f"[`{revision[:7]}`](https://github.com/sierra-research/tau2-bench/tree/"
-                   f"{revision})", "`data/tau2/results/final`", "MIT",
+                   f"{revision})", "MIT",
                    '"Copyright (c) 2025 Sierra Research"', "(evidence/tau2-bench/RESULTS.md)",
                    "(evidence/tau2-bench/results.json)", "(evidence/tau2-bench/README.md)",
                    "`reward_info.reward`", "`agent_cost`", "`user_cost`",
@@ -463,7 +492,7 @@ def test_readme_tau2_shed_source_clauses_are_in_their_homes():
     section = readme_subsection()
     homes = {"RESULTS.md": results_md(), "README.md": (FOLDER / "README.md").read_text(encoding="utf-8"),
              None: section}
-    assert len(SHED_SOURCE_CLAUSES) == 12
+    assert len(SHED_SOURCE_CLAUSES) == 14  # 12 from v1.451, 14 from v1.475 (row DOC44c)
     for gone, home, words in SHED_SOURCE_CLAUSES:
         assert gone not in section, gone
         assert words in homes[home], (home, words)
