@@ -104,8 +104,9 @@
       "price_in": 2,
       "price_out": 6,
       "context_window": 500000,
+      "price_tiers": [{"above_input_tokens": 200000, "price_in": 4, "price_out": 12}],
       "source": "https://docs.x.ai/docs/models/grok-4.7",
-      "notes": "price for context up to 200K tokens; higher beyond that"
+      "notes": "price for context up to 200K tokens; longer prompts cost 4.00 in and 12.00 out, from the price data its page embeds (read 2026-11-17)"
     }
   ]
 }

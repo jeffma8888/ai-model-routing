@@ -5,7 +5,12 @@ price_out)`. `Model.cost` prices one call: a call whose input is over a tier's t
 the last such tier's prices on all of its tokens. `Model.base_cost` keeps the linear price at
 `price_in` and `price_out`; from v1.219 the 13.2 decision prices a tiered model per call
 (tests/test_delegation_tiers.py), and from v1.222 the 13.9 held-out costs do too
-(tests/test_delegation_eval_tiers.py)."""
+(tests/test_delegation_eval_tiers.py).
+
+DESIGN 4.1 and 9 v1.455 (row P4): the `xai/grok-4.7` row gains its tier over 200,000 input
+tokens at 4 and 12, read from the price data its page embeds, whose base prices in that data's
+units are the page's visible 2.00, 0.50 and 6.00, since the page's text gives no long-prompt
+rate."""
 
 import dataclasses
 import json
@@ -72,6 +77,32 @@ def test_design_specifies_price_tiers():
         "`openai/gpt-6-astra`, 272000, 20 and 75",
         "- v1.212 every `Model.cost` that 13.2 and 13.9 name is `Model.base_cost` (4.1)",
         "- v1.212 (2026-11-10): spec and tests (row P1).",
+    ]:
+        assert text.count(fragment) == 1, fragment
+
+
+GROK_NOTES = ("price for context up to 200K tokens; longer prompts cost 4.00 in and 12.00 out, "
+              "from the price data its page embeds (read 2026-11-17)")
+
+
+def test_design_specifies_the_grok_tier_and_where_its_rates_come_from():
+    """DESIGN 4.1 and 9 v1.455 (row P4): a tier read from a page's embedded price data, its unit
+    fixed by the visible prices, and the grok-4.7 reading with the row's new notes."""
+    text = ((ROOT / "DESIGN.md").read_text(encoding="utf-8")
+            + (ROOT / "CHANGELOG.md").read_text(encoding="utf-8"))  # DESIGN 15 v1.326: the changelog
+    for fragment in [
+        "- v1.455 where a tier's rates come from (row P4):",
+        "whose base prices, in the data's units, are the page's visible prices",
+        "- v1.455 the `xai/grok-4.7` tier (row P4):",
+        "`promptTextTokenPrice` 20000, `cachedPromptTokenPrice` 5000 and "
+        "`completionTextTokenPrice` 60000, the visible 2.00, 0.50 and 6.00 USD",
+        "so one unit is 0.0001 USD per 1M tokens",
+        "`longContextThreshold` 200000, `promptTextTokenPriceLongContext` 40000 and "
+        "`completionTokenPriceLongContext` 120000",
+        '`price_tiers` `[{"above_input_tokens": 200000, "price_in": 4, "price_out": 12}]`',
+        f"its `notes` become `{GROK_NOTES}`",
+        "so to v1.454 its row had no `price_tiers` and kept its note (v1.455 below)",
+        "- v1.455 (2026-11-17): data, docs and tests (4.1, 9, row P4).",
     ]:
         assert text.count(fragment) == 1, fragment
 
@@ -211,7 +242,8 @@ def test_packaged_registry_tiers():
     assert (raw["version"], raw["as_of"]) == ("2026.10.29", "2026-10-29")
     registry = Registry.load(DATA_DIR / "models.json")
     expected = {"anthropic/claude-haiku-5.5": (tier(100_000, 0.5, 2.5),),
-                "openai/gpt-6-astra": (tier(272_000, 20.0, 75.0),)}
+                "openai/gpt-6-astra": (tier(272_000, 20.0, 75.0),),
+                "xai/grok-4.7": (tier(200_000, 4.0, 12.0),)}  # v1.455 (row P4)
     assert len(registry) == 12 and "xai/grok-4.7" in registry
     for model in registry.models:
         assert model.price_tiers == expected.get(model.id, ()), model.id
@@ -222,7 +254,26 @@ def test_packaged_registry_tiers():
     assert haiku.cost(100_001, 1_000) == linear(100_001, 1_000, 0.5, 2.5)
     assert astra.cost(272_001, 1_000) == linear(272_001, 1_000, 20.0, 75.0)
     grok = registry.get("xai/grok-4.7")
-    assert grok.cost(300_000, 1_000) == linear(300_000, 1_000, 2.0, 6.0)
+    assert (grok.price_in, grok.price_out, grok.context_window) == (2, 6, 500_000)
+    assert grok.cost(200_000, 1_000) == linear(200_000, 1_000, 2.0, 6.0)
+    assert grok.cost(200_001, 1_000) == linear(200_001, 1_000, 4.0, 12.0)
+    assert grok.cost(300_000, 1_000) == linear(300_000, 1_000, 4.0, 12.0)
+    assert grok.base_cost(300_000, 1_000) == linear(300_000, 1_000, 2.0, 6.0)
+
+
+def test_the_packaged_grok_row_is_its_v1_455_text():
+    """DESIGN 9 v1.455 (row P4): the row's keys in the tiered rows' order, the tier, the source
+    and the notes that say where the rates come from and when they were read."""
+    raw = json.loads((DATA_DIR / "models.json").read_text(encoding="utf-8"))
+    rows = [r for r in raw["models"] if r["id"] == "xai/grok-4.7"]
+    assert len(rows) == 1
+    assert list(rows[0].items()) == [
+        ("id", "xai/grok-4.7"), ("family", "xai"), ("price_in", 2), ("price_out", 6),
+        ("context_window", 500000),
+        ("price_tiers", [{"above_input_tokens": 200000, "price_in": 4, "price_out": 12}]),
+        ("source", "https://docs.x.ai/docs/models/grok-4.7"), ("notes", GROK_NOTES)]
+    haiku = next(r for r in raw["models"] if r["id"] == "anthropic/claude-haiku-5.5")
+    assert list(haiku)[:7] == list(rows[0])[:7]
 
 
 def test_router_prices_one_call_of_the_task_sizes_at_its_tier():
@@ -261,11 +312,12 @@ README_NOTES = [
     "in and 2.50 out, and its `models.json` row prices them as a tier over 100,000 input tokens",
     "- gpt-6-astra: prompts over 272K input tokens are billed at 2x input and 1.5x output, and "
     "its `models.json` row prices them as a tier over 272,000 input tokens at 20 in and 75 out",
-    "- grok-4.7: price for context up to 200K tokens; higher beyond that, at rates its page does "
-    "not state, so its `models.json` row has no tier and a longer call is costed at 2 / 6",
+    "- grok-4.7: price for context up to 200K tokens; longer prompts cost 4.00 in and 12.00 out, "
+    "rates its page gives in its embedded price data but not in its text, and its `models.json` "
+    "row prices them as a tier over 200,000 input tokens",
 ]
 README_LIMITATION = (
-    "- A long-prompt tier is costed per call where `models.json` gives its rates (`price_tiers`, `DESIGN.md` 4.1): a call whose input is over the tier's threshold pays the tier's prices on all of its input and output tokens, as the claude-haiku-5.5 and gpt-6-astra pages state, and the inline-or-delegate cost and the held-out costs of the delegation evidence price each work call and each later parent call at its own tier (`DESIGN.md` 13.2, 13.9). Only grok-4.7 over 200K input tokens stays at the base prices, so a call there is under-costed: its page says the rates are higher without stating them. The parent's own output in a later call, its next step after the work, is charged on neither path, since no input gives it a size, so where a path's additions take that call over a threshold the higher price of that output is left out. A task whose line is a whole conversation, such as `tool_calling_support_agent`, is costed as one call of the conversation's summed sizes, so a tiered model can be costed at its higher price although each of its calls is shorter")
+    "- A long-prompt tier is costed per call where `models.json` gives its rates (`price_tiers`, `DESIGN.md` 4.1): a call whose input is over the tier's threshold pays the tier's prices on all of its input and output tokens, as the claude-haiku-5.5 and gpt-6-astra pages state, and the inline-or-delegate cost and the held-out costs of the delegation evidence price each work call and each later parent call at its own tier (`DESIGN.md` 13.2, 13.9). The grok-4.7 tier, 4 in and 12 out over 200,000 input tokens, is read from the price data its page embeds, since its text says only that requests over 200K tokens are charged different rates, so that the whole request pays them is read from that sentence, not stated. The parent's own output in a later call, its next step after the work, is charged on neither path, since no input gives it a size, so where a path's additions take that call over a threshold the higher price of that output is left out. A task whose line is a whole conversation, such as `tool_calling_support_agent`, is costed as one call of the conversation's summed sizes, so a tiered model can be costed at its higher price although each of its calls is shorter")
 
 
 def section(text, heading):
@@ -288,3 +340,6 @@ def test_readme_pricing_notes_and_limitation():
                    for line in lines)
     # v1.242 (row P1d): the parent's own output is uncharged, not at the base prices
     assert not any("Two costs stay at the base prices" in line for line in lines)
+    # v1.455 (row P4): no packaged row is left at its base prices over a stated threshold
+    assert not any("stays at the base prices" in line or "without stating them" in line
+                   or "costed at 2 / 6" in line for line in lines)

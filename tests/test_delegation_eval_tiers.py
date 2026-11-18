@@ -292,9 +292,11 @@ README_LIMITATION = (
     "`DESIGN.md` 4.1): a call whose input is over the tier's threshold pays the tier's prices on "
     "all of its input and output tokens, as the claude-haiku-5.5 and gpt-6-astra pages state, "
     "and the inline-or-delegate cost and the held-out costs of the delegation evidence price each "
-    "work call and each later parent call at its own tier (`DESIGN.md` 13.2, 13.9). Only "
-    "grok-4.7 over 200K input tokens stays at the base prices, so a call there is under-costed: "
-    "its page says the rates are higher without stating them. The parent's own output in a later "
+    "work call and each later parent call at its own tier (`DESIGN.md` 13.2, 13.9). The "
+    "grok-4.7 tier, 4 in and 12 out over 200,000 input tokens, is read from the price data its "
+    "page embeds, since its text says only that requests over 200K tokens are charged different "
+    "rates, so that the whole request pays them is read from that sentence, not stated. The "
+    "parent's own output in a later "
     "call, its next step after the work, is charged on neither path, since no input gives it a "
     "size, so where a path's additions take that call over a threshold the higher price of that "
     "output is left out. A task whose line "
@@ -303,9 +305,11 @@ README_LIMITATION = (
     "each of its calls is shorter")
 
 
-def test_readme_limitation_names_the_one_cost_still_at_the_base_prices():
+def test_readme_limitation_names_where_the_grok_tier_comes_from():
     """Moved here from tests/test_delegation_tiers.py in v1.223; from v1.242 (row P1d) one cost
-    stays at the base prices and the parent's own output has a sentence of its own."""
+    stays at the base prices and the parent's own output has a sentence of its own; from v1.455
+    (row P4) grok-4.7 has its tier, read from its page's embedded price data, and no cost is left
+    at the base prices."""
     lines = (ROOT / "README.md").read_text(encoding="utf-8").split("\n")
     assert lines.count(README_LIMITATION) == 1
     assert not any("whose registries have no tiers" in line
