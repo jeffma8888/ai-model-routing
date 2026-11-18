@@ -3,10 +3,11 @@
 Usage:
   python research/no_model_clears.py --routerbench MATRIX.jsonl --autobench MATRIX.jsonl \
       --judges MATRIX.jsonl --judges-registry MODELS.json --tau2 MATRIX.jsonl \
-      --llmrouterbench MATRIX.jsonl --response-bank MATRIX.jsonl
+      --llmrouterbench MATRIX.jsonl --response-bank MATRIX.jsonl --registry-pair MATRIX.jsonl
 
-Runs `evaluate` (DESIGN 12.3) on the `cost_effective` flavor of the first six routing datasets that
-record a cost (LLMRouterBench and the LLM Routing Response Bank from v1.341), with the bars,
+Runs `evaluate` (DESIGN 12.3) on the `cost_effective` flavor of the seven routing datasets that
+record a cost (LLMRouterBench and the LLM Routing Response Bank from v1.341, the registry
+pair from v1.459), with the bars,
 seeds and options of each committed results file, and prints, per bar, the cells on which no
 model clears and, on them, the held-out success and cost of the router's fallback (5.3
 `best_available`: the highest calibration bound), of the cheapest model and of
@@ -32,7 +33,8 @@ DATASETS = (("RouterBench", "evidence/routerbench/results.json", "routerbench"),
             ("AutoBench judges", "evidence/autobench-judges/results.json", "judges"),
             ("tau2-bench", "evidence/tau2-bench/results.json", "tau2"),
             ("LLMRouterBench", "evidence/llmrouterbench/results.json", "llmrouterbench"),
-            ("LLM Routing Response Bank", "evidence/response-bank/results.json", "response_bank"))
+            ("LLM Routing Response Bank", "evidence/response-bank/results.json", "response_bank"),
+            ("Registry pair", "evidence/registry-pair/results.json", "registry_pair"))
 # printed label, 12.3 strategy
 ROWS = (("fallback", "routed"), ("cheapest", "cheapest"), ("best_on_calibration", "best_on_calibration"))
 FLAVOR = "cost_effective"
@@ -122,6 +124,7 @@ def main(argv=None) -> int:
     parser.add_argument("--tau2", required=True)
     parser.add_argument("--llmrouterbench", required=True)
     parser.add_argument("--response-bank", required=True)
+    parser.add_argument("--registry-pair", required=True)
     parser.add_argument("--root", type=Path, default=ROOT,
                         help="repository root holding evidence/ (default: this checkout)")
     args = parser.parse_args(argv)

@@ -1,21 +1,22 @@
 # When no model clears the bar
 
-Question: on a cell where no model clears the task's bar, a task whose `on_no_model` is `best_available` makes the router take the measured model with the highest calibration bound (`DESIGN.md` 5.3), in `cost_effective` as in `cost_blind`, whatever its price. Should a `cost_effective` router take the cheapest model there instead? Short answer: keep 5.3. On the first six routing datasets that record a cost its fallback is the `best_on_calibration` model on every such cell, and the cheapest model loses most of the held-out success where the models are far apart (the whole RouterBench row at bar 0.9 falls from 0.819 to 0.351, the AutoBench one from 0.858 to 0.453). It saves cost for about the same success only where the models are close, as on tau2-bench at bars 0.3 to 0.6 and on the AutoBench judges. On LLMRouterBench and the LLM Routing Response Bank it raises the whole row's success at no bar, and its large savings cost 0.041 to 0.055 of it on LLMRouterBench at bars 0.3 to 0.8 and 0.027 on the response bank at bar 0.9.
+Question: on a cell where no model clears the task's bar, a task whose `on_no_model` is `best_available` makes the router take the measured model with the highest calibration bound (`DESIGN.md` 5.3), in `cost_effective` as in `cost_blind`, whatever its price. Should a `cost_effective` router take the cheapest model there instead? Short answer: keep 5.3. On the seven routing datasets that record a cost its fallback is the `best_on_calibration` model on every such cell, and the cheapest model loses most of the held-out success where the models are far apart (the whole RouterBench row at bar 0.9 falls from 0.819 to 0.351, the AutoBench one from 0.858 to 0.453). It saves cost for about the same success only where the models are close, as on tau2-bench at bars 0.3 to 0.6 and on the AutoBench judges. On LLMRouterBench, the LLM Routing Response Bank and the registry pair it raises the whole row's success at no bar, and its large savings cost 0.041 to 0.055 of it on LLMRouterBench at bars 0.3 to 0.8, 0.027 on the response bank at bar 0.9 and 0.028 on the registry pair at bar 0.9.
 
 ## Facts
 
-- In `cost_effective` no model clears on 19.6% to 88.9% of the RouterBench cells at bars 0.6 to 0.9, on none of the AutoBench or AutoBench judges cells at bars 0.6 and 0.7 and on 34.0% and 44.0% of them at 0.8, on 33.3% to 100.0% of the tau2-bench cells at bars 0.3 to 0.8, on 5.6% to 74.4% of the LLMRouterBench cells at bars 0.1 to 0.8 and on 26.5% and 99.5% of the response-bank cells at bars 0.8 and 0.9
+- In `cost_effective` no model clears on 19.6% to 88.9% of the RouterBench cells at bars 0.6 to 0.9, on none of the AutoBench or AutoBench judges cells at bars 0.6 and 0.7 and on 34.0% and 44.0% of them at 0.8, on 33.3% to 100.0% of the tau2-bench cells at bars 0.3 to 0.8, on 5.6% to 74.4% of the LLMRouterBench cells at bars 0.1 to 0.8, on 26.5% and 99.5% of the response-bank cells at bars 0.8 and 0.9 and on 3.3% to 50.7% of the registry-pair cells at bars 0.6 to 0.9
 - On every one of those cells the router's fallback is the `best_on_calibration` model, so the two rows are equal on every dataset and bar
 - The cheapest model scores 0.165 to 0.257 of held-out success on those RouterBench cells against the fallback's 0.511 to 0.798, and reaches the bar on none of them; on AutoBench it scores 0.454 and 0.453 against 0.861 and 0.857
 - On the AutoBench judges cells it scores 0.822 and 0.816 against 0.840 and 0.831, at 0.000164 USD per item against 0.000297 and 0.000306
 - On tau2-bench at bars 0.4 to 0.6 the cheapest agent scores 0.448, 0.447 and 0.452 on those cells against the fallback's 0.440, 0.439 and 0.444, at 0.035493, 0.035056 and 0.034771 USD per item against 0.184082, 0.184417 and 0.182711; at bars 0.7 and 0.8 it loses 0.022 and 0.030 of the whole row's success for 74.5% and 88.4% less cost
 - On LLMRouterBench the cheapest model scores 0.046 to 0.706 on those cells against the fallback's 0.269 to 0.844; with it as the fallback the whole row loses 0.041 to 0.055 of success at bars 0.3 to 0.8 for 70.3% to 96.5% less cost
 - On the response bank it scores 0.929 and 0.847 against 0.932 and 0.874 at bars 0.8 and 0.9; the whole row keeps its 0.847 at bar 0.8 for 0.6% less cost and loses 0.027 at bar 0.9 for 90.5% less
-- Recommendation: keep 5.3 in both flavors and add no `on_no_model` value; README Limitations says what the fallback costs on tau2-bench. LLMRouterBench and the response bank, read since 2026-11-13, leave it as it was
+- On the registry pair it scores 0.861, 0.791, 0.778 and 0.840 on those cells against the fallback's 0.861, 0.851, 0.847 and 0.886 at bars 0.6 to 0.9; the whole row keeps its 0.885 at bar 0.6 for 1.4% less cost and loses 0.001 to 0.028 at bars 0.7 to 0.9 for 5.9% to 71.3% less
+- Recommendation: keep 5.3 in both flavors and add no `on_no_model` value; README Limitations says what the fallback costs on tau2-bench. LLMRouterBench and the response bank, read since 2026-11-13, and the registry pair, read since 2026-11-17, leave it as it was
 
 ## Method
 
-- Datasets: the first six routing evidence datasets whose outcomes carry a cost, [RouterBench](../evidence/routerbench/RESULTS.md) (`DESIGN.md` 12.7), [AutoBench](../evidence/autobench-2026/RESULTS.md) (12.10), [AutoBench judges](../evidence/autobench-judges/RESULTS.md) (12.12), [tau2-bench](../evidence/tau2-bench/RESULTS.md) (12.15), [LLMRouterBench](../evidence/llmrouterbench/RESULTS.md) (12.19) and the [LLM Routing Response Bank](../evidence/response-bank/RESULTS.md) (12.21). LiveCodeBench records no cost, so a cheapest model is not defined there
+- Datasets: the seven routing evidence datasets whose outcomes carry a cost, [RouterBench](../evidence/routerbench/RESULTS.md) (`DESIGN.md` 12.7), [AutoBench](../evidence/autobench-2026/RESULTS.md) (12.10), [AutoBench judges](../evidence/autobench-judges/RESULTS.md) (12.12), [tau2-bench](../evidence/tau2-bench/RESULTS.md) (12.15), [LLMRouterBench](../evidence/llmrouterbench/RESULTS.md) (12.19), the [LLM Routing Response Bank](../evidence/response-bank/RESULTS.md) (12.21) and the [registry pair](../evidence/registry-pair/RESULTS.md) (12.24). LiveCodeBench records no cost, so a cheapest model is not defined there
 - Each matrix is the one its RESULTS.md Regenerate block writes. [no_model_clears.py](no_model_clears.py) runs `evaluate` ([DESIGN.md](../DESIGN.md) 12.3) on it with the bars, seeds and options of the committed results file, on the `cost_effective` flavor alone, and stops unless the routed row it gets at each bar is the committed one
 - A cell is one (bar, seed, task). No model clears it when its `cleared` is false: no candidate passes on the calibration half, so the router, which `evaluate` builds with `on_no_model="best_available"`, takes the 5.3 fallback, the measured model with the highest Wilson lower bound, then the lower cost
 - Three choices are scored on the held-out halves of those cells: `fallback` (the routed model), `cheapest` (the model with the lowest mean calibration cost, the `cheapest` baseline of 12.3, which a fallback by price would take) and `best_on_calibration` (the highest calibration success, then the lower cost). Success is the held-out items a choice answered correctly over the held-out items, pooled over the cells; cost per item is the held-out cost over the same items; "at the bar or above" counts the cells whose held-out success reaches the bar
@@ -24,7 +25,7 @@ Question: on a cell where no model clears the task's bar, a task whose `on_no_mo
 ## Results
 
 ```text
-$ python research/no_model_clears.py --routerbench routerbench-matrix.jsonl --autobench autobench-matrix.jsonl --judges autobench-judges.jsonl --judges-registry autobench-models.json --tau2 tau2-matrix.jsonl --llmrouterbench llmrouterbench-matrix.jsonl --response-bank response-bank-matrix.jsonl
+$ python research/no_model_clears.py --routerbench routerbench-matrix.jsonl --autobench autobench-matrix.jsonl --judges autobench-judges.jsonl --judges-registry autobench-models.json --tau2 tau2-matrix.jsonl --llmrouterbench llmrouterbench-matrix.jsonl --response-bank response-bank-matrix.jsonl --registry-pair registry-pair-matrix.jsonl
 RouterBench (evidence/routerbench/results.json): 65 tasks, 11 models, bars 0.6, 0.7, 0.8, 0.9, 50 seeds
   bar 0.6: no model clears on 637 of 3,250 cost_effective cells (19.6%), 47,141 held-out items; tasks with such a cell: 21 of 65
     the routed model is best_on_calibration's on 637 and the cheapest model's on 0
@@ -184,6 +185,32 @@ LLM Routing Response Bank (evidence/response-bank/results.json): 4 tasks, 5 mode
     cheapest             success 0.847  cost per item 0.000816 USD  at the bar or above on 65 (32.7%)
     best_on_calibration  success 0.874  cost per item 0.008636 USD  at the bar or above on 85 (42.7%)
     whole row: routed success 0.874 at 57.4387 USD; with the cheapest model as the fallback 0.847 at 5.4364 USD (success -0.027, cost -90.5%)
+
+Registry pair (evidence/registry-pair/results.json): 31 tasks, 2 models, bars 0.6, 0.7, 0.8, 0.9, 50 seeds
+  bar 0.6: no model clears on 51 of 1,550 cost_effective cells (3.3%), 582 held-out items; tasks with such a cell: 2 of 31
+    the routed model is best_on_calibration's on 51 and the cheapest model's on 32
+    fallback             success 0.861  cost per item 0.000718 USD  at the bar or above on 51 (100.0%)
+    cheapest             success 0.861  cost per item 0.000125 USD  at the bar or above on 51 (100.0%)
+    best_on_calibration  success 0.861  cost per item 0.000718 USD  at the bar or above on 51 (100.0%)
+    whole row: routed success 0.885 at 0.4882 USD; with the cheapest model as the fallback 0.885 at 0.4813 USD (success +0.000, cost -1.4%)
+  bar 0.7: no model clears on 67 of 1,550 cost_effective cells (4.3%), 2,401 held-out items; tasks with such a cell: 4 of 31
+    the routed model is best_on_calibration's on 67 and the cheapest model's on 32
+    fallback             success 0.851  cost per item 0.001404 USD  at the bar or above on 66 (98.5%)
+    cheapest             success 0.791  cost per item 0.000186 USD  at the bar or above on 66 (98.5%)
+    best_on_calibration  success 0.851  cost per item 0.001404 USD  at the bar or above on 66 (98.5%)
+    whole row: routed success 0.892 at 0.9864 USD; with the cheapest model as the fallback 0.891 at 0.9279 USD (success -0.001, cost -5.9%)
+  bar 0.8: no model clears on 248 of 1,550 cost_effective cells (16.0%), 24,689 held-out items; tasks with such a cell: 13 of 31
+    the routed model is best_on_calibration's on 248 and the cheapest model's on 38
+    fallback             success 0.847  cost per item 0.001787 USD  at the bar or above on 203 (81.9%)
+    cheapest             success 0.778  cost per item 0.000228 USD  at the bar or above on 134 (54.0%)
+    best_on_calibration  success 0.847  cost per item 0.001787 USD  at the bar or above on 203 (81.9%)
+    whole row: routed success 0.906 at 2.2621 USD; with the cheapest model as the fallback 0.895 at 1.4924 USD (success -0.011, cost -34.0%)
+  bar 0.9: no model clears on 786 of 1,550 cost_effective cells (50.7%), 94,654 held-out items; tasks with such a cell: 21 of 31
+    the routed model is best_on_calibration's on 786 and the cheapest model's on 89
+    fallback             success 0.886  cost per item 0.001532 USD  at the bar or above on 355 (45.2%)
+    cheapest             success 0.840  cost per item 0.000183 USD  at the bar or above on 207 (26.3%)
+    best_on_calibration  success 0.886  cost per item 0.001532 USD  at the bar or above on 355 (45.2%)
+    whole row: routed success 0.917 at 3.5815 USD; with the cheapest model as the fallback 0.889 at 1.0285 USD (success -0.028, cost -71.3%)
 ```
 
 ## Reading it
@@ -203,18 +230,25 @@ LLM Routing Response Bank (evidence/response-bank/results.json): 4 tasks, 5 mode
 - Its five models are close on these cells: the cheapest scores 0.929 against 0.932 at bar 0.8 and 0.847 against 0.874 at 0.9, at 0.005311 against 0.006832 and 0.000816 against 0.008636 USD per item, and reaches the bar on 51 against 52 and 65 against 85 of them. The whole row keeps its 0.847 at bar 0.8 for 0.6% less cost, and at 0.9 loses 0.027 for 90.5% less, near the trades tau2-bench shows at bars 0.7 and 0.8 (0.022 for 74.5%, 0.030 for 88.4%)
 - So the two datasets leave the recommendation as it was: at every bar of both the fallback keeps at least as much of the whole row's success as the cheapest model, which changes it by -0.000 to -0.055. On LLMRouterBench a fallback by price cuts the row's cost most at bars 0.5 to 0.7, by 90.3% to 96.5%, and there loses 0.049 to 0.051 of its success; whether a rule between the two (Recommendation, third bullet) would keep more of that saving for less of the loss is not measured here
 
+## The registry pair (2026-11-17)
+
+- On the registry pair (2 models, the registry's own) no model clears on 51 of the 1,550 `cost_effective` cells at bar 0.6 (3.3%), on 2 of its 31 tasks, rising to 248 (16.0%) on 13 at bar 0.8 and 786 (50.7%) on 21 at bar 0.9; on every one of these cells the fallback is the `best_on_calibration` model, as on the six datasets before, and on 32, 32, 38 and 89 of them the cheapest model is that model too
+- On those cells the cheapest model scores 0.861 against 0.861 at bar 0.6, 0.791 against 0.851 at bar 0.7, 0.778 against 0.847 at bar 0.8 and 0.840 against 0.886 at bar 0.9, at 0.000125 to 0.000228 USD per item against the fallback's 0.000718 to 0.001787, and reaches the bar on 51 against 51, 66 against 66, 134 against 203 and 207 against 355 of them
+- With it as the fallback the whole row keeps its 0.885 at bar 0.6 for 1.4% less cost and loses 0.001 at bar 0.7, 0.011 at bar 0.8 and 0.028 at bar 0.9, for 5.9%, 34.0% and 71.3% less
+- So the registry pair leaves the recommendation as it was: at no bar does the cheapest model raise the whole row's success, and its saving rises with the bar, from 1.4% at bar 0.6, where no model clears on 3.3% of the cells, to 71.3% at bar 0.9, where it is 50.7%
+
 ## Recommendation
 
-- Keep 5.3 as it is in both flavors, and keep `refuse` as the default of `on_no_model`. A fallback by price would cut the whole row's cost by 0.6% to 99.5% on these six datasets, but where the models are far apart it gives up most of the success the fallback keeps: 0.469 on RouterBench and 0.404 on AutoBench at bar 0.9. Where it saves on tau2-bench, its success gain on the whole row is at most 0.005, and on LLMRouterBench and the response bank it gains none
+- Keep 5.3 as it is in both flavors, and keep `refuse` as the default of `on_no_model`. A fallback by price would cut the whole row's cost by 0.6% to 99.5% on these seven datasets, but where the models are far apart it gives up most of the success the fallback keeps: 0.469 on RouterBench and 0.404 on AutoBench at bar 0.9. Where it saves on tau2-bench, its success gain on the whole row is at most 0.005, and on LLMRouterBench, the response bank and the registry pair it gains none
 - Add no `on_no_model` value now. A user who wants the cheaper model where nothing clears can set a bar it clears, or `refuse` and handle `NoModelClearsBar`
 - A rule between the two, the cheapest model whose calibration success cannot be told apart from the best's, might keep the tau2-bench saving without the RouterBench loss. The cells keep no calibration counts, so it is not measured here; it would be a new research row before any spec change
 
 ## Limits
 
 - Calibration and held-out halves are each dataset's own seeded splits, so this compares the choices on held-out halves of the same data, not on new data
-- Two of the six datasets route one pooled task (AutoBench and the AutoBench judges), so their cells are seeds of one task; RouterBench's are 65 tasks, tau2-bench's 3, LLMRouterBench's 9 and the response bank's 4. With more than five tasks the script counts the tasks that hold such a cell instead of naming them, so of the LLMRouterBench tasks with such a cell this note names only `aime`, the one its RESULTS.md names
+- Two of the seven datasets route one pooled task (AutoBench and the AutoBench judges), so their cells are seeds of one task; RouterBench's are 65 tasks, tau2-bench's 3, LLMRouterBench's 9, the response bank's 4 and the registry pair's 31. With more than five tasks the script counts the tasks that hold such a cell instead of naming them, so of the LLMRouterBench tasks with such a cell this note names only `aime`, the one its RESULTS.md names, and it names no registry-pair task
 - `cheapest` is the model with the lowest mean calibration cost, whatever its success; no choice that weighs cost against the bound is measured here
-- Costs are each results file's own (12.7, 12.10, 12.12, 12.15, 12.19 and 12.21 say how each is priced)
+- Costs are each results file's own (12.7, 12.10, 12.12, 12.15, 12.19, 12.21 and 12.24 say how each is priced)
 
 ## Regenerate
 
@@ -226,5 +260,6 @@ python evidence/autobench-2026/judges.py --out autobench-judges.jsonl --registry
 python evidence/tau2-bench/convert.py --out tau2-matrix.jsonl
 python evidence/llmrouterbench/convert.py --out llmrouterbench-matrix.jsonl
 python evidence/response-bank/convert.py --out response-bank-matrix.jsonl
-python research/no_model_clears.py --routerbench routerbench-matrix.jsonl --autobench autobench-matrix.jsonl --judges autobench-judges.jsonl --judges-registry autobench-models.json --tau2 tau2-matrix.jsonl --llmrouterbench llmrouterbench-matrix.jsonl --response-bank response-bank-matrix.jsonl
+python evidence/registry-pair/convert.py --out registry-pair-matrix.jsonl
+python research/no_model_clears.py --routerbench routerbench-matrix.jsonl --autobench autobench-matrix.jsonl --judges autobench-judges.jsonl --judges-registry autobench-models.json --tau2 tau2-matrix.jsonl --llmrouterbench llmrouterbench-matrix.jsonl --response-bank response-bank-matrix.jsonl --registry-pair registry-pair-matrix.jsonl
 ```

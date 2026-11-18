@@ -510,8 +510,8 @@ def pair_sentences(bars):
         f"no model clears on {first['none']} of the {first['cells']} `cost_effective` cells at bar {first['bar']} "
         f"({first['share']}), on {first['tasks']} of its {first['of']} tasks, rising to {mid['none']} ({mid['share']}) "
         f"on {mid['tasks']} at bar {mid['bar']} and {last['none']} ({last['share']}) on {last['tasks']} at bar {last['bar']}",
-        f"on every one of these cells the fallback is the `best_on_calibration` model, and on {picks} of them "
-        f"the cheapest model is that model too",
+        f"on every one of these cells the fallback is the `best_on_calibration` model, as on the six datasets "
+        f"before, and on {picks} of them the cheapest model is that model too",
         f"On those cells the cheapest model scores {against}, at "
         f"{_range([b['cheapest']['cost'] for b in bars])} USD per item against the fallback's "
         f"{_range([b['fallback']['cost'] for b in bars])}, and reaches the bar on {met} of them",
