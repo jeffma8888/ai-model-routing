@@ -60,7 +60,8 @@ Delegation research notes (v1.461, row DOC38c): the four 12.22 lines that specif
 or the README paragraph that links two, are 13.16, word for word and in the same order (DELEGATION_NOTES), a
 research-notes subsection with 12.22's cap, which raises the `## 13.` total by 40,000 to 240,000; the tests of
 the eight lines of v1.124 to v1.191 (DOC34_LINES) and of the wordings v1.457 and v1.460 dropped read both.
-12.24, the registry-pair results (v1.433, row E24b), is a routing results subsection.
+12.24, the registry-pair results (v1.433, row E24b), is a routing results subsection; 13.17, the registry-pair
+delegation results (v1.468, row E25a), a delegation results subsection, which raises the `## 13.` total by 22,000.
 
 The registry pair in the workflow (v1.443, row E24e): three `is rerun` lines of 12.13 drop what the Steps,
 RouterBench and Tests lines already state for every rerun block (its place in `Regenerate`, `Compare` and the
@@ -68,8 +69,8 @@ top comment, and the test reading it), so 12.13 has room for the registry pair's
 
 The section totals (v1.456, row DOC37): each total is the one last set with the subsections it counted,
 `## 12.` 300,000 at v1.390 with 12.1 to 12.22 and `## 13.` 185,000 at v1.386 with 13.1 to 13.14
-(TOTAL_BASES), raised by the cap of each subsection added after them (12.23 and 12.24, 13.15 and, from v1.461,
-13.16), so 330,000 and 240,000. While PENDING is not empty, each section with every PENDING subsection cut to its cap
+(TOTAL_BASES), raised by the cap of each subsection added after them (12.23 and 12.24, 13.15, from v1.461,
+13.16 and, from v1.468, 13.17), so 330,000 and 262,000. While PENDING is not empty, each section with every PENDING subsection cut to its cap
 (`projected`) must fit its total; the DESIGN 12 Caps bullet names each subsection of GROUPS in its class,
 with that class's cap, and states the totals (CAPS_CLAUSES, `caps_bullet_problems`). So a subsection
 added without a class, a Caps clause or a raised total fails in its own slice, not at the last trim.
@@ -84,7 +85,7 @@ from test_readme_evidence_budget import design_12_8
 ROOT = Path(__file__).resolve().parents[1]
 DESIGN = ROOT / "DESIGN.md"
 SECTIONS = ("12", "13")
-SECTION_CAPS = {"12": 330_000, "13": 240_000}  # v1.456, 13 v1.461; 12 300,000 at v1.390 and 260,000 at v1.386, 13 185,000
+SECTION_CAPS = {"12": 330_000, "13": 262_000}  # v1.456, 13 v1.468 (240,000 at v1.461); 12 300,000 at v1.390 and 260,000 at v1.386, 13 185,000
 # The total each section had when it last counted its subsections, the version that set it, and the last
 # subsection number it counted (12 v1.390 with 12.1 to 12.22, 13 v1.386 with 13.1 to 13.14); each
 # subsection numbered after it raises its section's total by the cap of its class (v1.456, row DOC37).
@@ -95,7 +96,7 @@ GROUPS = {
     "contract": ("12.1", "12.2", "12.3", "12.4", "12.5", "13.1", "13.2", "13.3", "13.4", "13.5", "13.6", "13.7"),
     "converter": ("12.6", "12.9", "12.11", "12.14", "12.16", "12.18", "12.20", "12.23", "13.11", "13.15"),
     "routing results": ("12.7", "12.10", "12.12", "12.15", "12.17", "12.19", "12.21", "12.24"),
-    "delegation results": ("13.10", "13.12", "13.13", "13.14"),
+    "delegation results": ("13.10", "13.12", "13.13", "13.14", "13.17"),
     "README evidence": ("12.8",),
     "workflow": ("12.13",),
     "limits and test status": ("13.8",),
@@ -247,7 +248,7 @@ def test_the_class_table_names_every_heading_once_in_order():
     numbers = [number for number, _ in subsections]
     by_number = sorted(CLASS, key=lambda n: tuple(int(part) for part in n.split(".")))
     assert numbers == by_number
-    assert len(CLASS) == sum(len(group) for group in GROUPS.values()) == 40  # 36 before 13.15 (v1.394), 37 before 12.23 (v1.431), 38 before 12.24 (v1.433), 39 before 13.16 (v1.461)
+    assert len(CLASS) == sum(len(group) for group in GROUPS.values()) == 41  # 36 before 13.15 (v1.394), 37 before 12.23 (v1.431), 38 before 12.24 (v1.433), 39 before 13.16 (v1.461), 40 before 13.17 (v1.468)
     assert set(GROUPS) == set(CAPS)
     assert strays == []
 
@@ -730,9 +731,10 @@ def test_the_12_opening_gives_the_research_notes_cap_and_the_12_total():
     caps = [line for line in opening if line.startswith("- Caps, each a ceiling ")]
     assert len(caps) == 1
     assert "; the research notes 12.22 (v1.390, row DOC21o) and 13.16 (v1.461, row DOC38c), 40,000 each;" in caps[0]
-    assert ("; and the totals `## 12.` 330,000 and `## 13.` 240,000 (v1.456, row DOC37, and v1.461, row DOC38c), "
+    assert ("; and the totals `## 12.` 330,000 and `## 13.` 262,000 (v1.456, row DOC37, v1.461, row DOC38c, and v1.468, "
+            "row E25a), "
             in caps[0])
-    assert (CAPS["research notes"], SECTION_CAPS["12"], SECTION_CAPS["13"]) == (40_000, 330_000, 240_000)
+    assert (CAPS["research notes"], SECTION_CAPS["12"], SECTION_CAPS["13"]) == (40_000, 330_000, 262_000)
     moved = [line for line in opening if line.startswith("- Research notes out of 12.8 (v1.390, row DOC21o): ")]
     assert len(moved) == 1
     for words in ("are 12.22, a research-notes spec with a cap of 40,000 bytes, in the same order",
@@ -831,8 +833,10 @@ def test_the_caps_bullet_names_each_subsection_in_its_class_and_the_totals():
     ("16,000 bytes each", "15,000 bytes each", ["the contract clause gives 15,000, not its cap 16,000"]),
     ("; the workflow 12.13 25,000", "", ["the Caps bullet has 0 clauses opening `the workflow`, not one"]),
     ("`## 12.` 330,000", "`## 12.` 300,000", ["the Caps bullet gives `## 12.` 300,000, not 330,000"]),
-    ("`## 13.` 240,000", "`## 13.` 200,000", ["the Caps bullet gives `## 13.` 200,000, not 240,000"]),
-    (" and `## 13.` 240,000", "", ["the Caps bullet gives `## 13.` 0 times, not once"]),
+    ("`## 13.` 262,000", "`## 13.` 240,000", ["the Caps bullet gives `## 13.` 240,000, not 262,000"]),
+    (" and `## 13.` 262,000", "", ["the Caps bullet gives `## 13.` 0 times, not once"]),
+    # v1.468 (row E25a)
+    (" and the registry-pair delegation results 13.17 (v1.468)", "", ["the delegation results clause lacks 13.17"]),
     # v1.461 (row DOC38c)
     (" and 13.16 (v1.461, row DOC38c)", "", ["the research notes clause lacks 13.16"]),
     ("; any line of 12 or 13 6,000", "",
@@ -852,8 +856,8 @@ def test_each_total_is_its_base_raised_by_the_cap_of_each_subsection_added_after
         later = [number for number in CLASS if number.split(".")[0] == section and by_number(number)[1] > last]
         added += later
         raised[section] = base + sum(CAPS[CLASS[number]] for number in later)
-    assert sorted(added, key=by_number) == ["12.23", "12.24", "13.15", "13.16"]
-    assert raised == SECTION_CAPS == {"12": 330_000, "13": 240_000}
+    assert sorted(added, key=by_number) == ["12.23", "12.24", "13.15", "13.16", "13.17"]
+    assert raised == SECTION_CAPS == {"12": 330_000, "13": 262_000}
 
 
 def test_the_projected_totals_fit_the_totals_the_caps_bullet_states():
@@ -875,7 +879,7 @@ def test_the_section_totals_bullet_gives_each_base_and_each_raise():
     for words in (f"`## 12.` the {base12:,} of {set12}, which counts 12.1 to 12.{last12}, plus 15,000 for each of "
                   f"12.23 (v1.431) and 12.24 (v1.433), so {SECTION_CAPS['12']:,}",
                   f"`## 13.` the {base13:,} of {set13}, which counts 13.1 to 13.{last13}, plus 15,000 for 13.15 "
-                  f"(v1.394) and 40,000 for 13.16 (v1.461), so {SECTION_CAPS['13']:,}",
+                  f"(v1.394), 40,000 for 13.16 (v1.461) and 22,000 for 13.17 (v1.468), so {SECTION_CAPS['13']:,}",
                   "once `PENDING` is empty and, until then, the section with each `PENDING` subsection cut to "
                   "exactly its cap and the rest as measured"):
         assert words in bullets[0], words
