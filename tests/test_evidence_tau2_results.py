@@ -445,8 +445,12 @@ def test_readme_tau2_links_source_licence_limits_and_commands(cv):
                    '"Copyright (c) 2025 Sierra Research"', "(evidence/tau2-bench/RESULTS.md)",
                    "(evidence/tau2-bench/results.json)", "(evidence/tau2-bench/README.md)",
                    "`reward_info.reward`", "`agent_cost`", "`user_cost`",
-                   "chosen after a first run at 0.6 to 0.9"):
+                   "chosen after a first run at 0.6 to 0.9",
+                   # v1.464 (row DOC39b, review iter-313 nit 3): `This repo`, not the tau2-bench repo.
+                   '- Licence: MIT, as its LICENSE file states, with the line "Copyright (c) 2025 Sierra Research". '
+                   "This repo commits only derived numbers\n"):
         assert needle in section, needle
+    assert "The repo commits" not in section
     for phrase in LIMITS:
         assert phrase in section and phrase in md, phrase
     assert REGENERATE in section and REGENERATE in md

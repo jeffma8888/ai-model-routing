@@ -567,7 +567,7 @@ python evidence/routerbench/results.py --table evidence/autobench-judges/results
 ### tau2-bench
 
 - Dataset: the paper results of [sierra-research/tau2-bench](https://github.com/sierra-research/tau2-bench), pinned at revision [`033bf08`](https://github.com/sierra-research/tau2-bench/tree/033bf082f48e4a3c6a1256208e93cf2ce9c3bb6f), folder `data/tau2/results/final`
-- Licence: MIT, as its LICENSE file states, with the line "Copyright (c) 2025 Sierra Research". The repo commits only derived numbers
+- Licence: MIT, as its LICENSE file states, with the line "Copyright (c) 2025 Sierra Research". This repo commits only derived numbers
 - What was run: 4 agents, one routing task per domain (airline 50 tasks, retail 114, telecom 114), trial 0 of 4, 50 seeds, routed at bars 0.3 to 0.8 in both flavors, chosen after a first run at 0.6 to 0.9. A success is a customer-service conversation that passed the run's program checks (`reward_info.reward` of 1), the cost the agent's recorded `agent_cost`, never the simulated user's `user_cost`
 - Full results: [RESULTS.md](evidence/tau2-bench/RESULTS.md) and [results.json](evidence/tau2-bench/results.json); source: [evidence/tau2-bench/README.md](evidence/tau2-bench/README.md)
 
@@ -671,7 +671,7 @@ python evidence/routerbench/results.py --table evidence/livecodebench/results.js
 ### LLMRouterBench
 
 - Dataset: [NPULH/LLMRouterBench](https://huggingface.co/datasets/NPULH/LLMRouterBench), pinned at revision [`b95870f`](https://huggingface.co/datasets/NPULH/LLMRouterBench/tree/b95870f9e60c589e82f7972c91ffa8de9ca89f85), one file `bench-release.tar.gz` of 1,283,503,080 bytes
-- Licence: MIT, as its LICENSE file states, with the line "Copyright (c) 2025-2026 LLMRouterBench contributors"; its scope paragraph keeps third-party material under its own licence. The repo commits only derived numbers
+- Licence: MIT, as its LICENSE file states, with the line "Copyright (c) 2025-2026 LLMRouterBench contributors"; its scope paragraph keeps third-party material under its own licence. This repo commits only derived numbers
 - What was run: 13 API models from 2025, 9 benchmarks, each one routing task (`aime` 60 items, `arc-agi` 400, `arenahard` 749, `gpqa` 198, `hle` 2,157, `livecodebench` 1,055, `livemathbench` 121, `mmlupro` 3,000 and `simpleqa` 4,326, 12,066 in all), 50 seeds, routed at bars 0.1 to 0.8 in both flavors. A success is a score of 1 (a 0.5 from the `arenahard` judge is a miss), the cost the record's own `cost`
 - Full results, with all 13 single models: [RESULTS.md](evidence/llmrouterbench/RESULTS.md) and [results.json](evidence/llmrouterbench/results.json); source and pool: [evidence/llmrouterbench/README.md](evidence/llmrouterbench/README.md)
 
@@ -768,7 +768,7 @@ python evidence/routerbench/results.py --table evidence/response-bank/results.js
 ### Registry pair
 
 - Dataset: [superlinked/train-a-router-reasoning](https://huggingface.co/datasets/superlinked/train-a-router-reasoning), pinned at revision [`63336f2`](https://huggingface.co/datasets/superlinked/train-a-router-reasoning/tree/63336f25fc54597a8e161a7245613f91bd60177e), three files of 7,522,421 bytes in all, each checked by size and sha256
-- Licence: `license: other` and `license_name: mixed-mit-and-apache-2.0` on the card, which says: "This is a collection with multiple upstream licenses, not a relicensing of its components. Preserve the included notices when redistributing them." Its component licences and citation request are quoted in [RESULTS.md](evidence/registry-pair/RESULTS.md). The repo commits only derived numbers
+- Licence: `license: other` and `license_name: mixed-mit-and-apache-2.0` on the card, which says: "This is a collection with multiple upstream licenses, not a relicensing of its components. Preserve the included notices when redistributing them." Its component licences and citation request are quoted in [RESULTS.md](evidence/registry-pair/RESULTS.md). This repo commits only derived numbers
 - What was run: the registry's own 2 models at its prices, `openai/gpt-6-luna` and `openai/gpt-6.1-sol`, on 31 routing tasks, one per (dataset, task) of MMLU-Pro, BIG-Bench Hard and KOR-Bench (14 `bbh`, 3 `korbench` and 14 `mmlupro`, 6,099 items in all), 50 seeds, bars 0.6 to 0.9, both flavors. A success is the release's strict declared-label match, the cost its estimate from token counts at those prices
 - Full results: [RESULTS.md](evidence/registry-pair/RESULTS.md) and [results.json](evidence/registry-pair/results.json); source, prices, release splits and row keys: [evidence/registry-pair/README.md](evidence/registry-pair/README.md)
 

@@ -82,7 +82,10 @@ TRIMMED = {"": (7_927, "DOC28b"), "LLMRouterBench": (6_469, "DOC28c"),
            "Delegation on the LLM Routing Response Bank": (6_367, "DOC28g"), "tau2-bench": (5_776, "DOC28h")}
 PROJECTED_CAP = 63_000
 # v1.451 (row DOC28h): with HELD empty the section itself is at most PROJECTED_CAP while CLASS names this
-# many headings, the eleven of ce21e81, so the room is for a twelfth.
+# many headings, the eleven of ce21e81, so the room is for a twelfth. The check is `==`, not `<=` (review
+# iter-313 nit 2, kept at v1.464): `<=` would also bind the two-heading SMALL texts over 63,000 that
+# test_a_broken_budget_is_named and the pending-total test use, and since the room is spent it binds only
+# the eleven-heading replay of eleven().
 ROOM_HEADINGS = 11
 DESIGN = ROOT / "DESIGN.md"
 DESIGN_12_8 = "### 12.8 "
@@ -653,3 +656,21 @@ def test_a_broken_hold_is_named(text, held, message):
     pending = {"A": 60_000} if len(text) > 60_000 else {}
     found = problems(text, classes=SMALL, pending=pending, held=held)
     assert found == ([] if message is None else [message])
+
+
+# v1.464 (row DOC39b, review iter-313 nit 3): `This repo` for `The repo` in three licence bullets grew
+# `### tau2-bench` and `### LLMRouterBench` by a byte each, and 12.15 and 12.19 give each size from v1.464.
+TRIM_SIZES = {"tau2-bench": "from v1.464 the README subsection `### tau2-bench` is {:,} bytes by the 12.8 measure "
+                            "(4,992 from v1.451, ",
+              "LLMRouterBench": "from v1.464 the subsection is {:,} bytes by that measure (4,992 from v1.446, "}
+
+
+def test_the_12_15_and_12_19_trim_bullets_give_the_subsections_size():
+    readme, design = README.read_text(encoding="utf-8"), DESIGN.read_text(encoding="utf-8")
+    sizes = dict(measure(readme)[1:])
+    for name, clause in TRIM_SIZES.items():
+        assert design.count(clause.format(sizes[name])) == 1, name
+        assert sizes[name] <= CAPS[CLASS[name]]
+    assert readme.count("This repo commits only derived numbers\n") == 3 and "The repo commits" not in readme
+    grown = readme.replace("\n### tau2-bench\n", "\n### tau2-bench\nx\n", 1)
+    assert design.count(TRIM_SIZES["tau2-bench"].format(dict(measure(grown)[1:])["tau2-bench"])) == 0

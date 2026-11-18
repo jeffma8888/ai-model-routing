@@ -772,7 +772,7 @@ def readme_source_lines(results):
         f"[`{REVISION[:7]}`]({DATASET_URL}/tree/{REVISION}), {NUMBER[len(FILES)]} files of {DOWNLOAD:,} bytes "
         "in all, each checked by size and sha256",
         f"- Licence: {CARD_META[0]} and {CARD_META[1]} on the card, which says: \"{LICENSES}\" Its "
-        f"component licences and citation request are quoted in {README_RESULTS}. The repo commits only "
+        f"component licences and citation request are quoted in {README_RESULTS}. This repo commits only "
         "derived numbers",
         f"- What was run: the registry's own {len(models)} models at its prices, "
         f"{join(f'`{m}`' for m in models)}, on {len(tasks)} routing tasks, one per (dataset, task) of "
@@ -885,7 +885,7 @@ DESIGN_README_BULLET = "- README subsection (v1.452, row E24c; each fixed clause
 README_CLAUSES = (
     "in all, each checked by size and sha256",
     "on the card, which says:",
-    "The repo commits only derived numbers",
+    "This repo commits only derived numbers",  # `The repo` to v1.463
     "A success is the release's strict declared-label match, the cost its estimate from token counts at those "
     "prices",
     "source, prices, release splits and row keys:",
@@ -926,7 +926,7 @@ def test_design_12_24_quotes_each_fixed_clause_of_the_readme_subsection():
 
 def test_a_clause_the_spec_or_the_builder_drops_is_named():
     bullet, built = design_readme_bullet(), readme_body(committed())
-    clause = "The repo commits only derived numbers"
+    clause = "This repo commits only derived numbers"
     assert missing_clauses(bullet.replace(f"`{clause}`", "that it commits only derived numbers"), built) == [
         f"12.24 does not quote `{clause}`"]
     assert missing_clauses(bullet, built.replace(clause, "Only derived numbers are committed")) == [

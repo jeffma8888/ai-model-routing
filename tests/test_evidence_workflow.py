@@ -240,13 +240,12 @@ def registry_commands():
     return block[1:]
 
 
-def readme_commands(text):
-    """The lines the README evidence intro speaks for: the README commands and the ledger line (v1.397),
-    and from v1.452 (row E24c) the registry-pair block, which its README subsection holds."""
-    return regenerate_commands(text)
-
-
 def regenerate_commands(text):
+    """The lines the workflow reruns and the README evidence intro speaks for: the README commands and the
+    ledger line (v1.397), and from v1.452 (row E24c) the registry-pair block, which its README subsection
+    holds, taken from its RESULTS.md and run last (test_the_workflow_reruns_the_registry_pair_block_last
+    requires the two blocks equal). `readme_commands`, an alias of this, went at v1.464 (row DOC39b,
+    review iter-314 nit 6)."""
     return run_once(expected_commands(text) + [ledger_command()] + registry_commands())
 
 
@@ -268,7 +267,7 @@ def routerbench_size():
 def readme_sentence(text):
     # v1.445 (row DOC28b): the sentence counts the results files of the commands it speaks for, which it
     # named one by one to v1.444, so a command that adds or drops an `--out` file changes the count.
-    count = len(out_paths(readme_commands(text)))
+    count = len(out_paths(regenerate_commands(text)))
     return (
         "On GitHub, the `evidence` workflow "
         "([.github/workflows/evidence.yml](.github/workflows/evidence.yml)) reruns the "
@@ -971,8 +970,7 @@ def test_the_workflow_reruns_the_registry_pair_block_last():
     assert (ROOT / "evidence" / "registry-pair" / "results.json").is_file()
     assert out_paths(regenerate_commands(readme()))[-1] == "evidence/registry-pair/results.json"
     # v1.452 (row E24c): the README intro counts it, and the README block is the RESULTS.md one.
-    assert out_paths(readme_commands(readme())) == out_paths(regenerate_commands(readme()))
-    assert len(out_paths(readme_commands(readme()))) == 14
+    assert len(out_paths(regenerate_commands(readme()))) == 14
     block = re.findall(r"```bash\n(.*?)```", subsection(readme(), "Registry pair"), re.S)
     assert block == ["\n".join([INSTALL] + REGISTRY_LINES) + "\n"]
     ci_text = CI.read_text(encoding="utf-8")

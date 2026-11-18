@@ -592,7 +592,7 @@ def readme_source_lines(cv, results):
         f"at revision [`{cv.REVISION[:7]}`](https://huggingface.co/datasets/NPULH/LLMRouterBench/tree/"
         f"{cv.REVISION}), one file `{cv.FILE}` of {cv.SIZE:,} bytes",
         f"- Licence: MIT, as its LICENSE file states, with the line \"{COPYRIGHT}\"; its scope paragraph "
-        "keeps third-party material under its own licence. The repo commits only derived numbers",
+        "keeps third-party material under its own licence. This repo commits only derived numbers",
         f"- Full results, with all {models} single models: [RESULTS.md](evidence/llmrouterbench/RESULTS.md) "
         f"and [results.json](evidence/llmrouterbench/results.json); source and pool: {EVIDENCE_LINK}"]
 
@@ -664,7 +664,8 @@ def test_readme_llmrouterbench_keeps_one_bullet_and_a_link_line(cv):
     assert "split in half by a seeded hash" in text
     assert "Routed rows beat these single models on both counts: " in text
     assert "This repo commits no part of the dataset" in evidence_readme()
-    assert "The repo commits only derived numbers" in section
+    # v1.464 (row DOC39b, review iter-313 nit 3): `This repo`, so it cannot be read as the dataset's.
+    assert "This repo commits only derived numbers" in section and "The repo commits" not in section
 
 
 def test_readme_llmrouterbench_regenerate_and_layout():
