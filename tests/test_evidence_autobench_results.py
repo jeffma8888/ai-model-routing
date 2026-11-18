@@ -15,6 +15,11 @@ keeps its first two Reading it bullets and its date and cost limit, then one lin
 RESULTS.md ``## Caveats``; the tests require the facts of the dropped oracle bullet and limits in
 RESULTS.md and absent from the subsection, the dropped-counts limit, which RESULTS.md lacked, as
 its fourth caveat.
+
+v1.474 (DESIGN 12.10 v1.474, row DOC44b): to the 12.8 v1.473 routing cap of 4,600 bytes the subsection
+drops its `Limits:` line and bullet, RESULTS.md's first caveat word for word; its link line names that
+caveat first, with the 2026-08-29 freeze, so its only bullets after its source bullets are its two Reading
+it bullets.
 """
 
 import hashlib
@@ -48,12 +53,13 @@ REGENERATE = (
     "python evidence/routerbench/results.py --table evidence/autobench-2026/results.json\n"
     "```\n")
 CARD = ("no commercial pass beats always calling GPT-5.6 Luna on quality and cost together")
-# v1.371 (12.10 v1.370): the README limit the subsection keeps, the line after it that links the rest
-# of RESULTS.md, and the regenerate paragraph after that.
+# v1.371 (12.10 v1.370): the README limit the subsection kept (to v1.473; from v1.474, row DOC44b, it is
+# RESULTS.md's first caveat alone), the line that links RESULTS.md, and the regenerate paragraph after that.
 KEPT_LIMIT = ("- The models are 2026 models, and the costs are the billed USD per call in the matrix frozen "
               "on 2026-08-29; vendor prices have moved since")
-LINK_LINE = ("The other limits are in [RESULTS.md](evidence/autobench-2026/RESULTS.md#caveats) `## Caveats` "
-             "(the relative Delta-Hit label, the sample size, what the converter drops) and its "
+LINK_LINE = ("The limits are in [RESULTS.md](evidence/autobench-2026/RESULTS.md#caveats) `## Caveats` "
+             "(the 2026 models and billed costs frozen on 2026-08-29, the relative Delta-Hit label, the sample "
+             "size, what the converter drops) and its "
              "`## Sensitivity` (the per-domain run), and the other Reading it bullets in its `## Reading it` "
              "(`cost_effective` at each bar, `cost_blind`, the per-question oracle).")
 REGENERATE_LINE = ("Regenerate (the evaluate step takes under a second; the dataset downloads into a cache "
@@ -373,22 +379,25 @@ def results_md_section(text, heading):
     return text.split(f"\n## {heading}\n", 1)[1].split("\n## ", 1)[0]
 
 
-def test_readme_autobench_keeps_two_bullets_one_limit_and_a_link_line():
+def test_readme_autobench_keeps_two_bullets_and_a_link_line():
     """v1.371 (12.10 v1.370): after its four source bullets the subsection's only bullets are its
-    first two Reading it bullets and the date and cost limit, then the link line, whose anchor is the
-    RESULTS.md `## Caveats` heading, and the regenerate paragraph; the facts of the dropped oracle
-    bullet and limits are in RESULTS.md and absent from the subsection, the dropped counts as its
-    fourth caveat."""
+    first two Reading it bullets (and, to v1.473, the date and cost limit), then the link line, whose
+    anchor is the RESULTS.md `## Caveats` heading, and the regenerate paragraph; the facts of the dropped
+    oracle bullet and limits are in RESULTS.md and absent from the subsection, the dropped counts as its
+    fourth caveat. v1.474 (12.10 v1.474, row DOC44b): no `Limits:` line; the date and cost limit is
+    RESULTS.md's first caveat alone, and the link line names it with the freeze date."""
     results, section, md = committed(), autobench_subsection(), results_md()
     kept = [f'- The dataset card\'s headline, at the pinned revision: "{CARD}". {luna_statement(results)} '
             "RESULTS.md shows how close `cost_effective` at bar 0.7 comes, and why",
             "- The bar-violation rate reads as in the RouterBench table, with one task: each rate counts "
-            "seeds, not evals", KEPT_LIMIT]
-    block = (f"Reading it:\n\n{kept[0]}\n{kept[1]}\n\nLimits:\n\n{kept[2]}\n\n{LINK_LINE}\n\n"
+            "seeds, not evals"]
+    block = (f"Reading it:\n\n{kept[0]}\n{kept[1]}\n\n{LINK_LINE}\n\n"
              f"{REGENERATE_LINE}\n\n```bash\n")
     assert section.count(block) == 1
     bullets = [line for line in section.splitlines() if line.startswith("- ")]
-    assert len(bullets) == 7 and bullets[4:] == kept
+    assert len(bullets) == 6 and bullets[4:] == kept
+    assert "\nLimits:\n" not in section and KEPT_LIMIT not in section and "vendor prices have moved" not in section
+    assert "the 2026 models and billed costs frozen on 2026-08-29" in LINK_LINE
     caveats = [line for line in results_md_section(md, "Caveats").splitlines() if line.startswith("- ")]
     assert len(caveats) == 5 and caveats[0] == KEPT_LIMIT and caveats[3] == DROPPED_COUNTS
     assert caveats[1].startswith("- A Delta-Hit is relative, not an absolute acceptance check")

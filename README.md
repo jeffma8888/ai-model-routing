@@ -500,11 +500,7 @@ Reading it:
 - The dataset card's headline, at the pinned revision: "no commercial pass beats always calling GPT-5.6 Luna on quality and cost together". On the same matrix no routed row beats it on both counts: always calling `openai/gpt-5.6-luna` reaches held-out success 0.872 at 0.3092 USD, and every routed row in the table has lower held-out success or a higher cost. RESULTS.md shows how close `cost_effective` at bar 0.7 comes, and why
 - The bar-violation rate reads as in the RouterBench table, with one task: each rate counts seeds, not evals
 
-Limits:
-
-- The models are 2026 models, and the costs are the billed USD per call in the matrix frozen on 2026-08-29; vendor prices have moved since
-
-The other limits are in [RESULTS.md](evidence/autobench-2026/RESULTS.md#caveats) `## Caveats` (the relative Delta-Hit label, the sample size, what the converter drops) and its `## Sensitivity` (the per-domain run), and the other Reading it bullets in its `## Reading it` (`cost_effective` at each bar, `cost_blind`, the per-question oracle).
+The limits are in [RESULTS.md](evidence/autobench-2026/RESULTS.md#caveats) `## Caveats` (the 2026 models and billed costs frozen on 2026-08-29, the relative Delta-Hit label, the sample size, what the converter drops) and its `## Sensitivity` (the per-domain run), and the other Reading it bullets in its `## Reading it` (`cost_effective` at each bar, `cost_blind`, the per-question oracle).
 
 Regenerate (the evaluate step takes under a second; the dataset downloads into a cache folder outside the repo):
 
@@ -548,11 +544,7 @@ Reading it:
 - At bars 0.6 and 0.7 every seed clears and `cost_effective` routes all 50 seeds to `deepseek/deepseek-v4-flash-0731`, the cheapest candidate: held-out success 0.816 at 0.518 of the cost of the best single judge, `tencent/hy3` (0.835 at 0.1192 USD)
 - There is one task, so each rate counts seeds: `cost_effective` at bar 0.8, 0.071, is 2 of the 28 seeds that cleared; `cost_blind` at bar 0.8, 0.036, is 1 of the 28 seeds that cleared. Read them next to a nominal one-sided 0.025 for a 95% Wilson bound on one judge, as a resampling estimate for this matrix and never as a guarantee (DESIGN 12.3)
 
-Limits:
-
-- Each cost is an estimate at the pool's list prices, never a billed cost: a judge call is assumed to read the question, the visible answer and a 400-token rubric and to write a 200-token grade
-
-The other limits are in [RESULTS.md](evidence/autobench-judges/RESULTS.md#caveats) `## Caveats` (the committee label, the candidates with the kept and dropped answer counts, answers to one question), and the other Reading it bullets in its `## Reading it` (the bars where some seeds or none clear, `cost_blind`, the per-answer oracle, the price).
+The limits are in [RESULTS.md](evidence/autobench-judges/RESULTS.md#caveats) `## Caveats` (the committee label, the list-price cost estimate, the candidates with the kept and dropped answer counts, answers to one question), and the other Reading it bullets in its `## Reading it` (the bars where some seeds or none clear, `cost_blind`, the per-answer oracle, the price).
 
 Regenerate (the dataset downloads into a cache folder outside the repo; the sensitivity commands are in RESULTS.md):
 

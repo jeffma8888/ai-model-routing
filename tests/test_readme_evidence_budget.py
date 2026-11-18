@@ -42,6 +42,7 @@ the registry-pair delegation one (row E25e), fits with its glance bullet. ``HELD
 their a531339 sizes until rows DOC44b to DOC44j trim each to its cap and move it to ``RETRIMMED``; while ``HELD`` is
 not empty the projection is at most ``HOLD_CAP``, 64,500 bytes, and once it is empty the section itself is, while
 ``CLASS`` names twelve headings. ``TRIMMED`` keeps the v1.444 plan, each part at most its ``V1_444_CAPS`` cap.
+Row DOC44b (v1.474) moved ``AutoBench`` and ``AutoBench judges`` to ``RETRIMMED``.
 """
 import re
 from pathlib import Path
@@ -82,8 +83,7 @@ PENDING = {}
 # Delegation on AutoBench's 1,199, Delegation on LLMRouterBench's 880, Delegation on the LLM Routing Response
 # Bank's 867 and tau2-bench's 776 (TRIMMED) the ce21e81 projection is 69,678 - 7,080 = 62,598.
 # v1.473 (row DOC44a): each part over the v1.473 caps and its size at a531339, until its row trims it.
-HELD = {"AutoBench": 4_664, "AutoBench judges": 4_742, "tau2-bench": 4_993, "LiveCodeBench": 4_929,
-        "LLMRouterBench": 4_993, "LLM Routing Response Bank": 4_997, "Registry pair": 4_957,
+HELD = {"tau2-bench": 4_993, "LiveCodeBench": 4_929, "LLMRouterBench": 4_993, "LLM Routing Response Bank": 4_997, "Registry pair": 4_957,
         "Delegation on AutoBench": 5_499, "Delegation on LLMRouterBench": 5_494,
         "Delegation on the LLM Routing Response Bank": 5_498}
 # The row that trims each held part (v1.473); it moves the part to RETRIMMED as (its a531339 size, its row).
@@ -91,7 +91,7 @@ PLAN_ROWS = {"AutoBench": "DOC44b", "AutoBench judges": "DOC44b", "tau2-bench": 
              "LLMRouterBench": "DOC44e", "LLM Routing Response Bank": "DOC44f", "Registry pair": "DOC44g",
              "Delegation on AutoBench": "DOC44h", "Delegation on LLMRouterBench": "DOC44i",
              "Delegation on the LLM Routing Response Bank": "DOC44j"}
-RETRIMMED = {}
+RETRIMMED = {"AutoBench": (4_664, "DOC44b"), "AutoBench judges": (4_742, "DOC44b")}  # v1.474
 # v1.473: the section at a531339, and with each held part at its cap; HOLD_CAP leaves room under SECTION_CAP for
 # a subsection at the delegation cap and GLANCE_ROOM bytes for its glance bullet, its line and newline.
 PLAN_SECTION, PLAN_PROJECTION, HOLD_CAP, GLANCE_ROOM = 67_878, 64_312, 64_500, 500
@@ -698,7 +698,11 @@ def test_a_broken_hold_is_named(text, held, message):
 TRIM_SIZES = {"tau2-bench": ("12.15", "from v1.464 the README subsection `### tau2-bench` is {:,} bytes by the 12.8 "
                                       "measure (4,992 from v1.451, "),
               "LLMRouterBench": ("12.19", "from v1.464 the subsection is {:,} bytes by that measure (4,992 from "
-                                          "v1.446, ")}
+                                          "v1.446, "),
+              # v1.474 (row DOC44b): 12.10 and 12.12 give the size each trim leaves.
+              "AutoBench": ("12.10", "from v1.474 the subsection is {:,} bytes by that measure (4,664 from v1.371)"),
+              "AutoBench judges": ("12.12", "from v1.474 the subsection is {:,} bytes by that measure (4,742 from "
+                                            "v1.369)")}
 
 
 def design_subsection(text, number):
@@ -711,7 +715,7 @@ def design_subsection(text, number):
     return "\n".join(lines[starts[0]:end])
 
 
-def test_the_12_15_and_12_19_trim_bullets_give_the_subsections_size():
+def test_the_trim_bullets_give_the_subsections_size():  # 12.15 and 12.19 to v1.473, with 12.10 and 12.12 from v1.474
     readme, design = README.read_text(encoding="utf-8"), DESIGN.read_text(encoding="utf-8")
     sizes = dict(measure(readme)[1:])
     for name, (number, clause) in TRIM_SIZES.items():
@@ -780,25 +784,41 @@ def test_the_v1_473_plan_bullet_names_each_part_its_size_and_its_row():
     assert lines[0].endswith("`TRIMMED` keeps the v1.444 plan, each part at most its v1.444 cap")
 
 
-@pytest.mark.parametrize("held, message", [
-    ({**HELD, "Registry pair": 4_956}, "`### Registry pair` is 4,957 bytes, over its held size 4,956"),
-    ({k: v for k, v in HELD.items() if k != "AutoBench"}, "`### AutoBench` is 4,664 bytes, over its routing cap 4,600"),
-    ({**HELD, "Delegation on tau2-bench": 4_962},
+def grown(text, name, to):
+    """`text` with `### name` of the evidence section padded to `to` bytes, one line of `x` after its heading."""
+    got = dict(measure(text)[2:])[name]
+    assert to > got
+    return text.replace(f"\n### {name}\n", f"\n### {name}\n" + "x" * (to - got - 1) + "\n", 1)
+
+
+@pytest.mark.parametrize("held, grow, message", [
+    ({**HELD, "Registry pair": 4_956}, None, "`### Registry pair` is 4,957 bytes, over its held size 4,956"),
+    (HELD, ("AutoBench", 4_601), "`### AutoBench` is 4,601 bytes, over its routing cap 4,600"),
+    ({**HELD, "Delegation on tau2-bench": 4_962}, None,
      "`### Delegation on tau2-bench` is 4,962 bytes, at or under its delegation cap 5,000: remove it from HELD"),
 ])
-def test_a_broken_v1_473_plan_is_named(held, message):
-    # A held part grown past its held size, a part over its new cap left out of HELD, and a part under its
-    # cap put in HELD each fail the README's budget, the only problem named.
-    assert problems(README.read_text(encoding="utf-8"), held=held) == [message]
+def test_a_broken_v1_473_plan_is_named(held, grow, message):
+    # A held part grown past its held size, a part over its new cap left out of HELD (from v1.474, row DOC44b,
+    # a RETRIMMED part grown one byte past it), and a part under its cap put in HELD each fail the README's
+    # budget, the only problem named.
+    text = README.read_text(encoding="utf-8")
+    if grow:
+        text = grown(text, *grow)
+        assert dict(measure(text)[2:])[grow[0]] == grow[1]
+    assert problems(text, held=held) == [message]
 
 
 def test_a_large_part_left_out_of_the_v1_473_plan_also_breaks_the_projection():
     # `Delegation on AutoBench` left out is over its cap, and its 499 bytes over are no longer cut from the
-    # projection: 64,312 + 499 = 64,811, over HOLD_CAP (`AutoBench`'s 64 stay under it, the case above).
+    # projection: 64,312 + 499 = 64,811 at a531339, over HOLD_CAP (`AutoBench`'s 64 stayed under it), and from
+    # v1.474 (row DOC44b) the README's projection + 499, 64,238 + 499 = 64,737.
+    text = README.read_text(encoding="utf-8")
     held = {k: v for k, v in HELD.items() if k != "Delegation on AutoBench"}
-    assert problems(README.read_text(encoding="utf-8"), held=held) == [
+    now = projection(measure(text))
+    assert now <= PLAN_PROJECTION and now + 499 > HOLD_CAP
+    assert problems(text, held=held) == [
         "`### Delegation on AutoBench` is 5,499 bytes, over its delegation cap 5,000",
-        f"with each held part at its cap the section would be {PLAN_PROJECTION + 499:,} bytes, over {HOLD_CAP:,}"]
+        f"with each held part at its cap the section would be {now + 499:,} bytes, over {HOLD_CAP:,}"]
 
 
 def test_a_twelve_heading_section_over_the_hold_is_named_once_held_is_empty():

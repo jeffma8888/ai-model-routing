@@ -19,6 +19,11 @@ keeps its first two Reading it bullets and its cost limit, then one line that li
 ``## Caveats``; the tests require the dropped oracle and price bullets in RESULTS.md and absent
 from the subsection, and the two facts of the dropped limits that RESULTS.md lacked, that the
 judges are models and the kept and dropped answer counts, in its whole Caveats list.
+
+v1.474 (DESIGN 12.12 v1.474, row DOC44b): to the 12.8 v1.473 routing cap of 4,600 bytes the subsection
+drops its `Limits:` line and cost limit, whose facts are RESULTS.md's second caveat in other words; its link
+line names that caveat in its place, so its only bullets after its source bullets are its two Reading it
+bullets.
 """
 
 import hashlib
@@ -74,9 +79,10 @@ HEADINGS = ["RouterBench", "AutoBench", "AutoBench judges", "tau2-bench", "LiveC
             "LLMRouterBench", "LLM Routing Response Bank", "Registry pair", "Delegation on AutoBench", "Delegation on tau2-bench",
             "Delegation on LLMRouterBench",
             "Delegation on the LLM Routing Response Bank"]
-# v1.369 (12.12 v1.368): the line after the kept limit that links the rest of RESULTS.md.
-LINK_LINE = ("The other limits are in [RESULTS.md](evidence/autobench-judges/RESULTS.md#caveats) `## Caveats` "
-             "(the committee label, the candidates with the kept and dropped answer counts, answers to one "
+# v1.369 (12.12 v1.368): the line that links RESULTS.md; from v1.474 (row DOC44b) it names the cost caveat.
+LINK_LINE = ("The limits are in [RESULTS.md](evidence/autobench-judges/RESULTS.md#caveats) `## Caveats` "
+             "(the committee label, the list-price cost estimate, the candidates with the kept and dropped "
+             "answer counts, answers to one "
              "question), and the other Reading it bullets in its `## Reading it` (the bars where some seeds or "
              "none clear, `cost_blind`, the per-answer oracle, the price).")
 REGENERATE_LINE = ("Regenerate (the dataset downloads into a cache folder outside the repo; the sensitivity "
@@ -544,8 +550,9 @@ def evidence_counts():
 
 
 def limits(results, jm):
-    """The one README limit the subsection keeps, on where each cost comes from (12.12 v1.368); the
-    committee-label, candidates and same-question limits are RESULTS.md caveats 1, 3 and 4."""
+    """The one README limit the subsection kept, on where each cost comes from (12.12 v1.368), to v1.473;
+    from v1.474 (row DOC44b) its facts are RESULTS.md caveat 2 alone, as the committee-label, candidates
+    and same-question limits are caveats 1, 3 and 4."""
     return [
         "- Each cost is an estimate at the pool's list prices, never a billed cost: a judge call "
         "is assumed to read the question, the visible answer and a "
@@ -570,7 +577,14 @@ def test_readme_judges_counts_and_reading_it_are_the_committed_results(jm):
 
 def test_readme_judges_limits_links_and_commands(jm):
     results, section = committed(), judges_subsection()
-    assert "\nLimits:\n\n" + "\n".join(limits(results, jm)) + "\n\n" in section
+    # v1.474 (row DOC44b): no `Limits:` line; every fact of the dropped cost limit is in RESULTS.md caveat 2.
+    assert "\nLimits:\n" not in section and limits(results, jm)[0] not in section
+    cost = [c for c in prose(results_md())["caveats"].split("\n") if c.startswith("- The cost is ")]
+    assert len(cost) == 1
+    for fact in ("a list-price estimate at the pool's list prices, never a billed cost",
+                 "a judge call is assumed to read the question, the visible answer and a "
+                 f"{jm.DEFAULT_RUBRIC_TOKENS}-token rubric", f"to write a {jm.DEFAULT_GRADE_TOKENS}-token grade"):
+        assert fact in cost[0], fact
     revision = jm.convert.REVISION
     for needle in ("[AutoBench/router-benchmark-2026-10]"
                    "(https://huggingface.co/datasets/AutoBench/router-benchmark-2026-10)",
@@ -621,20 +635,21 @@ def test_readme_judges_helpers_follow_the_numbers():
     assert "counted wrong, when none does |" in readme_tables(committed())
 
 
-def test_readme_judges_keeps_two_bullets_one_limit_and_a_link_line(jm):
+def test_readme_judges_keeps_two_bullets_and_a_link_line(jm):
     """v1.369 (12.12 v1.368): after its four source bullets the subsection's only bullets are its
-    first two Reading it bullets and the cost limit, then the link line, whose anchor is the RESULTS.md
+    first two Reading it bullets (and, to v1.473, the cost limit; none from v1.474, row DOC44b), then the
+    link line, whose anchor is the RESULTS.md
     `## Caveats` heading, and the regenerate paragraph; the dropped oracle and price bullets are
     RESULTS.md Reading it bullets and absent from the subsection, and the dropped limits' facts are in
     the whole RESULTS.md Caveats list, which test_results_md_intro_header_and_caveats_are_whole_paragraphs
     builds with the two facts it gained."""
     results, section, md = committed(), judges_subsection(), results_md()
-    kept = [f"- {b}" for b in readme_reading_it(results)] + limits(results, jm)
-    block = (f"Reading it:\n\n{kept[0]}\n{kept[1]}\n\nLimits:\n\n{kept[2]}\n\n{LINK_LINE}\n\n"
+    kept = [f"- {b}" for b in readme_reading_it(results)]
+    block = (f"Reading it:\n\n{kept[0]}\n{kept[1]}\n\n{LINK_LINE}\n\n"
              f"{REGENERATE_LINE}\n\n```bash\n")
     assert section.count(block) == 1
     bullets = [line for line in section.splitlines() if line.startswith("- ")]
-    assert len(bullets) == 7 and bullets[4:] == kept
+    assert len(bullets) == 6 and bullets[4:] == kept
     assert md.count("\n## Caveats\n") == 1 and md.count("\n## Reading it\n") == 1
     for bullet in (oracle(results), price(results)):
         assert md.count("\n- " + bullet + "\n") == 1, bullet
