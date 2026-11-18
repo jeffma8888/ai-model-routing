@@ -1,4 +1,4 @@
-"""research/delegation-price-sensitivity.md and research/delegation_price_sensitivity.py (DESIGN 12.22 v1.424,
+"""research/delegation-price-sensitivity.md and research/delegation_price_sensitivity.py (DESIGN 13.16 v1.424,
 row R39).
 
 The script's report on a hand-built AutoBench-shaped matrix of three models, run end to end through `main`
@@ -33,7 +33,7 @@ Reading it and Recommendation claims about them are checked against them, the ot
 
 v1.428 (row DOC36, DESIGN 9): README Limitations' prices bullet gives, right after its routing sentence, the
 largest share of a bar's `cost_effective` cells one run changes on each of the four delegation datasets, built
-here from the note's five blocks, and links the note; the 9 clause, the 12.22 bullet's pointer to it and the
+here from the note's five blocks, and links the note; the 9 clause, the 13.16 bullet's pointer to it and the
 note's Recommendation are pinned.
 
 v1.429 (row T15): a run re-decides only the `cost_effective` cells, as the script's `REDECIDED` names them, and each

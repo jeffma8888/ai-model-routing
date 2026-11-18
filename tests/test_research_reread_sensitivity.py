@@ -1,4 +1,4 @@
-"""research/reread-sensitivity.md and research/reread_sensitivity.py (DESIGN 12.22 v1.413, row R38).
+"""research/reread-sensitivity.md and research/reread_sensitivity.py (DESIGN 13.16 v1.413, row R38).
 
 The script's item costs are checked against costs worked by hand at sigma 0.5 and W = 2 B; its report
 on a hand-built AutoBench-shaped matrix, run end to end through `main` against a root whose committed

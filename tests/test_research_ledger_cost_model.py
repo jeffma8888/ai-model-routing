@@ -1,4 +1,4 @@
-"""research/ledger-cost-model.md and research/ledger_cost_model.py (DESIGN 12.22 v1.402, row R37).
+"""research/ledger-cost-model.md and research/ledger_cost_model.py (DESIGN 13.16 v1.402, row R37).
 
 The note's `text` block is the script's output on the pinned ledger files, compared byte for byte
 when they are already in the converter's default cache (CI never downloads them), and so are the

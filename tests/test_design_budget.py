@@ -706,6 +706,8 @@ def test_the_12_opening_gives_the_research_notes_cap_and_the_12_total():
     moved = [line for line in opening if line.startswith("- Research notes out of 12.8 (v1.390, row DOC21o): ")]
     assert len(moved) == 1
     for words in ("are 12.22, a research-notes spec with a cap of 40,000 bytes, in the same order",
+                  # review iter-325 should-fix 1 (v1.461)
+                  "in the same order (the at-a-glance one 13.16 from v1.461, row DOC38c), since",
                   "The `## 12.` total was 300,000 bytes from v1.390 to v1.455: the 260,000 of v1.386 counted these "
                   "bullets inside the "
                   "50,000 of 12.8, and they now have a cap of their own, 40,000"):

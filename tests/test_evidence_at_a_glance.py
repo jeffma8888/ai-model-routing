@@ -964,7 +964,7 @@ def better_rows():
 
 
 def delegation_pointer(pays_note, per_item_note):
-    """The paragraph after the routing pointer (DESIGN 12.8 v1.258, v1.323), its figures from the two notes."""
+    """The paragraph after the routing pointer (DESIGN 13.16 v1.258, v1.323), its figures from the two notes."""
     totals = pays_totals(pays_note)
     effective = totals["cost_effective"]
     assert totals["cost_blind"]["better"] == 0, "a `cost_blind` row is better than both"
@@ -1027,7 +1027,7 @@ def test_the_delegation_pointer_figures_on_the_committed_notes():
     recommendation = per_item.split("\n## Recommendation\n", 1)[1].split("\n## ", 1)[0]
     assert f"saves at most {cut}% of a bar's summed cost" in recommendation
     text = delegation_pointer(pays, per_item)
-    # the second finding is the size rule's, not choosing the path on every item (DESIGN 12.8 v1.258)
+    # the second finding is the size rule's, not choosing the path on every item (DESIGN 13.16 v1.258)
     assert "only on the cells where the decision chose by cost" in text
 
 
