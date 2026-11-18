@@ -24,11 +24,13 @@ def test_the_unheld_doc19_trim_bullets_give_their_cap_as_the_cap_then():
     for row, size in (("v1.372, row DOC19k", "4,731"), ("v1.370, row DOC19j", "5,078"),
                       ("v1.368, row DOC19i", "5,691"), ("v1.365, row DOC19h", "6,194")):
         text = line(f"- README trim ({row}, to the 12.8 v1.334 size budget): ")
-        assert text.count(f"({size} at 0b3e142, cap 6,500 then)") == 1
+        assert text.count(f"{size} at 0b3e142, cap 6,500 then)") == 1  # v1.476: DOC19h's after `4,929 from v1.366; `
         assert "cap 6,500)" not in text
-    # 12.17 is at its PENDING hold, so its line names the measure in five fewer bytes (review iter-327 nit 1).
+    # 12.17 is at its PENDING hold, so its line names the measure in five fewer bytes (review iter-327 nit 1);
+    # v1.476 (row DOC44d) restates the size in place, the v1.366 one as history.
     text = line("- README trim (v1.365, row DOC19h, to the 12.8 v1.334 size budget): ")
-    assert text.count("is 4,929 bytes by the 12.8 measure (6,194 at 0b3e142, cap 6,500 then)") == 1
+    assert text.count("is 4,596 bytes by the 12.8 measure (4,929 from v1.366; 6,194 at 0b3e142, cap 6,500 then)") == 1
+    assert "is 4,929 bytes" not in text and "the three it keeps" not in text
     assert "by that budget's measure" not in text
 
 

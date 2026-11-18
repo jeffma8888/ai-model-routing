@@ -17,6 +17,11 @@ its first two Reading it bullets and its date limit, then one line that links RE
 ``## Reading it``; the tests require the Reading it phrases of the dropped bullets, the dropped limit
 phrases and the cleared-seed sentence in RESULTS.md and absent from the subsection, and the one-task
 limit, the one dropped line RESULTS.md lacked, there as a bullet.
+
+v1.476 (DESIGN 12.17 v1.476, row DOC44d): to the 12.8 v1.473 routing cap of 4,600 bytes it drops its
+`Limits:` line and date bullet, the seventh RESULTS.md ``## Reading it`` bullet word for word, which its
+link line now names, and its source lines shed three clauses, each in RESULTS.md or the evidence README
+(``SHED_SOURCE_CLAUSES``).
 """
 
 import importlib.util
@@ -275,7 +280,7 @@ HEADINGS = ["RouterBench", "AutoBench", "AutoBench judges", "tau2-bench", "LiveC
             "Delegation on LLMRouterBench",
             "Delegation on the LLM Routing Response Bank"]
 # v1.366 (12.17 v1.365): the subsection keeps the date limit, its one Limits bullet; the other three
-# caveats and the one-task limit are in RESULTS.md alone.
+# caveats and the one-task limit are in RESULTS.md alone. v1.476 (row DOC44d): the date limit is too.
 LIMITS = ["The models date from 2023 to 2025 and the 713 problems from 2023-05-07 to 2024-10-05, "
           "so many problems predate a model's training data: the contamination LiveCodeBench "
           "dates its problems to expose"]
@@ -283,9 +288,18 @@ DROPPED_LIMITS = CAVEATS[1:]
 LATER = "A later model's rate on old problems can overstate what it does on new ones"
 HINDSIGHT = ("Choosing on half of the problems gives up a little held-out success to the best model in "
              "hindsight, which no router knows in advance")
+# v1.476 (row DOC44d): the link line names the dropped date limit (LINK_GROWTH) in RESULTS.md's order.
+LINK_GROWTH = "the contamination of old problems, "
 LINK_LINE = ("The other Reading it bullets and limits are in [RESULTS.md](evidence/livecodebench/RESULTS.md#reading-it) "
-             "`## Reading it`: where the bar holds, the bar violations, the per-item oracle, the samples the runs "
-             "drew, the problem sources, what a matrix with no cost says and the one routing task.")
+             "`## Reading it`: where the bar holds, the bar violations, the per-item oracle, " + LINK_GROWTH +
+             "the samples the runs drew, the problem sources, what a matrix with no cost says and the one routing "
+             "task.")
+# v1.476 (row DOC44d): each clause the source lines shed, the file that holds it, and its words there.
+SHED_SOURCE_CLAUSES = [
+    (" on GitHub (archived)", "README.md", "- Repo: https://github.com/LiveCodeBench/submissions (archived)\n"),
+    (" before they are read", "README.md", "each file is checked by size and sha256 before it is read"),
+    (", with every one of the 67 single models", "RESULTS.md", "\nmodel:"),
+]
 REGENERATE_LINE = ("Regenerate (the converter downloads the 67 pinned files, about 1.23 GB, into a cache folder "
                    "outside the repo; the evaluate step took about 5.5 seconds on one laptop):")
 ORACLE = ("Per-item oracle: on each problem, a model whose first sample solved it, or a model "
@@ -351,12 +365,16 @@ def test_readme_livecodebench_tables_and_counts_are_the_committed_results():
 
 
 def kept_bullets(results):
-    """The two Reading it bullets and the one Limits bullet the subsection keeps (12.17 v1.365), built
+    """The two Reading it bullets the subsection keeps (12.17 v1.365; with the date limit to v1.475), built
     from the RESULTS.md phrases of the committed file."""
     phrases = reading_phrases(results)
     return [f"- {phrases[0]}: {SAME_PICK}. {phrases[1]}",
-            f"- {phrases[2]}. {HINDSIGHT}",
-            f"- {LIMITS[0]}. {LATER}"]
+            f"- {phrases[2]}. {HINDSIGHT}"]
+
+
+def date_limit():
+    """The Limits bullet the subsection kept to v1.475, which v1.476 (row DOC44d) drops."""
+    return f"- {LIMITS[0]}. {LATER}"
 
 
 def cheapest_sentence(results):
@@ -388,19 +406,24 @@ def test_readme_livecodebench_reading_numbers_are_the_committed_results():
     assert SAME_PICK in section and COMPLEMENT not in section
 
 
-def test_readme_livecodebench_keeps_two_bullets_one_limit_and_a_link_line(cv):
+def test_readme_livecodebench_keeps_two_bullets_and_a_link_line(cv):
     """v1.366 (12.17 v1.365): after its four source bullets the subsection's only bullets are its first
-    two Reading it bullets and the date limit, each a line of RESULTS.md, then the link line and the
-    regenerate paragraph; the link's anchor is the RESULTS.md `## Reading it` heading, since that file
-    has no `## Caveats` or `## Assumed`; each dropped limit is in RESULTS.md alone, and the one-task
-    limit is the RESULTS.md bullet before `Size:`."""
+    two Reading it bullets (and the date limit to v1.475), each a line of RESULTS.md, then the link line
+    and the regenerate paragraph; the link's anchor is the RESULTS.md `## Reading it` heading, since that
+    file has no `## Caveats` or `## Assumed`; each dropped limit is in RESULTS.md alone, and the one-task
+    limit is the RESULTS.md bullet before `Size:`. v1.476 (row DOC44d): no `Limits:` line; the dropped
+    date limit is the seventh RESULTS.md `## Reading it` bullet, and the link line names it."""
     results, section, md = committed(), readme_subsection(), results_md()
     kept = kept_bullets(results)
-    block = (f"Reading it:\n\n{kept[0]}\n{kept[1]}\n\nLimits:\n\n{kept[2]}\n\n{LINK_LINE}\n\n"
+    block = (f"Reading it:\n\n{kept[0]}\n{kept[1]}\n\n{LINK_LINE}\n\n"
              f"{REGENERATE_LINE}\n\n```bash\n")
     assert section.count(block) == 1
+    assert "\nLimits:\n" not in section and date_limit() not in section and LATER not in section
+    reading = md.split("\n## Reading it\n\n", 1)[1].split("\n\n", 1)[0].split("\n")
+    assert reading[:2] == kept and reading[6] == date_limit()
+    assert LINK_LINE.count(LINK_GROWTH) == 1 and "contamination" in date_limit()
     bullets = [line for line in section.splitlines() if line.startswith("- ")]
-    assert len(bullets) == 7 and bullets[4:] == kept
+    assert len(bullets) == 6 and bullets[4:] == kept
     for line in kept:
         assert md.count("\n" + line + "\n") == 1, line
     assert section.count(cheapest_sentence(results)) == 1
@@ -411,7 +434,8 @@ def test_readme_livecodebench_keeps_two_bullets_one_limit_and_a_link_line(cv):
         assert phrase in md and phrase not in section, phrase
     assert md.count(f"\n- {one_task(cv)}\n- Size: the committed file, ") == 1
     for start in ("- The bar holds", "- Bar violations:", "- The per-item oracle", "- A label is",
-                  "- The problems come from", "- With no cost", "- Routing here is one task"):
+                  "- The problems come from", "- With no cost", "- Routing here is one task",
+                  "- The models date from"):
         assert start not in section, start
 
 
@@ -428,13 +452,32 @@ def test_readme_livecodebench_links_source_licence_limits_and_commands(cv):
                    f"downloads the {len(cv.FILES)} pinned files, about "
                    f"{sum(size for size, _ in cv.FILES.values()) / 1e9:.2f} GB,"):
         assert needle in section, needle
-    for phrase in LIMITS:
-        assert phrase in section and phrase in md, phrase
+    for phrase in LIMITS:  # in both files to v1.475; in RESULTS.md alone from v1.476 (row DOC44d)
+        assert phrase in md and phrase not in section, phrase
     for phrase in DROPPED_LIMITS:
         assert phrase in md and phrase not in section, phrase
     assert REGENERATE in section and REGENERATE in md
     assert section.count("`cost_effective`") == NOT_RUN.count("`cost_effective`")
     assert section.isascii() and "\u2013" not in section and "\u2014" not in section
+
+
+def test_readme_livecodebench_shed_source_clauses_are_in_their_homes(cv):
+    """v1.476 (12.17 v1.476, row DOC44d): each clause the source lines shed is absent from the subsection
+    and in its home: the evidence README's `Repo:` line and pins paragraph, and the RESULTS.md table, which
+    holds one `model:` row for each single model of the committed file."""
+    results, section = committed(), readme_subsection()
+    homes = {"RESULTS.md": results_md(), "README.md": EVIDENCE_README.read_text(encoding="utf-8")}
+    assert len(SHED_SOURCE_CLAUSES) == 3
+    for gone, home, words in SHED_SOURCE_CLAUSES:
+        assert gone not in section, gone
+        assert words in homes[home], (home, words)
+    b0 = results["config"]["bars"][0]
+    models = sorted(r["strategy"] for r in results["summary"]
+                    if (r["bar"], r["flavor"]) == (b0, "cost_blind") and r["strategy"].startswith("model:"))
+    table = homes["RESULTS.md"].split("\n```text\n", 1)[1].split("\n```\n", 1)[0]
+    rows = sorted(line.split()[0] for line in table.split("\n") if line.startswith("model:"))
+    assert len(models) == len(cv.FILES) == 67 and rows == models
+    assert f"; the {len(cv.FILES)} files the converter reads are checked by size and sha256\n" in section
 
 
 def test_readme_livecodebench_tables_follow_the_file():
