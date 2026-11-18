@@ -10,6 +10,9 @@ README Limitations bullet and the research index row list the script's `DATASETS
 
 v1.453 (row DOC40): the two say `the first six` while the README holds more routing subsections
 whose dataset records a cost than the script reads, the registry pair being one from v1.452.
+
+v1.459 (row R44): the script reads the registry pair (12.24) as its seventh file, so the counts lose
+`first`; the note gains a dated section on it, whose sentences are built from the note's Results block.
 """
 
 import contextlib
@@ -33,7 +36,8 @@ DESIGN = ROOT / "DESIGN.md"
 COMMAND = ("$ python research/no_model_clears.py --routerbench routerbench-matrix.jsonl "
            "--autobench autobench-matrix.jsonl --judges autobench-judges.jsonl "
            "--judges-registry autobench-models.json --tau2 tau2-matrix.jsonl "
-           "--llmrouterbench llmrouterbench-matrix.jsonl --response-bank response-bank-matrix.jsonl")
+           "--llmrouterbench llmrouterbench-matrix.jsonl --response-bank response-bank-matrix.jsonl "
+           "--registry-pair registry-pair-matrix.jsonl")
 REGENERATE = [
     'python -m pip install -e ".[evidence]"',
     "python evidence/routerbench/convert.py --out routerbench-matrix.jsonl",
@@ -42,6 +46,7 @@ REGENERATE = [
     "python evidence/tau2-bench/convert.py --out tau2-matrix.jsonl",
     "python evidence/llmrouterbench/convert.py --out llmrouterbench-matrix.jsonl",
     "python evidence/response-bank/convert.py --out response-bank-matrix.jsonl",
+    "python evidence/registry-pair/convert.py --out registry-pair-matrix.jsonl",
     COMMAND[2:],
 ]
 DATASETS = [("RouterBench", "evidence/routerbench/results.json"),
@@ -49,14 +54,17 @@ DATASETS = [("RouterBench", "evidence/routerbench/results.json"),
             ("AutoBench judges", "evidence/autobench-judges/results.json"),
             ("tau2-bench", "evidence/tau2-bench/results.json"),
             ("LLMRouterBench", "evidence/llmrouterbench/results.json"),
-            ("LLM Routing Response Bank", "evidence/response-bank/results.json")]
+            ("LLM Routing Response Bank", "evidence/response-bank/results.json"),
+            ("Registry pair", "evidence/registry-pair/results.json")]
 # DESIGN section and row numbers: the only numbers of the note's prose not in the script's lines
-ALLOWED = {"5.3", "12.3", "12.7", "12.10", "12.12", "12.15", "12.19", "12.21", "13.5", "7"}
+ALLOWED = {"5.3", "12.3", "12.7", "12.10", "12.12", "12.15", "12.19", "12.21", "12.24", "13.5", "7"}
 NUMBER = re.compile(r"(?<![\w.])\d+(?:,\d{3})*(?:\.\d+)?%?")
 DATE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
 SECTION = "LLMRouterBench and the response bank (2026-11-13)"
+PAIR_SECTION = "The registry pair (2026-11-17)"  # v1.459
 # v1.341: how the bullet and the index row name each dataset of the script's DATASETS
-PROSE_NAME = {"AutoBench judges": "the AutoBench judges", "LLM Routing Response Bank": "the LLM Routing Response Bank"}
+PROSE_NAME = {"AutoBench judges": "the AutoBench judges", "LLM Routing Response Bank": "the LLM Routing Response Bank",
+              "Registry pair": "the registry pair"}
 COUNT_WORD = {4: "four", 5: "five", 6: "six", 7: "seven", 8: "eight"}
 EVIDENCE = "\n## Evidence: held-out results on public data\n"
 # v1.453: the evidence opening names the routing dataset that records no cost
@@ -165,7 +173,8 @@ def test_report_stops_when_the_routed_row_is_not_the_committed_one(nmc, key, del
 
 
 # the script's matrix options in DATASETS order (v1.343, review iter-222 should-fix 1)
-OPTIONS = ["--routerbench", "--autobench", "--judges", "--tau2", "--llmrouterbench", "--response-bank"]
+OPTIONS = ["--routerbench", "--autobench", "--judges", "--tau2", "--llmrouterbench", "--response-bank",
+           "--registry-pair"]
 
 
 def own_rows(rows, k):
@@ -201,12 +210,12 @@ def _main(nmc, argv):
     return code, out.getvalue(), err.getvalue()
 
 
-def test_script_datasets_are_the_six_in_order(nmc):
+def test_script_datasets_are_the_seven_in_order(nmc):
     assert [(name, rel) for name, rel, _ in nmc.DATASETS] == DATASETS
     assert ["--" + option.replace("_", "-") for _, _, option in nmc.DATASETS] == OPTIONS
 
 
-def test_main_prints_the_six_reports_in_order(nmc, tmp_path):
+def test_main_prints_the_seven_reports_in_order(nmc, tmp_path):
     rows = tiny_rows()
     code, out, err = _main(nmc, _tree(tmp_path, rows))
     assert (code, err) == (0, "")
@@ -263,7 +272,7 @@ def test_note_quotes_its_commands_and_links():
     note = NOTE.read_text(encoding="utf-8")
     assert note.startswith("# When no model clears the bar\n")
     assert re.findall(r"^## (.+)$", note, flags=re.M) == [
-        "Facts", "Method", "Results", "Reading it", SECTION, "Recommendation", "Limits", "Regenerate"]
+        "Facts", "Method", "Results", "Reading it", SECTION, PAIR_SECTION, "Recommendation", "Limits", "Regenerate"]
     assert _blocks(note, "bash") == ["\n".join(REGENERATE) + "\n"]
     [text] = _blocks(note, "text")
     assert text.startswith(COMMAND + "\n")
@@ -271,7 +280,7 @@ def test_note_quotes_its_commands_and_links():
     for link in ("../DESIGN.md", "../evidence/routerbench/RESULTS.md", "../evidence/autobench-2026/RESULTS.md",
                  "../evidence/autobench-judges/RESULTS.md", "../evidence/tau2-bench/RESULTS.md",
                  "../evidence/llmrouterbench/RESULTS.md", "../evidence/response-bank/RESULTS.md",
-                 "no_model_clears.py", "no-path-clears.md"):
+                 "../evidence/registry-pair/RESULTS.md", "no_model_clears.py", "no-path-clears.md"):
         assert f"]({link})" in note, link
 
 
@@ -373,17 +382,23 @@ def test_bullet_and_index_row_list_the_script_datasets(nmc):
 
 @pytest.fixture(scope="module")
 def output(nmc, tmp_path_factory, llmrouterbench_pinned, response_bank_pinned):
-    """The script's lines on the six datasets, their matrices built in process from the cached files
-    (the LLMRouterBench and response-bank matrices are the session fixtures' converter output, v1.341)."""
+    """The script's lines on the seven datasets, their matrices built in process from the cached files
+    (the LLMRouterBench and response-bank matrices are the session fixtures' converter output, v1.341;
+    the registry pair's the 12.23 converter's rows, v1.459)."""
     pytest.importorskip("pandas")
     rb = _load("r8_routerbench_convert", ROOT / "evidence" / "routerbench" / "convert.py")
     ab = _load("r8_autobench_convert", ROOT / "evidence" / "autobench-2026" / "convert.py")
     jm = _load("r8_autobench_judges", ROOT / "evidence" / "autobench-2026" / "judges.py")
     t2 = _load("r8_tau2_convert", ROOT / "evidence" / "tau2-bench" / "convert.py")
+    rp = _load("r8_registry_pair_convert", ROOT / "evidence" / "registry-pair" / "convert.py")
     pkl, a_dir, t_dir = rb.default_cache_dir() / rb.FILENAME, ab.default_cache_dir(), t2.default_cache_dir()
+    r_dir = rp.default_cache_dir()
     if (not pkl.is_file() or not all((a_dir / n).is_file() for n in ab.FILES)
-            or not all((t_dir / n).is_file() for n in t2.FILES)):
-        pytest.skip("the pinned RouterBench, AutoBench and tau2-bench files are not in the default cache")
+            or not all((t_dir / n).is_file() for n in t2.FILES)
+            or not all((r_dir / n).is_file() for n in rp.FILES)):
+        pytest.skip("the pinned RouterBench, AutoBench, tau2-bench and registry-pair files are not in the default cache")
+    for name, (size, sha) in rp.FILES.items():
+        rp.verify(r_dir / name, size, sha)
     rb.verify(pkl)
     for name, (size, sha) in ab.FILES.items():
         ab.verify(a_dir / name, size, sha)
@@ -407,10 +422,11 @@ def output(nmc, tmp_path_factory, llmrouterbench_pinned, response_bank_pinned):
     assert (lrb_code, bank_code) == (0, 0)
     outcomes["LLMRouterBench"] = load_outcomes(str(lrb_path))
     outcomes["LLM Routing Response Bank"] = load_outcomes(str(bank_path))
+    outcomes["Registry pair"] = outcomes_from_rows(rp.convert(*rp._read_all({n: r_dir / n for n in rp.FILES}))[0])
     return "\n".join(nmc.run(outcomes, ROOT)) + "\n"
 
 
-def test_output_holds_the_six_datasets_in_order(output):
+def test_output_holds_the_seven_datasets_in_order(output):
     heads = [x.split(" (")[0] for x in output.split("\n") if x and not x.startswith(" ")]
     assert heads == [name for name, _ in DATASETS]
     for name, rel in DATASETS:
@@ -437,3 +453,98 @@ def test_the_fallback_is_best_on_calibration_on_both_new_datasets(output):
                            r"[\d,]+ held-out items.*\n    the routed model is best_on_calibration's on ([\d,]+) ",
                            block)
         assert heads and all(a == b for a, b in heads), name
+
+
+# --- v1.459 (row R44): the registry-pair section, built from the note's Results block -------------
+
+BLOCK_HEAD = re.compile(r"^  bar ([\d.]+): no model clears on ([\d,]+) of ([\d,]+) cost_effective cells \(([\d.]+%)\), "
+                        r"[\d,]+ held-out items; tasks with such a cell: (\d+) of (\d+)$")
+BLOCK_PICKS = re.compile(r"^    the routed model is best_on_calibration's on ([\d,]+) and the cheapest model's on ([\d,]+)$")
+BLOCK_ROW = re.compile(r"^    (\w+) +success ([\d.]+)  cost per item ([\d.]+) USD  at the bar or above on ([\d,]+) ")
+BLOCK_WHOLE = re.compile(r"^    whole row: routed success ([\d.]+) at [\d.]+ USD; with the cheapest model as the fallback "
+                         r"([\d.]+) at [\d.]+ USD \(success ([+-][\d.]+), cost -([\d.]+%)\)$")
+
+
+def pair_bars(note):
+    """Per bar of the Results block's registry-pair report: its head, picks, three rows and whole row."""
+    [text] = _blocks(note, "text")
+    block = text[text.index("\nRegistry pair ("):].strip("\n").split("\n")
+    bars, current = [], None
+    for line in block[1:]:
+        if BLOCK_HEAD.match(line):
+            bar, none, cells, share, tasks, of = BLOCK_HEAD.match(line).groups()
+            current = {"bar": bar, "none": none, "cells": cells, "share": share, "tasks": tasks, "of": of}
+            bars.append(current)
+        elif BLOCK_PICKS.match(line):
+            current["boc"], current["cheap"] = BLOCK_PICKS.match(line).groups()
+        elif BLOCK_ROW.match(line):
+            label, success, cost, met = BLOCK_ROW.match(line).groups()
+            current[label] = {"success": success, "cost": cost, "met": met}
+        elif BLOCK_WHOLE.match(line):
+            current["s0"], current["s1"], current["ds"], current["dc"] = BLOCK_WHOLE.match(line).groups()
+        else:
+            raise AssertionError(f"an unread registry-pair line: {line!r}")
+    assert [b["bar"] for b in bars] == ["0.6", "0.7", "0.8", "0.9"]
+    assert all(len(b) == 15 for b in bars), bars
+    return bars
+
+
+def _range(values):
+    low, high = min(values, key=float), max(values, key=float)
+    return low if low == high else f"{low} to {high}"
+
+
+def pair_sentences(bars):
+    """The registry-pair section's sentences, every number from `pair_bars`."""
+    first, mid, last = bars[0], bars[2], bars[3]
+    picks = ", ".join(b["cheap"] for b in bars[:-1]) + " and " + bars[-1]["cheap"]
+    against = ", ".join(f"{b['cheapest']['success']} against {b['fallback']['success']} at bar {b['bar']}"
+                        for b in bars[:-1])
+    against += f" and {last['cheapest']['success']} against {last['fallback']['success']} at bar {last['bar']}"
+    met = ", ".join(f"{b['cheapest']['met']} against {b['fallback']['met']}" for b in bars[:-1])
+    met += f" and {last['cheapest']['met']} against {last['fallback']['met']}"
+    losses = bars[1:]
+    lost = ", ".join(f"{b['ds'][1:]} at bar {b['bar']}" for b in losses[:-1]) + f" and {losses[-1]['ds'][1:]} at bar {losses[-1]['bar']}"
+    saved = ", ".join(b["dc"] for b in losses[:-1]) + f" and {losses[-1]['dc']}"
+    return [
+        f"no model clears on {first['none']} of the {first['cells']} `cost_effective` cells at bar {first['bar']} "
+        f"({first['share']}), on {first['tasks']} of its {first['of']} tasks, rising to {mid['none']} ({mid['share']}) "
+        f"on {mid['tasks']} at bar {mid['bar']} and {last['none']} ({last['share']}) on {last['tasks']} at bar {last['bar']}",
+        f"on every one of these cells the fallback is the `best_on_calibration` model, and on {picks} of them "
+        f"the cheapest model is that model too",
+        f"On those cells the cheapest model scores {against}, at "
+        f"{_range([b['cheapest']['cost'] for b in bars])} USD per item against the fallback's "
+        f"{_range([b['fallback']['cost'] for b in bars])}, and reaches the bar on {met} of them",
+        f"With it as the fallback the whole row keeps its {first['s0']} at bar {first['bar']} for {first['dc']} less cost "
+        f"and loses {lost}, for {saved} less",
+        f"its saving rises with the bar, from {first['dc']} at bar {first['bar']}, where no model clears on "
+        f"{first['share']} of the cells, to {last['dc']} at bar {last['bar']}, where it is {last['share']}",
+    ]
+
+
+def test_the_registry_pair_section_is_built_from_the_results_block():
+    note = NOTE.read_text(encoding="utf-8")
+    bars = pair_bars(note)
+    section = note[note.index(f"\n## {PAIR_SECTION}\n"):]
+    section = section[:section.index("\n## ", 1)]
+    for sentence in pair_sentences(bars):
+        assert section.count(sentence) == 1, sentence
+    # the claims the sentences carry: the fallback is best_on_calibration on every such cell, the
+    # cheapest model raises the whole row's success at no bar, keeps it at the first, and saves more
+    # as the bar and the share of such cells rise
+    assert all(b["boc"] == b["none"] for b in bars)
+    assert all(float(b["ds"]) <= 0 for b in bars) and bars[0]["s0"] == bars[0]["s1"]
+    assert all(float(b["ds"]) < 0 for b in bars[1:])
+    for key in ("dc", "share"):
+        values = [float(b[key].rstrip("%")) for b in bars]
+        assert values == sorted(values) and len(set(values)) == len(values), key
+    assert "So the registry pair leaves the recommendation as it was: at no bar does the cheapest model raise the whole row's success" in section
+
+
+def test_pair_bars_reads_every_line_of_the_block():
+    note = NOTE.read_text(encoding="utf-8")
+    [text] = _blocks(note, "text")
+    i = text.index("\nRegistry pair (")
+    broken = note.replace(text, text[:i] + text[i:].replace("\n    whole row: routed", "\n    whole row:  routed", 1), 1)
+    with pytest.raises(AssertionError, match="an unread registry-pair line"):
+        pair_bars(broken)
