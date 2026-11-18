@@ -372,6 +372,17 @@ def test_registry_pair_routing_does_not_reach_the_best_single_model(wrp, output)
     found = SHORTFALLS.search(block)
     assert found and found[3], block
     assert f"At the median expected half, {found[4]} items, the Wilson shortfall is {found[3]}" in text
+    # review iter-322 should-fix 1: the picks sentence and the cost_effective range, from the block's rows
+    rows = [line.split() for line in block.splitlines() if re.match(r"  \d", line)]
+    blind = {(r[7], r[9], r[10]) for r in rows if r[1] == "cost_blind"}
+    assert len(blind) == 1, blind
+    two, off, never = blind.pop()
+    assert (f"In `cost_blind` {off} of the {len(results['tasks'])} tasks pick the other model on some seed and "
+            f"{never} on every seed, and {two} change their pick between seeds.") in text
+    effective = [r for r in rows if r[1] == "cost_effective"]
+    low, high = effective[0], effective[-1]
+    assert (f"from {low[2]} at {low[4]} of the best single model's cost at bar {low[0]} to {high[2]} at "
+            f"{high[4]} at bar {high[0]}, a gain from {low[11]} to {high[11]}") in text
 
 
 def test_report_counts_the_tasks_off_the_best_model(wrp):
@@ -627,15 +638,35 @@ def test_limitations_bullet_says_first_only_while_more_routing_subsections_follo
         limitations_bullet(wrp, swapped)
 
 
+def never_passing(wrp):
+    """v1.458 (review iter-322 should-fix 2): the number of the script's datasets with no routed row
+    above the best single model's held-out success."""
+    count = 0
+    for _, rel in wrp.DATASETS:
+        results = committed(rel)
+        config = results["config"]
+        best = wrp.best_single(results, config["bars"][0], config["flavors"][0])
+        count += not any(wrp.summary_row(results, bar, flavor, "routed")["success"] > best["success"]
+                         for bar in config["bars"] for flavor in config["flavors"])
+    return count
+
+
 def test_the_note_script_and_12_22_count_the_files_as_the_readme_does(wrp):
     """v1.453 (review iter-315 should-fix 1): the note's opening, the script's docstring and the 12.22
-    bullet count the files with the builder's words, `first` included while more subsections follow."""
+    bullet count the files with the builder's words, `first` included while more subsections follow;
+    v1.458 (review iter-322 should-fix 2): also the count of those routing never passes, in the
+    note's opening and the 12.22 pointer and Limitations quotes."""
     count = files_count(wrp)
+    never = WORDS[never_passing(wrp)]
     places = [(note(), f"than the best single model on some of its {count} datasets, never reaching"),
               (note(), f"This note reads those {WORDS[len(wrp.DATASETS)]} committed routing results files"),
               (SCRIPT.read_text(encoding="utf-8"), f"Reads only the {count} committed routing results files"),
               (DESIGN.read_text(encoding="utf-8"), f"read only the {count} committed routing results files (12.7,"),
-              (DESIGN.read_text(encoding="utf-8"), f"`Of the {count} routing datasets above, two have")]
+              (DESIGN.read_text(encoding="utf-8"), f"`Of the {count} routing datasets above, two have"),
+              (note(), f"never reaching that model's held-out success on {never} of them and passing it"),
+              (DESIGN.read_text(encoding="utf-8"), f"on some of the {count} datasets in the list above, never "
+                                                   f"reaches its held-out success on {never} of them and"),
+              (DESIGN.read_text(encoding="utf-8"), f"twice it; on the other {never}, routing pays at most in cost")]
     for text, phrase in places:
         assert text.count(phrase) == 1, phrase
 

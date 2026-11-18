@@ -187,10 +187,10 @@ On the LLM Routing Response Bank routing passes the best single model's held-out
 
 ## Eighth file: the registry pair (2026-11-17)
 
-On the registry pair routing does not reach the best single model's held-out success either, though it routes many tasks: its calibration halves are too small to tell its two models apart on most of them, so the picks move from seed to seed and routing pays only in cost.
+On the registry pair routing does not reach the best single model's held-out success either, though it routes many tasks: it has two models and small calibration halves, the pick changes between seeds on about half of its tasks, and routing pays only in cost.
 
 - `cost_blind`: 0.918 at every bar for 3.8351 USD, 0.897 of the 4.2761 of the best single model, `openai/gpt-6.1-sol`, a gain of -0.0027, level with `best_on_calibration`'s 0.918 at 3.8351. On LLMRouterBench the same row gains +0.0223 at 0.473 of its best single model's cost
-- Why it differs from LLMRouterBench, which also routes many tasks: the halves. At the median expected half, 46 items, the Wilson shortfall is 0.124, against 0.049 at LLMRouterBench's 374, and the smallest half, 10, is below `min_samples` 30. In `cost_blind` 22 of the 31 tasks pick the other model on some seed and 6 on every seed, and 16 change their pick between seeds, so on most tasks a seed's half decides the pick, not a gap the bound can see
+- How it differs from LLMRouterBench, which also routes many tasks: two models against its 13, so a task has one other model to move to, and smaller halves. At the median expected half, 46 items, the Wilson shortfall is 0.124, against 0.049 at LLMRouterBench's 374, each at its own best single model's success, and 1 task's half is below `min_samples` 30. In `cost_blind` 22 of the 31 tasks pick the other model on some seed and 6 on every seed, and 16 change their pick between seeds. The file holds no per-task single-model rows, so this note cannot say on how many tasks the other model is truly the better one
 - `cost_effective`: from 0.885 at 0.114 of the best single model's cost at bar 0.6 to 0.917 at 0.838 at bar 0.9, a gain from -0.0363 to -0.0041, so routing trades success for cost, at a bar below that model's success, as on the first five files
 - Its two models are the registry's own, `openai/gpt-6-luna` and `openai/gpt-6.1-sol`, and its costs are the release's estimates from token counts at the registry's prices; [registry-pair.md](registry-pair.md) calls it the one public dataset whose models and prices are the registry's own
 
