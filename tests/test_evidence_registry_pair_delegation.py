@@ -23,9 +23,6 @@ import pytest
 from model_routing import Registry
 from test_evidence_registry_pair_results import FILES, ITEMS
 
-# Held until the script and the file land (v1.469 removes it).
-pytestmark = pytest.mark.xfail(strict=True, raises=FileNotFoundError)
-
 ROOT = Path(__file__).resolve().parents[1]
 FOLDER = ROOT / "evidence" / "registry-pair-delegation"
 SCRIPT = FOLDER / "results.py"
