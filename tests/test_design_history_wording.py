@@ -26,6 +26,10 @@ def test_the_unheld_doc19_trim_bullets_give_their_cap_as_the_cap_then():
         text = line(f"- README trim ({row}, to the 12.8 v1.334 size budget): ")
         assert text.count(f"({size} at 0b3e142, cap 6,500 then)") == 1
         assert "cap 6,500)" not in text
+    # 12.17 is at its PENDING hold, so its line names the measure in five fewer bytes (review iter-327 nit 1).
+    text = line("- README trim (v1.365, row DOC19h, to the 12.8 v1.334 size budget): ")
+    assert text.count("is 4,929 bytes by the 12.8 measure (6,194 at 0b3e142, cap 6,500 then)") == 1
+    assert "by that budget's measure" not in text
 
 
 def test_the_12_8_over_cap_sentence_points_to_the_room_bullet_order():
@@ -47,9 +51,9 @@ def test_the_12_19_v1_358_bullet_gives_the_shape_to_v1_445():
     # Review iter-307 nit 1: v1.446 (row DOC28c) trimmed the subsection again.
     text = line("- README trim (v1.358, row DOC19f, to the 12.8 v1.334 size budget): ")
     assert ("from v1.359 to v1.445 the README subsection `### LLMRouterBench` was 6,469 bytes by that budget's "
-            "measure (8,093 at 0b3e142, cap 6,500) and held, in this order: ") in text
+            "measure (8,093 at 0b3e142, cap 6,500 then) and held, in this order: ") in text
     assert text.endswith(", and the subsection's only bullets after its tables were the three it kept")
-    for old in ("from v1.359 the README subsection", "is 6,469 bytes", "are the three it keeps"):
+    for old in ("from v1.359 the README subsection", "is 6,469 bytes", "are the three it keeps", "cap 6,500)"):
         assert old not in text
     after = line("- README trim (v1.446, row DOC28c, to the 12.8 v1.444 routing cap of 5,000 bytes): ")
     assert "holds what v1.359 held but" in after and "v1.359 holds" not in after
