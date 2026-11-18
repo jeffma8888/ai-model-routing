@@ -1012,9 +1012,10 @@ def test_the_docstring_and_the_note_say_which_cells_are_re_decided(rs):
            "(v1.438)" in method
 
 
-def test_the_design_bullet_is_in_12_22():
+def test_the_design_bullet_is_in_13_16():
+    # 12.22 to v1.460, 13.16 from v1.461 (row DOC38c)
     text = DESIGN.read_text(encoding="utf-8")
-    section = text.split("\n### 12.22 ", 1)[1].split("\n## 13. ", 1)[0]
+    section = text.split("\n### 13.16 ", 1)[1].split("\n## 14. ", 1)[0]
     bullet = [line for line in section.splitlines() if line.startswith(BULLET)]
     assert len(bullet) == 1
     for phrase in ("`research/reread-sensitivity.md`", "`research/reread_sensitivity.py`", "sigma 1.0 and W = B",
@@ -1090,7 +1091,7 @@ def test_design_13_1_states_the_reread_sentence():
     design = DESIGN.read_text(encoding="utf-8")
     s13_1 = design.split("\n### 13.1 Inputs\n", 1)[1].split("\n### 13.2 ", 1)[0]
     clause = (
-        "From v1.420 (row DOC33, the Recommendation of the 12.22 v1.413 note) the sentence after that one says "
+        "From v1.420 (row DOC33, the Recommendation of the 13.16 v1.413 note) the sentence after that one says "
         "that the committed delegation results keep sigma and W at their defaults and how far re-deciding their "
         "cells at sigma 0, sigma 0.5 and W = 2 B, each with the other input at its default, moves them, from `research/reread-sensitivity.md`, which it "
         "links: the largest share of a file, flavor and bar's cells that changes on AutoBench 2026, "

@@ -447,7 +447,7 @@ def test_results_md_names_a_surrogate_and_its_source():
 def design_13_15():
     text = DESIGN.read_text(encoding="utf-8")
     start = text.index("### 13.15 ")
-    end = text.index("\n## 14. ", start)
+    end = text.index("\n### 13.16 ", start)  # 13.16 follows it from v1.461 (row DOC38c)
     return text[start:end]
 
 

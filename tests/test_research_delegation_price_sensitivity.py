@@ -1327,9 +1327,10 @@ def test_the_research_index_lists_the_note():
     assert index.count("- `research/delegation-price-sensitivity.md` ") == 1
 
 
-def test_the_design_bullet_is_in_12_22():
+def test_the_design_bullet_is_in_13_16():
+    # 12.22 to v1.460, 13.16 from v1.461 (row DOC38c)
     text = DESIGN.read_text(encoding="utf-8")
-    section = text.split("\n### 12.22 ", 1)[1].split("\n## 13. ", 1)[0]
+    section = text.split("\n### 13.16 ", 1)[1].split("\n## 14. ", 1)[0]
     bullet = [line for line in section.splitlines() if line.startswith(BULLET)]
     assert len(bullet) == 1
     # v1.440 (row T17) shortened the bullet, its v1.424 to v1.429 history kept in those CHANGELOG.md lines
@@ -1361,11 +1362,12 @@ def test_the_design_bullet_is_in_12_22():
     assert "they re-decide every cell" not in bullet[0]
     for words in ("whose 5.2 `routing_cost` is 0.0", "prices alone", "makes anyway"):
         assert words not in bullet[0], words
-    # right after the re-read bullet; from v1.430 (row R40) the registry-pair bullet follows it
+    # right after the re-read bullet; from v1.430 (row R40) to v1.460 the registry-pair bullet followed it in
+    # 12.22, and from v1.461 (row DOC38c) it is the last line of 13.16
     lines = section.rstrip("\n").split("\n")
     at = lines.index(bullet[0])
     assert lines[at - 1].startswith("- The re-read share and the brief's output, ")
-    assert lines[at + 1].startswith("- The registry's own pair, on superlinked/train-a-router-reasoning (v1.430, ")
+    assert at == len(lines) - 1
     # it names the 9 clause that specifies the README Limitations sentence linking the note (v1.428, row DOC36),
     # as the routing price-error bullet names 9 v1.417
     assert bullet[0].endswith("; README Limitations links it (9 v1.428)")
@@ -1378,7 +1380,7 @@ README = ROOT / "README.md"
 PRICES = "- Prices are a dated snapshot. "
 ROUTING_END = "(the note measures what a wrong price does, not how often prices change, so it sets no fixed interval). "
 DESIGN_9 = (
-    "- v1.428 a price error in a delegation decision in the README (row DOC36, the Recommendation of the 12.22 v1.424 "
+    "- v1.428 a price error in a delegation decision in the README (row DOC36, the Recommendation of the 13.16 v1.424 "
     "note): README Limitations' prices bullet gives, in one sentence right after the v1.417 one, how far a wrong price "
     "moves `cost_effective` delegation decisions, from `research/delegation-price-sensitivity.md`, which it links: with "
     "one model's prices halved or doubled, one model at a time, the largest share of a bar's `cost_effective` cells "

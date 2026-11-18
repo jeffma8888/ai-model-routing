@@ -156,9 +156,10 @@ def test_the_index_lists_the_note():
     assert "| [ledger-cost-model.md](ledger-cost-model.md) |" in text
 
 
-def test_the_design_bullet_is_in_12_22_and_under_1900_bytes():
+def test_the_design_bullet_is_in_13_16_and_under_1900_bytes():
+    # 12.22 to v1.460, 13.16 from v1.461 (row DOC38c)
     text = DESIGN.read_text(encoding="utf-8")
-    start, end = text.index("### 12.22 "), text.index("\n## 13. ")
+    start, end = text.index("### 13.16 "), text.index("\n## 14. ")
     lines = [line for line in text[start:end].splitlines() if line.startswith(BULLET)]
     assert len(lines) == 1
     assert len(lines[0].encode("utf-8")) < 1900

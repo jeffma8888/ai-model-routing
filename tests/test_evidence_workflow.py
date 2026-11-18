@@ -943,7 +943,7 @@ def test_the_workflow_reruns_the_ledger_handoff_line_after_the_readme_commands()
     assert (f"all on `main` and all successful by their latest attempt, the slowest is run {SLOWEST_RUN_ID} on "
             f"`{SLOWEST_RUN_SHA}`, "
             in section)
-    spec = design.split("\n### 13.15 ", 1)[1].split("\n## ", 1)[0]
+    spec = design.split("\n### 13.15 ", 1)[1].split("\n## ", 1)[0].split("\n### ", 1)[0]
     bullets = [line for line in spec.split("\n") if line.startswith("- Workflow (v1.397, row E23c): ")]
     assert len(bullets) == 1 and f"`{LEDGER_LINE}`" in bullets[0]
     # Review iter-304 must-fix 1 (v1.443): the ledger file is no longer last in Compare.

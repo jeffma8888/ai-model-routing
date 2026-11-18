@@ -990,8 +990,9 @@ def notes():
 def test_design_specifies_the_delegation_pointer():
     text = DESIGN.read_text(encoding="utf-8")
     section = text.split("\n### 12.8 ", 1)[1].split("\n### ", 1)[0]
-    # v1.390 (row DOC21o): the research-note bullets, this one among them, are 12.22.
-    notes = text.split("\n### 12.22 ", 1)[1].split("\n## ", 1)[0].split("\n### ", 1)[0]
+    # v1.390 (row DOC21o): the research-note bullets, this one among them, are 12.22; from v1.461
+    # (row DOC38c) this one is 13.16.
+    notes = text.split("\n### 13.16 ", 1)[1].split("\n## ", 1)[0].split("\n### ", 1)[0]
     bullets = [line for line in notes.splitlines()
                if line.startswith("- Where delegation pays at a glance (v1.258, row DOC15): ")]
     assert len(bullets) == 1
@@ -1004,7 +1005,7 @@ def test_design_specifies_the_delegation_pointer():
                    "on the datasets of the four delegation bullets above: "):
         assert phrase in bullets[0], phrase
     assert "then (v1.258) a blank line and the one paragraph of the where-delegation-pays-at-a-glance bullet " \
-           "of 12.22, then (v1.396) a blank line and the 13.15 README paragraph, and by nothing else." in section
+           "of 13.16, then (v1.396) a blank line and the 13.15 README paragraph, and by nothing else." in section
     assert "fifth and last paragraph" not in bullets[0]
 
 

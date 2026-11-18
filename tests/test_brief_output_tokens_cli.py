@@ -177,7 +177,7 @@ def test_design_13_15_says_the_ledger_runs_keep_w_at_b():
     # every note's call writes more than its note, so W = B under-charges it here
     assert all(w > b for w, b in pairs)
     design = (ROOT / "DESIGN.md").read_text(encoding="utf-8")
-    s13_15 = section(design, "### 13.15 ", "## 14. ")
+    s13_15 = section(design, "### 13.15 ", "### 13.16 ")  # 13.16 follows it from v1.461 (row DOC38c)
     sentence = (
         "So no result here sets 13.1's W from the note calls' measured completion tokens (a "
         f"median {written[0]:.1f} to {written[-1]:.1f} for notes of {notes[0]:.1f} to "

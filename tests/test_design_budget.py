@@ -56,6 +56,10 @@ sentences, each contract item staying (DOC38B_DROPPED); the seed by seed exit li
 model that differs between bars or flavors (review iter-321 nit 3, BORROWED).
 
 The registry pair (v1.431, row E24): 12.23, the registry-pair converter, is a converter.
+Delegation research notes (v1.461, row DOC38c): the four 12.22 lines that specify delegation research notes,
+or the README paragraph that links two, are 13.16, word for word and in the same order (DELEGATION_NOTES), a
+research-notes subsection with 12.22's cap, which raises the `## 13.` total by 40,000 to 240,000; the tests of
+the eight lines of v1.124 to v1.191 (DOC34_LINES) and of the wordings v1.457 and v1.460 dropped read both.
 12.24, the registry-pair results (v1.433, row E24b), is a routing results subsection.
 
 The registry pair in the workflow (v1.443, row E24e): three `is rerun` lines of 12.13 drop what the Steps,
@@ -64,8 +68,8 @@ top comment, and the test reading it), so 12.13 has room for the registry pair's
 
 The section totals (v1.456, row DOC37): each total is the one last set with the subsections it counted,
 `## 12.` 300,000 at v1.390 with 12.1 to 12.22 and `## 13.` 185,000 at v1.386 with 13.1 to 13.14
-(TOTAL_BASES), raised by the cap of each subsection added after them (12.23 and 12.24, 13.15), so 330,000
-and 200,000. While PENDING is not empty, each section with every PENDING subsection cut to its cap
+(TOTAL_BASES), raised by the cap of each subsection added after them (12.23 and 12.24, 13.15 and, from v1.461,
+13.16), so 330,000 and 240,000. While PENDING is not empty, each section with every PENDING subsection cut to its cap
 (`projected`) must fit its total; the DESIGN 12 Caps bullet names each subsection of GROUPS in its class,
 with that class's cap, and states the totals (CAPS_CLAUSES, `caps_bullet_problems`). So a subsection
 added without a class, a Caps clause or a raised total fails in its own slice, not at the last trim.
@@ -80,7 +84,7 @@ from test_readme_evidence_budget import design_12_8
 ROOT = Path(__file__).resolve().parents[1]
 DESIGN = ROOT / "DESIGN.md"
 SECTIONS = ("12", "13")
-SECTION_CAPS = {"12": 330_000, "13": 200_000}  # v1.456; 12 300,000 at v1.390 and 260,000 at v1.386, 13 185,000
+SECTION_CAPS = {"12": 330_000, "13": 240_000}  # v1.456, 13 v1.461; 12 300,000 at v1.390 and 260,000 at v1.386, 13 185,000
 # The total each section had when it last counted its subsections, the version that set it, and the last
 # subsection number it counted (12 v1.390 with 12.1 to 12.22, 13 v1.386 with 13.1 to 13.14); each
 # subsection numbered after it raises its section's total by the cap of its class (v1.456, row DOC37).
@@ -96,7 +100,7 @@ GROUPS = {
     "workflow": ("12.13",),
     "limits and test status": ("13.8",),
     "delegation evaluator": ("13.9",),
-    "research notes": ("12.22",),
+    "research notes": ("12.22", "13.16"),
 }
 CAPS = {
     "contract": 16_000,
@@ -243,7 +247,7 @@ def test_the_class_table_names_every_heading_once_in_order():
     numbers = [number for number, _ in subsections]
     by_number = sorted(CLASS, key=lambda n: tuple(int(part) for part in n.split(".")))
     assert numbers == by_number
-    assert len(CLASS) == sum(len(group) for group in GROUPS.values()) == 39  # 36 before 13.15 (v1.394), 37 before 12.23 (v1.431), 38 before 12.24 (v1.433)
+    assert len(CLASS) == sum(len(group) for group in GROUPS.values()) == 40  # 36 before 13.15 (v1.394), 37 before 12.23 (v1.431), 38 before 12.24 (v1.433), 39 before 13.16 (v1.461)
     assert set(GROUPS) == set(CAPS)
     assert strays == []
 
@@ -615,18 +619,23 @@ def test_a_broken_history_pointer_is_named(old, new, pointers, message):
 RESEARCH_NOTES = (
     "- Where routing pays (v1.124): ",
     "  - README.md and research/README.md (v1.124, v1.166, v1.303): ",
-    "- Where delegation pays at a glance (v1.258, row DOC15): ",
     "- When no model clears (v1.144; six datasets from v1.341, row R32, seven from v1.459, row R44): ",
     "- Per-task ceiling on RouterBench (v1.146): ",
     "- Seed by seed on LLMRouterBench (v1.177): ",
     "- Fallback on a failed check, on LLMRouterBench (v1.181): ",
     "- Below-bar fallback, on LLMRouterBench (v1.191): ",
-    "- The 13.2 re-read rule against measured tokens (v1.402, row R37): ",
     "- A price error, on LLMRouterBench (v1.403, row R35): ",
-    "- The re-read share and the brief's output, on AutoBench, LLMRouterBench, the response bank and tau2-bench (v1.413, row R38): ",
-    "- A price error in a delegation decision, on AutoBench (v1.424, row R39): ",
     "- The registry's own pair, on superlinked/train-a-router-reasoning (v1.430, row R40): ",
 )
+# v1.461 (row DOC38c): the four 12.22 lines that specify delegation research notes are 13.16, in this order.
+DELEGATION_NOTES = (
+    "- Where delegation pays at a glance (v1.258, row DOC15): ",
+    "- The 13.2 re-read rule against measured tokens (v1.402, row R37): ",
+    "- The re-read share and the brief's output, on AutoBench, LLMRouterBench, the response bank and tau2-bench (v1.413, row R38): ",
+    "- A price error in a delegation decision, on AutoBench (v1.424, row R39): ",
+)
+# The eight lines of v1.124 to v1.191 that DOC34 (v1.421) trimmed, seven in 12.22 and one in 13.16 from v1.461.
+DOC34_LINES = RESEARCH_NOTES[:7] + DELEGATION_NOTES[:1]
 
 
 def subsection_body(text, number):
@@ -636,6 +645,11 @@ def subsection_body(text, number):
     assert len(starts) == 1, number
     upto = next((j for j in range(starts[0] + 1, len(lines)) if HEADING.match(lines[j])), len(lines))
     return lines[starts[0] + 1:upto]
+
+
+def notes_body(text):
+    """The lines of 12.22 and 13.16 after their headings: the research-note lines (v1.461, row DOC38c)."""
+    return subsection_body(text, "12.22") + subsection_body(text, "13.16")
 
 
 def test_the_research_notes_are_12_22_and_12_8_holds_none():
@@ -653,18 +667,42 @@ def test_the_research_notes_are_12_22_and_12_8_holds_none():
     glance = [line for line in twelve_eight if line.startswith("- Results at a glance (v1.23): ")]
     assert len(glance) == 1
     assert ("then (v1.124) a blank line and the one paragraph of the where-routing-pays bullet of 12.22, then "
-            "(v1.258) a blank line and the one paragraph of the where-delegation-pays-at-a-glance bullet of 12.22, "
+            "(v1.258) a blank line and the one paragraph of the where-delegation-pays-at-a-glance bullet of 13.16, "
             "then (v1.396) a blank line and the 13.15 README paragraph, and by nothing else.") in glance[0]
     assert "12.8" not in PENDING and dict(measure(text)[1])["12.8"] <= CAPS["README evidence"]
+
+
+def test_the_delegation_notes_are_13_16_and_12_22_holds_none():
+    # v1.461 (row DOC38c)
+    text = DESIGN.read_text(encoding="utf-8")
+    assert text.count("\n### 13.16 Research notes on delegation (`research/`, out of 12.22 v1.461)\n") == 1
+    body = subsection_body(text, "13.16")
+    assert body[0].startswith("Purpose: the four 12.22 lines that specify delegation research notes, or the README "
+                              "paragraph that links two of them, word for word and in the same order (13 v1.461, "
+                              "row DOC38c): ")
+    assert body[0].endswith(" A reference to one of them as 12.8 or 12.22, with or without a version, in this file, "
+                            "a test, a script or a research note, names its bullet here.")
+    assert len(body) == len(DELEGATION_NOTES) + 2 and body[-1] == ""
+    for line, opening in zip(body[1:-1], DELEGATION_NOTES):
+        assert line.startswith(opening), (line[:60], opening)
+    assert [line[:60] for line in subsection_body(text, "12.22") if line.startswith(DELEGATION_NOTES)] == []
+    assert (" From v1.461 (row DOC38c) the four that specify delegation notes, or the README paragraph that links "
+            "two, are 13.16. ") in subsection_body(text, "12.22")[0]
+    # 13.16 follows 13.15, the last subsection of 13 before it, and closes section 13
+    assert text.index("\n### 13.15 ") < text.index("\n### 13.16 ") < text.index("\n## 14. ")
+    assert CLASS["13.16"] == CLASS["12.22"] == "research notes"
+    sizes = dict(measure(text)[1])
+    assert sizes["13.16"] <= CAPS["research notes"] and sizes["12.22"] <= CAPS["research notes"]
 
 
 def test_the_12_opening_gives_the_research_notes_cap_and_the_12_total():
     opening = DESIGN.read_text(encoding="utf-8").split("\n## 12. ", 1)[1].split("\n### ", 1)[0].splitlines()
     caps = [line for line in opening if line.startswith("- Caps, each a ceiling ")]
     assert len(caps) == 1
-    assert "; the research notes 12.22 40,000 (v1.390, row DOC21o);" in caps[0]
-    assert "; and the totals `## 12.` 330,000 and `## 13.` 200,000 (v1.456, row DOC37), " in caps[0]
-    assert (CAPS["research notes"], SECTION_CAPS["12"], SECTION_CAPS["13"]) == (40_000, 330_000, 200_000)
+    assert "; the research notes 12.22 (v1.390, row DOC21o) and 13.16 (v1.461, row DOC38c), 40,000 each;" in caps[0]
+    assert ("; and the totals `## 12.` 330,000 and `## 13.` 240,000 (v1.456, row DOC37, and v1.461, row DOC38c), "
+            in caps[0])
+    assert (CAPS["research notes"], SECTION_CAPS["12"], SECTION_CAPS["13"]) == (40_000, 330_000, 240_000)
     moved = [line for line in opening if line.startswith("- Research notes out of 12.8 (v1.390, row DOC21o): ")]
     assert len(moved) == 1
     for words in ("are 12.22, a research-notes spec with a cap of 40,000 bytes, in the same order",
@@ -761,8 +799,10 @@ def test_the_caps_bullet_names_each_subsection_in_its_class_and_the_totals():
     ("16,000 bytes each", "15,000 bytes each", ["the contract clause gives 15,000, not its cap 16,000"]),
     ("; the workflow 12.13 25,000", "", ["the Caps bullet has 0 clauses opening `the workflow`, not one"]),
     ("`## 12.` 330,000", "`## 12.` 300,000", ["the Caps bullet gives `## 12.` 300,000, not 330,000"]),
-    ("`## 13.` 200,000", "`## 13.` 185,000", ["the Caps bullet gives `## 13.` 185,000, not 200,000"]),
-    (" and `## 13.` 200,000", "", ["the Caps bullet gives `## 13.` 0 times, not once"]),
+    ("`## 13.` 240,000", "`## 13.` 200,000", ["the Caps bullet gives `## 13.` 200,000, not 240,000"]),
+    (" and `## 13.` 240,000", "", ["the Caps bullet gives `## 13.` 0 times, not once"]),
+    # v1.461 (row DOC38c)
+    (" and 13.16 (v1.461, row DOC38c)", "", ["the research notes clause lacks 13.16"]),
     ("; any line of 12 or 13 6,000", "",
      ["the Caps bullet does not give the line cap once as `any line of 12 or 13 6,000`"]),
     ("any line of 12 or 13 6,000", "any line of 12 or 13 8,000",
@@ -780,8 +820,8 @@ def test_each_total_is_its_base_raised_by_the_cap_of_each_subsection_added_after
         later = [number for number in CLASS if number.split(".")[0] == section and by_number(number)[1] > last]
         added += later
         raised[section] = base + sum(CAPS[CLASS[number]] for number in later)
-    assert sorted(added, key=by_number) == ["12.23", "12.24", "13.15"]
-    assert raised == SECTION_CAPS == {"12": 330_000, "13": 200_000}
+    assert sorted(added, key=by_number) == ["12.23", "12.24", "13.15", "13.16"]
+    assert raised == SECTION_CAPS == {"12": 330_000, "13": 240_000}
 
 
 def test_the_projected_totals_fit_the_totals_the_caps_bullet_states():
@@ -803,7 +843,7 @@ def test_the_section_totals_bullet_gives_each_base_and_each_raise():
     for words in (f"`## 12.` the {base12:,} of {set12}, which counts 12.1 to 12.{last12}, plus 15,000 for each of "
                   f"12.23 (v1.431) and 12.24 (v1.433), so {SECTION_CAPS['12']:,}",
                   f"`## 13.` the {base13:,} of {set13}, which counts 13.1 to 13.{last13}, plus 15,000 for 13.15 "
-                  f"(v1.394), so {SECTION_CAPS['13']:,}",
+                  f"(v1.394) and 40,000 for 13.16 (v1.461), so {SECTION_CAPS['13']:,}",
                   "once `PENDING` is empty and, until then, the section with each `PENDING` subsection cut to "
                   "exactly its cap and the rest as measured"):
         assert words in bullets[0], words
@@ -826,8 +866,8 @@ def test_the_12_8_size_budget_clause_holds_no_history():
 
 def test_the_12_22_lines_of_v1_124_to_v1_191_hold_no_scope_or_restated_history():
     # DOC34 (v1.421): what the trim dropped stays out, and each of the eight lines keeps one pointer.
-    body = subsection_body(DESIGN.read_text(encoding="utf-8"), "12.22")
-    trimmed = [line for line in body if line.startswith(RESEARCH_NOTES[:8])]
+    body = notes_body(DESIGN.read_text(encoding="utf-8"))
+    trimmed = [line for line in body if line.startswith(DOC34_LINES)]
     assert len(trimmed) == 8
     for words in ("No change under", "no transcript changes", "the bound the router uses", "hash split varies",
                   "review iter-", "the mean over seeds of each seed's pooled success", "two middle gaps",
@@ -869,8 +909,8 @@ BORROWED = (
 
 
 def test_the_12_22_lines_that_borrow_a_rule_find_it_in_the_line_they_name():
-    body = subsection_body(DESIGN.read_text(encoding="utf-8"), "12.22")
-    trimmed = [line for line in body if line.startswith(RESEARCH_NOTES[:8])]
+    body = notes_body(DESIGN.read_text(encoding="utf-8"))
+    trimmed = [line for line in body if line.startswith(DOC34_LINES)]
     assert len(trimmed) == 8
     for phrase, lender, rule in BORROWED:
         borrowers = [line[:40] for line in trimmed if phrase in line]
@@ -915,7 +955,7 @@ DOC38A_DROPPED = (
 
 def test_12_22_holds_none_of_the_clauses_v1_457_dropped():
     text = DESIGN.read_text(encoding="utf-8")
-    body = "\n".join(subsection_body(text, "12.22"))
+    body = "\n".join(notes_body(text))  # 13.16 too from v1.461 (row DOC38c)
     logged = set(CHANGELOG_LINE.findall(CHANGELOG.read_text(encoding="utf-8")))
     for words, versions in DOC38A_DROPPED:
         assert words not in body, words
@@ -951,7 +991,7 @@ DOC38B_DROPPED = (
 
 def test_12_22_holds_none_of_the_wordings_v1_460_replaced():
     text = DESIGN.read_text(encoding="utf-8")
-    body = "\n".join(subsection_body(text, "12.22"))
+    body = "\n".join(notes_body(text))  # 13.16 too from v1.461 (row DOC38c)
     for words in DOC38B_DROPPED:
         assert words not in body, words
     # what replaced them, each once
