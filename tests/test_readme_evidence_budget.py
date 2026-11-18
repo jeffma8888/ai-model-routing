@@ -95,6 +95,9 @@ RETRIMMED = {}
 # v1.473: the section at a531339, and with each held part at its cap; HOLD_CAP leaves room under SECTION_CAP for
 # a subsection at the delegation cap and GLANCE_ROOM bytes for its glance bullet, its line and newline.
 PLAN_SECTION, PLAN_PROJECTION, HOLD_CAP, GLANCE_ROOM = 67_878, 64_312, 64_500, 500
+# v1.473 (review iter-336 should-fix 1): the opening ceiling for row E25e's glance bullet; OPENING_CEILING
+# stays the v1.444 room bullet's, the twelfth subsection's.
+OPENING_CEILING_13 = OPENING_CAP + GLANCE_ROOM
 # Each part a DOC28 row has trimmed, with its ce21e81 size and its row: out of HELD, at most its cap.
 TRIMMED = {"": (7_927, "DOC28b"), "LLMRouterBench": (6_469, "DOC28c"),
            "LLM Routing Response Bank": (6_462, "DOC28d"), "Delegation on AutoBench": (6_699, "DOC28e"),
@@ -121,8 +124,8 @@ SAME_OR_HIGHER = re.compile(r"#{1,3} ")
 # 94,335; lowered to the size each part of the DESIGN 12 v1.386 trim leaves, v1.388, row DOC21m,
 # 90,830, v1.389, row DOC21n, 84,351, and v1.390, row DOC21o, 45,002; raised by v1.444, row DOC28a, for
 # its room bullet to 46,992; raised by v1.452, row E24c, for the registry pair to 47,609; raised by v1.473, row
-# DOC44a, for its plan bullet to 49,016, the entry in force).
-DESIGN_12_8_CEILINGS = {0: 49_016, 1: 94_563, 2: 94_685, 3: 95_193, 4: 95_282, 5: 95_429, 6: 95_620, 7: 95_632, 8: 96_008,
+# DOC44a, for its plan bullet to 49,097, the entry in force).
+DESIGN_12_8_CEILINGS = {0: 49_097, 1: 94_563, 2: 94_685, 3: 95_193, 4: 95_282, 5: 95_429, 6: 95_620, 7: 95_632, 8: 96_008,
                         9: 96_312, 10: 96_365}
 
 
@@ -450,7 +453,7 @@ def test_the_12_8_clause_states_the_ceiling_in_force():
     assert PENDING == {} and design_12_8(text) <= DESIGN_12_8_CEILINGS[0] <= 50_000
 
 
-def test_held_is_empty_and_the_room_bullet_names_each_trim():
+def test_the_v1_444_plan_is_done_and_its_room_bullet_names_each_trim():  # review iter-336 nit 1: renamed
     # Row DOC28a (v1.444): every held part was the opening or a heading, over its v1.444 cap at ce21e81 at
     # the size held, and the 12.8 room bullet gave each name and size. v1.445 (row DOC28b) to v1.451 (row
     # DOC28h) each moved one entry to TRIMMED; v1.451 emptied HELD, and the bullet says so, names each row
@@ -475,8 +478,8 @@ def test_held_is_empty_and_the_room_bullet_names_each_trim():
     assert "then its second Reading-it bullet (its first instead where only that fits, v1.446), " in lines[0]
 
 
-def test_trimmed_parts_are_out_of_held_and_at_most_their_caps():
-    # Row DOC28b (v1.445): the opening, 7,927 bytes at ce21e81, is at most its 7,500-byte cap and out of
+def test_the_v1_444_trimmed_parts_stay_at_most_their_v1_444_caps():  # review iter-336 nit 1: renamed
+    # Row DOC28b (v1.445): the opening, 7,927 bytes at ce21e81, is at most its 7,500-byte cap and was out of
     # HELD; row DOC28c (v1.446): so is `LLMRouterBench`, 6,469 there, at most its 5,000-byte routing cap;
     # row DOC28d (v1.447): so is `LLM Routing Response Bank`, 6,462 there, at most the same cap; row DOC28e
     # (v1.448): so is `Delegation on AutoBench`, 6,699 there, at most its 5,500-byte delegation cap; row
@@ -771,7 +774,9 @@ def test_the_v1_473_plan_bullet_names_each_part_its_size_and_its_row():
             "a531339), and once it is empty the section itself is, while `CLASS` names twelve headings: "
             f"{SECTION_CAP:,} less the {CAPS['delegation']:,} delegation cap and {GLANCE_ROOM} bytes for the new "
             "subsection's Results at a glance bullet, its line and newline, by which row E25e may raise the opening "
-            "cap. ") in lines[0]
+            f"cap, to at most {OPENING_CEILING_13:,} (the room bullet's {OPENING_CEILING:,} was the twelfth "
+            "subsection's ceiling). ") in lines[0]
+    assert OPENING_CEILING_13 == 8_362 > OPENING_CEILING
     assert lines[0].endswith("`TRIMMED` keeps the v1.444 plan, each part at most its v1.444 cap")
 
 
