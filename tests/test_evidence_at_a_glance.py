@@ -75,15 +75,16 @@ def words(items):
     return items[0] if len(items) == 1 else ", ".join(items[:-1]) + " and " + items[-1]
 
 
-# v1.303: the first seven bullets are the seven files the note reads (six, LLMRouterBench the sixth,
-# from v1.166), and the datasets it passes on are built from them in test_the_pointer_names_...
-POINTER = ("Why routing costs less than the best single model on some of the first seven datasets in the list "
-           "above, never reaches its held-out success on the first five and passes it on LLMRouterBench and "
+# v1.303: the first bullets are the files the note reads (six, LLMRouterBench the sixth, from v1.166;
+# eight, the registry pair the eighth, from v1.458), and the counts and the datasets it passes on are
+# built from them in test_the_pointer_names_...
+POINTER = ("Why routing costs less than the best single model on some of the eight datasets in the list "
+           "above, never reaches its held-out success on six of them and passes it on LLMRouterBench and "
            "the LLM Routing Response Bank: [research/where-routing-pays.md](research/where-routing-pays.md) "
            "sets each dataset's tasks, calibration halves and picks beside the best single model, read from "
            "the same files")
-NOTE_FILES = 7
-COUNT = {7: "seven"}
+NOTE_FILES = 8
+COUNT = {6: "six", 7: "seven", 8: "eight"}
 # a dataset name the README gives with an article
 ARTICLE = {"LLM Routing Response Bank": "the "}
 WHERE_SCRIPT = ROOT / "research" / "where_routing_pays.py"
@@ -442,47 +443,70 @@ def passes_best(results):
                for bar in config["bars"] for flavor in config["flavors"])
 
 
-def routing_pointer(files):
+def routing_headings(headings=None):
+    """v1.458: the README evidence subsections (default: the committed README's) but the
+    `Delegation on` ones, in order."""
+    if headings is None:
+        headings = re.findall(r"^### (.*)$", evidence_section(), re.M)
+    return [h for h in headings if not h.startswith("Delegation on ")]
+
+
+def routing_pointer(files, headings=None):
     """v1.303 (DESIGN 12.8): the paragraph after the bullets, its count of the note's files and the
-    datasets where routing passes the best single model built from the files; the others must be
-    the first five."""
+    datasets where routing passes the best single model built from the files; v1.458 (row R43,
+    review iter-315 nit 2): `first` while more README routing subsections (`headings`, default the
+    README's) follow the note's datasets, which must open them in order, and the count of the
+    datasets where no routed row passes it built from the files too."""
     names = list(FILES)[:NOTE_FILES]
+    routing = routing_headings(headings)
+    assert routing[:len(names)] == names, routing
+    first = "first " if len(routing) > len(names) else ""
     passing = [n for n in names if passes_best(files[n])]
-    assert [n for n in names if n not in passing] == names[:5], passing
-    return ("Why routing costs less than the best single model on some of the first "
-            f"{COUNT[len(names)]} datasets in the list above, never reaches its held-out success on the "
-            f"first five and passes it on {words([ARTICLE.get(n, '') + n for n in passing])}: "
+    never = [n for n in names if n not in passing]
+    assert passing and never, passing
+    return ("Why routing costs less than the best single model on some of the "
+            f"{first}{COUNT[len(names)]} datasets in the list above, never reaches its held-out success on "
+            f"{COUNT[len(never)]} of them and passes it on {words([ARTICLE.get(n, '') + n for n in passing])}: "
             "[research/where-routing-pays.md](research/where-routing-pays.md) sets each dataset's tasks, "
             "calibration halves and picks beside the best single model, read from the same files")
 
 
 def test_the_pointer_names_the_files_the_note_reads():
-    """v1.303: the first seven bullets are the note's seven datasets, in its order (six from
-    v1.166), and the pointer is built from their files; the LLMRouterBench and response-bank claims
+    """v1.303: the first bullets are the note's datasets, in its order (six from v1.166, eight
+    from v1.458), and the pointer is built from their files; the LLMRouterBench and response-bank claims
     are those their bullets assert, and the note's tests check on the files that no routed row of
     the first five reaches the best single model."""
     text = WHERE_SCRIPT.read_text(encoding="utf-8")
     block = text.split("DATASETS = (\n", 1)[1].split("\n)\n", 1)[0]
     listed = re.findall(r'^    \("([^"]+)", "([^"]+)"\),$', block, re.M)
     assert listed == [(n, str(FILES[n].relative_to(ROOT))) for n in list(FILES)[:NOTE_FILES]]
-    assert list(FILES)[5:NOTE_FILES] == ["LLMRouterBench", "LLM Routing Response Bank"]
+    assert list(FILES)[5:NOTE_FILES] == ["LLMRouterBench", "LLM Routing Response Bank", "Registry pair"]
     files = committed()
     assert routing_pointer(files) == POINTER
     llmrouterbench_bullet(files["LLMRouterBench"])
     response_bank_bullet(files["LLM Routing Response Bank"])
 
 
-def test_the_pointer_fails_when_the_seventh_file_stops_passing():
-    """v1.303: a seventh file whose routed rows all fall below the best single model leaves the
-    datasets routing does not pass other than the first five, so the builder fails."""
+def test_the_pointer_counts_follow_the_files_and_the_headings():
+    """v1.458 (row R43): a seventh file whose routed rows all fall below the best single model moves
+    it from the passing names to the count of the others; one more routing subsection after the
+    note's datasets gives `first`; subsections that do not open with the note's datasets in order,
+    or files where routing passes everywhere, fail the builder."""
+    assert routing_pointer(committed()) == POINTER
     files = committed()
-    results = files["LLM Routing Response Bank"]
-    for r in results["summary"]:
+    for r in files["LLM Routing Response Bank"]["summary"]:
         if r["strategy"] == "routed":
             r["success"] = 0.0
+    assert routing_pointer(files) == POINTER.replace(
+        "on six of them and passes it on LLMRouterBench and the LLM Routing Response Bank:",
+        "on seven of them and passes it on LLMRouterBench:")
+    names = list(FILES)
+    more = names[:NOTE_FILES] + ["Another"] + names[NOTE_FILES:]
+    assert routing_pointer(committed(), more) == POINTER.replace("some of the eight", "some of the first eight")
+    swapped = [names[1], names[0]] + names[2:]
     with pytest.raises(AssertionError):
-        routing_pointer(files)
-    assert routing_pointer(committed()) == POINTER
+        routing_pointer(committed(), swapped)
+    assert routing_pointer(committed(), names) == POINTER
 
 
 def test_each_glance_bullet_links_its_subsection_in_heading_order():

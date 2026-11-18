@@ -9,7 +9,12 @@ v1.453 (row DOC40, review iter-314 should-fix 1): the Limitations bullet's secon
 registry pair being the eighth from v1.452, and its builder requires the files' datasets to open
 them in order.
 
-The script reads only the committed routing results files, six since v1.166 and seven since v1.303, so
+v1.458 (row R43): the script reads the registry pair as its eighth file, so the count words of the
+note, the script, 12.22 and the Limitations bullet drop `first`, and a third dated section says why
+routing does not reach the best single model there, checked on the file.
+
+The script reads only the committed routing results files, six since v1.166, seven since v1.303 and
+eight since v1.458, so
 the note's Results block is
 compared byte for byte with a fresh run on every machine, CI included. Its report is also checked
 on a small hand-made file, where each number can be worked out by hand.
@@ -36,12 +41,14 @@ COMMAND = "$ python research/where_routing_pays.py"
 MANY = "## Many-task data: LLMRouterBench (2026-11-09)"
 # v1.303: the second dated section, on the seventh file
 BANK = "## Seventh file: LLM Routing Response Bank (2026-11-12)"
-SECTIONS = ["## Facts", "## Method", "## Results", "## Reading it", MANY, BANK, "## What your own data needs",
-            "## Limits", "## Regenerate"]
+# v1.458: the third dated section, on the eighth file
+REG = "## Eighth file: the registry pair (2026-11-17)"
+SECTIONS = ["## Facts", "## Method", "## Results", "## Reading it", MANY, BANK, REG,
+            "## What your own data needs", "## Limits", "## Regenerate"]
 FILES = ["evidence/routerbench/results.json", "evidence/autobench-2026/results.json",
          "evidence/autobench-judges/results.json", "evidence/tau2-bench/results.json",
          "evidence/livecodebench/results.json", "evidence/llmrouterbench/results.json",
-         "evidence/response-bank/results.json"]
+         "evidence/response-bank/results.json", "evidence/registry-pair/results.json"]
 # DESIGN section numbers: the only numbers of the note's prose that are not in the script's output
 ALLOWED = {"5.3", "12.2", "12.3", "12.7", "12.8", "12.10", "12.12", "12.15", "12.17", "12.19"}
 README = ROOT / "README.md"
@@ -51,6 +58,8 @@ FINDING = ("The finding of the first five files does not hold on LLMRouterBench:
            "single model's held-out success there")
 # v1.303: the opening of the second dated section, before any number
 BANK_FINDING = "On the LLM Routing Response Bank routing passes the best single model's held-out success too"
+# v1.458: the opening of the third dated section, before any number
+REG_FINDING = "On the registry pair routing does not reach the best single model's held-out success either"
 NUMBER = re.compile(r"(?<![\w.])\d+(?:,\d{3})*(?:\.\d+)?%?")
 
 
@@ -149,8 +158,9 @@ def test_script_imports_only_the_standard_library_and_the_stats_module():
 
 def test_no_routed_row_reaches_the_best_single_model(wrp):
     """The note's main claim (Facts bullet 3), checked on the files, not only on the printed digits:
-    on the first five files since v1.166, LLMRouterBench being the sixth."""
-    for _, rel in wrp.DATASETS[:5]:
+    on the first five files since v1.166, LLMRouterBench being the sixth, and v1.458 the eighth."""
+    assert [name for name, _ in wrp.DATASETS[7:]] == ["Registry pair"]
+    for _, rel in wrp.DATASETS[:5] + wrp.DATASETS[7:]:
         results = json.loads((ROOT / rel).read_text(encoding="utf-8"))
         config = results["config"]
         best = wrp.best_single(results, config["bars"][0], config["flavors"][0])
@@ -255,9 +265,9 @@ def section(text, heading):
     return text.split("\n" + heading + "\n", 1)[1].split("\n## ", 1)[0]
 
 
-def test_the_script_reads_the_seven_files_in_order(wrp):
+def test_the_script_reads_the_eight_files_in_order(wrp):
     assert [rel for _, rel in wrp.DATASETS] == FILES
-    assert [name for name, _ in wrp.DATASETS][5:] == ["LLMRouterBench", "LLM Routing Response Bank"]
+    assert [name for name, _ in wrp.DATASETS][5:] == ["LLMRouterBench", "LLM Routing Response Bank", "Registry pair"]
 
 
 def test_llmrouterbench_routing_passes_the_best_single_model(wrp):
@@ -335,6 +345,33 @@ def test_response_bank_routing_passes_at_more_than_twice_the_cost(wrp):
         gain, ratio = blind_against_best(wrp, committed(rel))
         assert gain in text and ratio in text, (rel, gain, ratio)
     assert f"`{largest}`" in text and f"`{tops.pop()}`" in text
+
+
+def test_registry_pair_routing_does_not_reach_the_best_single_model(wrp, output):
+    """v1.458 (row R43): the third dated section's finding, checked on the file: the registry pair
+    routes more than five tasks, yet no routed or best_on_calibration row reaches the best single
+    model. The section opens with no number and holds the cost_blind gain and cost ratio of the
+    registry pair and LLMRouterBench, built from the two files, and the Wilson shortfall at the
+    registry pair's median half as the output prints it."""
+    results = committed(FILES[7])
+    config = results["config"]
+    assert len(results["tasks"]) > 5
+    best = wrp.best_single(results, config["bars"][0], config["flavors"][0])
+    boc = wrp.summary_row(results, config["bars"][0], config["flavors"][0], "best_on_calibration")
+    routed = [wrp.summary_row(results, bar, flavor, "routed")
+              for bar in config["bars"] for flavor in config["flavors"]]
+    assert max(r["success"] for r in routed) < best["success"] and boc["success"] < best["success"]
+    text = section(note(), REG)
+    opening = text.strip("\n").split("\n\n", 1)[0]
+    assert opening.startswith(REG_FINDING)
+    assert not re.search(r"\d", opening), opening
+    for rel in (FILES[7], FILES[5]):
+        gain, ratio = blind_against_best(wrp, committed(rel))
+        assert gain in text and ratio in text, (rel, gain, ratio)
+    block = output.split("\nRegistry pair (" + FILES[7] + "): ", 1)[1].split("\n\n", 1)[0]
+    found = SHORTFALLS.search(block)
+    assert found and found[3], block
+    assert f"At the median expected half, {found[4]} items, the Wilson shortfall is {found[3]}" in text
 
 
 def test_report_counts_the_tasks_off_the_best_model(wrp):
@@ -418,7 +455,7 @@ def test_the_needs_bullet_gives_the_shortfall_range_of_every_file(wrp, output):
     assert shortfall_range(small_output) == "from 0.050 at a half of 80 to 0.300 at 9"
 
 
-WORDS = {2: "two", 5: "five", 6: "six", 7: "seven"}
+WORDS = {2: "two", 5: "five", 6: "six", 7: "seven", 8: "eight"}
 # a dataset name the README gives with an article
 ARTICLE = {"LLM Routing Response Bank": "the "}
 EVIDENCE = "\n## Evidence: held-out results on public data\n"
@@ -439,7 +476,7 @@ def seed_counts(lrb_block=None, rb_block=None):
     fewer than all."""
     lrb = blind_seeds(seeds_block(LRB_NOTE) if lrb_block is None else lrb_block)
     rb = blind_seeds(seeds_block(RB_SEEDS_NOTE) if rb_block is None else rb_block)
-    seeds = {len(committed(rel)["config"]["seeds"]) for rel in FILES[5:]}
+    seeds = {len(committed(rel)["config"]["seeds"]) for rel in FILES[5:7]}
     assert seeds == {lrb[0], rb[0]}, ("the seed counts differ", seeds, lrb, rb)
     n = lrb[0]
     assert lrb[1] == n, "LLMRouterBench's cost_blind gain does not hold on every seed"
@@ -530,11 +567,11 @@ def limitations_bullet(wrp, readme=None):
                                  f"to {max(ratios):.3f} of its cost")
         passing.append(f"{ARTICLE.get(name, '')}{name} {cost}")
     n, k = len(wrp.DATASETS), len(passing)
-    assert (n, k) == (7, 2), (n, passing)
+    assert (n, k) == (8, 2), (n, passing)
     first = files_count(wrp, readme)[:-len(WORDS[n])]
     # v1.384: the third sentence is said of the cost_blind rows, which pass at every bar on both
     assert [p.split(" at ")[0] for p in passing] == ["LLMRouterBench", "the LLM Routing Response Bank"], passing
-    for rel in FILES[5:]:
+    for rel in FILES[5:7]:
         results = committed(rel)
         config = results["config"]
         best = wrp.best_single(results, config["bars"][0], config["flavors"][0])
@@ -572,7 +609,7 @@ def test_limitations_bullet_fails_on_a_passing_row_between_half_and_twice(wrp, m
 
 def test_limitations_bullet_says_first_only_while_more_routing_subsections_follow(wrp):
     """v1.453 (row DOC40): with the routing subsections after the files' datasets gone the sentence
-    says `the seven`, with one more it says `the first seven`, and a README whose routing subsections
+    says `the eight` (v1.458: no such subsection is left), with one more `the first eight`, and a README whose routing subsections
     do not open with the files' datasets in order fails the builder."""
     readme, n = README.read_text(encoding="utf-8"), len(wrp.DATASETS)
     without = readme
@@ -612,5 +649,6 @@ def test_readme_limitations_and_the_index_say_where_routing_passes(wrp):
     rows = [x for x in INDEX.read_text(encoding="utf-8").splitlines()
             if x.startswith("| [where-routing-pays.md](where-routing-pays.md) | ")]
     assert len(rows) == 1 and "On LLMRouterBench" in rows[0] and "three of the five" not in rows[0]
-    # v1.303: the row names the seventh file's finding too
+    # v1.303: the row names the seventh file's finding too, and v1.458 the eighth's
     assert "LLM Routing Response Bank" in rows[0]
+    assert "On the registry pair, whose many tasks have small calibration halves, it does not" in rows[0]
