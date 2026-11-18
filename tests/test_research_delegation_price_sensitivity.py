@@ -113,7 +113,7 @@ REGENERATE = [
 ]
 SECTIONS = ["Facts", "Method", "Results", "Reading it", "Recommendation", "Limits", "Regenerate"]
 BULLET = "- A price error in a delegation decision, on AutoBench (v1.424, row R39): "
-ALLOWED = {"12.22", "13.2", "13.5", "13.9", "13.10", "13.12", "13.13", "13.14"}
+ALLOWED = {"13.2", "13.5", "13.9", "13.10", "13.12", "13.13", "13.14", "13.16"}  # 13.16 from v1.465 (row DOC43)
 NUMBER = re.compile(r"(?<![\w.])[+-]?\d+(?:,\d{3})*(?:\.\d+)?%?")
 FACTORS = (0.5, 2.0)
 TITLE = ("One model's list price halved or doubled on the AutoBench 2026 delegation results: each cell re-decided "
