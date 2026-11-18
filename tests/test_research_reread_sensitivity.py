@@ -1015,7 +1015,8 @@ def test_the_docstring_and_the_note_say_which_cells_are_re_decided(rs):
 def test_the_design_bullet_is_in_13_16():
     # 12.22 to v1.460, 13.16 from v1.461 (row DOC38c)
     text = DESIGN.read_text(encoding="utf-8")
-    section = text.split("\n### 13.16 ", 1)[1].split("\n## 14. ", 1)[0]
+    # 13.16 ends at the next heading, 13.17 from v1.468 (row E25a)
+    section = text.split("\n### 13.16 ", 1)[1].split("\n### ", 1)[0].split("\n## ", 1)[0]
     bullet = [line for line in section.splitlines() if line.startswith(BULLET)]
     assert len(bullet) == 1
     for phrase in ("`research/reread-sensitivity.md`", "`research/reread_sensitivity.py`", "sigma 1.0 and W = B",
