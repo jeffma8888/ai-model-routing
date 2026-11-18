@@ -1363,11 +1363,14 @@ def test_the_design_bullet_is_in_13_16():
     for words in ("whose 5.2 `routing_cost` is 0.0", "prices alone", "makes anyway"):
         assert words not in bullet[0], words
     # right after the re-read bullet; from v1.430 (row R40) to v1.460 the registry-pair bullet followed it in
-    # 12.22, and from v1.461 (row DOC38c) it is the last line of 13.16
+    # 12.22, from v1.461 (row DOC38c) it is the last line of 13.16, and from v1.466 (row R42) the last of its four,
+    # the bullets of later delegation notes after it
     lines = section.rstrip("\n").split("\n")
     at = lines.index(bullet[0])
     assert lines[at - 1].startswith("- The re-read share and the brief's output, ")
-    assert at == len(lines) - 1
+    assert lines[at + 1:] == [line for line in lines[at + 1:]
+                              if line.startswith("- The registry's own pair as delegation evidence, ")]
+    assert len(lines[at + 1:]) == 1
     # it names the 9 clause that specifies the README Limitations sentence linking the note (v1.428, row DOC36),
     # as the routing price-error bullet names 9 v1.417
     assert bullet[0].endswith("; README Limitations links it (9 v1.428)")
