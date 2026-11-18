@@ -593,13 +593,15 @@ def test_design_specifies_the_readme_paragraph():
 
 LIMITATIONS = "## Limitations and non-goals (v1)"
 PER_ITEM = "- Choosing the path per item instead would add little "
-SPREAD_CAP = 5  # a few of 100 items; a larger spread could rank one note budget above another
+SPREAD_SHARE = 20  # refuse a spread over 1/20 (5%) of the probe's items, 5 at 100: more could rank one note budget
 REGISTRY = ROOT / "model_routing" / "data" / "models.json"
 
 
 def note_spread(probe):
     """The largest difference between two note arms' all-`inc_ok` counts or between their all-`abs_ok` counts."""
     notes = probe["arms"][1:]
+    if not notes:
+        raise ValueError("the probe has no note arm")
     return max(max(arm[key] for arm in notes) - min(arm[key] for arm in notes) for key in ("all_inc_ok", "all_abs_ok"))
 
 
@@ -613,18 +615,20 @@ def limitations_bullet(results, registry=None):
     items = {row["items"] for row in depths}
     if len(items) != 1:
         raise ValueError("the depths differ in items")
+    if probe["items"] not in items:
+        raise ValueError("the probe's items differ from the depths' items, so `and in the probe` does not hold")
     if probe["arms"][0]["arm"] != "history":
         raise ValueError("the first probe arm is not `history`")
     spread = note_spread(probe)
-    if spread > SPREAD_CAP:
-        raise ValueError(f"the note arms differ by {spread} items, over {SPREAD_CAP}, so `ranks no note budget` "
-                         "may not hold")
+    if spread * SPREAD_SHARE > probe["items"]:
+        raise ValueError(f"the note arms differ by {spread} items, over 5% of the probe's {probe['items']:,}, so "
+                         "`ranks no note budget` may not hold")
     if results["model"] in (registry_ids() if registry is None else registry):
         raise ValueError(f"the registry has a row for {results['model']}, so `no price` does not hold")
     return ("- The ledger runs (" + LINK + ") measure work handed to a fresh context, not a delegation decision, and "
             "have three limits. First, a synthetic ledger task with one open model, "
-            f"`{results['model']}`, in every role, one run per item at temperature 0.7: the delegate is never cheaper "
-            "per token than the parent and none is chosen from a pool, and on the probe's "
+            f"`{results['model']}`, in every role (one run per item at temperature 0.7), so the delegate is never "
+            "cheaper per token than the parent and none is chosen from a pool, and on the probe's "
             f"{probe['items']:,} items the note arms' all-`inc_ok` and all-`abs_ok` counts differ by at most "
             f"{spread:,}, which ranks no note budget above another. Second, the hand-off is serial: on "
             f"{items.pop():,} items at each of depths {listed(row['depth'] for row in depths)} and in the probe, a "
@@ -669,19 +673,24 @@ def test_limitations_bullet_follows_the_file():
     for row in got["depths"]:
         row["items"] = 1200
     got["depths"].append(dict(got["depths"][-1], depth=200))
-    got["probe"]["items"] = 150
+    got["probe"]["items"] = 1200
     got["probe"]["arms"][3]["all_abs_ok"] = 62  # 58 to 62 on all-abs_ok, over the 3 of all-inc_ok
     text = limitations_bullet(got)
-    assert "one open model, `acme/ledger-1`, in every role" in text
-    assert "on the probe's 150 items" in text and "differ by at most 4, which" in text
+    assert "one open model, `acme/ledger-1`, in every role (one run per item at temperature 0.7), so " in text
+    assert "on the probe's 1,200 items" in text and "differ by at most 4, which" in text
     assert "on 1,200 items at each of depths 20, 50, 100 and 200 and in the probe" in text
 
 
 @pytest.mark.parametrize("change, registry, message", [
     (lambda r: r["depths"][2].update(items=99), set(), "differ in items"),
     (lambda r: r["probe"]["arms"].reverse(), set(), "first probe arm"),
-    (lambda r: r["probe"]["arms"][1].update(all_inc_ok=86), set(), "differ by 9 items, over 5"),
-    (lambda r: r["probe"]["arms"][2].update(all_abs_ok=53), set(), "differ by 7 items, over 5"),
+    (lambda r: r["probe"].update(items=99), set(), "probe's items differ"),
+    (lambda r: r["probe"]["arms"][1].update(all_inc_ok=86), set(), "differ by 9 items, over 5% of the probe's 100"),
+    (lambda r: r["probe"]["arms"][2].update(all_abs_ok=53), set(), "differ by 7 items, over 5% of the probe's 100"),
+    (lambda r: r["probe"]["arms"][1].update(all_inc_ok=83), set(), "differ by 6 items, over 5% of the probe's 100"),
+    (lambda r: [row.update(items=40) for row in r["depths"]] and r["probe"].update(items=40), set(),
+     "differ by 3 items, over 5% of the probe's 40"),
+    (lambda r: r["probe"].update(arms=r["probe"]["arms"][:1]), set(), "no note arm"),
     (lambda r: None, {MODEL}, "`no price`"),
 ])
 def test_limitations_bullet_refuses_a_file_that_breaks_a_limit(change, registry, message):
