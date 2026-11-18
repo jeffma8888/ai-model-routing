@@ -61,9 +61,11 @@ REGENERATE = [
     PARENT_CMD[2:],
 ]
 HEADINGS = ["## Method", "## Assumed", "## Results", "## Reading it", "## The high end", "## Regenerate"]
-METHOD_PHRASES = ("`openai/gpt-6-luna`", "`openai/gpt-6.1-sol`", "0.1 and 0.5", "2 and 10", "E % 5", "E // 5",
-                  "6,099 items", "31 tasks", "12,198 rows", "134", "40", "0.000001", "808", "276", "50 seeds",
-                  "0.8 and 0.9", "rounded-up mean", "`decision`", "`inline`", "`delegate`", "C = 8,000")
+METHOD_PHRASES = ("`openai/gpt-6-luna` at 0.1 and 0.5", "`openai/gpt-6.1-sol` at 2 and 10", "in = E % 5 and out = E // 5",
+                  "6,099 items of 31 tasks", "12,198 rows", "not a whole token on 134 of the 12,198 rows",
+                  "exactly halfway on 40,", "by at most 0.000001 USD", "808 of the 6,099 items, in 276 shared families",
+                  "For each of 50 seeds", "at bars 0.8 and 0.9", "rounded-up mean", "`decision`", "`inline`",
+                  "`delegate`", "C = 8,000")
 ASSUMED_PHRASES = ("lossless", "list price", "never a bill", "bounded, not measured", "reasoning", "rounded up",
                    "one vendor", "contamination", "`DESIGN.md` 13.8")
 
@@ -310,9 +312,10 @@ def test_the_token_rule_is_the_note_scripts_low_end_on_every_row(rpd, registry, 
 
 # --- the input price (13.17 Refused, v1.470, review iter-333 nit 2) ---------------------------------------
 
-def test_matrix_refuses_a_model_priced_at_zero(rpd, tmp_path):
+@pytest.mark.parametrize("price_out", [0, 0.6])  # 0.6 is off the ratio too, so the input price is checked first
+def test_matrix_refuses_a_model_priced_at_zero(rpd, tmp_path, price_out):
     with pytest.raises(ValueError) as caught:
-        rpd.matrix(hand_rows(), edited_registry(tmp_path, lambda m: m.update(price_in=0, price_out=0)))
+        rpd.matrix(hand_rows(), edited_registry(tmp_path, lambda m: m.update(price_in=0, price_out=price_out)))
     assert str(caught.value).startswith("input price") and CHEAP in str(caught.value)
 
 
@@ -325,7 +328,9 @@ def dr():
 
 def reading_bullets(results):
     """13.13's five Reading it bullets by 13.14's builder, the last naming this folder's results.json."""
-    return response_bank_reading_bullets(results)[:4] + [f"`results.json` is {len(RESULTS.read_bytes()):,} bytes."]
+    bullets = response_bank_reading_bullets(results)
+    assert len(bullets) == 5 and re.fullmatch(r"`results\.json` is [\d,]+ bytes\.", bullets[4]), bullets[4:]
+    return bullets[:4] + [f"`results.json` is {len(RESULTS.read_bytes()):,} bytes."]
 
 
 NOTE_ROW = re.compile(
@@ -356,6 +361,10 @@ def note_results():
     return rows, ends[0]
 
 
+def both(low, high):
+    return f"{low} at both ends" if low == high else f"{low} and {high}"
+
+
 def high_end_bullets(rows, ends):
     """The `## The high end` bullets: the ends line, each group whose decision delegates another count of
     tasks at the two ends, and always delegating and always inline at the two ends."""
@@ -364,6 +373,7 @@ def high_end_bullets(rows, ends):
     assert len(low) == of == len(rows) - len(low)
     moved = [(key, lo, rows[("high",) + key]) for key, lo in low if lo["delegated"] != rows[("high",) + key]["delegated"]]
     assert len(moved) == groups
+    # a proxy for the note's per-group task count: equal when a group's moves all go one way; a mismatch fails
     assert max(abs(int(lo["delegated"]) - int(hi["delegated"])) for _, lo, hi in moved) == most
     assert {key[3] for key, _, _ in moved} == {at} and all(f["tasks"] == str(tasks) for f in rows.values())
     bullets = [f"{groups} of the {of} (parent, flavor, bar, point) groups have a task whose mode or delegate differs "
@@ -372,8 +382,8 @@ def high_end_bullets(rows, ends):
     for (parent, flavor, bar, point), lo, hi in moved:
         bullets.append(f"`{parent}` as parent, `{flavor}`, bar {bar}, point {point}: the decision delegates "
                        f"{lo['delegated']} of {tasks} tasks at the low end and {hi['delegated']} at the high end, at "
-                       f"{lo['dec_cost']} and {hi['dec_cost']} USD for held-out success {lo['dec_success']} and "
-                       f"{hi['dec_success']}; always inline costs {lo['inl_cost']} and {hi['inl_cost']}.")
+                       f"{lo['dec_cost']} and {hi['dec_cost']} USD for held-out success {both(lo['dec_success'], hi['dec_success'])}; "
+                       f"always inline costs {lo['inl_cost']} and {hi['inl_cost']}.")
     for key, lo in low:
         hi = rows[("high",) + key]
         assert (lo["del_success"], lo["del_cost"], lo["inl_success"]) == (hi["del_success"], hi["del_cost"], hi["inl_success"])
@@ -389,7 +399,7 @@ def high_end_bullets(rows, ends):
     assert parents == [CHEAP, STRONG]
     bullets.append("Always delegating has the same held-out success and cost at both ends in every group, and always "
                    "inline the same success; always inline costs more at the high end, by one amount at every bar, "
-                   f"flavor and context of a separate call: {gap(CHEAP, True)} USD with `{CHEAP}` as parent and "
+                   f"flavor and context when inline work takes a call of its own: {gap(CHEAP, True)} USD with `{CHEAP}` as parent and "
                    f"{gap(STRONG, True)} with `{STRONG}`, and {gap(CHEAP, False)} and {gap(STRONG, False)} folded "
                    "into the next call.")
     return bullets
@@ -417,7 +427,7 @@ def test_high_end_bullets_on_the_note_numbers():
     assert bullets[0].startswith("4 of the 32 (parent, flavor, bar, point) groups") and "at most 1 of the 31" in bullets[0]
     assert bullets[1] == ("`openai/gpt-6-luna` as parent, `cost_effective`, bar 0.8, point 3: the decision delegates 9 "
                           "of 31 tasks at the low end and 10 at the high end, at 3.730746 and 3.927148 USD for held-out "
-                          "success 0.912 and 0.912; always inline costs 0.555591 and 0.925166.")
+                          "success 0.912 at both ends; always inline costs 0.555591 and 0.925166.")
     assert [b.split(":")[0] for b in bullets[2:5]] == [
         "`openai/gpt-6-luna` as parent, `cost_effective`, bar 0.9, point 3",
         "`openai/gpt-6.1-sol` as parent, `cost_effective`, bar 0.8, point 3",
