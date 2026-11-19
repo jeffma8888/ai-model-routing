@@ -91,7 +91,7 @@ def test_split_on_hand_cases(tin, tout, calls, ins, outs):
 def test_split_reads_the_totals_by_brute_force():
     m = load()
     for calls in (1, 2, 3, 5, 8, 13, 38):
-        for tout in (0, 1, calls - 1, calls, 7 * calls + 3, 1001):
+        for tout in sorted({0, 1, calls - 1, calls, 7 * calls + 3, 1001}):  # review iter-353 nit 3: no repeated case
             least = sum((calls - 1 - j) * b for j, b in enumerate(m.split(10 ** 9, tout, calls)[1]))
             for tin in (least, least + 1, least + calls * (calls + 1) // 2 - 1, least + 12345, 2568100 + least):
                 ins, outs = m.split(tin, tout, calls)
