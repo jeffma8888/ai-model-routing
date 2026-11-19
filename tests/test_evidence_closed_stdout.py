@@ -1,5 +1,5 @@
 """A closed stdout at interpreter exit (DESIGN 12.6, 12.9, 12.11, 12.14, 12.16 and 13.11, v1.150; 12.20, v1.289;
-13.15, v1.418).
+13.15, v1.418; 12.25, v1.479).
 
 Each evidence CLI prints its report with ``flush=True`` before it renames ``<out>.part``, and turns a
 ``BrokenPipeError`` from that print into one ``error:`` line and exit 2. A failed flush leaves the
@@ -75,6 +75,11 @@ STUBS = {
     "evidence/ledger-handoff/results.py": """
         m.fetch = lambda cache: tmp
         m.build = lambda root: {"report": "x" * SIZE}
+    """,
+    "evidence/longtail-swe/convert.py": """
+        m.fetch = lambda cache: dict.fromkeys(m.FILES, tmp)
+        m.read_rows = lambda path: []
+        m.convert = lambda records, run: ([], {"report": "x" * SIZE})
     """,
 }
 

@@ -600,7 +600,9 @@ def test_cli_model_not_in_registry_writes_nothing(cv, tmp_path, monkeypatch, cap
     _patch(monkeypatch, cv, paths, reg, rows)
     out = tmp_path / "o.jsonl"
     code, stdout, err = _run(cv, ["--out", str(out)], capsys)
-    assert code == 2 and stdout == "" and err.startswith("error: row 0") and err.count("\n") == 1
+    # v1.479 (review iter-342 nit 2): the file is named before the row within it
+    assert err.startswith("error: data/swelike__gpt-6.1-sol-high.parquet: row 0: model not in the registry")
+    assert code == 2 and stdout == "" and err.count("\n") == 1
     assert not out.exists() and not (tmp_path / "o.jsonl.part").exists()
 
 
@@ -663,7 +665,7 @@ def test_design_specifies_the_converter_and_its_rules():
     for phrase in (f"`REVISION = \"{REVISION}\"`", "`LICENCE = \"cc-by-4.0\"`", "the four registry models alone",
                    "run 0 by default, so 12.2's seeded halves split by `instance_id`",
                    "misses that keep their charge", "with no cache discount", "one routing task, `issue_resolution`",
-                   "`model_patch` is not read", "776 rows"):
+                   "`model_patch` is not read", "776 rows", "prefixed by that file's `FILES` name and `: `"):
         assert phrase in body, phrase
     for name, (size, _) in FILES.items():
         assert f"`{name}` ({size:,}" in body, name
