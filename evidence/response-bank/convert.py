@@ -310,7 +310,7 @@ def _check_out(value, option="--out"):
         raise ValueError(f"{option} must end in a file name, got {value!r}")
     out = Path(value)
     for path in (out, out.with_name(out.name + ".part")):
-        if path.is_dir():
+        if path.is_dir():  # a link to a folder included
             raise ValueError(f"{option} {value!r}: {str(path)!r} is a folder")
     if not out.parent.is_dir():
         raise ValueError(f"{option} {value!r}: folder {str(out.parent)!r} does not exist")

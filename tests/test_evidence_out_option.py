@@ -166,9 +166,7 @@ def test_the_red_cases_are_bad_cases():
     assert len(CLIS) == 11
 
 
-# v1.486 (row T13): the response-bank copy lacks the `# a link to a folder included` comment the others carry
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="v1.486 red: the response-bank copy differs")
-def test_the_checks_are_one_check():  # the eleven CLIS; the ledger converter's copy matches from v1.419
+def test_the_checks_are_one_check():  # the eleven CLIS; ledger copy matches from v1.419, response-bank v1.487
     sources = {cli: inspect.getsource(owner(cli)._check_out) for cli in CLIS}
     texts = {}
     for cli, text in sources.items():
