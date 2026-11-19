@@ -16,7 +16,7 @@ dependencies = []
 [project.optional-dependencies]
 dev = ["pytest>=8"]
 # Only the evidence converters under evidence/ need these; the package never imports them.
-evidence = ["pandas>=2,<3"]
+evidence = ["pandas>=2,<3", "pyarrow>=14"]
 
 [project.scripts]
 model-routing = "model_routing.cli:main"

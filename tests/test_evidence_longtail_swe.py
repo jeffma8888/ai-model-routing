@@ -24,8 +24,6 @@ import pytest
 
 from model_routing import evaluate, outcomes_from_rows
 
-pytestmark = pytest.mark.xfail(strict=True, raises=ModuleNotFoundError)
-
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "evidence" / "longtail-swe" / "convert.py"
 DESIGN = ROOT / "DESIGN.md"
