@@ -58,7 +58,8 @@ def estimate_prompt_tokens(messages: Iterable[object], chars_per_token: float = 
     unless ``chars_per_token`` is a finite number above 0 that is not a bool.
     """
     if isinstance(chars_per_token, bool) or not isinstance(chars_per_token, (int, float)) \
-            or not math.isfinite(chars_per_token) or chars_per_token <= 0:
+            or (isinstance(chars_per_token, float) and not math.isfinite(chars_per_token)) \
+            or chars_per_token <= 0:
         raise ValueError(f"chars_per_token must be a finite number above 0, "
                          f"got {chars_per_token!r}")
     chars = 0

@@ -62,7 +62,8 @@ The context-window check reads three kinds of size differently:
 - **Declared:** the task's `expected_input_tokens` and `expected_output_tokens` (1,000 and 200 when the task file gives none). The check reads the declared input when a call passes no size of its own, so set `expected_input_tokens` to the largest single request of the task, never the whole piece of work
 - **Measured:** the stats' mean tokens per call. They set prices only, because a mean says nothing about the longest request
 - **Per call:** `Router.select(..., prompt_tokens=N)` and `model-routing select --prompt-tokens N` check each model's window against N plus `expected_output_tokens` in place of the declared input, so the primary and every fallback can hold that request, and a request shorter than the declared size can reach a smaller-window model. Prices stay at the sizes above. `Executor.call` always passes a size: the `prompt_tokens` you give it, or else `estimate_prompt_tokens(messages)`, the characters of the text content divided by 4 and rounded up. That is a rough heuristic for English text that under-counts code and non-Latin scripts, so pass the real count when you have a tokenizer
-- **Multi-call work:** the window limits one request. A provider rejects a request longer than the window, and an agent harness compacts its context between requests, never inside one. So for multi-call agent work, a model that compacts is judged by its measured success rate on whole runs, which already holds what compaction costs it, and is not ruled out by size
+
+The window limits one request. A provider rejects a request longer than the window, and an agent harness compacts its context between requests, never inside one. So for multi-call agent work, a model that compacts is judged by its measured success rate on whole runs, which already holds what compaction costs it, and is not ruled out by size.
 
 ### The quality bar is a confidence bound, not an average
 

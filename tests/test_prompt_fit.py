@@ -137,6 +137,7 @@ def test_estimate_is_exported():
     (["loose", {"role": "user", "content": 42}, {"role": "user", "content": {"text": "abcd"}}],
      4.0, 0),
     (LONG, 4.0, 1900),
+    (LONG, 10**400, 0),  # an int ratio too large for a float is still a finite number above 0
 ])
 def test_estimate_arithmetic(messages, chars_per_token, expected):
     from model_routing import estimate_prompt_tokens

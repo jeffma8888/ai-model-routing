@@ -39,8 +39,8 @@ __all__ = [
     "GENERATOR", "GENERATOR_FAMILY", "CONTEXT_TOO_SMALL", "INSUFFICIENT_SAMPLES",
     "BELOW_BAR", "PASSES", "Completion", "ProviderError", "Provider", "FakeProvider",
     "OpenAICompatibleProvider", "Attempt", "CallResult", "Executor", "AllModelsFailed",
-    "json_validator", "estimate_prompt_tokens", "Monitor", "load_records", "report", "run_demo", "main",
-    "Outcome", "outcomes_from_rows", "load_outcomes", "split_items", "evaluate",
+    "json_validator", "estimate_prompt_tokens", "Monitor", "load_records", "report", "run_demo",
+    "main", "Outcome", "outcomes_from_rows", "load_outcomes", "split_items", "evaluate",
     "DelegationDecision", "evaluate_delegation",
 ]
 
