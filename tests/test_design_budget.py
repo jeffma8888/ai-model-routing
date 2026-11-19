@@ -650,6 +650,7 @@ DELEGATION_NOTES = (
 # v1.466 (row R42): the bullets of later delegation research notes follow the four, in the order they land.
 LATER_DELEGATION_NOTES = (
     "- The registry's own pair as delegation evidence, on superlinked/train-a-router-reasoning (v1.466, row R42): ",
+    "- Longtail-SWE as delegation evidence, on nebius/Longtail-SWE-trajectories (v1.495, row R50): ",
 )
 # The eight lines of v1.124 to v1.191 that DOC34 (v1.421) trimmed, seven in 12.22 and one in 13.16 from v1.461.
 DOC34_LINES = RESEARCH_NOTES[:7] + DELEGATION_NOTES[:1]
