@@ -4,9 +4,9 @@ name: evidence
 # tau2-bench, LiveCodeBench, LLMRouterBench, LLM Routing Response Bank, Delegation on
 # AutoBench, Delegation on tau2-bench, Delegation on LLMRouterBench and Delegation on the
 # LLM Routing Response Bank, and those of evidence/ledger-handoff/RESULTS.md,
-# evidence/registry-pair/RESULTS.md and evidence/registry-pair-delegation/RESULTS.md, which
-# download the pinned dataset files and check their sha256, then fails if a committed results
-# file changed (DESIGN.md 12.13).
+# evidence/registry-pair/RESULTS.md, evidence/registry-pair-delegation/RESULTS.md and
+# evidence/longtail-swe/RESULTS.md, which download the pinned dataset files and check their
+# sha256, then fails if a committed results file changed (DESIGN.md 12.13).
 # RouterBench is left out of it, since its source is a 99,567,659-byte pickle that needs
 # pandas and its evaluate step takes about 70 seconds.
 # A README line identical to one already run in the step is not run again when no line
@@ -48,7 +48,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install
-        run: python -m pip install -e .
+        run: python -m pip install -e . "pyarrow>=14"
       - name: Regenerate
         run: |
           python evidence/autobench-2026/convert.py --out autobench-matrix.jsonl --task-by all
@@ -102,5 +102,9 @@ jobs:
           python evidence/registry-pair-delegation/results.py --matrix registry-pair-matrix.jsonl --out evidence/registry-pair-delegation/results.json
           python evidence/delegation/results.py --table evidence/registry-pair-delegation/results.json
           python evidence/delegation/results.py --table evidence/registry-pair-delegation/results.json --bar 0.8 --point 0
+          python evidence/longtail-swe/convert.py --out longtail-swe-matrix.jsonl
+          model-routing evaluate --outcomes longtail-swe-matrix.jsonl --bar 0.6 0.7 0.8 0.9 --seeds 50 --json > longtail-swe-evaluate.json
+          python evidence/routerbench/results.py --evaluate longtail-swe-evaluate.json --out evidence/longtail-swe/results.json
+          python evidence/routerbench/results.py --table evidence/longtail-swe/results.json
       - name: Compare
-        run: git diff --exit-code -- evidence/autobench-2026/results.json evidence/autobench-judges/results.json evidence/tau2-bench/results.json evidence/livecodebench/results.json evidence/llmrouterbench/results.json evidence/response-bank/results.json evidence/delegation/results.json evidence/delegation/variants.json evidence/tau2-bench-delegation/results.json evidence/tau2-bench-delegation/pooled.json evidence/llmrouterbench-delegation/results.json evidence/response-bank-delegation/results.json evidence/ledger-handoff/results.json evidence/registry-pair/results.json evidence/registry-pair-delegation/results.json
+        run: git diff --exit-code -- evidence/autobench-2026/results.json evidence/autobench-judges/results.json evidence/tau2-bench/results.json evidence/livecodebench/results.json evidence/llmrouterbench/results.json evidence/response-bank/results.json evidence/delegation/results.json evidence/delegation/variants.json evidence/tau2-bench-delegation/results.json evidence/tau2-bench-delegation/pooled.json evidence/llmrouterbench-delegation/results.json evidence/response-bank-delegation/results.json evidence/ledger-handoff/results.json evidence/registry-pair/results.json evidence/registry-pair-delegation/results.json evidence/longtail-swe/results.json

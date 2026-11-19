@@ -474,9 +474,10 @@ def regenerate_section(cv):
             f"({sum(size for size, _ in cv.FILES.values()):,} bytes) into "
             f"`~/.cache/ai-model-routing-evidence/longtail-swe/` on its first run and checks each against its "
             f"pinned size and sha256; the `evidence` extra installs `pyarrow`, the parquet reader it needs, and "
-            f"converting the cached files takes about 4 seconds. The `evidence` workflow does not rerun these "
-            f"commands in this version (DESIGN 12.26), so the test suite rebuilds `results.json` only where "
-            f"`pyarrow` is installed and the four files are cached.")
+            f"converting the cached files takes about 4 seconds. The `evidence` workflow reruns these commands "
+            f"on GitHub and fails if `results.json` changes by a byte (`DESIGN.md` 12.13, v1.489), while the "
+            f"test suite rebuilds `results.json` only where `pyarrow` is installed and the four files are "
+            f"cached.")
 
 
 def reading_bullets(results):

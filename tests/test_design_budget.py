@@ -72,6 +72,10 @@ top comment, and the test reading it), so 12.13 has room for the registry pair's
 The registry-pair delegation in the workflow (v1.472, row E25c): the no-cache, repeated-line and two delegation
 `is rerun` lines of 12.13 drop the reasons they gave against a cache, the restatements of the repeated-line
 rule and what that rule and the Steps line state, so 12.13 has room for the delegation block's bullet.
+Longtail-SWE in the workflow (v1.489, row E26d): the runner, token-permissions, no-cache, Steps and three
+`is rerun` lines of 12.13 drop asides, the reasons against a cache that are not the purpose, the tau2-bench
+run-file detail and what the Steps line states of each block's lines, so 12.13 has room for the Longtail-SWE
+bullet and the `pyarrow` install.
 
 The section totals (v1.456, row DOC37): each total is the one last set with the subsections it counted,
 `## 12.` 300,000 at v1.390 with 12.1 to 12.22 and `## 13.` 185,000 at v1.386 with 13.1 to 13.14
@@ -485,7 +489,7 @@ POINTERS = {
     "- Time limit and retries (v1.152, ": ("v1.152, v1.168, v1.170, v1.215, v1.217, v1.218, v1.225, v1.226, v1.268, "
                                            "v1.299, v1.301, v1.302, v1.317, v1.321, v1.374, v1.395, v1.398, "
                                            "v1.399, v1.401, v1.407, v1.442"),
-    "Purpose: a reader can see the fifteen results files of the `Compare` step below ":
+    "Purpose: a reader can see the sixteen results files of the `Compare` step below ":
         "v1.55, v1.65, v1.80, v1.84, v1.168, v1.200, v1.299",
     "- The workflow `.github/workflows/evidence.yml`, `name: evidence`, ":
         "v1.54, v1.55, v1.65, v1.80, v1.84, v1.168, v1.200, v1.299",
@@ -1064,18 +1068,20 @@ def test_12_13_states_its_contract_as_it_is_and_holds_no_growth_history():
     assert "12.13" not in PENDING and dict(measure(text)[1])["12.13"] <= CAPS["workflow"]
     # The counts are the ones the workflow and its tests hold now.
     compare = [line for line in workflow.workflow_text().splitlines() if "git diff --exit-code --" in line]
-    # ledger v1.397, registry pair v1.443, its delegation v1.472
-    assert len(compare) == 1 and compare[0].count(" evidence/") == 15
-    assert body[0].startswith("Purpose: a reader can see the fifteen results files of the `Compare` step below ")
+    # ledger v1.397, registry pair v1.443, its delegation v1.472, Longtail-SWE v1.489
+    assert len(compare) == 1 and compare[0].count(" evidence/") == 16
+    assert body[0].startswith("Purpose: a reader can see the sixteen results files of the `Compare` step below ")
     assert f"each of {len(workflow.MUTANTS)} broken workflows fails the check" in joined
     commands, run = workflow.expected_commands(workflow.readme()), workflow.regenerate_commands(workflow.readme())
     # v1.397 (row E23c): after the README commands it runs, the ledger RESULTS.md line, from v1.443
-    # (row E24e) the registry-pair RESULTS.md block and from v1.472 (row E25c) its delegation one
+    # (row E24e) the registry-pair RESULTS.md block, from v1.472 (row E25c) its delegation one and from
+    # v1.489 (row E26d) the Longtail-SWE one
     taken = workflow.results_md_commands()
     registry, delegation = workflow.registry_commands(), workflow.registry_delegation_commands()
-    assert taken == [workflow.ledger_command()] + registry + delegation and len(taken) == 9
+    longtail = workflow.longtail_commands()
+    assert taken == [workflow.ledger_command()] + registry + delegation + longtail and len(taken) == 13
     # the 13.17 block opens with the 12.23 converter line the registry-pair lines already ran
-    kept = [workflow.ledger_command()] + registry + delegation[1:]
+    kept = [workflow.ledger_command()] + registry + delegation[1:] + longtail
     assert run[-len(kept):] == kept and not set(taken) & set(commands)
     readme_run = len(run) - len(kept)
     assert f"so the README holds {len(commands)} rerun commands and `Regenerate` runs {readme_run} of them, " \
@@ -1106,9 +1112,10 @@ def test_12_13_states_its_contract_as_it_is_and_holds_no_growth_history():
         assert words not in joined, words
     heading = [line for line in text.splitlines() if line.startswith("### 12.13 ")]
     # v1.397 (row E23c): the heading names no entry a bullet of 12.13 opens with, and ends with the ledger
-    # line; from v1.443 (row E24e) with the registry pair and from v1.472 (row E25c) with its delegation
+    # line; from v1.443 (row E24e) with the registry pair, from v1.472 (row E25c) with its delegation and
+    # from v1.489 (row E26d) with Longtail-SWE
     assert len(heading) == 1 and heading[0].endswith(
-        "; ledger hand-off v1.397; registry pair v1.443; registry-pair delegation v1.472)")
+        "; ledger hand-off v1.397; registry pair v1.443; registry-pair delegation v1.472; Longtail-SWE v1.489)")
     # v1.443: the restatements the three `is rerun` lines dropped stay out
     for words in ("directly after `pooled.json`", "names it next to last", "after the four `### LLMRouterBench` lines",
                   "`SUBSECTIONS` holds it after"):
