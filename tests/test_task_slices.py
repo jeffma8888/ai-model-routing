@@ -274,9 +274,27 @@ def test_a_slice_bar_of_its_own(slice_registry):
 @RED
 def test_a_slice_min_samples_of_its_own(slice_registry):
     router = make_router(slice_registry, slices={"deep": {"min_samples": 101}})
-    with pytest.raises(NoModelClearsBar, match="deep") as caught:
+    with pytest.raises(NoModelClearsBar,
+                       match=r"^no model clears the bar 0\.85 for task 'support' slice 'deep'$"
+                       ) as caught:
         router.select("support", slice="deep")
     assert set(reasons(caught.value.candidates).values()) == {"insufficient_samples"}
+
+
+@RED
+def test_the_refusal_names_the_slice_and_its_bar(slice_registry):
+    router = make_router(slice_registry, slices={"deep": {"bar": 0.99}})
+    with pytest.raises(NoModelClearsBar) as caught:
+        router.select("support", slice="deep")
+    assert str(caught.value) == "no model clears the bar 0.99 for task 'support' slice 'deep'"
+    cold = make_router(slice_registry, stats=Stats(), on_no_model="best_available")
+    with pytest.raises(NoModelClearsBar) as caught:
+        cold.select("support", slice="deep")
+    assert str(caught.value) == (
+        "no eligible measured or prior-scored model for task 'support' slice 'deep'")
+    with pytest.raises(NoModelClearsBar) as caught:
+        cold.select("support")
+    assert str(caught.value) == "no eligible measured or prior-scored model for task 'support'"
 
 
 @RED
