@@ -811,8 +811,10 @@ def spread(text, extra, skip=()):
     """`text` with `extra` bytes more in the evidence section: each subsection not in `skip`, in order, is grown
     to at most its cap (v1.505, row DOC44f), so no part goes over its cap."""
     for name, got in measure(text)[2:]:
+        if name in skip:  # review iter-359 nit 5: a held part is never grown, whatever its size
+            continue
         add = min(extra, CAPS[CLASS[name]] - got)
-        if name not in skip and add > 0:
+        if add > 0:
             text, extra = grown(text, name, got + add), extra - add
     assert extra == 0, f"{extra} bytes would not fit under the caps"
     return text

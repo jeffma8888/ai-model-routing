@@ -725,6 +725,10 @@ def test_readme_response_bank_keeps_no_reading_bullet_and_a_link_line(cv):
     assert all(name.endswith(".jsonl") and f"`{name}`, " in source for name in cv.FILES)
     assert "the dataset card names no standard licence (`license: other`) and points to the dataset's LICENSE file" in source
     assert "This repo commits no part of the dataset" in source
+    # Review iter-359 nit 1: `only numbers derived from it` is this file's `holds only per-task and pooled numbers`,
+    # and ` in both flavors` the routed table's flavor column, a row for each flavor at each bar.
+    assert "[results.json](results.json) holds only per-task and pooled numbers" in source
+    assert all(section.count(f" | `{flavor}` | ") == len(BARS) for flavor in FLAVORS)
     regenerate = text.split("\n## Regenerate\n", 1)[1]
     assert "checks each against its pinned size and sha256" in regenerate
     assert "reading each of the four files once, line by line" in evidence_readme()
