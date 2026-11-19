@@ -632,7 +632,7 @@ def test_cli_bad_out_downloads_nothing(cv, tmp_path, monkeypatch, capsys, make):
 def test_cli_bad_run_downloads_nothing(cv, tmp_path, monkeypatch, capsys, value):
     monkeypatch.setattr(cv, "fetch", lambda cache_dir=None: pytest.fail("fetched"))
     code, stdout, err = _run(cv, ["--out", str(tmp_path / "o.jsonl"), "--run", value], capsys)
-    assert code == 2 and stdout == "" and err.startswith("error: --run must be ") and err.count("\n") == 1
+    assert code == 2 and stdout == "" and err.startswith("error: --run must be decimal digits only, got ") and err.count("\n") == 1
 
 
 def test_cli_needs_out(cv, monkeypatch, capsys):

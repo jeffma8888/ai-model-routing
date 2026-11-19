@@ -24,6 +24,7 @@ cases, held as strict xfail until v1.175; the four CLIs written with the check (
 import importlib.util
 import inspect
 import os
+import re
 from pathlib import Path
 
 import pytest
@@ -175,12 +176,13 @@ def test_the_checks_are_one_check():  # the eleven CLIS; ledger copy matches fro
 
 
 def test_every_cli_defining_the_check_is_in_clis():
-    # v1.486 (row T13): a converter written with `_check_out` is in CLIS, so a twelfth cannot be missed
-    defining = {path for path in (ROOT / "evidence").glob("*/*.py")
-                if "\ndef _check_out(" in path.read_text(encoding="utf-8")}
-    assert defining == set(CLIS.values()) - {CLIS["autobench-judges"]}
-    assert len(defining) == 10
-    assert "def _check_out(" not in CLIS["autobench-judges"].read_text(encoding="utf-8")
+    # v1.486 (row T13): a converter written with `_check_out` is in CLIS, so a twelfth cannot be missed;
+    # v1.488 (review iter-346 nit 1): any file under evidence/ that names it, at any depth or indent
+    texts = {path: path.read_text(encoding="utf-8") for path in (ROOT / "evidence").rglob("*.py")}
+    naming = {path for path, text in texts.items() if "_check_out" in text}
+    defining = {path for path, text in texts.items() if re.search(r"^\s*def _check_out\(", text, re.M)}
+    assert naming == set(CLIS.values())
+    assert defining == naming - {CLIS["autobench-judges"]}
 
 
 def test_judges_has_no_copy_of_the_check():

@@ -303,7 +303,7 @@ def main(argv=None) -> int:
         args = parser.parse_args(argv)
         out = _check_out(args.out)
         if not re.fullmatch(r"[0-9]+", args.run):
-            raise ValueError(f"--run must be an int >= 0, got {args.run!r}")
+            raise ValueError(f"--run must be decimal digits only, got {args.run!r}")
         run = int(args.run)
         part = out.with_name(out.name + ".part")
         try:
