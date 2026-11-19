@@ -15,6 +15,8 @@ RECORD_TYPES = {
     "latency_ms": float, "input_tokens": int, "output_tokens": int,
     "cost_usd": float, "routing_cost_usd": float, "below_bar": bool,
     "basis": str, "tags": dict,
+    # v1.507 (row FIT1b): every `.call` record ends with the size rule 5 checked
+    "prompt_tokens": int, "prompt_tokens_estimated": bool,
 }
 
 
@@ -78,6 +80,7 @@ def test_executor_falls_back_on_providererror_and_records_exact_attempt_schema(r
             "input_tokens": attempt.input_tokens, "output_tokens": attempt.output_tokens,
             "cost_usd": attempt.cost_usd, "routing_cost_usd": attempt.cost_usd,
             "below_bar": False, "basis": "measured", "tags": {"suite": "tiny"},
+            "prompt_tokens": 2, "prompt_tokens_estimated": True,
         }
 
 

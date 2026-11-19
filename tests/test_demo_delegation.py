@@ -9,9 +9,11 @@ from model_routing import Executor, Registry, Router, Stats, load_records, load_
 from model_routing.cli import main
 
 # Output of the v1.11 demo at seed 7, before it made any delegation decision:
-# its 455 call records, its other files and its summary must not change
+# its 455 call records, its other files and its summary must not change. v1.507 (row FIT1b):
+# each of those records gains `prompt_tokens` and `prompt_tokens_estimated` last, so their digest
+# moved from v1.11's 1df2e1cd...4db544af, which they still give with those two keys dropped
 V111_CALL_RECORDS = 455
-V111_CALLS_SHA256 = "1df2e1cd0d463a7c8721d52fe11dc2526acd8583a455c36a326ce4064db544af"
+V111_CALLS_SHA256 = "4b9d6325cbed99513fbe420b41f798857beb9ff465f08f6368e479b738ed6b46"
 V111_FILE_SHA256 = {
     "stats.json": "91f0394b0fe8b15dd9ced30216c65e01c15ea6c1cd1e76b2a85beaa19f1f4b79",
     "outcomes.jsonl": "5490bfdc336c30558f21dfd2e047fc5af923399ed9239f33ac10b9105c6918ec",

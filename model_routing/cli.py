@@ -45,6 +45,17 @@ def _seed_count(text: str) -> int:
     return value
 
 
+def _prompt_token_count(text: str) -> int:
+    """``select --prompt-tokens N`` (DESIGN 10, v1.507): an integer >= 0, else a usage error."""
+    try:
+        value = int(text)
+    except ValueError:
+        value = None
+    if value is None or value < 0:
+        raise argparse.ArgumentTypeError(f"must be an integer >= 0, got {text!r}")
+    return value
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = _Parser(prog="model-routing",
                      description="Route each repeated kind of model call to the cheapest "
@@ -58,6 +69,7 @@ def _build_parser() -> argparse.ArgumentParser:
                         help="cost_effective or cost_blind")
     select.add_argument("--generator", default=None)
     select.add_argument("--exclude", nargs="+", action="extend", default=[])
+    select.add_argument("--prompt-tokens", type=_prompt_token_count, default=None, metavar="N")
     select.add_argument("--registry", default=str(DATA_DIR / "models.json"))
     select.add_argument("--tasks", default=str(DATA_DIR / "example_tasks.json"))
     select.add_argument("--stats", default="stats.json")
@@ -182,7 +194,8 @@ def _cmd_select(args) -> int:
     try:
         decision = router.select(args.task, flavor=args.flavor,
                                  generator_model=args.generator,
-                                 exclude_models=tuple(args.exclude))
+                                 exclude_models=tuple(args.exclude),
+                                 prompt_tokens=args.prompt_tokens)
     except NoModelClearsBar as exc:
         print(f"error: {exc}", file=sys.stderr)
         print(_candidate_table(exc.candidates), file=sys.stderr)

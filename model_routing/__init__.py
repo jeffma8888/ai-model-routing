@@ -21,7 +21,9 @@ from .router import (  # noqa: E402
 from .providers import (  # noqa: E402
     Completion, FakeProvider, OpenAICompatibleProvider, Provider, ProviderError,
 )
-from .executor import AllModelsFailed, Attempt, CallResult, Executor, json_validator  # noqa: E402
+from .executor import (  # noqa: E402
+    AllModelsFailed, Attempt, CallResult, Executor, estimate_prompt_tokens, json_validator,
+)
 from .monitor import Monitor, load_records, report  # noqa: E402
 from .demo import run_demo  # noqa: E402
 from .evaluate import Outcome, evaluate, load_outcomes, outcomes_from_rows, split_items  # noqa: E402
@@ -37,7 +39,7 @@ __all__ = [
     "GENERATOR", "GENERATOR_FAMILY", "CONTEXT_TOO_SMALL", "INSUFFICIENT_SAMPLES",
     "BELOW_BAR", "PASSES", "Completion", "ProviderError", "Provider", "FakeProvider",
     "OpenAICompatibleProvider", "Attempt", "CallResult", "Executor", "AllModelsFailed",
-    "json_validator", "Monitor", "load_records", "report", "run_demo", "main",
+    "json_validator", "estimate_prompt_tokens", "Monitor", "load_records", "report", "run_demo", "main",
     "Outcome", "outcomes_from_rows", "load_outcomes", "split_items", "evaluate",
     "DelegationDecision", "evaluate_delegation",
 ]

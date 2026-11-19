@@ -41,7 +41,7 @@ flowchart TD
     A[Call for task T] --> B{For each registered model}
     B --> C{Excluded, or same model or family as the generator?}
     C -- yes --> X[Ineligible]
-    C -- no --> D{Context window fits the task?}
+    C -- no --> D{Context window fits the request?}
     D -- no --> X
     D -- yes --> E{At least min_samples labeled trials?}
     E -- no --> P[Eligible, not admitted: cold start only]
@@ -55,7 +55,14 @@ flowchart TD
     J -- best_available --> L[Best measured model, else best leaderboard prior, flagged below_bar]
 ```
 
-The cost of a call is its list price. A model whose stats hold measured token counts for the task is priced at its own mean input and output tokens per call on that task, each rounded up; any other model is priced at the task's `expected_input_tokens` and `expected_output_tokens`. So a model that is cheap per token but writes several times as much as the others can lose the cheapest place. Each path of an inline-or-sub-agent decision is priced at the sizes of the model doing the work. The context-window check always uses the task's expected tokens, because a mean says nothing about the longest call, so set them to the longest calls you expect.
+The cost of a call is its list price. A model whose stats hold measured token counts for the task is priced at its own mean input and output tokens per call on that task, each rounded up; any other model is priced at the task's `expected_input_tokens` and `expected_output_tokens`. So a model that is cheap per token but writes several times as much as the others can lose the cheapest place. Each path of an inline-or-sub-agent decision is priced at the sizes of the model doing the work.
+
+The context-window check reads three kinds of size differently:
+
+- **Declared:** the task's `expected_input_tokens` and `expected_output_tokens` (1,000 and 200 when the task file gives none). The check reads the declared input when a call passes no size of its own, so set `expected_input_tokens` to the largest single request of the task, never the whole piece of work
+- **Measured:** the stats' mean tokens per call. They set prices only, because a mean says nothing about the longest request
+- **Per call:** `Router.select(..., prompt_tokens=N)` and `model-routing select --prompt-tokens N` check each model's window against N plus `expected_output_tokens` in place of the declared input, so the primary and every fallback can hold that request, and a request shorter than the declared size can reach a smaller-window model. Prices stay at the sizes above. `Executor.call` always passes a size: the `prompt_tokens` you give it, or else `estimate_prompt_tokens(messages)`, the characters of the text content divided by 4 and rounded up. That is a rough heuristic for English text that under-counts code and non-Latin scripts, so pass the real count when you have a tokenizer
+- **Multi-call work:** the window limits one request. A provider rejects a request longer than the window, and an agent harness compacts its context between requests, never inside one. So for multi-call agent work, a model that compacts is judged by its measured success rate on whole runs, which already holds what compaction costs it, and is not ruled out by size
 
 ### The quality bar is a confidence bound, not an average
 
@@ -376,7 +383,7 @@ if decision.mode == "delegate":
 
 ## Monitoring and cost attribution
 
-Each attempt is one JSON line with the task, flavor, model, family, attempt index, outcome, latency, tokens, list-price `cost_usd`, `routing_cost_usd` (0 in `cost_blind`), `below_bar`, `basis` and your tags; an attempt on a fallback under the bar (a task with `fallback_below_bar`, above) also carries `below_bar_fallback: true`. Roll it up any way you need:
+Each attempt is one JSON line with the task, flavor, model, family, attempt index, outcome, latency, tokens, list-price `cost_usd`, `routing_cost_usd` (0 in `cost_blind`), `below_bar`, `basis` and your tags; an attempt on a fallback under the bar (a task with `fallback_below_bar`, above) also carries `below_bar_fallback: true`. An `Executor.call` attempt ends with `prompt_tokens` and `prompt_tokens_estimated`: the request size the context-window check read (above), and whether the executor estimated it. Roll it up any way you need:
 
 ```bash
 model-routing report --log calls.jsonl --by model

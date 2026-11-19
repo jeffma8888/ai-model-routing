@@ -3,9 +3,9 @@
 `Router.select(prompt_tokens=...)` checks rule 5 against the call's own size in place of the
 task's declared input, `Executor.call` passes the caller's count or `estimate_prompt_tokens`
 of its messages, every `.call` record ends with `prompt_tokens` and `prompt_tokens_estimated`,
-and `select --prompt-tokens N` passes the size from the command line. The tests marked `RED`
-fail until row FIT1b implements v1.507 (strict, so one that passes early fails the suite); the
-unmarked ones guard what v1.507 keeps and pass before and after it.
+and `select --prompt-tokens N` passes the size from the command line. Row FIT1a wrote them
+under strict xfail and row FIT1b implemented v1.507 and lifted the marks; the guard tests check
+what v1.507 keeps and passed before and after it.
 """
 
 import json
@@ -20,8 +20,6 @@ from model_routing import (
     Router,
 )
 from model_routing.cli import main
-
-RED = pytest.mark.xfail(strict=True, reason="row FIT1b implements DESIGN v1.507")
 
 README = Path(__file__).resolve().parents[1] / "README.md"
 
@@ -81,7 +79,6 @@ def test_without_prompt_tokens_rule_5_reads_the_declared_size(fit_router):
 
 # --- Router.select(prompt_tokens=...) -----------------------------------------------------
 
-@RED
 @pytest.mark.parametrize("flavor", ["cost_effective", "cost_blind"])
 def test_a_model_that_holds_the_declared_size_but_not_the_call_is_ruled_out(fit_router, flavor):
     decision = fit_router().select("judge", flavor=flavor, prompt_tokens=1900)
@@ -91,14 +88,12 @@ def test_a_model_that_holds_the_declared_size_but_not_the_call_is_ruled_out(fit_
     assert reasons(decision)["fiction/mid"] == reasons(decision)["fiction/best"] == "passes"
 
 
-@RED
 def test_a_call_exactly_at_the_window_fits(fit_router):
     decision = fit_router().select("judge", prompt_tokens=1800)
     assert decision.primary == "fiction/cheap"
     assert reasons(decision)["fiction/cheap"] == "passes"
 
 
-@RED
 def test_prompt_tokens_changes_no_price(fit_router, fit_registry):
     plain = fit_router().select("judge")
     sized = fit_router().select("judge", prompt_tokens=5000)
@@ -108,7 +103,6 @@ def test_prompt_tokens_changes_no_price(fit_router, fit_registry):
     assert mid.list_cost == fit_registry.get("fiction/mid").cost(1000, 200)
 
 
-@RED
 @pytest.mark.parametrize("policy", ["refuse", "best_available"])
 def test_no_model_holds_the_call(fit_router, policy):
     with pytest.raises(NoModelClearsBar) as caught:
@@ -116,7 +110,6 @@ def test_no_model_holds_the_call(fit_router, policy):
     assert set(reasons(caught.value.candidates).values()) == {"context_too_small"}
 
 
-@RED
 @pytest.mark.parametrize("bad", [-1, True, False, 1.5, "100", [1]])
 def test_select_rejects_a_prompt_tokens_that_is_no_count(fit_router, bad):
     with pytest.raises(ValueError):
@@ -125,13 +118,11 @@ def test_select_rejects_a_prompt_tokens_that_is_no_count(fit_router, bad):
 
 # --- estimate_prompt_tokens ----------------------------------------------------------------
 
-@RED
 def test_estimate_is_exported():
     assert "estimate_prompt_tokens" in model_routing.__all__
     assert callable(model_routing.estimate_prompt_tokens)
 
 
-@RED
 @pytest.mark.parametrize("messages, chars_per_token, expected", [
     ([], 4.0, 0),
     ([{"role": "user", "content": "abcd"}], 4.0, 1),
@@ -154,7 +145,6 @@ def test_estimate_arithmetic(messages, chars_per_token, expected):
         assert estimate_prompt_tokens(messages) == expected
 
 
-@RED
 @pytest.mark.parametrize("bad", [0, 0.0, -1.0, True, float("nan"), float("inf"), "4"])
 def test_estimate_rejects_a_bad_ratio(bad):
     from model_routing import estimate_prompt_tokens
@@ -164,7 +154,6 @@ def test_estimate_rejects_a_bad_ratio(bad):
 
 # --- Executor.call ------------------------------------------------------------------------
 
-@RED
 def test_the_executor_never_sends_a_call_to_a_model_too_small_for_it(fit_router):
     monitor = Monitor()
     executor = executor_for(fit_router(), {"fiction/cheap": ok(), "fiction/mid": outage,
@@ -178,7 +167,6 @@ def test_the_executor_never_sends_a_call_to_a_model_too_small_for_it(fit_router)
         assert record["prompt_tokens_estimated"] is True
 
 
-@RED
 def test_an_explicit_count_overrides_the_estimate_both_ways(fit_router):
     monitor = Monitor()
     executor = executor_for(fit_router(), {"fiction/cheap": ok(), "fiction/mid": ok(),
@@ -190,7 +178,6 @@ def test_an_explicit_count_overrides_the_estimate_both_ways(fit_router):
         (1900, False), (100, False)]
 
 
-@RED
 @pytest.mark.parametrize("bad", [-1, True, 2.5, "5"])
 def test_a_bad_count_fails_before_any_provider_call_or_record(fit_router, bad):
     monitor = Monitor()
@@ -219,7 +206,6 @@ def select_args(files, *extra):
     return args + list(extra)
 
 
-@RED
 def test_cli_select_passes_the_size(fit_files, capsys):
     assert main(select_args(fit_files, "--prompt-tokens", "1900", "--json")) == 0
     decision = json.loads(capsys.readouterr().out)
@@ -229,7 +215,6 @@ def test_cli_select_passes_the_size(fit_files, capsys):
         "context_too_small")
 
 
-@RED
 @pytest.mark.parametrize("text", ["-1", "1.5", "abc"])
 def test_cli_select_rejects_a_bad_size(fit_files, capsys, text):
     assert main(select_args(fit_files, "--prompt-tokens", text)) == 2
@@ -241,7 +226,6 @@ def test_cli_select_rejects_a_bad_size(fit_files, capsys, text):
 
 # --- README ---------------------------------------------------------------------------------
 
-@RED
 def test_readme_says_which_sizes_are_declared_measured_and_per_call():
     text = README.read_text(encoding="utf-8")
     section = text.split("\n## How a model is chosen\n", 1)[1].split("\n## ", 1)[0]

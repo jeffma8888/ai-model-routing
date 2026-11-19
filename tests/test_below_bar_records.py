@@ -22,12 +22,19 @@ V1_202_KEYS = ["ts", "call_id", "task", "flavor", "model", "family", "attempt", 
                "outcome", "error", "latency_ms", "input_tokens", "output_tokens", "cost_usd",
                "routing_cost_usd", "below_bar", "basis", "tags"]
 WITH_KEY = V1_202_KEYS[:16] + ["below_bar_fallback"] + V1_202_KEYS[16:]
+# v1.507 (row FIT1b): a `.call` record ends with two more keys; a `.call_delegated` record keeps
+# the v1.202 to v1.506 keys above
+SIZE_KEYS = ["prompt_tokens", "prompt_tokens_estimated"]
+CALL_KEYS = V1_202_KEYS + SIZE_KEYS
+CALL_WITH_KEY = WITH_KEY + SIZE_KEYS
 V1_202_COLUMNS = ["calls", "attempts", "errors", "invalid", "fallback_calls", "fallback_rate",
                   "cost_usd", "routing_cost_usd", "p50_ms", "p95_ms"]
 V1_203_COLUMNS = V1_202_COLUMNS[:6] + ["below_bar_calls"] + V1_202_COLUMNS[6:]
-# sha256 of the whole calls.jsonl of `run_demo` (seed 7) at v1.202, all 456 records; the
-# v1.12 pin of tests/test_demo_delegation.py covers the first 455
-V1_202_CALLS_SHA256 = "e3f4eca7bc4c6e8ca0eb41da21c786cbd897c9fa1792e713a518664c3b02219a"
+# sha256 of the whole calls.jsonl of `run_demo` (seed 7), all 456 records; the v1.12 pin of
+# tests/test_demo_delegation.py covers the first 455. v1.507 (row FIT1b): the 455 `.call` records
+# gain the two size keys, so the digest moved from v1.202's e3f4eca7...02219a, which the log
+# still gives with those keys dropped
+V1_202_CALLS_SHA256 = "50610bf22f63117cc1a2e0f126b62f64fe87e6681799d7169193f617cc8982e5"
 
 # (id, family, price_in, successes, trials); bar 0.7, min_samples 20
 MODELS = [
@@ -82,7 +89,7 @@ def test_an_attempt_on_a_below_bar_fallback_carries_the_key_after_below_bar(flav
     assert (result.decision.primary, result.decision.fallbacks) == ("p/cheap", ("p/dear", "b/close"))
     assert result.decision.below_bar_fallbacks == ("b/close",)
     assert [rec["model"] for rec in monitor.records] == ["p/cheap", "p/dear", "b/close"]
-    assert keys(monitor.records) == [V1_202_KEYS, V1_202_KEYS, WITH_KEY]
+    assert keys(monitor.records) == [CALL_KEYS, CALL_KEYS, CALL_WITH_KEY]
     assert monitor.records[2]["below_bar_fallback"] is True
     assert [rec["below_bar"] for rec in monitor.records] == [False, False, False]
 
@@ -94,7 +101,7 @@ def test_every_below_bar_fallback_attempt_has_the_key_when_all_fail():
     with pytest.raises(AllModelsFailed):
         run.call("t", [{"role": "user", "content": "x"}])
     assert [rec["model"] for rec in monitor.records] == ["p/cheap", "p/dear", "b/close", "b/far"]
-    assert keys(monitor.records) == [V1_202_KEYS, V1_202_KEYS, WITH_KEY, WITH_KEY]
+    assert keys(monitor.records) == [CALL_KEYS, CALL_KEYS, CALL_WITH_KEY, CALL_WITH_KEY]
 
 
 def test_no_record_has_the_key_without_a_below_bar_fallback_attempt():
@@ -110,7 +117,7 @@ def test_no_record_has_the_key_without_a_below_bar_fallback_attempt():
             with pytest.raises(AllModelsFailed):
                 run.call("t", [{"role": "user", "content": "x"}])
         assert [rec["model"] for rec in monitor.records] == models
-        assert keys(monitor.records) == [V1_202_KEYS] * len(models)
+        assert keys(monitor.records) == [CALL_KEYS] * len(models)
 
 
 def test_a_best_available_route_keeps_v1_202_keys_with_below_bar_true():
@@ -124,7 +131,7 @@ def test_a_best_available_route_keeps_v1_202_keys_with_below_bar_true():
     run = executor(Router(registry, {"t": task}, stats), {"b/far": ok}, monitor)
     run.call("t", [{"role": "user", "content": "x"}])
     assert [rec["model"] for rec in monitor.records] == ["b/close", "b/far"]
-    assert keys(monitor.records) == [V1_202_KEYS, V1_202_KEYS]
+    assert keys(monitor.records) == [CALL_KEYS, CALL_KEYS]
     assert [rec["below_bar"] for rec in monitor.records] == [True, True]
 
 
@@ -146,7 +153,8 @@ def test_the_demo_records_keep_v1_202_keys(tmp_path):
     run_demo(tmp_path / "demo")
     records = load_records(tmp_path / "demo" / "calls.jsonl")
     assert len(records) == 456
-    assert keys(records) == [V1_202_KEYS] * len(records)
+    assert keys(records) == [CALL_KEYS] * 455 + [V1_202_KEYS]
+    assert "delegated" not in records[454]["tags"] and records[455]["tags"]["delegated"] == "true"
     data = (tmp_path / "demo" / "calls.jsonl").read_bytes()
     assert hashlib.sha256(data).hexdigest() == V1_202_CALLS_SHA256
 

@@ -24,6 +24,14 @@ FLAVORS = ("cost_effective", "cost_blind")
 _ELIGIBLE_REASONS = (INSUFFICIENT_SAMPLES, BELOW_BAR, PASSES)
 
 
+def _check_prompt_tokens(prompt_tokens) -> None:
+    """A call's own size (DESIGN 5.2 v1.507): None, or an int of at least 0 that is not a bool."""
+    if prompt_tokens is None:
+        return
+    if isinstance(prompt_tokens, bool) or not isinstance(prompt_tokens, int) or prompt_tokens < 0:
+        raise ValueError(f"prompt_tokens must be an integer >= 0, got {prompt_tokens!r}")
+
+
 def _sizes(stats: Stats, task: Task, model_id: str) -> Tuple[int, int]:
     """The input and output tokens a model is priced at on the task (DESIGN 5.2).
 
@@ -103,15 +111,21 @@ class Router:
 
     def select(self, task_name: str, flavor: str = "cost_effective",
                generator_model: Optional[str] = None,
-               exclude_models: Iterable[str] = ()) -> RouteDecision:
+               exclude_models: Iterable[str] = (), *,
+               prompt_tokens: Optional[int] = None) -> RouteDecision:
         """Route ``task_name`` and return a :class:`RouteDecision`.
 
-        Raises ``KeyError`` for an unknown task or generator, ``ValueError``
-        for an unknown flavor, and :class:`NoModelClearsBar` when nothing can
-        be chosen under the task's ``on_no_model`` policy.
+        ``prompt_tokens`` is the size of the one request being routed: when given, the
+        context-window check reads it in place of the task's ``expected_input_tokens``,
+        so the primary and every fallback can hold that request, while prices stay at the
+        task's sizes (DESIGN 5.2 v1.507). Raises ``KeyError`` for an unknown task or
+        generator, ``ValueError`` for an unknown flavor or a ``prompt_tokens`` that is not
+        an integer >= 0, and :class:`NoModelClearsBar` when nothing can be chosen under the
+        task's ``on_no_model`` policy.
         """
         if flavor not in FLAVORS:
             raise ValueError(f"unknown flavor {flavor!r}; expected one of {FLAVORS}")
+        _check_prompt_tokens(prompt_tokens)
         if task_name not in self.tasks:
             raise KeyError(f"unknown task: {task_name!r}")
         task = self.tasks[task_name]
@@ -120,8 +134,9 @@ class Router:
         if generator_model is not None:
             generator_family = self.registry.get(generator_model).family
 
+        fit_input = task.expected_input_tokens if prompt_tokens is None else prompt_tokens
         candidates = tuple(self._candidate(task, model, flavor, excluded,
-                                           generator_model, generator_family)
+                                           generator_model, generator_family, fit_input)
                            for model in self.registry.models)
 
         passing = [c for c in candidates if c.passes]
@@ -205,7 +220,7 @@ class Router:
 
     def _candidate(self, task: Task, model, flavor: str, excluded: set,
                    generator_model: Optional[str],
-                   generator_family: Optional[str]) -> Candidate:
+                   generator_family: Optional[str], fit_input: int) -> Candidate:
         successes, trials = self.stats.get(task.name, model.id)
         if model.id in excluded:
             reason = EXCLUDED_MODEL
@@ -217,7 +232,7 @@ class Router:
         elif task.independent_of_generator and generator_family is not None \
                 and model.family == generator_family:
             reason = GENERATOR_FAMILY
-        elif model.context_window < task.expected_input_tokens + task.expected_output_tokens:
+        elif model.context_window < fit_input + task.expected_output_tokens:
             reason = CONTEXT_TOO_SMALL
         elif trials < task.min_samples:
             reason = INSUFFICIENT_SAMPLES

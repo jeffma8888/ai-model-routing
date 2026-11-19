@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 import time
 import uuid
 from dataclasses import dataclass
@@ -11,7 +12,7 @@ from typing import Callable, Dict, Iterable, List, Optional, Tuple
 
 from .delegation import DELEGATE
 from .providers import Provider, ProviderError
-from .router import RouteDecision, Router
+from .router import RouteDecision, Router, _check_prompt_tokens
 
 
 @dataclass(frozen=True)
@@ -47,6 +48,34 @@ class AllModelsFailed(Exception):
         self.decision = decision
 
 
+def estimate_prompt_tokens(messages: Iterable[object], chars_per_token: float = 4.0) -> int:
+    """Estimate the tokens of a request's messages as characters / ``chars_per_token``, rounded up.
+
+    Counts every message's string ``content`` and the ``text`` of each ``{"type": "text"}``
+    part of a list ``content``; any other part, message or content adds 0 (DESIGN 7 v1.507).
+    A rough heuristic for English text that under-counts code and non-Latin scripts: a caller
+    with a tokenizer should pass the real count as ``prompt_tokens``. Raises ``ValueError``
+    unless ``chars_per_token`` is a finite number above 0 that is not a bool.
+    """
+    if isinstance(chars_per_token, bool) or not isinstance(chars_per_token, (int, float)) \
+            or not math.isfinite(chars_per_token) or chars_per_token <= 0:
+        raise ValueError(f"chars_per_token must be a finite number above 0, "
+                         f"got {chars_per_token!r}")
+    chars = 0
+    for message in messages:
+        if not isinstance(message, dict):
+            continue
+        content = message.get("content")
+        if isinstance(content, str):
+            chars += len(content)
+        elif isinstance(content, list):
+            for part in content:
+                if isinstance(part, dict) and part.get("type") == "text" \
+                        and isinstance(part.get("text"), str):
+                    chars += len(part["text"])
+    return math.ceil(chars / chars_per_token)
+
+
 def _utc_now() -> str:
     stamp = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
     return stamp.replace("+00:00", "Z")
@@ -77,12 +106,24 @@ class Executor:
     def call(self, task_name: str, messages: List[dict], flavor: str = "cost_effective",
              generator_model: Optional[str] = None, exclude_models: Iterable[str] = (),
              tags: Optional[Dict[str, str]] = None,
-             validate: Optional[Callable[[str], object]] = None) -> CallResult:
-        """Route and execute one call; raise :class:`AllModelsFailed` if none succeeds."""
+             validate: Optional[Callable[[str], object]] = None, *,
+             prompt_tokens: Optional[int] = None) -> CallResult:
+        """Route and execute one call; raise :class:`AllModelsFailed` if none succeeds.
+
+        ``prompt_tokens`` is the request's size in tokens; when None it is estimated with
+        :func:`estimate_prompt_tokens`. Either way the route holds only models whose window
+        fits it plus the task's expected output, and every record carries it as
+        ``prompt_tokens`` with ``prompt_tokens_estimated`` (DESIGN 7 and 8.1 v1.507). A
+        ``prompt_tokens`` that is not an integer >= 0 raises ``ValueError`` before any call.
+        """
+        _check_prompt_tokens(prompt_tokens)
+        estimated = prompt_tokens is None
+        size = estimate_prompt_tokens(messages) if estimated else prompt_tokens
         decision = self.router.select(task_name, flavor=flavor,
                                       generator_model=generator_model,
-                                      exclude_models=exclude_models)
-        return self._execute(task_name, decision, messages, dict(tags or {}), validate)
+                                      exclude_models=exclude_models, prompt_tokens=size)
+        return self._execute(task_name, decision, messages, dict(tags or {}), validate,
+                             (size, estimated))
 
     def call_delegated(self, decision, messages: List[dict],
                        tags: Optional[Dict[str, str]] = None,
@@ -110,7 +151,8 @@ class Executor:
 
     def _execute(self, task_name: str, decision: RouteDecision, messages: List[dict],
                  call_tags: Dict[str, str],
-                 validate: Optional[Callable[[str], object]]) -> CallResult:
+                 validate: Optional[Callable[[str], object]],
+                 size: Optional[Tuple[int, bool]] = None) -> CallResult:
         task = self.router.tasks[task_name]
         registry = self.router.registry
         call_id = self.id_factory()
@@ -140,7 +182,7 @@ class Executor:
             final = attempt.outcome == "ok" or index == len(order) - 1
             if self.monitor is not None:
                 self.monitor.record(self._record(call_id, decision, registry, index, final,
-                                                 attempt, call_tags))
+                                                 attempt, call_tags, size))
             if text is not None:
                 return CallResult(call_id, text, model_id, tuple(attempts), decision)
         raise AllModelsFailed(
@@ -148,7 +190,8 @@ class Executor:
             tuple(attempts), decision)
 
     def _record(self, call_id: str, decision: RouteDecision, registry, index: int,
-                final: bool, attempt: Attempt, tags: Dict[str, str]) -> dict:
+                final: bool, attempt: Attempt, tags: Dict[str, str],
+                size: Optional[Tuple[int, bool]] = None) -> dict:
         record = {
             "ts": self.now(),
             "call_id": call_id,
@@ -171,6 +214,8 @@ class Executor:
             record["below_bar_fallback"] = True
         record["basis"] = decision.basis
         record["tags"] = dict(tags)
+        if size is not None:
+            record["prompt_tokens"], record["prompt_tokens_estimated"] = size
         return record
 
 
