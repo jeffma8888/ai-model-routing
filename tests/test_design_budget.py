@@ -638,6 +638,7 @@ RESEARCH_NOTES = (
     "- A price error, on LLMRouterBench (v1.403, row R35): ",
     "- The registry's own pair, on superlinked/train-a-router-reasoning (v1.430, row R40): ",
     "  - Training split (v1.467, row R41): ",
+    "- Longtail-SWE runs 0, 1 and 2 (v1.490, row E26h): ",  # v1.490
 )
 # v1.461 (row DOC38c): the four 12.22 lines that specify delegation research notes are 13.16, in this order.
 DELEGATION_NOTES = (
