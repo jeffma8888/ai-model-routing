@@ -95,7 +95,7 @@ def test_each_price_names_its_vendor_page_and_read_date():
     assert "2026-11-19" in section(text, "Facts")
 
 
-def test_no_vendor_price_replaces_a_registry_row(monkeypatch):
+def test_no_vendor_price_replaces_a_registry_row(monkeypatch, capsys):
     lp = load()
     reg = lp.registry()
     ids = [m["id"] for m in reg["models"]]
@@ -105,6 +105,10 @@ def test_no_vendor_price_replaces_a_registry_row(monkeypatch):
     monkeypatch.setitem(lp.LIST_PRICES, "openai/gpt-6.1-sol", (1.0, 2.0, "https://example.com/"))
     with pytest.raises(ValueError, match=r"^already in the registry: openai/gpt-6\.1-sol$"):
         lp.registry()
+    # review iter-354 should-fix 4: the clash exits 2 through `main` with one `error:` line
+    stub(monkeypatch, lp, {"data/b.parquet": rows_of("kimi-k3", 2)})
+    assert lp.main([]) == 2
+    assert capsys.readouterr().err == "error: already in the registry: openai/gpt-6.1-sol\n"
 
 
 @pytest.mark.parametrize("name, expected", [
@@ -161,8 +165,9 @@ def test_a_left_out_model_is_counted_and_never_priced(monkeypatch):
     lp = load()
     stub(monkeypatch, lp, {"data/a.parquet": rows_of("deepseek-v4-flash", 3, bad=(1,)),
                            "data/b.parquet": rows_of("kimi-k3", 2)})
-    recs, left = lp.records()
+    recs, left, cached = lp.records()
     assert left == {"deepseek/deepseek-v4-flash": (3, 1)}
+    assert cached == {(f"repo__issue-{i}", "moonshotai/kimi-k3"): (0, 1000, 100) for i in range(2)}
     assert [r["model"] for r in recs] == ["moonshotai/kimi-k3"] * 2
     p_in, p_out, _ = lp.LIST_PRICES["moonshotai/kimi-k3"]
     assert [r["cost_usd"] for r in recs] == [(1000 * p_in + 100 * p_out) / 1_000_000] * 2
@@ -189,6 +194,8 @@ def test_reading_it_is_built_from_the_block():
     facts = lp.facts_from_block(results_block(text))
     assert len(facts["prices"]) == 10 and len(facts["alone"]) == 10 and len(facts["base"]) == 3
     assert facts["equal"] == (8, 8, 8, 8) and len(facts["picks"]) == 8 and len(facts["left"]) == 1
+    assert set(facts["cache"]) == set(facts["prices"])
+    assert {m for m, v in facts["cache"].items() if v[1] != "-"} == set(lp.CACHE_HIT) <= set(lp.LIST_PRICES)
     assert reading_of(text) == lp.reading(facts)
 
 
@@ -210,7 +217,8 @@ def test_the_note_holds_its_sections_and_the_public_content_rules():
     assert heads == ["Facts", "Method", "Results", "Reading it", "Recommendation", "Limits"]
     assert text.isascii() and "/Users/" not in text and "/home/" not in text
     assert "Nothing for the README or a results file now" in section(text, "Recommendation")
-    assert "no routed row" in section(text, "Facts")
+    assert "no routed row" in section(text, "Facts") and "at list prices" in section(text, "Facts")
+    assert "billed at the Flash price" in section(text, "Facts")
 
 
 @pytest.fixture(scope="module")

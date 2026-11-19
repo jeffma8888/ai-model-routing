@@ -52,6 +52,14 @@ LIST_PRICES = {
     "qwen/qwen3.8-27b": (0.5, 3.0, QWEN),  # International
     "z-ai/glm-5.3-flash": (0.15, 0.5, ZAI),
 }
+# the cache-hit input price, USD per 1M tokens, of the pages above that state one in the row read (review iter-354
+# should-fix 2); the routed rows never use it, as 12.25 prices every input token alike
+CACHE_HIT = {
+    "deepseek/deepseek-v4.1-flash": 0.006,  # peak
+    "moonshotai/kimi-k3": 0.3,
+    "moonshotai/kimi-k3.1-pro": 0.2,
+    "z-ai/glm-5.3-flash": 0.03,
+}
 # a model whose vendor page states no price of its own: its file is checked and counted, never priced
 UNPRICED = {"deepseek/deepseek-v4-flash": DEEPSEEK}
 # the release's other seven parquet files, (size, sha256) as the tree API gave them on 2026-11-18
@@ -101,11 +109,24 @@ def refused(rows) -> int:
     return n
 
 
+def cached_tokens(rows) -> dict:
+    """Per (item, model) of the rows at RUN, the run's (cached_input, input, output), a null cached_input as 0;
+    call after `run_records` has checked the rows."""
+    out = {}
+    for row in rows:
+        if row["run_index"] == RUN:
+            tok = json.loads(row["trajectory"])["usage"]["tokens"]
+            out[(row["instance_id"], model_id(row["canonical_model"]))] = (tok.get("cached_input") or 0, tok["input"],
+                                                                            tok["output"])
+    return out
+
+
 def records(cache=None) -> tuple:
-    """The pool's records in `FILES` order, and per `UNPRICED` model its runs and refused runs."""
+    """The pool's records in `FILES` order, per `UNPRICED` model its runs and refused runs, and the pooled runs'
+    `cached_tokens` at RUN."""
     paths = CONVERT.fetch(cache)
     reg = registry()
-    out, left = [], {}
+    out, left, cached = [], {}, {}
     for name in CONVERT.FILES:
         rows = CONVERT.read_rows(paths[name])
         try:
@@ -116,9 +137,10 @@ def records(cache=None) -> tuple:
                 left[ids.pop()] = (len(rows), refused(rows))
                 continue
             out += CONVERT.run_records(rows, reg)
+            cached.update(cached_tokens(rows))
         except ValueError as exc:
             raise ValueError(f"{name}: {exc}") from None
-    return out, left
+    return out, left, cached
 
 
 def collect(recs) -> tuple:
@@ -160,7 +182,7 @@ def per_task_routed(result, bar, flavor) -> dict:
     return rows[0]
 
 
-def block(report, pool, left, committed) -> str:
+def block(report, pool, left, committed, cached) -> str:
     """The note's `## Results` block."""
     models = report["models"]
     reg = registry()
@@ -184,6 +206,15 @@ def block(report, pool, left, committed) -> str:
         r = row_of(first, BARS[0], FLAVORS[0], f"model:{m}")
         out.append(f"{m:<30} {report['resolved'][m]:>4} ({len(report['unscored'][m])}) {num(r['success']):>9} "
                    f"{num(r['cost_usd'], 2):>9}")
+    kept = [i for i in sorted({i for i, _ in cached}) if i not in set(report["dropped_statement"])]
+    out += ["", f"Cache reads at run {RUN} on the {len(kept)} items: cached input over input, and the cost at the page's "
+            "cache-hit input price over the cost at list prices (`-`: no cache-hit price read)",
+            "model                          cached  at cache-hit"]
+    for m in models:
+        c, i, o = (sum(cached[(item, m)][k] for item in kept) for k in range(3))
+        p_in, p_out, _ = price_of(m, reg)
+        ratio = "-" if m not in CACHE_HIT else num((c * CACHE_HIT[m] + (i - c) * p_in + o * p_out) / (i * p_in + o * p_out), 2)
+        out.append(f"{m:<30} {c / i:>6.2f} {ratio:>13}")
     out += ["", f"Baselines, the pool beside the committed four-model file (bar {BARS[0]}, {FLAVORS[0]})",
             "strategy             pool success     cost   four success     cost"]
     for s in ("best_on_calibration", "cheapest", "oracle"):
@@ -222,12 +253,13 @@ BASE = re.compile(r"^(best_on_calibration|cheapest|oracle) +(\S+) +(\S+) +(\S+) 
 EQUAL = re.compile(r"^routed rows exactly equal \(all five rates and the cost\): (\d+) of (\d+); "
                    r"per-task routed models exactly equal: (\d+) of (\d+)$")
 PICKS = re.compile(r"^(0\.\d+) +(cost_\w+) +(\S+/.*)$")
+CACHE = re.compile(r"^(\S+/\S+) +(\d\.\d\d) +(\d\.\d\d|-)$")
 
 
 def facts_from_block(text) -> dict:
     """The block's prices, left-out models, model rows, baselines, equal counts and routed models, read back
     from its text, so `reading` states only what the block holds."""
-    f = {"prices": {}, "left": {}, "alone": {}, "base": {}, "equal": None, "picks": {}}
+    f = {"prices": {}, "left": {}, "alone": {}, "base": {}, "equal": None, "picks": {}, "cache": {}}
     for line in text.split("\n"):
         if m := PRICE.match(line):
             f["prices"][m.group(1)] = (float(m.group(2)), float(m.group(3)), m.group(4))
@@ -239,6 +271,8 @@ def facts_from_block(text) -> dict:
             f["base"][m.group(1)] = m.groups()[1:]
         elif m := EQUAL.match(line):
             f["equal"] = tuple(int(g) for g in m.groups())
+        elif m := CACHE.match(line):
+            f["cache"][m.group(1)] = (m.group(2), m.group(3))
         elif m := PICKS.match(line):
             pairs = re.findall(r"(\S+/\S+) (\d+)", m.group(3))
             f["picks"][(float(m.group(1)), m.group(2))] = {k: int(v) for k, v in pairs}
@@ -281,11 +315,22 @@ def reading(f) -> str:
                    f"({f['prices'][low][0]:g} and {f['prices'][low][1]:g}) but a held-out cost of {f['alone'][low][3]}, "
                    f"{c[low] / c[least]:.2f} times that of `{least}` ({f['alone'][least][3]} at "
                    f"{f['prices'][least][0]:g} and {f['prices'][least][1]:g}), the least held-out cost of the pool.")
+    share = {m: float(v[0]) for m, v in f["cache"].items()}
+    few, most = min(share, key=lambda m: (share[m], m)), max(share, key=lambda m: (share[m], m))
+    hits = [m for m in f["cache"] if f["cache"][m][1] != "-"]
+    mine = sorted(f["cache"][m][0] for m in own)
+    out.append(f"- Cache reads: the share of input tokens read from a cache runs from {f['cache'][few][0]} (`{few}`) to "
+               f"{f['cache'][most][0]} (`{most}`), and from {mine[0]} to {mine[-1]} on the {len(own)} registry models. At "
+               "the page's cache-hit input price the cost would be "
+               + _and(f"{f['cache'][m][1]} of the list-price cost for `{m}`" if k == 0 else f"{f['cache'][m][1]} for `{m}`"
+                      for k, m in enumerate(hits))
+               + "; `models.json` holds no cache price for the registry models, so the routed rows above price every "
+               "input token at the list input price, as 12.25 does, and their match holds at list prices only.")
     o = f["base"]["oracle"]
     word = "above" if float(o[0]) > float(o[2]) else "below" if float(o[0]) < float(o[2]) else "level with"
     out.append(f"- The 12.3 oracle is at {o[0]} for {o[1]} on the pool, {word} the four-model file's {o[2]} for {o[3]}"
                + (": an added model resolves some held-out issue that no registry model does, but the router, which "
-                  "sends the one task to one model per seed, cannot take it." if word == "above" else "."))
+                  "sends the one task to one model per seed, does not take it." if word == "above" else "."))
     for m, (runs, bad) in sorted(f["left"].items()):
         out.append(f"- Left out: `{m}`, {runs} runs, {bad} of them with no token counts; no matrix holds a run of it.")
     return "\n".join(out) + "\n"
@@ -301,10 +346,10 @@ def main(argv=None) -> int:
     parser.add_argument("--cache", default=None, help=f"download folder (default: {CONVERT.default_cache_dir()})")
     try:
         args = parser.parse_args(argv)
-        recs, left = records(args.cache)
+        recs, left, cached = records(args.cache)
         report, pool = collect(recs)
         committed = json.loads(COMMITTED.read_text(encoding="utf-8"))
-        text = block(report, pool, left, committed)
+        text = block(report, pool, left, committed, cached)
     except (ValueError, OSError, ImportError) as exc:
         msg = str(exc).replace("\r", "\\r").replace("\n", "\\n")
         print(f"error: {msg}", file=sys.stderr)

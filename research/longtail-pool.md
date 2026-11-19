@@ -5,9 +5,9 @@
 - Question: `evidence/longtail-swe/results.json` (DESIGN 12.26) routes among the four registry models alone, and the release holds seven more configs, two of which resolve about as many issues as `openai/gpt-5.6-luna`. Priced from their vendors' own pages, does any of them change a routed row, at the cheap end where `cost_effective` routing pays above all?
 - Data: nebius/Longtail-SWE-trajectories at revision dfd6075c56b7841b9c254cc70a57e39c1df0076c (CC BY 4.0), all eleven parquet files, the converter's four and the seven the block lists, read outside the repo; nothing of the dataset is committed but the counts and rates below
 - Script: [longtail_pool.py](longtail_pool.py), `python research/longtail_pool.py` (it needs `pyarrow`, the `evidence` extra); tests/test_research_longtail_pool.py compares the block with a fresh run on the cached files
-- Prices: six of the seven from their vendors' own pages, read on 2026-11-19, each the page's uncached input price and its output price in USD per 1M tokens, as 12.25 prices every input token alike: https://api-docs.deepseek.com/quick_start/pricing for `deepseek-v4.1-flash`, the peak rate of `deepseek-flash`, model version DeepSeek-V4.1-Flash-1017 (the off-peak rate is half); https://platform.moonshot.ai/docs/pricing/chat for `kimi-k3.1-pro` and `kimi-k3`; https://www.alibabacloud.com/help/en/model-studio/model-pricing, its International rows, for `qwen3.8-27b` and `qwen3.6-27b` (thinking mode, the same output price); and https://docs.z.ai/guides/overview/pricing for GLM-5.3-Flash. The block gives each price beside its page
-- Left out: `deepseek-v4-flash`. Its page says the model behind that legacy name is retired and its requests are now served by DeepSeek-V4.1-Flash-1017 at the Flash price, so no page states a price of the model whose runs the release holds; the 49 runs with no token counts are all its own
-- Short answer: no. The six priced models change no routed row: every routed row of the pool, and its per-task routed models, equals the committed four-model file's exactly at every bar and flavor, because `openai/gpt-5.6-luna` and `openai/gpt-6.1-sol` each have at least every added model's held-out success for less held-out cost. The lowest list prices do not make the cheapest runs, and only the oracle moves (the bullets of `## Reading it` give each number, built from the block by the script's `reading`)
+- Prices: six of the seven from their vendors' own pages, read on 2026-11-19, each the page's uncached input price and its output price in USD per 1M tokens, as 12.25 prices every input token alike: https://api-docs.deepseek.com/quick_start/pricing for `deepseek-v4.1-flash`, the peak rate of `deepseek-flash`, model version DeepSeek-V4.1-Flash-1017 (the off-peak rate is half on both prices, which would halve its held-out cost to 318.98, still above `openai/gpt-5.6-luna`'s 252.57 at a lower held-out success); https://platform.moonshot.ai/docs/pricing/chat for `kimi-k3.1-pro` and `kimi-k3`; https://www.alibabacloud.com/help/en/model-studio/model-pricing, its International rows, for `qwen3.8-27b` and `qwen3.6-27b` (thinking mode, the same output price); and https://docs.z.ai/guides/overview/pricing for GLM-5.3-Flash. The block gives each price beside its page
+- Left out: `deepseek-v4-flash`. Its page says that legacy name is still accepted, but the model behind it is retired and its requests "are served by the DeepSeek-V4.1-Flash-1017 model and billed at the Flash price": a billing rule for today's requests, which another model answers, not a price of the retired model whose runs the release holds, so the Flash price is not taken as its list price and the answer below is for six of the seven; the 49 runs with no token counts are all its own
+- Short answer: no, at list prices with every input token at the uncached price (the 12.25 rule). The six priced models change no routed row: every routed row of the pool, and its per-task routed models, equals the committed four-model file's exactly at every bar and flavor, and `openai/gpt-5.6-luna` and `openai/gpt-6.1-sol` each have at least every added model's held-out success for less held-out cost. The lowest list prices do not make the cheapest runs, most input tokens are cache reads, whose cache-hit prices (not applied here) would cut three added models' cost to 0.13 to 0.18 of it with no registry cache price to set beside them, and only the oracle moves (the bullets of `## Reading it` give each number, built from the block by the script's `reading`)
 
 ## Method
 
@@ -54,6 +54,19 @@ qwen/qwen3.6-27b                 31 (0)     0.154    414.32
 qwen/qwen3.8-27b                 89 (0)     0.459   1248.59
 z-ai/glm-5.3-flash               93 (0)     0.479    577.26
 
+Cache reads at run 0 on the 194 items: cached input over input, and the cost at the page's cache-hit input price over the cost at list prices (`-`: no cache-hit price read)
+model                          cached  at cache-hit
+anthropic/claude-opus-5.5        0.96             -
+deepseek/deepseek-v4.1-flash     0.91          0.13
+moonshotai/kimi-k3               0.98          0.14
+moonshotai/kimi-k3.1-pro         0.94          0.18
+openai/gpt-5.6-luna              0.97             -
+openai/gpt-5.6-sol               0.94             -
+openai/gpt-6.1-sol               0.95             -
+qwen/qwen3.6-27b                 0.93             -
+qwen/qwen3.8-27b                 0.78             -
+z-ai/glm-5.3-flash               0.03          0.97
+
 Baselines, the pool beside the committed four-model file (bar 0.6, cost_effective)
 strategy             pool success     cost   four success     cost
 best_on_calibration         0.823  1541.05          0.823  1541.05
@@ -88,15 +101,16 @@ Routed models of the pool, seeds of 50 per model
 - Routed rows: on 8 of 8 (bar, flavor) rows the pool's routed success, cost and rates equal the committed four-model file's exactly, and on 8 of 8 its per-task routed models do; no added model is routed on any seed at any bar or flavor.
 - Each added model alone: held-out success 0.154 (`qwen/qwen3.6-27b`) to 0.723 (`moonshotai/kimi-k3.1-pro`), held-out cost 414.32 (`qwen/qwen3.6-27b`) to 5055.78 (`moonshotai/kimi-k3`) USD; `openai/gpt-5.6-luna` (0.726 for 252.57) and `openai/gpt-6.1-sol` (0.804 for 357.50) each have at least the held-out success of every added model for no more held-out cost.
 - A list price is not a cost: `z-ai/glm-5.3-flash` has the pool's lowest input and output prices (0.15 and 0.5) but a held-out cost of 577.26, 2.29 times that of `openai/gpt-5.6-luna` (252.57 at 0.2 and 1.2), the least held-out cost of the pool.
-- The 12.3 oracle is at 0.959 for 303.76 on the pool, above the four-model file's 0.953 for 379.50: an added model resolves some held-out issue that no registry model does, but the router, which sends the one task to one model per seed, cannot take it.
+- Cache reads: the share of input tokens read from a cache runs from 0.03 (`z-ai/glm-5.3-flash`) to 0.98 (`moonshotai/kimi-k3`), and from 0.94 to 0.97 on the 4 registry models. At the page's cache-hit input price the cost would be 0.13 of the list-price cost for `deepseek/deepseek-v4.1-flash`, 0.14 for `moonshotai/kimi-k3`, 0.18 for `moonshotai/kimi-k3.1-pro` and 0.97 for `z-ai/glm-5.3-flash`; `models.json` holds no cache price for the registry models, so the routed rows above price every input token at the list input price, as 12.25 does, and their match holds at list prices only.
+- The 12.3 oracle is at 0.959 for 303.76 on the pool, above the four-model file's 0.953 for 379.50: an added model resolves some held-out issue that no registry model does, but the router, which sends the one task to one model per seed, does not take it.
 - Left out: `deepseek/deepseek-v4-flash`, 606 runs, 49 of them with no token counts; no matrix holds a run of it.
 
 ## Recommendation
 
-Nothing for the README or a results file now. A second results file on the pool would repeat the committed file's routed rows exactly, and its size, `Regenerate` line and cached-file test would buy no new number. When the README's Longtail-SWE subsection lands (row E26e), one clause linking this note can say that the release's six other priced models change no routed row. A later price cut that makes an added model's held-out cost fall below `openai/gpt-5.6-luna`'s at no lower held-out success would show on a rerun of the script.
+Nothing for the README or a results file now. A second results file on the pool would repeat the committed file's routed rows exactly, and its size, `Regenerate` line and cached-file test would buy no new number. When the README's Longtail-SWE subsection lands (row E26e), one clause linking this note can say that the release's six other priced models change no routed row. A later price cut that makes an added model's held-out cost fall below `openai/gpt-5.6-luna`'s at no lower held-out success would show on a rerun of the script. A cache-priced comparison needs a cache price in `models.json` for the registry models first, a package change this note does not ask for.
 
 ## Limits
 
-- The prices are one day's read of four vendor pages, and the registry's four are `models.json`'s. A run's cost is its tokens at list prices with no cache discount (12.25), so a run that re-reads a cached context may cost less at its vendor's cache rates, which the 12.25 rule does not apply
+- The prices are one day's read of four vendor pages, and the registry's four are `models.json`'s. A run's cost is its tokens at list prices with no cache discount (12.25), while 0.78 to 0.98 of every model's input but `z-ai/glm-5.3-flash`'s is read from a cache (the block's cache table); at their pages' cache-hit prices three added models would cost 0.13 to 0.18 of their list-price cost, and `models.json` holds no cache price to set the registry models beside them, so the answer is for list prices only
 - Run 0 alone, one task, and the 8 issues dropped for a changed statement, as in the committed file
 - `deepseek-v4-flash` is out of the pool, so the oracle and the routed rows above never see its runs
