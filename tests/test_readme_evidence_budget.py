@@ -43,7 +43,8 @@ their a531339 sizes until rows DOC44b to DOC44j trim each to its cap and move it
 not empty the projection is at most ``HOLD_CAP``, 64,500 bytes, and once it is empty the section itself is, while
 ``CLASS`` names twelve headings. ``TRIMMED`` keeps the v1.444 plan, each part at most its ``V1_444_CAPS`` cap.
 Row DOC44b (v1.474) moved ``AutoBench`` and ``AutoBench judges`` to ``RETRIMMED``, row DOC44c (v1.475) ``tau2-bench``,
-row DOC44d (v1.476) ``LiveCodeBench`` and row DOC44e (v1.503) ``LLMRouterBench``.
+row DOC44d (v1.476) ``LiveCodeBench``, row DOC44e (v1.503) ``LLMRouterBench`` and row DOC44f (v1.505) ``LLM Routing
+Response Bank``.
 """
 import re
 from pathlib import Path
@@ -84,8 +85,7 @@ PENDING = {}
 # Delegation on AutoBench's 1,199, Delegation on LLMRouterBench's 880, Delegation on the LLM Routing Response
 # Bank's 867 and tau2-bench's 776 (TRIMMED) the ce21e81 projection is 69,678 - 7,080 = 62,598.
 # v1.473 (row DOC44a): each part over the v1.473 caps and its size at a531339, until its row trims it.
-HELD = {"LLM Routing Response Bank": 4_997, "Registry pair": 4_957,
-        "Delegation on AutoBench": 5_499, "Delegation on LLMRouterBench": 5_494,
+HELD = {"Registry pair": 4_957, "Delegation on AutoBench": 5_499, "Delegation on LLMRouterBench": 5_494,
         "Delegation on the LLM Routing Response Bank": 5_498}
 # The row that trims each held part (v1.473); it moves the part to RETRIMMED as (its a531339 size, its row).
 PLAN_ROWS = {"AutoBench": "DOC44b", "AutoBench judges": "DOC44b", "tau2-bench": "DOC44c", "LiveCodeBench": "DOC44d",
@@ -95,7 +95,8 @@ PLAN_ROWS = {"AutoBench": "DOC44b", "AutoBench judges": "DOC44b", "tau2-bench": 
 RETRIMMED = {"AutoBench": (4_664, "DOC44b"), "AutoBench judges": (4_742, "DOC44b"),  # v1.474
              "tau2-bench": (4_993, "DOC44c"),  # v1.475
              "LiveCodeBench": (4_929, "DOC44d"),  # v1.476
-             "LLMRouterBench": (4_993, "DOC44e")}  # v1.503
+             "LLMRouterBench": (4_993, "DOC44e"),  # v1.503
+             "LLM Routing Response Bank": (4_997, "DOC44f")}  # v1.505
 # v1.473: the section at a531339, and with each held part at its cap; HOLD_CAP leaves room under SECTION_CAP for
 # a subsection at the delegation cap and GLANCE_ROOM bytes for its glance bullet, its line and newline.
 PLAN_SECTION, PLAN_PROJECTION, HOLD_CAP, GLANCE_ROOM = 67_878, 64_312, 64_500, 500
@@ -711,7 +712,11 @@ TRIM_SIZES = {"tau2-bench": ("12.15", "from v1.475 the subsection is {:,} bytes 
                                             "v1.369)"),
               # v1.476 (row DOC44d): 12.17 is at its DESIGN PENDING hold, so its v1.365 bullet gives the size in place.
               "LiveCodeBench": ("12.17", "the README subsection `### LiveCodeBench` is {:,} bytes by the 12.8 measure "
-                                         "(4,929 from v1.366; ")}
+                                         "(4,929 from v1.366; "),
+              # v1.505 (row DOC44f): 12.21 is at its DESIGN PENDING hold too, so its trim bullet restates it in place.
+              "LLM Routing Response Bank": ("12.21", "from v1.505 the README subsection `### LLM Routing Response "
+                                                     "Bank` is {:,} bytes by the 12.8 measure (4,997 from v1.447, "
+                                                     "6,462 from v1.356)")}
 
 
 def design_subsection(text, number):
@@ -724,13 +729,14 @@ def design_subsection(text, number):
     return "\n".join(lines[starts[0]:end])
 
 
-def test_the_trim_bullets_give_the_subsections_size():  # 12.15, 12.19 to v1.473; 12.10, 12.12 v1.474; 12.17 v1.476
+def test_the_trim_bullets_give_the_subsections_size():  # 12.15, 12.19 to v1.473; 12.10, 12.12 v1.474; 12.17 v1.476;
+    # 12.21 v1.505
     readme, design = README.read_text(encoding="utf-8"), DESIGN.read_text(encoding="utf-8")
     sizes = dict(measure(readme)[1:])
     for name, (number, clause) in TRIM_SIZES.items():
         stated = clause.format(sizes[name])
         assert design.count(stated) == 1 and design_subsection(design, number).count(stated) == 1, name
-        assert sizes[name] <= limit(name)  # v1.473: held, until rows DOC44c (v1.475) and DOC44e (v1.503)
+        assert sizes[name] <= limit(name)  # v1.473: held, until rows DOC44c (v1.475), DOC44e (v1.503) and DOC44f
     # The 12.15 bullet moved to the end of 12.19 is in the file once but no longer in its own subsection.
     tau2 = TRIM_SIZES["tau2-bench"][1].format(sizes["tau2-bench"])
     line = next(line for line in design.split("\n") if tau2 in line)
@@ -801,6 +807,17 @@ def grown(text, name, to):
     return text.replace(f"\n### {name}\n", f"\n### {name}\n" + "x" * (to - got - 1) + "\n", 1)
 
 
+def spread(text, extra, skip=()):
+    """`text` with `extra` bytes more in the evidence section: each subsection not in `skip`, in order, is grown
+    to at most its cap (v1.505, row DOC44f), so no part goes over its cap."""
+    for name, got in measure(text)[2:]:
+        add = min(extra, CAPS[CLASS[name]] - got)
+        if name not in skip and add > 0:
+            text, extra = grown(text, name, got + add), extra - add
+    assert extra == 0, f"{extra} bytes would not fit under the caps"
+    return text
+
+
 @pytest.mark.parametrize("held, grow, message", [
     ({**HELD, "Registry pair": 4_956}, None, "`### Registry pair` is 4,957 bytes, over its held size 4,956"),
     (HELD, ("AutoBench", 4_601), "`### AutoBench` is 4,601 bytes, over its routing cap 4,600"),
@@ -825,6 +842,8 @@ def test_a_large_part_left_out_of_the_v1_473_plan_also_breaks_the_projection():
     # v1.503 (row DOC44e): the trims have taken the projection to 63,856 (63,780 from v1.504), so 499
     # bytes more stay under HOLD_CAP and only the cap problem is named; the projection needs the room
     # left as well, here in `### RouterBench`, which no entry holds and whose own cap it stays under.
+    # v1.505 (row DOC44f): the projection is 63,229, so the room, 772 bytes, is more than `### RouterBench`
+    # has under its cap (review iter-358 nit 1); it is spread over the unheld parts, each up to its cap.
     text = README.read_text(encoding="utf-8")
     held = {k: v for k, v in HELD.items() if k != "Delegation on AutoBench"}
     now = projection(measure(text))
@@ -832,7 +851,7 @@ def test_a_large_part_left_out_of_the_v1_473_plan_also_breaks_the_projection():
     assert now <= PLAN_PROJECTION and now + 499 <= HOLD_CAP
     assert problems(text, held=held) == [cap]
     room = HOLD_CAP - (now + 499)
-    bigger = grown(text, "RouterBench", dict(measure(text)[2:])["RouterBench"] + room + 1)
+    bigger = spread(text, room + 1, skip=set(HELD))
     assert projection(measure(bigger), held=held) == HOLD_CAP + 1
     assert problems(bigger, held=held) == [
         cap, f"with each held part at its cap the section would be {HOLD_CAP + 1:,} bytes, over {HOLD_CAP:,}"]

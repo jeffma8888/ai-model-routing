@@ -706,11 +706,11 @@ python evidence/routerbench/results.py --table evidence/llmrouterbench/results.j
 
 ### LLM Routing Response Bank
 
-- Dataset: [Lurume/llm-routing-response-bank](https://huggingface.co/datasets/Lurume/llm-routing-response-bank), pinned at revision [`547beb3`](https://huggingface.co/datasets/Lurume/llm-routing-response-bank/tree/547beb31ecd8f12b116b87eb4f56feee73edda6c), four JSON Lines files of 1,018,191,580 bytes in all, each checked by size and sha256, then read one line at a time
-- Licence: the dataset card names no standard licence and points to the dataset's LICENSE file, which says: "Planned license: Open Data Commons Attribution License v4.0 (ODC-BY-4.0, https://opendatacommons.org/licenses/by/4-0/). Final licensing wording will be attached at the formal publication of the associated study; until then, you may use, redistribute, and build on this data under ODC-BY-4.0 terms with attribution to this dataset repository." Its per-family terms are quoted in [RESULTS.md](evidence/response-bank/RESULTS.md). This repo commits no part of the dataset, only numbers derived from it
+- Dataset: [Lurume/llm-routing-response-bank](https://huggingface.co/datasets/Lurume/llm-routing-response-bank), revision [`547beb3`](https://huggingface.co/datasets/Lurume/llm-routing-response-bank/tree/547beb31ecd8f12b116b87eb4f56feee73edda6c), four files of 1,018,191,580 bytes in all
+- Licence: the dataset card names no standard licence; its LICENSE file says: "Planned license: Open Data Commons Attribution License v4.0 (ODC-BY-4.0, https://opendatacommons.org/licenses/by/4-0/). Final licensing wording will be attached at the formal publication of the associated study; until then, you may use, redistribute, and build on this data under ODC-BY-4.0 terms with attribution to this dataset repository." Its per-family terms are quoted in [RESULTS.md](evidence/response-bank/RESULTS.md)
 - Attribution, as those terms ask: the data behind these results is the LLM Routing Response Bank, from the dataset repository https://huggingface.co/datasets/Lurume/llm-routing-response-bank
-- What was run: 5 models, 4 benchmark families, each one routing task (`aime` 30 items, `gpqa_diamond` 198, `livecodebench` 1,055 and `mmlu_pro` 12,032, 13,315 in all), 50 seeds; each task is split in half per seed and routed at bars 0.8 and 0.9 in both flavors. A success is a response whose `quality` is 1, the label of an exact-answer parser or, for code, of LiveCodeBench's tests, and the cost is the response's billed `official_usd`
-- Full results, with all 5 single models: [RESULTS.md](evidence/response-bank/RESULTS.md) and [results.json](evidence/response-bank/results.json); source, the models, the tasks, the finishes and missing cells and what a row keeps: [evidence/response-bank/README.md](evidence/response-bank/README.md)
+- What was run: 5 models, 4 benchmark families, each one routing task (`aime` 30 items, `gpqa_diamond` 198, `livecodebench` 1,055 and `mmlu_pro` 12,032, 13,315 in all), 50 seeds, routed at bars 0.8 and 0.9
+- Full results: [RESULTS.md](evidence/response-bank/RESULTS.md) and [results.json](evidence/response-bank/results.json); source: [evidence/response-bank/README.md](evidence/response-bank/README.md)
 
 Held-out success is the share of held-out items whose response scored 1, pooled over the 4 tasks, and cost is the billed cost of answering them, both averaged over the seeds; the ratio divides that cost by the cost of the best single model. The cleared rate is the share of the 200 (task, seed) cells where some model cleared the bar on the calibration half, and the bar-violation rate is the share of cleared cells whose held-out success fell below the bar.
 
@@ -732,11 +732,7 @@ Held-out success is the share of held-out items whose response scored 1, pooled 
 | Best model on the calibration half, per task | 0.874 | 57.4387 |
 | Cheapest model on the calibration half, per task | 0.847 | 5.4364 |
 
-Reading it:
-
-- `cost_blind` reaches 0.874 at 2.104 of the best single model's cost at every bar, 0.0022 above that model's held-out success, while the 5 single models' held-out successes run from 0.845 to 0.872: at bar 0.8 it routes 45 of the 50 `mmlu_pro` seeds to `moonshotai/kimi-k2.7-code`, the single model with the highest cost, 71.0675 USD. Where the models are this close, leaving cost out buys little held-out success at a much higher cost
-
-The `cost_effective` reading, highest bar, bar violations, per-item oracle, billed costs, `mmlu_pro` share, `missing` cells, length finishes and joined splits are in [RESULTS.md](evidence/response-bank/RESULTS.md#reading-it) `## Reading it`.
+The `cost_effective` and `cost_blind` readings, the highest bar, bar violations, per-item oracle, billed costs, `mmlu_pro` share, `missing` cells, length finishes and joined splits are in [RESULTS.md](evidence/response-bank/RESULTS.md#reading-it) `## Reading it`.
 
 Regenerate (the converter downloads the four pinned files, about 1.02 GB, into a cache folder outside the repo, and verifying, reading and converting them takes about 3 seconds once they are cached; the `evidence` workflow reruns these commands on GitHub and fails if `results.json` changes by a byte, while the test suite rebuilds `results.json` from them only where the four pinned files are cached):
 

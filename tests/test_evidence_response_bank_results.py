@@ -41,6 +41,12 @@ Reading it bullet, the third (`cost_blind`), since with the first kept instead i
 cap; the link line names the `cost_effective` reading and the limit. The tests require each dropped bullet
 in RESULTS.md and absent from the subsection, and each dropped source clause in the file that states it.
 
+v1.505 (DESIGN 12.21 and 12.8 v1.505, row DOC44f): the subsection is trimmed to the 4,600-byte routing cap of
+12.8 v1.473, and to the 4,200 row E26i plans for. Its source lines shed every clause the 12.8 v1.444 order lets
+them shed, and since it would still be 4,477 bytes, its one Reading it bullet goes too, so its five source bullets
+are its only bullets and the link line names both readings; each dropped clause is in RESULTS.md or the evidence
+README, and the tests here require it there and absent from the subsection.
+
 v1.378 (DESIGN 12.21, row E22): RESULTS.md gains ``## Sensitivity`` after ``## Reading it``, the
 release's own split of research/response-bank-split.md. A builder makes the whole section from that
 note's Results block, which the R27 pinned run requires to be the script's output, so every number of
@@ -574,18 +580,18 @@ def download_bytes(cv):
 
 
 def readme_source_lines(cv, results):
-    models = len({tuple(v["models"]) for v in results["tasks"].values()}.pop())
+    # v1.505 (row DOC44f): `pinned at`, `JSON Lines`, the check-and-read clause, the LICENSE pointer, the
+    # sentence on what the repo commits, `with all 5 single models` and what the evidence README holds beyond
+    # its source are shed; RESULTS.md and the evidence README state each (test_..._keeps_no_reading_bullet_...).
     return [
-        f"- Dataset: [Lurume/llm-routing-response-bank]({DATASET_URL}), pinned at "
+        f"- Dataset: [Lurume/llm-routing-response-bank]({DATASET_URL}), "
         f"revision [`{cv.REVISION[:7]}`]({DATASET_URL}/tree/{cv.REVISION}), {NUMBER[len(cv.FILES)]} "
-        f"JSON Lines files of {download_bytes(cv):,} bytes in all, each checked by size and sha256, "
-        "then read one line at a time",
-        "- Licence: the dataset card names no standard licence and points to the dataset's LICENSE "
-        f"file, which says: \"{TERMS}\" Its per-family terms are quoted in {RESULTS_LINK}. This repo "
-        "commits no part of the dataset, only numbers derived from it",
+        f"files of {download_bytes(cv):,} bytes in all",
+        f"- Licence: the dataset card names no standard licence; its LICENSE file says: \"{TERMS}\" Its "
+        f"per-family terms are quoted in {RESULTS_LINK}",
         f"- Attribution, as those terms ask: {ATTRIBUTION}",
-        f"- Full results, with all {models} single models: {RESULTS_LINK} and [results.json](evidence/response-bank/results.json); "
-        f"source, the models, the tasks, the finishes and missing cells and what a row keeps: {EVIDENCE_LINK}"]
+        f"- Full results: {RESULTS_LINK} and [results.json](evidence/response-bank/results.json); "
+        f"source: {EVIDENCE_LINK}"]
 
 
 def readme_counts(results):
@@ -594,12 +600,11 @@ def readme_counts(results):
     assert len(models) == 1 and config["flavors"] == ["cost_effective", "cost_blind"]
     parts = [f"`{t}` {v['items']:,}" + (" items" if i == 0 else "")
              for i, (t, v) in enumerate(tasks.items())]
+    # v1.505 (row DOC44f): the split clause, ` in both flavors` and the sentence on what a success and the cost
+    # are are shed; the RESULTS.md opening paragraph states them, and the routed table has a row per flavor.
     return (f"- What was run: {len(models.pop())} models, {len(tasks)} benchmark families, each one "
             f"routing task ({join(parts)}, {sum(v['items'] for v in tasks.values()):,} in all), "
-            f"{len(config['seeds'])} seeds; each task is split in half per seed and routed at bars "
-            f"{join([str(b) for b in config['bars']])} in both flavors. A success is a response whose "
-            "`quality` is 1, the label of an exact-answer parser or, for code, of LiveCodeBench's tests, "
-            "and the cost is the response's billed `official_usd`")
+            f"{len(config['seeds'])} seeds, routed at bars {join([str(b) for b in config['bars']])}")
 
 
 def readme_columns(results):
@@ -657,48 +662,52 @@ def test_readme_response_bank_source_counts_and_tables_are_the_committed_results
 
 
 # v1.447 (row DOC28d): the link line names the dropped `cost_effective` bullet and the dropped limit.
-LINK_LINE = ("The `cost_effective` reading, highest bar, bar violations, per-item oracle, billed costs, "
-             "`mmlu_pro` share, `missing` cells, length finishes and joined splits are in "
+# v1.505 (row DOC44f): it names the `cost_blind` reading too, the last bullet the subsection held.
+LINK_LINE = ("The `cost_effective` and `cost_blind` readings, the highest bar, bar violations, per-item oracle, "
+             "billed costs, `mmlu_pro` share, `missing` cells, length finishes and joined splits are in "
              "[RESULTS.md](evidence/response-bank/RESULTS.md#reading-it) `## Reading it`.")
 # v1.447 (row DOC28d): the source clauses the subsection drops, each still stated where the keeps test checks.
-DROPPED_SOURCE_CLAUSES = [" on Hugging Face", "every one of the", "routed rows that beat each", "\nLimits:\n"]
+DROPPED_SOURCE_CLAUSES = [" on Hugging Face", "every one of the", "routed rows that beat each", "\nLimits:\n",
+                          # v1.505 (row DOC44f): its source words and the `Reading it:` line of its last bullet.
+                          "pinned at revision", "JSON Lines", "checked by size and sha256", "one line at a time",
+                          "points to the dataset's LICENSE", "repo commits", "only numbers derived",
+                          "split in half per seed", " in both flavors", "A success is a response",
+                          "billed `official_usd`", "single models: [", "what a row keeps", "\nReading it:\n"]
 
 
 def test_readme_response_bank_reading_and_limits_are_results_md_lines():
     # v1.356 (12.21 v1.355): the first and third Reading it bullets and the first limit stayed, each a
-    # RESULTS.md line under the rewrite. v1.447 (row DOC28d): only the third Reading it bullet stays;
-    # the other nine, and their phrases, are in RESULTS.md alone.
+    # RESULTS.md line under the rewrite. v1.447 (row DOC28d): only the third Reading it bullet stayed;
+    # v1.505 (row DOC44f): none stays, and all ten, and their phrases, are in RESULTS.md alone.
     section = readme_subsection()
     reading, limits = results_md_bullets()
-    kept, dropped = [reading[2]], [reading[0], reading[1], reading[3], reading[4]] + limits
-    block = f"Reading it:\n\n{to_readme(kept[0])}\n\n{LINK_LINE}\n\n"
-    assert section.count(block) == 1
-    for bullet in dropped:
+    assert section.count(f"\n{LINK_LINE}\n") == 1 and "Reading it:" not in section
+    for bullet in reading + limits:  # v1.505: every one of the ten is in RESULTS.md alone
         assert bullet[2:] not in section and to_readme(bullet)[2:] not in section, bullet
     phrases = [p for p in reading_phrases(committed()) if not p.startswith("the committed file,")]
     assert len(phrases) == len(reading_phrases(committed())) - 1
-    shown = [p for p in phrases if p in kept[0]]
-    assert len(shown) == 3, shown  # the `cost_blind` bullet's; 8 with the `cost_effective` one (v1.356)
-    for phrase in phrases:
-        assert (to_readme(phrase) in section) == (phrase in shown), phrase
+    # The third bullet held three of them to v1.504 (8 with the `cost_effective` one, v1.356).
+    assert len([p for p in phrases if p in reading[2]]) == 3
+    for phrase in phrases:  # v1.505: the three of the `cost_blind` bullet are gone from the subsection too
+        assert to_readme(phrase) not in section, phrase
     assert "per family, not per prompt" not in section and "DESIGN 1" not in section and "DESIGN 5" not in section
     assert "](README.md)" not in section and "](results.json)" not in section and "../" not in section
 
 
-def test_readme_response_bank_keeps_one_bullet_and_a_link_line(cv):
+def test_readme_response_bank_keeps_no_reading_bullet_and_a_link_line(cv):
     """v1.356 (12.21 v1.355) kept the first and third Reading it bullets and the billed-cost limit;
-    v1.447 (row DOC28d): after its five source bullets the subsection's only bullet is the third Reading
-    it one, after both tables, then the link line and the regenerate paragraph; the link line's anchor is
-    the RESULTS.md `## Reading it` heading, since that file has no `## Caveats` or `## Assumed`; the
-    source clauses it drops are in the files that state them."""
+    v1.447 (row DOC28d) kept the third Reading it one alone; v1.505 (row DOC44f): its five source bullets
+    are its only bullets, and the link line follows the baselines table, before the regenerate paragraph;
+    the link line's anchor is the RESULTS.md `## Reading it` heading, since that file has no `## Caveats` or
+    `## Assumed`; the source clauses it drops are in the files that state them."""
     section = readme_subsection()
-    reading, limits = results_md_bullets()
+    results = committed()
+    lines = readme_source_lines(cv, results)
     bullets = [line for line in section.splitlines() if line.startswith("- ")]
-    assert len(bullets) == 6
-    assert bullets[5:] == [to_readme(reading[2])]
+    assert len(bullets) == 5 and bullets == lines[:3] + [readme_counts(results), lines[3]]
     assert section.count(f"\n{LINK_LINE}\n\n{regenerate_line(cv)}\n\n```bash\n") == 1
     last_row = "| Cheapest model on the calibration half, per task |"
-    assert section.count(last_row) == 1 and section.index(last_row) < section.index("\nReading it:\n")
+    assert section.count(last_row) == 1 and section.index(last_row) < section.index(f"\n{LINK_LINE}\n")
     text = results_md()
     assert text.count("\n## Reading it\n") == 1
     assert "\n## Caveats\n" not in text and "\n## Assumed\n" not in text
@@ -709,6 +718,23 @@ def test_readme_response_bank_keeps_one_bullet_and_a_link_line(cv):
     assert DATASET_URL.startswith("https://huggingface.co/datasets/")
     assert "Routed rows beat these single models on both counts: " in text
     assert text.count("\n- `cost_effective`: ") == 1 and text.count("\n- Each cost is ") == 1
+    # v1.505 (row DOC44f): the same for its clauses, in this file's opening, `## Source and licence`,
+    # `## Results` and `## Regenerate`, and in the evidence README.
+    source = text.split("\n## Source and licence\n", 1)[1].split("\n## ", 1)[0]
+    assert f"pinned revision [`{cv.REVISION}`]" in source
+    assert all(name.endswith(".jsonl") and f"`{name}`, " in source for name in cv.FILES)
+    assert "the dataset card names no standard licence (`license: other`) and points to the dataset's LICENSE file" in source
+    assert "This repo commits no part of the dataset" in source
+    regenerate = text.split("\n## Regenerate\n", 1)[1]
+    assert "checks each against its pinned size and sha256" in regenerate
+    assert "reading each of the four files once, line by line" in evidence_readme()
+    opening = text.split("\n## ", 1)[0]
+    assert "the items of each task are split in half by a seeded hash" in opening
+    assert ("a success when the response's `quality` is 1 (the label of an exact-answer parser, or of "
+            "LiveCodeBench's tests for code) and the response's billed `official_usd` as the cost of the call") in opening
+    assert text.count("\nmodel:") == 5
+    for heading in ("## The models", "## Tasks", "## Finishes and missing cells", "## What a row keeps"):
+        assert evidence_readme().count(f"\n{heading}\n") == 1, heading
 
 
 def test_readme_response_bank_regenerate_label_and_layout(cv):
@@ -732,10 +758,10 @@ def test_readme_response_bank_builders_follow_the_file(cv):
     assert "| Always `deepseek/deepseek-v4-pro`, the best single model | 0.872 | 27.2956 |" in before[0]
     assert "| Always `z-ai/glm-5.3-flash`, the cheapest single model | 0.845 | 6.2289 |" in before[0]
     assert "| Always `moonshotai/kimi-k2.7-code` | 0.871 | 71.0675 |" in before[0]
-    assert "`aime` 30 items, `gpqa_diamond` 198," in before[1] and "13,315 in all), 50 seeds;" in before[1]
-    assert "routed at bars 0.8 and 0.9 in both flavors" in before[1]
-    assert "four JSON Lines files of 1,018,191,580 bytes in all" in before[2][0]
-    assert "[`547beb3`](" in before[2][0] and "with all 5 single models: " in before[2][3]
+    assert "`aime` 30 items, `gpqa_diamond` 198," in before[1] and "13,315 in all), 50 seeds," in before[1]
+    assert before[1].endswith(", routed at bars 0.8 and 0.9")  # v1.505: no flavors or success sentence after it
+    assert before[2][0].endswith("), four files of 1,018,191,580 bytes in all")  # v1.505
+    assert "[`547beb3`](" in before[2][0] and before[2][3].startswith("- Full results: [RESULTS.md](")
     assert "about 1.02 GB" in before[3]
     fake = json.loads(json.dumps(results))
     summary_row(fake, 0.8, "cost_blind", "routed")["success"] = 0.9
