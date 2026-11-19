@@ -669,7 +669,6 @@ def _longest_shared_run(a, b):
     return best
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError)
 def test_results_md_paraphrases_legal_section_3_evaluation_use():
     """v1.492 (row E26j): the paraphrase is a bullet of its own right after the third quote, not a quote."""
     text = section(results_md(), "## Source and licence") + "\n"
