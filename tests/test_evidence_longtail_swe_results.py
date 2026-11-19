@@ -513,6 +513,8 @@ def reading_bullets(results):
     if d == 0:
         against = "the held-out success of `best_on_calibration`"
     elif d > 0:
+        # True on this file: DESIGN 12.26 names the 6 tie seeds, and the cached-file test
+        # test_real_tie_seeds_split_cost_blind_from_best_on_calibration pins them (review iter-345 nit 3).
         against = (f"{d:.4f} above `best_on_calibration`'s {boc['success']:.3f}: on seeds where two models tie on "
                    f"the calibration count, `best_on_calibration` takes the cheaper one and `cost_blind` the lower "
                    f"model ID (DESIGN 12.26)")
@@ -535,14 +537,15 @@ def reading_bullets(results):
     for bar in full:
         n = {cleared(summary_row(results, bar, f, "routed")) for f in flavors}
         assert len(n) == 1, "the flavors clear different numbers of cells"
-        counts.append(f"{n.pop()} of them at bar {bar}")
+        count = n.pop()  # the bars named, review iter-345 should-fix 1
+        counts.append(f"{count} of {count} cells" + (f" at bar {bar}" if len(full) > 1 else ""))
     most = max(RESOLVED, key=lambda m: (RESOLVED[m], m))
     assert RESOLVED[most] / items > max(full), "no model's rate on the pool is above the bar"
     second = max((m for m in models if m is not best), key=lambda r: (r["success"], -r["cost_usd"], r["strategy"]))
     reach = [bar for bar in bars if ce[bar]["success"] >= second["success"]]
     assert reach, "no routed cost_effective row reaches the second-best model's success"
     at = ce[reach[0]]
-    assert at["cost_usd"] > second["cost_usd"], \
+    assert all(ce[bar]["cost_usd"] > second["cost_usd"] for bar in reach), \
         "a routed cost_effective row reaches the second-best model's success at no more than its cost"
     top = max(r["success"] for r in results["summary"] if r["strategy"] == "routed")
     price = prices()
@@ -566,8 +569,9 @@ def reading_bullets(results):
          f"{config['confidence']} Wilson bound (DESIGN 12.3)") if violated
         else "Bar violations: none, in any row (DESIGN 12.3)",
         f"Complementary halves: with one task, each seed's two halves split one pool of {items} issues, so a "
-        f"model's held-out count is its count on the pool less its calibration count. Every cleared cell is "
-        f"under the bar in both flavors, {join(counts)}, though `{most}` resolves {RESOLVED[most]} of the "
+        f"model's held-out count is its count on the pool less its calibration count. At "
+        f"{'bar' if len(full) == 1 else 'bars'} {join(full)} every cleared cell is under the bar in both "
+        f"flavors, {join(counts)}, though `{most}` resolves {RESOLVED[most]} of the "
         f"{items} issues ({RESOLVED[most] / items:.3f}) on the pool: a calibration half lucky enough to clear "
         f"leaves an unlucky held-out half, the re-split correlation that DESIGN 12.3 names, and DESIGN 12.26 "
         f"gives the seeds and their counts",
@@ -619,7 +623,11 @@ def test_results_md_source_and_licence_strings():
     for needle in [DATASET_URL, f"[`{REVISION}`]({DATASET_URL}/tree/{REVISION})", CARD_LICENCE, CARD_TEXT,
                    f"{CARD[0]:,} bytes, sha256 `{CARD[1]}`", f"[LEGAL.md]({LEGAL_URL})",
                    f"{LEGAL[0]:,} bytes, sha256 `{LEGAL[1]}`", "read on 2026-11-18", CC_BY,
-                   f"[{PAPER[0]}]({PAPER[1]})", "(README.md)", "(results.json)"]:
+                   f"[{PAPER[0]}]({PAPER[1]})", "(README.md)", "(results.json)",
+                   # review iter-345 should-fix 2: the attribution's parts and the no-part sentence
+                   f"these results derive from Longtail-SWE Trajectories by Nebius, {DATASET} at revision `{REVISION}`, "
+                   f"licensed under CC BY 4.0. Changes made: ", "This repo commits no part of the dataset: ",
+                   "no prompt, message, tool call, patch or trajectory text of the release"]:
         assert needle in text, needle
     for quote in LEGAL_TEXT:
         assert f'  - "{quote}"\n' in text + "\n", quote[:40]
@@ -669,7 +677,8 @@ def test_reading_builder_follows_the_file():
     assert built.count("\n- ") == 9
     assert ("`openai/gpt-6.1-sol` alone reaches 0.804 at 0.205 of the best single model's cost, while the first "
             "routed `cost_effective` row at or above that success, at bar 0.7, reaches 0.805 at 0.576") in built
-    assert "above `best_on_calibration`'s 0.823" in built and "4 of them at bar 0.8" in built
+    assert "above `best_on_calibration`'s 0.823" in built
+    assert "At bar 0.8 every cleared cell is under the bar in both flavors, 4 of 4 cells, though" in built
     tied = json.loads(json.dumps(results))
     boc = summary_row(tied, BARS[0], "cost_effective", "best_on_calibration")["success"]
     for bar in BARS:
@@ -683,6 +692,10 @@ def test_reading_builder_follows_the_file():
     summary_row(cheap, 0.7, "cost_effective", "routed")["cost_usd"] = 1.0
     with pytest.raises(AssertionError, match="no more than its cost"):
         reading_bullets(cheap)
+    later = json.loads(json.dumps(results))
+    summary_row(later, 0.9, "cost_effective", "routed")["cost_usd"] = 1.0
+    with pytest.raises(AssertionError, match="no more than its cost"):
+        reading_bullets(later)
 
 
 def test_opening_builder_follows_the_file():
