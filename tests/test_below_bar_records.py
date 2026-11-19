@@ -35,9 +35,9 @@ V1_203_COLUMNS = V1_202_COLUMNS[:6] + ["below_bar_calls"] + V1_202_COLUMNS[6:]
 # sha256 of the whole calls.jsonl of `run_demo` (seed 7), all 456 records; the v1.12 pin of
 # tests/test_demo_delegation.py covers the first 455. v1.507 (row FIT1b): the 455 `.call` records
 # gain the two size keys, so the digest moved from v1.202's e3f4eca7...02219a, which the log
-# still gives with those keys dropped. v1.511 (row STRAT1b): every record gains `slice`, null
-# in the demo, so the digest moved again from v1.507's 50610bf2...8982e5, which the log still
-# gives with `slice` dropped
+# still gives with those keys and the v1.511 `slice` dropped. v1.511 (row STRAT1b): every
+# record gains `slice`, null in the demo, so the digest moved again from v1.507's
+# 50610bf2...8982e5, which the log still gives with `slice` alone dropped
 V1_202_CALLS_SHA256 = "4f111326781939140bebe04e0841a66306cac48492bc6c95f4bc2211fa92b351"
 
 # (id, family, price_in, successes, trials); bar 0.7, min_samples 20

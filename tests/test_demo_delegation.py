@@ -11,9 +11,9 @@ from model_routing.cli import main
 # Output of the v1.11 demo at seed 7, before it made any delegation decision:
 # its 455 call records, its other files and its summary must not change. v1.507 (row FIT1b):
 # each of those records gains `prompt_tokens` and `prompt_tokens_estimated` last, so their digest
-# moved from v1.11's 1df2e1cd...4db544af, which they still give with those two keys dropped.
-# v1.511 (row STRAT1b): each gains `slice`, null, after `tags`, so it moved again from v1.507's
-# 4b9d6325...6ed6b46, which they still give with `slice` dropped
+# moved from v1.11's 1df2e1cd...4db544af, which they still give with those two keys and the
+# v1.511 `slice` dropped. v1.511 (row STRAT1b): each gains `slice`, null, after `tags`, so it
+# moved again from v1.507's 4b9d6325...6ed6b46, which they still give with `slice` alone dropped
 V111_CALL_RECORDS = 455
 V111_CALLS_SHA256 = "e575829c332d535da6f133f84c456ab7d3a4dfe9bdc799d54f236021d8e39542"
 V111_FILE_SHA256 = {
