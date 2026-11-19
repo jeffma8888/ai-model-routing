@@ -22,6 +22,7 @@ from pathlib import Path
 import pytest
 
 from test_evidence_llmrouterbench_delegation import fenced, section
+from test_evidence_response_bank_delegation import mean, summary_index
 from test_evidence_response_bank_delegation import reading_bullets as response_bank_reading_bullets
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -57,6 +58,19 @@ METHOD_PHRASES = ("194 issues", "one task", "776 rows", "run 0", "O // K", "0 ru
                   "`openai/gpt-5.6-sol` at 4 and 20", "`openai/gpt-6.1-sol` at 2 and 10", "For each of 50 seeds",
                   "at bars 0.7 and 0.8", "48 of 800", "736 of 800", "C = 8,000", "1,244", "4,863", "`decision`",
                   "`inline`", "`delegate`")
+RATIO = re.compile(r" \((\d+\.\d\d) times as much\), ")
+# v1.500 (review iter-356 must-fix 2): the attribution sentence is the routing RESULTS.md's, and the Changes made
+# sentence (with should-fix 1's usage-record count) is pinned whole, both in the `Licence:` paragraph
+ATTRIBUTION = re.compile(r"Attribution, as CC BY 4\.0 \(https://creativecommons\.org/licenses/by/4\.0/\) asks: these "
+                         r"results derive from [^.]*, licensed under CC BY 4\.0\.")
+CHANGES = ("Changes made: the script reads, per run of the four registry models, the converter's columns and, as counts "
+           "only, the lengths of the run's user prompt and of its patch, the token totals, the model-call count and the "
+           "number of the run's events and messages that carry a usage record, a count the research note reports and "
+           "`results.json` does not keep; it reads all three runs and keeps run 0, dropping the issues whose initial "
+           "statement changed, as the converter does; it splits each run's totals into its model calls by the rule below; "
+           "and `evaluate_delegation` turns those rows into the mean results below.")
+CITE = ("The card asks to cite the paper [Longtail-SWE: High-Quality SWE Tasks for Underrepresented Languages]"
+        "(https://arxiv.org/abs/2611.10304).")
 ASSUMED_PHRASES = ("an assumption the release cannot check", "(../../research/longtail-per-call.md)", "lossless",
                    "list price", "no cache discount", "never a bill", "window", "one task", "`DESIGN.md` 13.8")
 
@@ -304,11 +318,38 @@ def results_md():
     return RESULTS_MD.read_text(encoding="utf-8")
 
 
+def name_the_ratio(bullet, dec, inl):
+    """v1.500 (review iter-356 must-fix 1): the builder's `(R times as much)` is always inline's cost over the
+    decision's; the bullet names its subject, the dearer path, so it cannot read as the decision's ratio."""
+    found = RATIO.findall(bullet)
+    assert found == [f"{inl / dec:.2f}"], found
+    subject = (f"so the decision costs {dec / inl:.2f} times as much" if dec > inl
+               else f"so always inline costs {inl / dec:.2f} times as much")
+    return RATIO.sub(lambda _: f" ({subject}), ", bullet)
+
+
 def reading_bullets(results):
-    """13.13's five Reading it bullets by 13.14's builder, the last naming this folder's results.json."""
+    """13.13's five Reading it bullets by 13.14's builder, the second naming its ratio's subject (v1.500) and the
+    last naming this folder's results.json."""
     bullets = response_bank_reading_bullets(results)
     assert len(bullets) == 5 and re.fullmatch(r"`results\.json` is [\d,]+ bytes\.", bullets[4]), bullets[4:]
-    return bullets[:4] + [f"`results.json` is {len(RESULTS.read_bytes()):,} bytes."]
+    index, bar = summary_index(results), results["config"]["bars"][0]
+    dec, inl = (mean(index[(bar, "cost_effective", 0, q, s)]["cost_usd"] for q in results["config"]["parents"])
+                for s in ("decision", "inline"))
+    return [bullets[0], name_the_ratio(bullets[1], dec, inl), *bullets[2:4],
+            f"`results.json` is {len(RESULTS.read_bytes()):,} bytes."]
+
+
+def test_name_the_ratio_names_the_dearer_path():
+    """Plain (v1.500): each branch on hand numbers; a parenthetical that is not the inverse ratio fails."""
+    bullet = "costs 4.0000 USD against 2.0000 for always inline (0.50 times as much), with held-out success"
+    assert name_the_ratio(bullet, 4.0, 2.0) == ("costs 4.0000 USD against 2.0000 for always inline (so the decision "
+                                                "costs 2.00 times as much), with held-out success")
+    cheaper = "costs 1.0000 USD against 3.0000 for always inline (3.00 times as much), with held-out success"
+    assert name_the_ratio(cheaper, 1.0, 3.0) == ("costs 1.0000 USD against 3.0000 for always inline (so always inline "
+                                                 "costs 3.00 times as much), with held-out success")
+    with pytest.raises(AssertionError):
+        name_the_ratio(bullet, 2.0, 4.0)
 
 
 def test_design_13_18_specifies_results_md_the_folder_readme_and_the_layout_line():
@@ -328,7 +369,7 @@ def test_reading_bullets_on_the_committed_numbers():
     assert "all 24 of their decision rows" in bullets[0] and "1.000 and 1.000 at bars 0.7 and 0.8." in bullets[0]
     assert bullets[1] == ("At bar 0.7 and point 0 (8,000 context tokens), averaged over the 4 parents, the "
                           "`cost_effective` decision costs 1068.8712 USD on a held-out half against 1020.8487 for "
-                          "always inline (0.96 times as much), with held-out success 0.812 against 0.788.")
+                          "always inline (so the decision costs 1.05 times as much), with held-out success 0.812 against 0.788.")
     assert bullets[2] == ("At bar 0.8 and point 0 it costs 1568.4337 USD against 1020.8487 for always inline, with "
                           "held-out success 0.823 against 0.788.")
     assert bullets[3] == ("At bar 0.7 and point 0 the `cost_effective` decision costs more than always inline for 2 of "
@@ -356,6 +397,18 @@ def test_results_md_structure():
     assumed = section(text, "## Assumed")
     for phrase in ASSUMED_PHRASES:
         assert phrase in assumed, phrase
+
+
+def test_results_md_licence_paragraph_pins_the_attribution_and_the_changes():
+    """v1.500 (review iter-356 must-fix 2 and should-fix 1)."""
+    licence = [line for line in results_md().split("\n") if line.startswith("Licence: ")]
+    assert len(licence) == 1
+    routing = (ROOT / "evidence" / "longtail-swe" / "RESULTS.md").read_text(encoding="utf-8")
+    source = ATTRIBUTION.findall(routing)
+    assert len(source) == 1 and REVISION in source[0] and "by Nebius" in source[0]
+    assert ATTRIBUTION.findall(licence[0]) == source
+    for sentence in (CHANGES, CITE, "license: cc-by-4.0"):
+        assert licence[0].count(sentence) == 1, sentence
 
 
 def test_results_md_tables_are_the_committed_file(dr):
