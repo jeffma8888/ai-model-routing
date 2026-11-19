@@ -5,7 +5,7 @@
 - Question: the release holds three agent runs per (issue, model), and `evidence/longtail-swe/results.json` (DESIGN 12.26) is run 0 alone. How far does one run's luck move the routed numbers?
 - Data: nebius/Longtail-SWE-trajectories at revision dfd6075c56b7841b9c254cc70a57e39c1df0076c (CC BY 4.0), the four pinned files of the converter `evidence/longtail-swe/convert.py` (12.25), read outside the repo; nothing of the dataset is committed but the counts and rates below
 - Script: [longtail_runs.py](longtail_runs.py), `python research/longtail_runs.py` (it needs `pyarrow`, the `evidence` extra); its run 0 is the committed results file byte for byte (tests/test_research_longtail_runs.py)
-- Short answer: more than the bar does between its two lowest steps. Run 0 is the luckiest of the three for routing, and on runs 1 and 2 the routed `cost_effective` row at 0.7 clears fewer seeds, more of them under the bar
+- Short answer: for routed `cost_effective` at bar 0.7, one run's luck moves success less than the bar's step from 0.6 to 0.7 does within a run, but moves its cleared and bar-violation rates far more; run 0 has the highest routed success at every bar and flavor (the bullets of `## Reading it` give each number, built from the block by the script's `reading`)
 
 ## Method
 
@@ -84,11 +84,13 @@ bar  flavor          success        cost              violation
 
 ## Reading it
 
-- Routed `cost_effective` at 0.7 is at 0.805 success for 1005.68 on run 0, but 0.772 to 0.805 for 1005.68 to 1334.84 over the three runs; its cleared rate falls from 0.940 to 0.640 and 0.680, and its bar-violation rate rises from 0.021 to 0.031 and 0.176. One run moves the routed row about as much as the step from bar 0.6 to 0.7 does.
-- Every model resolves fewer issues after run 0: `anthropic/claude-opus-5.5` 162, then 155 and 156; `openai/gpt-6.1-sol` 155, then 151 and 149, so alone it is at 0.804, 0.783 and 0.773 held out, for 357.50, 351.22 and 350.28. On run 1 it beats routed `cost_effective` at 0.7 (0.783 against 0.772, for 351.22 against 1041.60); on run 2 routing is ahead, 0.783 against 0.773, for 1334.84 against 350.28.
-- At 0.8 the cleared rate is 0.080, 0.000 and 0.020, and on runs 0 and 2 every cleared cell is under its bar (violation 1.000), so the 12.26 complementary-halves finding holds on each run that clears a cell at all.
-- `cost_blind` is at 0.782 to 0.832 for 1527.19 to 1705.82, above `best_on_calibration` on every run (0.823, 0.775 and 0.793).
-- The unscored runs are 1, 1 and 2, all `openai/gpt-6.1-sol`.
+- Routed `cost_effective` at 0.7 on runs 0, 1 and 2: success 0.805, 0.772 and 0.783, cost 1005.68, 1041.60 and 1334.84, cleared rate 0.940, 0.640 and 0.680 and bar-violation rate 0.021, 0.031 and 0.176. Its success moves 0.033 between runs, less than its step from bar 0.6 to 0.7 within each run (0.065, 0.039 and 0.053), while its cleared rate moves 0.300 and its bar-violation rate 0.155.
+- Run 0 has the highest routed success at every bar and flavor.
+- Resolved issues on runs 0, 1 and 2: `anthropic/claude-opus-5.5` 162, 155 and 156; `openai/gpt-5.6-luna` 140, 140 and 138; `openai/gpt-5.6-sol` 152, 146 and 145; `openai/gpt-6.1-sol` 155, 151 and 149; no model resolves more on a later run than on run 0, and `openai/gpt-5.6-luna` resolves as many on at least one.
+- `openai/gpt-6.1-sol` alone is on run 0 at 0.804 for 357.50, below routed `cost_effective` at 0.7 (0.805 for 1005.68); on run 1 at 0.783 for 351.22, above routed `cost_effective` at 0.7 (0.772 for 1041.60); on run 2 at 0.773 for 350.28, below routed `cost_effective` at 0.7 (0.783 for 1334.84).
+- At 0.8 the routed `cost_effective` cleared rate is 0.080, 0.000 and 0.020 on runs 0, 1 and 2, and on each run that clears a cell (runs 0 and 2) every cleared cell is under its bar (violation 1.000).
+- Routed `cost_blind` at 0.6 is at 0.832 on run 0, above `best_on_calibration`'s 0.823; 0.782 on run 1, above `best_on_calibration`'s 0.775; 0.800 on run 2, above `best_on_calibration`'s 0.793.
+- Unscored runs: 1 of `openai/gpt-6.1-sol` on run 0, 1 of `openai/gpt-6.1-sol` on run 1 and 2 of `openai/gpt-6.1-sol` on run 2.
 
 ## Limits
 

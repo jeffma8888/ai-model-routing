@@ -11,6 +11,7 @@ the routed success and cost over the three runs. It reads the four pinned files 
 import argparse
 import importlib.util
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -127,6 +128,102 @@ def block(data) -> str:
             v = sorted(r["bar_violation_rate"] for r in rows if r["bar_violation_rate"] is not None)
             vs = f"{num(v[0])} to {num(v[-1])}" if v else "-"
             out.append(f"{bar:<4} {flavor:<15} {num(s[0])} to {num(s[-1])}  {num(c[0], 2)} to {num(c[-1], 2)}  {vs}")
+    return "\n".join(out) + "\n"
+
+
+RESOLVED = re.compile(r"^(\d+) +(\d+ \(\d+\)(?: +\d+ \(\d+\))*)$")
+ALONE = re.compile(r"^(\d+) +(\S+/\S+) +(\S+) +(\S+)$")
+BASELINE = re.compile(r"^(\d+) +(\S+) +(\S+)$")
+ROUTED = re.compile(r"^(\d+) +(0\.\d+) +(cost_\w+) +(\S+) +(\S+) +(\S+) +(\S+) +(\S+)$")
+
+
+def facts_from_block(text) -> dict:
+    """The block's rows keyed by run, model, bar and flavor, read back from its text (v1.491, review iter-348
+    must-fix 2), so `reading` states only what the block holds."""
+    lines = text.split("\n")
+    header = next(line for line in lines if line.startswith("run  ") and "/" in line)
+    models = header.split()[1:]
+    f = {"models": models, "resolved": {}, "unscored": {}, "alone": {}, "baseline": {}, "routed": {}}
+    for line in lines:
+        if m := RESOLVED.match(line):
+            pairs = re.findall(r"(\d+) \((\d+)\)", m.group(2))
+            for model, (got, unscored) in zip(models, pairs, strict=True):
+                f["resolved"][(int(m.group(1)), model)] = int(got)
+                f["unscored"][(int(m.group(1)), model)] = int(unscored)
+        elif m := ROUTED.match(line):
+            f["routed"][(int(m.group(1)), float(m.group(2)), m.group(3))] = m.groups()[3:]
+        elif m := ALONE.match(line):
+            f["alone"][(int(m.group(1)), m.group(2))] = m.groups()[2:]
+        elif m := BASELINE.match(line):
+            f["baseline"][int(m.group(1))] = m.groups()[1:]
+    return f
+
+
+def _and(words) -> str:
+    words = list(words)
+    return words[0] if len(words) == 1 else ", ".join(words[:-1]) + " and " + words[-1]
+
+
+def reading(f) -> str:
+    """The note's `## Reading it` bullets, every number and comparison from `facts_from_block`."""
+    runs = sorted({run for run, _ in f["resolved"]})
+    on = f"runs {_and(map(str, runs))}"
+    first, later = runs[0], runs[1:]
+    seven = [f["routed"][(run, BARS[1], FLAVORS[0])] for run in runs]
+    six = [f["routed"][(run, BARS[0], FLAVORS[0])] for run in runs]
+    succ = [float(r[0]) for r in seven]
+    steps = [float(a[0]) - float(b[0]) for a, b in zip(seven, six)]
+    rel = "less than" if max(succ) - min(succ) < min(steps) else "not less than"
+    cleared = [float(r[2]) for r in seven]
+    violation = [float(r[4]) for r in seven if r[4] != "-"]
+    out = [f"- Routed `{FLAVORS[0]}` at {BARS[1]} on {on}: success {_and(r[0] for r in seven)}, cost "
+           f"{_and(r[1] for r in seven)}, cleared rate {_and(r[2] for r in seven)} and bar-violation rate "
+           f"{_and(r[4] for r in seven)}. Its success moves {max(succ) - min(succ):.3f} between runs, {rel} its step "
+           f"from bar {BARS[0]} to {BARS[1]} within each run ({_and(f'{s:.3f}' for s in steps)}), while its cleared "
+           f"rate moves {max(cleared) - min(cleared):.3f} and its bar-violation rate "
+           f"{(max(violation) - min(violation)) if violation else 0:.3f}."]
+    best = []
+    for bar in BARS:
+        for flavor in FLAVORS:
+            vals = {run: float(f["routed"][(run, bar, flavor)][0]) for run in runs}
+            top = max(vals.values())
+            best.append(tuple(run for run in runs if vals[run] == top))
+    tops = set(best)
+    if len(tops) == 1 and len(next(iter(tops))) == 1:
+        out.append(f"- Run {next(iter(tops))[0]} has the highest routed success at every bar and flavor.")
+    else:
+        out.append("- No one run has the highest routed success at every bar and flavor.")
+    counts = "; ".join(f"`{m}` {_and(str(f['resolved'][(run, m)]) for run in runs)}" for m in f["models"])
+    more = [m for m in f["models"] if any(f["resolved"][(run, m)] > f["resolved"][(first, m)] for run in later)]
+    same = [m for m in f["models"] if any(f["resolved"][(run, m)] == f["resolved"][(first, m)] for run in later)]
+    tail = ("no model resolves more on a later run than on run " + str(first) if not more
+            else _and(f"`{m}`" for m in more) + " resolves more on a later run than on run " + str(first))
+    if same:
+        tail += ", and " + _and(f"`{m}`" for m in same) + " resolves as many on at least one"
+    out.append(f"- Resolved issues on {on}: {counts}; {tail}.")
+    cheap = "openai/gpt-6.1-sol"
+    if cheap in f["models"]:
+        parts = []
+        for run in runs:
+            a, r = f["alone"][(run, cheap)], f["routed"][(run, BARS[1], FLAVORS[0])]
+            word = "above" if float(a[0]) > float(r[0]) else "below" if float(a[0]) < float(r[0]) else "level with"
+            parts.append(f"on run {run} at {a[0]} for {a[1]}, {word} routed `{FLAVORS[0]}` at {BARS[1]} ({r[0]} for {r[1]})")
+        out.append(f"- `{cheap}` alone is " + "; ".join(parts) + ".")
+    eight = [f["routed"][(run, BARS[2], FLAVORS[0])] for run in runs]
+    viol = [(run, r[4]) for run, r in zip(runs, eight) if r[4] != "-"]
+    held = all(v == "1.000" for _, v in viol)
+    out.append(f"- At {BARS[2]} the routed `{FLAVORS[0]}` cleared rate is {_and(r[2] for r in eight)} on {on}"
+               + (f", and on each run that clears a cell (runs {_and(str(run) for run, _ in viol)}) every cleared cell is "
+                  "under its bar (violation 1.000)." if viol and held else "."))
+    blind = []
+    for run in runs:
+        r, b = f["routed"][(run, BARS[0], FLAVORS[1])], f["baseline"][run]
+        word = "above" if float(r[0]) > float(b[0]) else "below" if float(r[0]) < float(b[0]) else "level with"
+        blind.append(f"{r[0]} on run {run}, {word} `best_on_calibration`'s {b[0]}")
+    out.append(f"- Routed `{FLAVORS[1]}` at {BARS[0]} is at " + "; ".join(blind) + ".")
+    unscored = [(run, m, n) for (run, m), n in sorted(f["unscored"].items()) if n]
+    out.append("- Unscored runs: " + (_and(f"{n} of `{m}` on run {run}" for run, m, n in unscored) if unscored else "none")
+               + ".")
     return "\n".join(out) + "\n"
 
 

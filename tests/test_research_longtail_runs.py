@@ -93,13 +93,41 @@ def test_the_committed_model_rows_and_baseline_are_the_same_at_every_bar_and_fla
         assert len(rows) == len(lt.BARS) * len(lt.FLAVORS) and len(set(rows)) == 1, strategy
 
 
-def test_each_reading_it_number_is_in_the_block():
-    text = note()
-    block = set(NUMBER.findall(results_block(text)))
-    reading = section(text, "Reading it")
-    found = NUMBER.findall(reading)
-    assert len(found) >= 10
-    assert [n for n in found if n not in block] == []
+def reading_of(text):
+    """The note's `## Reading it` bullets, without the heading and its blank line."""
+    body = section(text, "Reading it")
+    return body[len("## Reading it\n\n"):].rstrip("\n") + "\n"
+
+
+def test_reading_it_is_built_from_the_block():
+    # v1.491 (review iter-348 must-fix 1 and 2): each number and comparison of the bullets comes from the block's
+    # rows keyed by run, model, bar and flavor, so a swapped run or a wrong count fails, not only an absent number.
+    lt, text = load(), note()
+    facts = lt.facts_from_block(results_block(text))
+    assert len(facts["routed"]) == 3 * 8 and len(facts["alone"]) == 3 * 4 and len(facts["baseline"]) == 3
+    assert len(facts["resolved"]) == 3 * 4 and facts["models"] == sorted(facts["models"])
+    assert reading_of(text) == lt.reading(facts)
+    assert "no model resolves more on a later run than on run 0, and `openai/gpt-5.6-luna` resolves as many" in text
+
+
+def swap_runs(block, a, b):
+    """The block with the leading run numbers `a` and `b` exchanged on every row line."""
+    def swap(line):
+        head = line.split(" ", 1)[0]
+        if head in (str(a), str(b)) and " " in line:
+            return (str(b) if head == str(a) else str(a)) + line[len(head):]
+        return line
+    return "\n".join(swap(line) for line in block.split("\n"))
+
+
+def test_a_swapped_run_or_a_changed_count_changes_the_reading():
+    lt, text = load(), note()
+    block = results_block(text)
+    good = lt.reading(lt.facts_from_block(block))
+    assert lt.reading(lt.facts_from_block(swap_runs(block, 1, 2))) != good
+    assert "155 (0)" in block and lt.reading(lt.facts_from_block(block.replace("155 (0)", "140 (0)", 1))) != good
+    note_mutant = text.replace("0.772 and 0.783, cost", "0.783 and 0.772, cost", 1)
+    assert note_mutant != text and reading_of(note_mutant) != lt.reading(lt.facts_from_block(results_block(note_mutant)))
 
 
 def test_a_bad_option_exits_2_with_one_error_line(capsys):
