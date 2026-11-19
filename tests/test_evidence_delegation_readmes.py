@@ -9,8 +9,14 @@ its six per-folder cases until then.
 
 DESIGN 13.17 v1.470 (row E25b): the fifth, registry-pair-delegation, the same way; its README and
 RESULTS.md land in v1.471, which removes the strict xfail that held its six cases in v1.470 (the
-file-set case failed on the missing RESULTS.md before it read the README)."""
+file-set case failed on the missing RESULTS.md before it read the README).
 
+DESIGN 13.18 v1.499 (row E27b): the sixth, longtail-swe-delegation, the same way, with one rule for a script
+that reads the pinned files itself (`fetches`): no line of its `## Regenerate` block runs the converter, so the
+converter case takes the line that runs the folder's own `results.py` and checks that the script's `CONVERT`
+module is the linked converter's file."""
+
+import importlib.util
 import re
 from pathlib import Path
 
@@ -60,6 +66,15 @@ FOLDERS = {
         "dataset_readme": "../registry-pair/README.md",
         "files": ("results.py", "results.json", "RESULTS.md"),
     },
+    "longtail-swe-delegation": {
+        "title": "# Delegation evidence on Longtail-SWE",
+        "section": "13.18",
+        "converter": "../longtail-swe/convert.py",
+        "options": (),
+        "dataset_readme": "../longtail-swe/README.md",
+        "files": ("results.py", "results.json", "RESULTS.md"),
+        "fetches": True,
+    },
 }
 LINK = re.compile(r"\]\(([^)\s]+)\)")
 NAMES = sorted(FOLDERS)
@@ -101,6 +116,20 @@ def regenerate_commands(name):
     return commands
 
 
+def script_converter(name):
+    """The file of the converter module (`CONVERT`) that a folder's `results.py` loads (v1.499)."""
+    path = EVIDENCE / name / "results.py"
+    spec = importlib.util.spec_from_file_location(f"{name.replace('-', '_')}_results_for_readme_tests", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return Path(module.CONVERT.__file__).resolve()
+
+
+def test_only_the_longtail_folder_fetches():
+    """v1.499: the `fetches` rule is this one folder's; every other folder's Regenerate block runs its converter."""
+    assert [name for name in NAMES if FOLDERS[name].get("fetches")] == ["longtail-swe-delegation"]
+
+
 def relative_links(text):
     return [t for t in LINK.findall(text) if not re.match(r"[a-z]+:", t)]
 
@@ -137,7 +166,14 @@ def test_links_the_converter_its_regenerate_block_runs(name):
     assert f"]({spec['dataset_readme']})" in inputs
     assert "not committed" in inputs
     converter = (EVIDENCE / name / spec["converter"]).resolve().relative_to(ROOT).as_posix()
-    runs = [c for c in regenerate_commands(name) if c.startswith(f"python {converter} ")]
+    if spec.get("fetches"):
+        # v1.499: the script calls the converter's `fetch` and reads the pinned files itself
+        assert not [c for c in regenerate_commands(name) if c.startswith(f"python {converter} ")], converter
+        runs = [c for c in regenerate_commands(name) if c.startswith(f"python evidence/{name}/results.py ")]
+        assert len(runs) == 1, name
+        assert script_converter(name) == (EVIDENCE / name / spec["converter"]).resolve(), name
+    else:
+        runs = [c for c in regenerate_commands(name) if c.startswith(f"python {converter} ")]
     assert runs, converter
     for option in spec["options"]:
         assert option in re.findall(r"`([^`]+)`", inputs), option

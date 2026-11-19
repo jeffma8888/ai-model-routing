@@ -6,7 +6,11 @@ model calls by a stated rule, an assumption, and the script scores the split row
 Offline, `inputs` is checked on hand-made pairs, `run` and the CLI on stand-ins, and the committed file's shape and
 its agreement with the note's Results block; when `pyarrow` and the four pinned files are in the default cache,
 the script runs in process once per module and its output equals the committed file byte for byte (never a
-download here)."""
+download here).
+
+DESIGN 13.18 v1.499 (row E27b): RESULTS.md, which states the split as an assumption and links the per-call note,
+its two tables and 13.13's five Reading it bullets built from results.json by 13.14's builder, and its Regenerate
+block; tests/test_evidence_delegation_readmes.py checks the folder README and tests/test_readme.py the Layout line."""
 
 import importlib.util
 import json
@@ -16,6 +20,9 @@ import statistics
 from pathlib import Path
 
 import pytest
+
+from test_evidence_llmrouterbench_delegation import fenced, section
+from test_evidence_response_bank_delegation import reading_bullets as response_bank_reading_bullets
 
 ROOT = Path(__file__).resolve().parents[1]
 FOLDER = ROOT / "evidence" / "longtail-swe-delegation"
@@ -32,6 +39,26 @@ BARS = [0.7, 0.8]
 SIZE = 55_416  # 13.18 Committed
 SPLIT = {"runs_refused": 0, "items_dropped": [], "rows": 776}
 ROW = re.compile(r"(cost_effective|cost_blind) +(0\.\d+) +(\d) +(\S+) +(\d\.\d\d) +(.*)")
+RESULTS_MD = FOLDER / "RESULTS.md"
+DELEGATION_SCRIPT = ROOT / "evidence" / "delegation" / "results.py"
+REVISION = "dfd6075c56b7841b9c254cc70a57e39c1df0076c"
+DATASET = "https://huggingface.co/datasets/nebius/Longtail-SWE-trajectories"
+TABLE_CMD = "$ python evidence/delegation/results.py --table evidence/longtail-swe-delegation/results.json"
+PARENT_CMD = TABLE_CMD + " --bar 0.7 --point 0"
+REGENERATE = [
+    'python -m pip install -e ".[evidence]"',
+    "python evidence/longtail-swe-delegation/results.py --out evidence/longtail-swe-delegation/results.json",
+    TABLE_CMD[2:],
+    PARENT_CMD[2:],
+]
+HEADINGS = ["## Method", "## Assumed", "## Results", "## Reading it", "## Regenerate"]
+METHOD_PHRASES = ("194 issues", "one task", "776 rows", "run 0", "O // K", "0 runs refused",
+                  "`anthropic/claude-opus-5.5` at 4 and 20", "`openai/gpt-5.6-luna` at 0.2 and 1.2",
+                  "`openai/gpt-5.6-sol` at 4 and 20", "`openai/gpt-6.1-sol` at 2 and 10", "For each of 50 seeds",
+                  "at bars 0.7 and 0.8", "48 of 800", "736 of 800", "C = 8,000", "1,244", "4,863", "`decision`",
+                  "`inline`", "`delegate`")
+ASSUMED_PHRASES = ("an assumption the release cannot check", "(../../research/longtail-per-call.md)", "lossless",
+                   "list price", "no cache discount", "never a bill", "window", "one task", "`DESIGN.md` 13.8")
 
 
 def load():
@@ -259,3 +286,98 @@ def fresh(tmp_path_factory):
 
 def test_the_committed_file_is_a_fresh_run_on_the_cached_files(fresh):
     assert fresh == committed()
+
+
+# --- RESULTS.md (13.18 RESULTS.md, v1.499, row E27b) ------------------------------------------------------------
+
+@pytest.fixture(scope="module")
+def dr():
+    spec = importlib.util.spec_from_file_location("delegation_results_tables_for_longtail_swe", DELEGATION_SCRIPT)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def results_md():
+    if not RESULTS_MD.is_file():
+        raise FileNotFoundError(f"no RESULTS.md at {RESULTS_MD.relative_to(ROOT)}")
+    return RESULTS_MD.read_text(encoding="utf-8")
+
+
+def reading_bullets(results):
+    """13.13's five Reading it bullets by 13.14's builder, the last naming this folder's results.json."""
+    bullets = response_bank_reading_bullets(results)
+    assert len(bullets) == 5 and re.fullmatch(r"`results\.json` is [\d,]+ bytes\.", bullets[4]), bullets[4:]
+    return bullets[:4] + [f"`results.json` is {len(RESULTS.read_bytes()):,} bytes."]
+
+
+def test_design_13_18_specifies_results_md_the_folder_readme_and_the_layout_line():
+    text = subsection()
+    for phrase in ("- RESULTS.md (v1.499, row E27b): `evidence/longtail-swe-delegation/RESULTS.md`, in 13.14's shape",
+                   "`# Delegation on Longtail-SWE: inline or sub-agent on held-out agent runs, per call`",
+                   "`an assumption the release cannot check`", "`236,605,401` bytes",
+                   "- Folder README (v1.499, row E27b): `evidence/longtail-swe-delegation/README.md`",
+                   "(`fetches`)", "`(delegation on Longtail-SWE: evidence/longtail-swe-delegation/RESULTS.md)`",
+                   "- Test status (v1.499):"):
+        assert phrase in text, phrase
+
+
+def test_reading_bullets_on_the_committed_numbers():
+    """Plain: 13.14's builder on the committed file gives the numbers 13.18 v1.499 states."""
+    bullets = reading_bullets(json.loads(committed()))
+    assert "all 24 of their decision rows" in bullets[0] and "1.000 and 1.000 at bars 0.7 and 0.8." in bullets[0]
+    assert bullets[1] == ("At bar 0.7 and point 0 (8,000 context tokens), averaged over the 4 parents, the "
+                          "`cost_effective` decision costs 1068.8712 USD on a held-out half against 1020.8487 for "
+                          "always inline (0.96 times as much), with held-out success 0.812 against 0.788.")
+    assert bullets[2] == ("At bar 0.8 and point 0 it costs 1568.4337 USD against 1020.8487 for always inline, with "
+                          "held-out success 0.823 against 0.788.")
+    assert bullets[3] == ("At bar 0.7 and point 0 the `cost_effective` decision costs more than always inline for 2 of "
+                          "the 4 parents: `openai/gpt-5.6-luna` (1064.7072 against 274.7569 USD, held-out success 0.812 "
+                          "against 0.726) and `openai/gpt-6.1-sol` (1067.8864 against 441.5115 USD, held-out success "
+                          "0.812 against 0.804).")
+    assert bullets[4] == f"`results.json` is {SIZE:,} bytes."
+
+
+def test_results_md_structure():
+    text = results_md()
+    assert text.split("\n")[0] == "# Delegation on Longtail-SWE: inline or sub-agent on held-out agent runs, per call"
+    text.encode("ascii")
+    assert "\u2013" not in text and "\u2014" not in text
+    for needle in (DATASET, REVISION, "2026-11-16", "license: cc-by-4.0", "CC BY 4.0",
+                   "https://creativecommons.org/licenses/by/4.0/", "Changes made:", "https://arxiv.org/abs/2611.10304",
+                   "(results.json)", "(../longtail-swe/README.md)", "(../longtail-swe/RESULTS.md)",
+                   "(../../research/longtail-per-call.md)", "(../../research/longtail-delegation.md)",
+                   "`model_routing/data/models.json`"):
+        assert needle in text, needle
+    assert [line for line in text.split("\n") if line.startswith("## ")] == HEADINGS
+    method = section(text, "## Method")
+    for phrase in METHOD_PHRASES:
+        assert phrase in method, phrase
+    assumed = section(text, "## Assumed")
+    for phrase in ASSUMED_PHRASES:
+        assert phrase in assumed, phrase
+
+
+def test_results_md_tables_are_the_committed_file(dr):
+    results = json.loads(committed())
+    blocks = fenced(section(results_md(), "## Results"), "text")
+    assert len(blocks) == 2
+    assert blocks[0] == TABLE_CMD + "\n" + dr.table(results).rstrip("\n")
+    assert blocks[1] == PARENT_CMD + "\n" + dr.parent_table(results, 0.7, 0).rstrip("\n")
+
+
+def test_results_md_reading_it_is_built_from_the_committed_file():
+    reading = section(results_md(), "## Reading it")
+    assert [line[2:] for line in reading.split("\n") if line.startswith("- ")] == reading_bullets(json.loads(committed()))
+
+
+def test_results_md_regenerate_block():
+    regenerate = section(results_md(), "## Regenerate")
+    blocks = fenced(regenerate, "bash")
+    assert len(blocks) == 1 and blocks[0].split("\n") == REGENERATE
+    assert REGENERATE[1] in subsection()
+    before = regenerate[:regenerate.index("```bash")]
+    for needle in ("236,605,401", "`~/.cache/ai-model-routing-evidence/longtail-swe/`", "sha256", "`fetch`",
+                   "`pyarrow`", "`evidence` extra", "no matrix file", "about 9 seconds",
+                   "The `evidence` workflow does not rerun this script yet"):
+        assert needle in before, needle

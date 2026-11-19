@@ -338,7 +338,8 @@ def test_readme_layout_names_every_committed_results_md():
     if not README.exists() or not (ROOT / "evidence").is_dir():
         pytest.skip("README.md and evidence/ are not next to the tests")
     paths = sorted(p.relative_to(ROOT).as_posix() for p in ROOT.glob("evidence/*/RESULTS.md"))
-    assert {"evidence/longtail-swe/RESULTS.md", "evidence/registry-pair-delegation/RESULTS.md"} <= set(paths)
+    assert {"evidence/longtail-swe/RESULTS.md", "evidence/registry-pair-delegation/RESULTS.md",
+            "evidence/longtail-swe-delegation/RESULTS.md"} <= set(paths)  # the last from v1.499 (row E27b)
     assert results_problems(README.read_text(encoding="utf-8"), paths) == []
 
 
