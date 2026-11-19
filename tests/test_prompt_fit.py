@@ -143,6 +143,8 @@ def test_estimate_is_exported():
                                    {"type": "text", "text": "defgh"}]}], 4.0, 2),
     ([{"role": "user", "content": None}, {"role": "tool"}], 4.0, 0),
     ([{"role": "user", "content": [{"type": "text", "text": 7}, "loose"]}], 4.0, 0),
+    (["loose", {"role": "user", "content": 42}, {"role": "user", "content": {"text": "abcd"}}],
+     4.0, 0),
     (LONG, 4.0, 1900),
 ])
 def test_estimate_arithmetic(messages, chars_per_token, expected):
