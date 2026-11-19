@@ -658,9 +658,9 @@ python evidence/routerbench/results.py --table evidence/livecodebench/results.js
 ### LLMRouterBench
 
 - Dataset: [NPULH/LLMRouterBench](https://huggingface.co/datasets/NPULH/LLMRouterBench), revision [`b95870f`](https://huggingface.co/datasets/NPULH/LLMRouterBench/tree/b95870f9e60c589e82f7972c91ffa8de9ca89f85), `bench-release.tar.gz` of 1,283,503,080 bytes
-- Licence: MIT, with the line "Copyright (c) 2025-2026 LLMRouterBench contributors". This repo commits only derived numbers
+- Licence: MIT, with the line "Copyright (c) 2025-2026 LLMRouterBench contributors"
 - What was run: 13 models, 9 benchmarks, each one routing task (`aime` 60 items, `arc-agi` 400, `arenahard` 749, `gpqa` 198, `hle` 2,157, `livecodebench` 1,055, `livemathbench` 121, `mmlupro` 3,000 and `simpleqa` 4,326, 12,066 in all), 50 seeds, routed at bars 0.1 to 0.8
-- Full results, with all 13 single models: [RESULTS.md](evidence/llmrouterbench/RESULTS.md) and [results.json](evidence/llmrouterbench/results.json); source and pool: [evidence/llmrouterbench/README.md](evidence/llmrouterbench/README.md)
+- Full results: [RESULTS.md](evidence/llmrouterbench/RESULTS.md) and [results.json](evidence/llmrouterbench/results.json); source: [evidence/llmrouterbench/README.md](evidence/llmrouterbench/README.md)
 
 Held-out success is the share of held-out items whose record scored 1, pooled over the 9 tasks, and cost is the recorded cost of answering them, both averaged over the seeds; the ratio divides that cost by the cost of the best single model. The cleared rate is the share of the 450 (task, seed) cells where some model cleared the bar on the calibration half, and the bar-violation rate is the share of cleared cells whose held-out success fell below the bar.
 

@@ -37,7 +37,9 @@ and absent from the subsection.
 v1.503 (DESIGN 12.19 and 12.8 v1.503, row DOC44e): the subsection is trimmed to the 4,600-byte routing cap of
 12.8 v1.473. Its source lines shed four clauses and its one Reading it bullet goes, so its four source bullets
 are its only bullets and the link line names both readings; each dropped clause is in RESULTS.md or the
-evidence README, and the tests here require it there and absent from the subsection.
+evidence README, and the tests here require it there and absent from the subsection. v1.504 (review iter-358):
+its licence line sheds `This repo commits only derived numbers` and its results line `with all 13 single models`
+and ` and pool`, which takes it to 4,196 bytes, under the 4,200 row E26i plans for.
 
 v1.446 (DESIGN 12.19 and 12.8 v1.446, row DOC28c): the subsection is trimmed to its 5,000-byte routing cap
 of 12.8 v1.444. It drops its `Limits:` line and bullet, sheds words of its source lines, and keeps one
@@ -546,7 +548,7 @@ def readme_counts(results):
              for i, (t, v) in enumerate(tasks.items())]
     bars = config["bars"]
     # v1.503 (row DOC44e): ` API`, ` from 2025`, ` in both flavors` and the sentence on what a success and the
-    # cost are are shed; the RESULTS.md opening paragraph and its models-date bullet state them, and the routed
+    # cost are shed; the RESULTS.md opening paragraph and its models-date bullet state them, and the routed
     # table has a row per flavor.
     return (f"- What was run: {len(models.pop())} models, {len(tasks)} benchmarks, each one "
             f"routing task ({join(parts)}, {sum(v['items'] for v in tasks.values()):,} in all), "
@@ -593,16 +595,16 @@ def readme_tables(results):
 
 
 def readme_source_lines(cv, results):
-    models = len({tuple(v["models"]) for v in results["tasks"].values()}.pop())
     return [
         # v1.503 (row DOC44e): `pinned at`, `one file`, `as its LICENSE file states,` and the scope-paragraph
-        # clause are shed, each stated in RESULTS.md `## Source and licence`.
+        # clause are shed, each stated in RESULTS.md `## Source and licence`. v1.504 (review iter-358): so are
+        # `This repo commits only derived numbers`, `with all 13 single models` and ` and pool`.
         f"- Dataset: [NPULH/LLMRouterBench](https://huggingface.co/datasets/NPULH/LLMRouterBench), "
         f"revision [`{cv.REVISION[:7]}`](https://huggingface.co/datasets/NPULH/LLMRouterBench/tree/"
         f"{cv.REVISION}), `{cv.FILE}` of {cv.SIZE:,} bytes",
-        f"- Licence: MIT, with the line \"{COPYRIGHT}\". This repo commits only derived numbers",
-        f"- Full results, with all {models} single models: [RESULTS.md](evidence/llmrouterbench/RESULTS.md) "
-        f"and [results.json](evidence/llmrouterbench/results.json); source and pool: {EVIDENCE_LINK}"]
+        f"- Licence: MIT, with the line \"{COPYRIGHT}\"",
+        "- Full results: [RESULTS.md](evidence/llmrouterbench/RESULTS.md) "
+        f"and [results.json](evidence/llmrouterbench/results.json); source: {EVIDENCE_LINK}"]
 
 
 def test_readme_llmrouterbench_counts_and_tables_are_the_committed_results(cv):
@@ -626,13 +628,15 @@ DROPPED_SOURCE_CLAUSES = [" as a stream, with nothing extracted to disk",
                           # v1.503 (row DOC44e): its source words and the `Reading it:` line of its last bullet.
                           "pinned at revision", "one file `bench-release.tar.gz`", "as its LICENSE file states",
                           "scope paragraph", " API models", " from 2025", " in both flavors",
-                          "A success is a score of 1", "\nReading it:\n"]
+                          "A success is a score of 1", "\nReading it:\n",
+                          # v1.504 (review iter-358): the source words the v1.444 order sheds before the bullet.
+                          "commits only derived numbers", "single models: [", "source and pool"]
 
 
 def test_readme_llmrouterbench_reading_and_limits_are_results_md_lines():
     # v1.359 (12.19 v1.358): the first two Reading it bullets and the second limit stayed, each a
-    # RESULTS.md line under the rewrites. v1.446 (row DOC28c): only the second Reading it bullet stays;
-    # the other seven, and their phrases, are in RESULTS.md alone.
+    # RESULTS.md line under the rewrites. v1.446 (row DOC28c): only the second Reading it bullet stayed;
+    # v1.503 (row DOC44e): none stays, and all eight, and their phrases, are in RESULTS.md alone.
     section = readme_subsection()
     reading, limits = results_md_bullets()
     assert section.count(f"\n{LINK_LINE}\n") == 1 and "Reading it:" not in section
@@ -679,8 +683,11 @@ def test_readme_llmrouterbench_keeps_no_reading_bullet_and_a_link_line(cv):
     assert "split in half by a seeded hash" in text
     assert "Routed rows beat these single models on both counts: " in text
     assert "This repo commits no part of the dataset" in evidence_readme()
-    # v1.464 (row DOC39b, review iter-313 nit 3): `This repo`, so it cannot be read as the dataset's.
-    assert "This repo commits only derived numbers" in section and "The repo commits" not in section
+    # v1.464 (row DOC39b, review iter-313 nit 3) said `This repo commits only derived numbers` here; v1.504
+    # (review iter-358): the evidence README says the repo commits no part of the dataset (above), the
+    # results block here has a row for each of the 13 single models, and the README it links has the pool.
+    assert "repo commits" not in section
+    assert text.count("\nmodel:") == 13 and "\n## The pool\n" in evidence_readme()
 
 
 def test_readme_llmrouterbench_regenerate_and_layout():
@@ -710,7 +717,7 @@ def test_readme_llmrouterbench_tables_follow_the_file(cv):
     assert "| Always `openai/gpt-5`, which `cost_blind` takes on every seed of 4 tasks at bar 0.1 " \
            "| 0.591 | 191.4699 |" in before[0]
     assert "`aime` 60 items, `arc-agi` 400," in before[1] and "12,066 in all), 50 seeds, routed" in before[1]
-    assert "with all 13 single models: " in before[2][2]
+    assert before[2][2].startswith("- Full results: [RESULTS.md](")  # v1.504: no count left in it
     task_row(fake, 0.1, "cost_blind", "hle")["routed_models"] = {"google/gemini-2.5-flash": 50}
     with pytest.raises(AssertionError):
         readme_tables(fake)

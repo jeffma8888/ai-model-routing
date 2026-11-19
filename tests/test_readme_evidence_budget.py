@@ -701,9 +701,10 @@ def test_a_broken_hold_is_named(text, held, message):
 # `### tau2-bench` and `### LLMRouterBench` by a byte each, and 12.15 and 12.19 give each size from v1.464.
 # v1.475 (row DOC44c): the 12.15 bullet of row DOC44c gives the size its trim leaves.
 TRIM_SIZES = {"tau2-bench": ("12.15", "from v1.475 the subsection is {:,} bytes by that measure (4,993 from v1.464)"),
-              # v1.503 (row DOC44e): the 12.19 bullet of that row gives the size its trim leaves.
-              "LLMRouterBench": ("12.19", "from v1.503 the subsection is {:,} bytes by that measure (4,993 from "
-                                          "v1.464, 4,992 from v1.446, "),
+              # v1.503 (row DOC44e): the 12.19 bullet of that row gives the size its trim leaves (v1.504,
+              # review iter-358: its trim to 4,196).
+              "LLMRouterBench": ("12.19", "from v1.504 the subsection is {:,} bytes by that measure (4,272 at "
+                                          "v1.503, 4,993 from v1.464, 4,992 from v1.446, "),
               # v1.474 (row DOC44b): 12.10 and 12.12 give the size each trim leaves.
               "AutoBench": ("12.10", "from v1.474 the subsection is {:,} bytes by that measure (4,664 from v1.371)"),
               "AutoBench judges": ("12.12", "from v1.474 the subsection is {:,} bytes by that measure (4,742 from "
@@ -736,7 +737,8 @@ def test_the_trim_bullets_give_the_subsections_size():  # 12.15, 12.19 to v1.473
     moved = design.replace(line + "\n", "", 1).replace("\n### 12.20 ", "\n" + line + "\n### 12.20 ", 1)
     assert moved.count(tau2) == 1 and design_subsection(moved, "12.15").count(tau2) == 0
     assert design_subsection(moved, "12.19").count(tau2) == 1
-    assert readme.count("This repo commits only derived numbers\n") == 3 and "The repo commits" not in readme
+    # v1.504 (review iter-358): `### LLMRouterBench` shed its one, so two are left.
+    assert readme.count("This repo commits only derived numbers\n") == 2 and "The repo commits" not in readme
     grown = readme.replace("\n### tau2-bench\n", "\n### tau2-bench\nx\n", 1)
     assert design.count(TRIM_SIZES["tau2-bench"][1].format(dict(measure(grown)[1:])["tau2-bench"])) == 0
 
@@ -820,9 +822,9 @@ def test_a_large_part_left_out_of_the_v1_473_plan_also_breaks_the_projection():
     # `Delegation on AutoBench` left out is over its cap, and its 499 bytes over are no longer cut from the
     # projection: 64,312 + 499 = 64,811 at a531339, over HOLD_CAP (`AutoBench`'s 64 stayed under it), and from
     # v1.474 (row DOC44b) the README's projection + 499, 64,238 + 499 = 64,737.
-    # v1.503 (row DOC44e): the trims have taken the projection to 63,856, so 499 bytes more stay under
-    # HOLD_CAP and only the cap problem is named; the projection needs the room left as well, here in
-    # `### RouterBench`, which no entry holds and whose own cap it stays under.
+    # v1.503 (row DOC44e): the trims have taken the projection to 63,856 (63,780 from v1.504), so 499
+    # bytes more stay under HOLD_CAP and only the cap problem is named; the projection needs the room
+    # left as well, here in `### RouterBench`, which no entry holds and whose own cap it stays under.
     text = README.read_text(encoding="utf-8")
     held = {k: v for k, v in HELD.items() if k != "Delegation on AutoBench"}
     now = projection(measure(text))

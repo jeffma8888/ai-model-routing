@@ -64,8 +64,11 @@ def test_the_12_19_v1_358_bullet_gives_the_shape_to_v1_445():
     for old in ("the subsection is 4,993 bytes", "it keeps the second", "Its source lines drop `",
                 "The link line becomes"):
         assert old not in after, old
-    now = line("- README trim (v1.503, row DOC44e, to the 12.8 v1.473 routing cap of 4,600 bytes): ")
+    now = line("- README trim (v1.503, row DOC44e, to the 12.8 v1.473 routing cap of 4,600 bytes; v1.504, "
+               "review iter-358): ")
     assert "holds what v1.446 held but its `Reading it:` line and its one bullet" in now
+    # Review iter-358 must-fix 1: v1.503 said only a table or paragraph could give the last 72 bytes.
+    assert "under row E26i's 4,200" in now and "which only a table" not in now and "4,740" not in now
 
 
 def test_the_13_10_v1_72_bullet_gives_the_trail_sentence_to_v1_447():
