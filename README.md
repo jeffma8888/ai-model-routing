@@ -1096,6 +1096,7 @@ evidence/       public datasets turned into outcome matrices, with committed res
                 (delegation on LLMRouterBench: evidence/llmrouterbench-delegation/RESULTS.md)
                 (delegation on the LLM Routing Response Bank: evidence/response-bank-delegation/RESULTS.md)
                 (delegation on the registry pair: evidence/registry-pair-delegation/RESULTS.md)
+                (delegation on Longtail-SWE: evidence/longtail-swe-delegation/RESULTS.md)
 DESIGN.md       the spec the tests were written from
 ```
 
