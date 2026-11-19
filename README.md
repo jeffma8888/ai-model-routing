@@ -1082,15 +1082,20 @@ research/       public evidence behind the defaults
 evidence/       public datasets turned into outcome matrices, with committed results
                 (RouterBench: evidence/routerbench/RESULTS.md)
                 (AutoBench 2026: evidence/autobench-2026/RESULTS.md)
+                (AutoBench judges: evidence/autobench-judges/RESULTS.md)
                 (tau2-bench: evidence/tau2-bench/RESULTS.md)
                 (LiveCodeBench: evidence/livecodebench/RESULTS.md)
                 (LLMRouterBench: evidence/llmrouterbench/RESULTS.md)
                 (LLM Routing Response Bank: evidence/response-bank/RESULTS.md)
+                (Registry pair: evidence/registry-pair/RESULTS.md)
+                (Longtail-SWE: evidence/longtail-swe/RESULTS.md)
                 (delegation on AutoBench: evidence/delegation/RESULTS.md)
                 (TRAIL sub-agent sizes: evidence/trail/RESULTS.md)
+                (ledger hand-off runs: evidence/ledger-handoff/RESULTS.md)
                 (delegation on tau2-bench: evidence/tau2-bench-delegation/RESULTS.md)
                 (delegation on LLMRouterBench: evidence/llmrouterbench-delegation/RESULTS.md)
                 (delegation on the LLM Routing Response Bank: evidence/response-bank-delegation/RESULTS.md)
+                (delegation on the registry pair: evidence/registry-pair-delegation/RESULTS.md)
 DESIGN.md       the spec the tests were written from
 ```
 

@@ -334,7 +334,6 @@ def results_problems(text, paths):
     return problems
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError)
 def test_readme_layout_names_every_committed_results_md():
     if not README.exists() or not (ROOT / "evidence").is_dir():
         pytest.skip("README.md and evidence/ are not next to the tests")
