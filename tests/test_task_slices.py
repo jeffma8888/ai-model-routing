@@ -6,9 +6,8 @@ task key `<task>@<slice>`, with the `bar`, `min_samples` and token sizes the tas
 give it (the task's own where it gives none); pooled counts never clear a slice's bar. A
 calibration row can carry `slice`, which adds its trial under the task and the slice key,
 `Executor.call(slice=...)` passes it on, every record gains `slice`, and `select --slice S`
-names it on the command line. The tests marked `RED` fail until row STRAT1b implements v1.511
-(strict, so one that passes early fails the suite); the unmarked ones guard what v1.511 keeps
-and pass before and after it.
+names it on the command line. Row STRAT1a wrote these tests under strict xfail and row
+STRAT1b implemented v1.511; the guards pinned what v1.511 keeps and passed before and after.
 
 The planted mix is the row's example: on `support`, 400 quick items and 100 deep ones.
 fiction/cheap answers 396 quick and 64 deep (pooled 460 of 500, Wilson lower bound 0.892894,
@@ -27,8 +26,6 @@ from model_routing import (
 )
 from model_routing.cli import main
 from model_routing.demo import _tasks_json
-
-RED = pytest.mark.xfail(strict=True, reason="row STRAT1b implements DESIGN v1.511")
 
 V1_506_KEYS = ["ts", "call_id", "task", "flavor", "model", "family", "attempt", "final",
                "outcome", "error", "latency_ms", "input_tokens", "output_tokens", "cost_usd",
@@ -124,14 +121,12 @@ def test_rows_without_a_slice_count_once_under_the_task():
 
 # --- 4.2 the field -------------------------------------------------------------------------
 
-@RED
 def test_slices_is_the_last_field_and_empty_by_default():
     names = [f.name for f in dataclasses.fields(Task)]
     assert names[-2:] == ["fallback_below_bar", "slices"]
     assert Task("t", 0.5).slices == {}
 
 
-@RED
 def test_the_task_stores_a_copy_and_stays_hashable():
     given = {"deep": {"bar": 0.9}}
     task = Task("t", 0.5, slices=given)
@@ -143,7 +138,6 @@ def test_the_task_stores_a_copy_and_stays_hashable():
     assert task != Task("t", 0.5)
 
 
-@RED
 @pytest.mark.parametrize("slices", [
     {"deep": {"bar": 0.9, "min_samples": 50, "expected_input_tokens": 3000,
               "expected_output_tokens": 600}},
@@ -154,7 +148,6 @@ def test_valid_slices_are_accepted(slices):
     assert Task("t", 0.5, slices=slices).slices == slices
 
 
-@RED
 @pytest.mark.parametrize("slices", [
     [("deep", {})], "deep", {"deep": [("bar", 0.9)]}, {"": {}}, {"a@b": {}}, {3: {}},
     {"deep": {"confidence": 0.9}}, {"deep": {"bar": 1.5}}, {"deep": {"bar": -0.1}},
@@ -168,14 +161,12 @@ def test_an_invalid_slice_raises_valueerror_naming_the_task(slices):
         Task("t", 0.5, slices=slices)
 
 
-@RED
 def test_a_task_whose_name_holds_an_at_sign_has_no_slices():
     assert Task("a@b", 0.5).slices == {}
     with pytest.raises(ValueError, match="a@b"):
         Task("a@b", 0.5, slices={"deep": {}})
 
 
-@RED
 def test_load_tasks_reads_slices(write_json):
     path = write_json("tasks.json", {"tasks": [
         {"name": "support", "bar": 0.85, "slices": {"deep": {"bar": 0.9}}},
@@ -189,7 +180,6 @@ def test_the_demo_tasks_file_names_no_empty_slices():
     assert "slices" not in json.loads(_tasks_json(support_task()))["tasks"][0]
 
 
-@RED
 def test_the_demo_tasks_file_writes_slices_that_are_not_empty(tmp_path):
     text = _tasks_json(support_task(slices={"deep": {"bar": 0.9}}))
     assert json.loads(text)["tasks"][0]["slices"] == {"deep": {"bar": 0.9}}
@@ -200,7 +190,6 @@ def test_the_demo_tasks_file_writes_slices_that_are_not_empty(tmp_path):
 
 # --- 4.3 calibration rows ------------------------------------------------------------------
 
-@RED
 def test_a_sliced_row_counts_under_the_task_and_the_slice_key():
     stats = calibrate_from_results(mix_rows())
     for model, quick, deep in MIX:
@@ -211,7 +200,6 @@ def test_a_sliced_row_counts_under_the_task_and_the_slice_key():
         "support@deep", "fiction/cheap")
 
 
-@RED
 def test_a_sliced_row_carries_its_tokens_to_both_keys():
     rows = [{"task": "support", "model": "m/a", "correct": True, "slice": "deep",
              "input_tokens": 300, "output_tokens": 40},
@@ -222,7 +210,6 @@ def test_a_sliced_row_carries_its_tokens_to_both_keys():
     assert stats.tokens("support@deep", "m/a") == (300, 40, 1)
 
 
-@RED
 @pytest.mark.parametrize("row", [
     {"task": "support", "model": "m/a", "correct": True, "slice": ""},
     {"task": "support", "model": "m/a", "correct": True, "slice": "a@b"},
@@ -239,7 +226,6 @@ def test_an_invalid_slice_in_a_row_raises_valueerror(row):
 
 # --- 5.1 and 5.2 routing on a slice --------------------------------------------------------
 
-@RED
 def test_the_deep_slice_routes_past_the_model_the_pooled_rate_admits(slice_registry):
     router = make_router(slice_registry)
     assert router.select("support").primary == "fiction/cheap"
@@ -254,14 +240,12 @@ def test_the_deep_slice_routes_past_the_model_the_pooled_rate_admits(slice_regis
         "support", "deep", False, "measured")
 
 
-@RED
 def test_the_quick_slice_keeps_the_cheap_model(slice_registry):
     quick = make_router(slice_registry).select("support", slice="quick")
     assert route(quick) == ("fiction/cheap", "fiction/mid", "fiction/best")
     assert quick.slice == "quick"
 
 
-@RED
 def test_a_slice_bar_of_its_own(slice_registry):
     router = make_router(slice_registry, slices={"deep": {"bar": 0.9}})
     deep = router.select("support", slice="deep")
@@ -271,7 +255,6 @@ def test_a_slice_bar_of_its_own(slice_registry):
     assert router.select("support").primary == "fiction/cheap"
 
 
-@RED
 def test_a_slice_min_samples_of_its_own(slice_registry):
     router = make_router(slice_registry, slices={"deep": {"min_samples": 101}})
     with pytest.raises(NoModelClearsBar,
@@ -281,7 +264,6 @@ def test_a_slice_min_samples_of_its_own(slice_registry):
     assert set(reasons(caught.value.candidates).values()) == {"insufficient_samples"}
 
 
-@RED
 def test_the_refusal_names_the_slice_and_its_bar(slice_registry):
     router = make_router(slice_registry, slices={"deep": {"bar": 0.99}})
     with pytest.raises(NoModelClearsBar) as caught:
@@ -297,7 +279,6 @@ def test_the_refusal_names_the_slice_and_its_bar(slice_registry):
     assert str(caught.value) == "no eligible measured or prior-scored model for task 'support'"
 
 
-@RED
 def test_pooled_counts_never_clear_a_slice(slice_registry):
     pooled = Stats()
     for model, _, _ in MIX:
@@ -309,7 +290,6 @@ def test_pooled_counts_never_clear_a_slice(slice_registry):
     assert set(reasons(caught.value.candidates).values()) == {"insufficient_samples"}
 
 
-@RED
 def test_slice_counts_never_reach_a_call_without_a_slice(slice_registry):
     sliced = Stats()
     for model, _, _ in MIX:
@@ -320,7 +300,6 @@ def test_slice_counts_never_reach_a_call_without_a_slice(slice_registry):
         router.select("support")
 
 
-@RED
 def test_on_no_model_applies_on_the_slice_as_without_one(slice_registry, priors):
     router = make_router(slice_registry, on_no_model="best_available",
                          slices={"deep": {"bar": 0.99}})
@@ -333,7 +312,6 @@ def test_on_no_model_applies_on_the_slice_as_without_one(slice_registry, priors)
     assert (decision.basis, decision.below_bar, decision.slice) == ("prior", True, "deep")
 
 
-@RED
 def test_the_slice_sizes_stand_for_the_task_in_rule_5_and_in_the_price(slice_registry):
     # fiction/cheap's window of 2,000 holds 1,000 + 200 but not 1,900 + 200
     router = make_router(slice_registry,
@@ -348,7 +326,6 @@ def test_the_slice_sizes_stand_for_the_task_in_rule_5_and_in_the_price(slice_reg
     assert small.primary == "fiction/cheap"
 
 
-@RED
 def test_measured_slice_tokens_price_the_slice(slice_registry):
     stats = mix_stats()
     stats.add("support@deep", "fiction/mid", 0, 1, input_tokens=3000, output_tokens=600)
@@ -358,7 +335,6 @@ def test_measured_slice_tokens_price_the_slice(slice_registry):
     assert mid.list_cost == slice_registry.get("fiction/mid").cost(3000, 600)
 
 
-@RED
 def test_the_decision_names_the_slice_after_the_task(slice_registry):
     names = [f.name for f in dataclasses.fields(type(make_router(slice_registry)
                                                      .select("support")))]
@@ -370,7 +346,6 @@ def test_the_decision_names_the_slice_after_the_task(slice_registry):
     assert make_router(slice_registry).select("support").slice is None
 
 
-@RED
 @pytest.mark.parametrize("value", ["", "a@b", 3, True, b"deep"])
 def test_an_invalid_slice_raises_valueerror_before_the_task_lookup(slice_registry, value):
     router = make_router(slice_registry)
@@ -380,7 +355,6 @@ def test_an_invalid_slice_raises_valueerror_before_the_task_lookup(slice_registr
         router.select("no_such_task", slice=value)
 
 
-@RED
 def test_a_slice_key_that_another_task_owns_raises_valueerror(slice_registry):
     tasks = {"support": support_task(), "support@deep": support_task(name="support@deep"),
              "a@b": support_task(name="a@b")}
@@ -396,7 +370,6 @@ def test_a_slice_key_that_another_task_owns_raises_valueerror(slice_registry):
 
 # --- 7 and 8.1 the executor and the records ------------------------------------------------
 
-@RED
 def test_a_sliced_call_runs_the_slice_route_and_records_the_slice(slice_registry):
     monitor = Monitor()
     executor = executor_for(make_router(slice_registry), monitor,
@@ -411,7 +384,6 @@ def test_a_sliced_call_runs_the_slice_route_and_records_the_slice(slice_registry
         assert record["slice"] == "deep" and record["task"] == "support"
 
 
-@RED
 def test_a_call_without_a_slice_records_null(slice_registry):
     monitor = Monitor()
     executor_for(make_router(slice_registry), monitor).call("support", MESSAGES)
@@ -420,7 +392,6 @@ def test_a_call_without_a_slice_records_null(slice_registry):
     assert monitor.records[0]["model"] == "fiction/cheap"
 
 
-@RED
 def test_an_invalid_slice_in_a_call_reaches_no_provider_and_no_record(slice_registry):
     monitor = Monitor()
     executor = executor_for(make_router(slice_registry), monitor)
@@ -429,7 +400,6 @@ def test_an_invalid_slice_in_a_call_reaches_no_provider_and_no_record(slice_regi
     assert executor.provider.calls == [] and monitor.records == []
 
 
-@RED
 def test_a_delegated_call_records_a_null_slice(slice_registry):
     router = make_router(slice_registry)
     decision = router.decide_delegation("support", "fiction/weak", context_tokens=1000,
@@ -462,7 +432,6 @@ def select_argv(files, *extra):
             str(files["priors"]), *extra]
 
 
-@RED
 def test_select_slice_prints_the_slice_route(slice_files, capsys):
     assert main(select_argv(slice_files, "--slice", "deep")) == 0
     out = capsys.readouterr().out.splitlines()
@@ -480,7 +449,6 @@ def test_select_without_slice_prints_no_slice_line(slice_files, capsys):
     assert "primary:   fiction/cheap" in out
 
 
-@RED
 @pytest.mark.parametrize("text", ["", "a@b"])
 def test_select_slice_usage_error(slice_files, capsys, text):
     assert main(select_argv(slice_files, "--slice", text)) == 2
@@ -491,7 +459,6 @@ def test_select_slice_usage_error(slice_files, capsys, text):
         f"error: argument --slice: must be a non-empty name without '@', got {text!r}")
 
 
-@RED
 def test_select_slice_on_a_task_whose_key_collides_exits_2(slice_files, write_json, capsys):
     write_json("tasks.json", {"tasks": [{"name": "support", "bar": 0.85},
                                         {"name": "support@deep", "bar": 0.85}]})
@@ -502,7 +469,6 @@ def test_select_slice_on_a_task_whose_key_collides_exits_2(slice_files, write_js
     assert len(lines) == 1 and lines[0].startswith("error: ") and "support@deep" in lines[0]
 
 
-@RED
 def test_calibrate_writes_the_slice_keys(write_json, tmp_path, capsys):
     results = tmp_path / "results.jsonl"
     results.write_text("".join(json.dumps(r) + "\n" for r in mix_rows()), encoding="utf-8")

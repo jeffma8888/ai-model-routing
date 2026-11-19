@@ -97,6 +97,8 @@ def _tasks_json(task: Task) -> str:
     """The demo's task in the tasks file format (DESIGN 4.2, 11 v1.9)."""
     row = {f.name: getattr(task, f.name) for f in fields(Task)}
     row["exclude_families"] = list(task.exclude_families)
+    if not row["slices"]:
+        del row["slices"]
     return json.dumps({"tasks": [row]}, indent=2) + "\n"
 
 

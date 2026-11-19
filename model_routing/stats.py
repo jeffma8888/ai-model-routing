@@ -10,6 +10,8 @@ from pathlib import Path
 from statistics import NormalDist
 from typing import Dict, Iterable, Optional, Tuple, Union
 
+from .tasks import is_slice_name
+
 PathLike = Union[str, Path]
 
 _TOKEN_KEYS = ("input_tokens", "output_tokens", "token_trials")
@@ -211,6 +213,8 @@ def calibrate_from_results(rows: Iterable[dict]) -> Stats:
 
     ``correct`` must be a real boolean. A row may carry ``input_tokens`` and
     ``output_tokens``, both or neither, and then adds one token trial with those counts.
+    A row with a ``slice`` adds its trial under ``<task>`` and ``<task>@<slice>``
+    (DESIGN 4.3 v1.511).
     Every row is validated before the returned Stats exists, so a bad row anywhere
     raises ``ValueError``.
     """
@@ -238,5 +242,13 @@ def calibrate_from_results(rows: Iterable[dict]) -> Stats:
             tokens = {"input_tokens": row["input_tokens"], "output_tokens": row["output_tokens"]}
             if not all(_is_int(v) and v >= 0 for v in tokens.values()):
                 raise ValueError(f"token counts must be integers >= 0: {row!r}")
-        stats.add(task, model_id, 1 if correct else 0, 1, **tokens)
+        slice_name = row.get("slice")
+        keys = [task]
+        if slice_name is not None:
+            if not is_slice_name(slice_name) or not isinstance(task, str) or "@" in task:
+                raise ValueError(f"'slice' must be a non-empty string without '@' on a task "
+                                 f"without '@': {row!r}")
+            keys.append(f"{task}@{slice_name}")
+        for key in keys:
+            stats.add(key, model_id, 1 if correct else 0, 1, **tokens)
     return stats

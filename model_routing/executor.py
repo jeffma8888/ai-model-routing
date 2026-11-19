@@ -108,7 +108,8 @@ class Executor:
              generator_model: Optional[str] = None, exclude_models: Iterable[str] = (),
              tags: Optional[Dict[str, str]] = None,
              validate: Optional[Callable[[str], object]] = None, *,
-             prompt_tokens: Optional[int] = None) -> CallResult:
+             prompt_tokens: Optional[int] = None,
+             slice: Optional[str] = None) -> CallResult:
         """Route and execute one call; raise :class:`AllModelsFailed` if none succeeds.
 
         ``prompt_tokens`` is the request's size in tokens; when None it is estimated with
@@ -116,13 +117,16 @@ class Executor:
         fits it plus the task's expected output, and every record carries it as
         ``prompt_tokens`` with ``prompt_tokens_estimated`` (DESIGN 7 and 8.1 v1.507). A
         ``prompt_tokens`` that is not an integer >= 0 raises ``ValueError`` before any call.
+        ``slice`` names a slice of the task, routed on that slice's own counts, and every
+        record carries it (DESIGN 7 and 8.1 v1.511); ``select`` checks it before any call.
         """
         _check_prompt_tokens(prompt_tokens)
         estimated = prompt_tokens is None
         size = estimate_prompt_tokens(messages) if estimated else prompt_tokens
         decision = self.router.select(task_name, flavor=flavor,
                                       generator_model=generator_model,
-                                      exclude_models=exclude_models, prompt_tokens=size)
+                                      exclude_models=exclude_models, prompt_tokens=size,
+                                      slice=slice)
         return self._execute(task_name, decision, messages, dict(tags or {}), validate,
                              (size, estimated))
 
@@ -215,6 +219,7 @@ class Executor:
             record["below_bar_fallback"] = True
         record["basis"] = decision.basis
         record["tags"] = dict(tags)
+        record["slice"] = decision.slice
         if size is not None:
             record["prompt_tokens"], record["prompt_tokens_estimated"] = size
         return record

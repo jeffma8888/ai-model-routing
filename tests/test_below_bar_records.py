@@ -21,11 +21,13 @@ ROOT = Path(__file__).resolve().parents[1]
 V1_202_KEYS = ["ts", "call_id", "task", "flavor", "model", "family", "attempt", "final",
                "outcome", "error", "latency_ms", "input_tokens", "output_tokens", "cost_usd",
                "routing_cost_usd", "below_bar", "basis", "tags"]
-WITH_KEY = V1_202_KEYS[:16] + ["below_bar_fallback"] + V1_202_KEYS[16:]
+# v1.511 (row STRAT1b): every record gains `slice` right after `tags`
+RECORD_KEYS = V1_202_KEYS + ["slice"]
+WITH_KEY = RECORD_KEYS[:16] + ["below_bar_fallback"] + RECORD_KEYS[16:]
 # v1.507 (row FIT1b): a `.call` record ends with two more keys; a `.call_delegated` record keeps
-# the v1.202 to v1.506 keys above
+# `RECORD_KEYS`
 SIZE_KEYS = ["prompt_tokens", "prompt_tokens_estimated"]
-CALL_KEYS = V1_202_KEYS + SIZE_KEYS
+CALL_KEYS = RECORD_KEYS + SIZE_KEYS
 CALL_WITH_KEY = WITH_KEY + SIZE_KEYS
 V1_202_COLUMNS = ["calls", "attempts", "errors", "invalid", "fallback_calls", "fallback_rate",
                   "cost_usd", "routing_cost_usd", "p50_ms", "p95_ms"]
@@ -33,8 +35,10 @@ V1_203_COLUMNS = V1_202_COLUMNS[:6] + ["below_bar_calls"] + V1_202_COLUMNS[6:]
 # sha256 of the whole calls.jsonl of `run_demo` (seed 7), all 456 records; the v1.12 pin of
 # tests/test_demo_delegation.py covers the first 455. v1.507 (row FIT1b): the 455 `.call` records
 # gain the two size keys, so the digest moved from v1.202's e3f4eca7...02219a, which the log
-# still gives with those keys dropped
-V1_202_CALLS_SHA256 = "50610bf22f63117cc1a2e0f126b62f64fe87e6681799d7169193f617cc8982e5"
+# still gives with those keys dropped. v1.511 (row STRAT1b): every record gains `slice`, null
+# in the demo, so the digest moved again from v1.507's 50610bf2...8982e5, which the log still
+# gives with `slice` dropped
+V1_202_CALLS_SHA256 = "4f111326781939140bebe04e0841a66306cac48492bc6c95f4bc2211fa92b351"
 
 # (id, family, price_in, successes, trials); bar 0.7, min_samples 20
 MODELS = [
@@ -144,7 +148,7 @@ def test_call_delegated_takes_the_key_from_the_route():
     monitor = Monitor()
     run = executor(router, {"p/cheap": fail, "p/dear": fail, "b/close": ok}, monitor)
     run.call_delegated(decision, [{"role": "user", "content": "brief"}], tags={"team": "x"})
-    assert keys(monitor.records) == [V1_202_KEYS, V1_202_KEYS, WITH_KEY]
+    assert keys(monitor.records) == [RECORD_KEYS, RECORD_KEYS, WITH_KEY]
     assert monitor.records[2]["below_bar_fallback"] is True
     assert monitor.records[2]["tags"] == {"team": "x", "delegated": "true", "parent": "b/far"}
 
@@ -153,7 +157,7 @@ def test_the_demo_records_keep_v1_202_keys(tmp_path):
     run_demo(tmp_path / "demo")
     records = load_records(tmp_path / "demo" / "calls.jsonl")
     assert len(records) == 456
-    assert keys(records) == [CALL_KEYS] * 455 + [V1_202_KEYS]
+    assert keys(records) == [CALL_KEYS] * 455 + [RECORD_KEYS]
     assert "delegated" not in records[454]["tags"] and records[455]["tags"]["delegated"] == "true"
     data = (tmp_path / "demo" / "calls.jsonl").read_bytes()
     assert hashlib.sha256(data).hexdigest() == V1_202_CALLS_SHA256

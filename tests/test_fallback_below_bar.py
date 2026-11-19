@@ -59,7 +59,8 @@ def route(decision):
 
 def test_the_field_is_last_and_off_by_default():
     names = [f.name for f in dataclasses.fields(Task)]
-    assert names[-1] == "fallback_below_bar"
+    # v1.511 (row STRAT1b): `slices` comes after it, the last field since
+    assert names[-2:] == ["fallback_below_bar", "slices"]
     assert Task("t", 0.5).fallback_below_bar is False
     assert Task("t", 0.5, fallback_below_bar=True).fallback_below_bar is True
 

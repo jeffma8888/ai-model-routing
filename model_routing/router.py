@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 from .priors import Priors
 from .registry import Registry
 from .stats import Stats, wilson_lower_bound
-from .tasks import Task
+from .tasks import Task, is_slice_name
 
 EXCLUDED_MODEL = "excluded_model"
 EXCLUDED_FAMILY = "excluded_family"
@@ -72,18 +72,21 @@ class RouteDecision:
     basis: str
     candidates: Tuple[Candidate, ...]
     below_bar_fallbacks: Tuple[str, ...] = ()
+    slice: Optional[str] = None
 
     def to_dict(self) -> dict:
         """Return the decision as plain JSON-able types.
 
         ``below_bar_fallbacks`` is a key only when it is not empty (DESIGN 5.1).
         """
-        data = {
-            "task": self.task,
+        data = {"task": self.task}
+        if self.slice is not None:
+            data["slice"] = self.slice
+        data.update({
             "flavor": self.flavor,
             "primary": self.primary,
             "fallbacks": list(self.fallbacks),
-        }
+        })
         if self.below_bar_fallbacks:
             data["below_bar_fallbacks"] = list(self.below_bar_fallbacks)
         data.update(below_bar=self.below_bar, basis=self.basis,
@@ -112,23 +115,38 @@ class Router:
     def select(self, task_name: str, flavor: str = "cost_effective",
                generator_model: Optional[str] = None,
                exclude_models: Iterable[str] = (), *,
-               prompt_tokens: Optional[int] = None) -> RouteDecision:
+               prompt_tokens: Optional[int] = None,
+               slice: Optional[str] = None) -> RouteDecision:
         """Route ``task_name`` and return a :class:`RouteDecision`.
 
         ``prompt_tokens`` is the size of the one request being routed: when given, the
         context-window check reads it in place of the task's ``expected_input_tokens``,
         so the primary and every fallback can hold that request, while prices stay at the
-        task's sizes (DESIGN 5.2 v1.507). Raises ``KeyError`` for an unknown task or
-        generator, ``ValueError`` for an unknown flavor or a ``prompt_tokens`` that is not
-        an integer >= 0, and :class:`NoModelClearsBar` when nothing can be chosen under the
+        task's sizes (DESIGN 5.2 v1.507). ``slice`` names a slice of the task: the bar is
+        then judged on the counts under the stats key ``<task>@<slice>`` alone, with the
+        slice's ``bar``, ``min_samples`` and sizes (DESIGN 5.2 v1.511). Raises ``KeyError``
+        for an unknown task or generator, ``ValueError`` for an unknown flavor, a
+        ``prompt_tokens`` that is not an integer >= 0, a ``slice`` that is not a non-empty
+        string without '@', or a sliced task whose name holds '@' or whose slice key is
+        another task, and :class:`NoModelClearsBar` when nothing can be chosen under the
         task's ``on_no_model`` policy.
         """
         if flavor not in FLAVORS:
             raise ValueError(f"unknown flavor {flavor!r}; expected one of {FLAVORS}")
         _check_prompt_tokens(prompt_tokens)
+        if slice is not None and not is_slice_name(slice):
+            raise ValueError(f"slice must be a non-empty string without '@', got {slice!r}")
         if task_name not in self.tasks:
             raise KeyError(f"unknown task: {task_name!r}")
-        task = self.tasks[task_name]
+        base = self.tasks[task_name]
+        task = base
+        if slice is not None:
+            key = f"{base.name}@{slice}"
+            if "@" in base.name:
+                raise ValueError(f"task {base.name!r} holds '@', so it cannot be sliced")
+            if key in self.tasks:
+                raise ValueError(f"slice key {key!r} is also a task of this router")
+            task = replace(base, name=key, slices={}, **base.slices.get(slice, {}))
         excluded = set(exclude_models)
         generator_family = None
         if generator_model is not None:
@@ -148,17 +166,20 @@ class Router:
                                 if c.eligible and not c.passes and c.trials > 0),
                                key=lambda c: (-c.quality_lb, c.routing_cost, c.model_id))
             return self._decision(task, flavor, passing + under, False, "measured", candidates,
-                                  under=frozenset(c.model_id for c in under))
+                                  under=frozenset(c.model_id for c in under),
+                                  name=base.name, slice_name=slice)
 
+        where = f"task {base.name!r}" + ("" if slice is None else f" slice {slice!r}")
         if task.on_no_model == "refuse":
             raise NoModelClearsBar(
-                f"no model clears the bar {task.bar} for task {task.name!r}", candidates)
+                f"no model clears the bar {task.bar} for {where}", candidates)
 
         eligible = [c for c in candidates if c.eligible]
         measured = sorted((c for c in eligible if c.trials > 0),
                           key=lambda c: (-c.quality_lb, c.routing_cost, c.model_id))
         if measured:
-            return self._decision(task, flavor, measured, True, "measured", candidates)
+            return self._decision(task, flavor, measured, True, "measured", candidates,
+                                  name=base.name, slice_name=slice)
 
         if self.priors is not None and task.prior_category is not None:
             scored = []
@@ -169,10 +190,10 @@ class Router:
             scored.sort(key=lambda pair: (-pair[0], pair[1].routing_cost, pair[1].model_id))
             if scored:
                 return self._decision(task, flavor, [c for _, c in scored], True, "prior",
-                                      candidates)
+                                      candidates, name=base.name, slice_name=slice)
 
         raise NoModelClearsBar(
-            f"no eligible measured or prior-scored model for task {task.name!r}", candidates)
+            f"no eligible measured or prior-scored model for {where}", candidates)
 
     def decide_delegation(self, task_name: str, parent_model: str,
                           flavor: str = "cost_effective", *, context_tokens: int,
@@ -261,11 +282,12 @@ class Router:
     @staticmethod
     def _decision(task: Task, flavor: str, ordered: Sequence[Candidate], below_bar: bool,
                   basis: str, candidates: Tuple[Candidate, ...],
-                  under: frozenset = frozenset()) -> RouteDecision:
+                  under: frozenset = frozenset(), name: Optional[str] = None,
+                  slice_name: Optional[str] = None) -> RouteDecision:
         chosen: List[Candidate] = list(ordered)
         fallbacks = tuple(c.model_id for c in chosen[1:1 + task.max_fallbacks])
         return RouteDecision(
-            task=task.name,
+            task=task.name if name is None else name,
             flavor=flavor,
             primary=chosen[0].model_id,
             fallbacks=fallbacks,
@@ -273,4 +295,5 @@ class Router:
             basis=basis,
             candidates=candidates,
             below_bar_fallbacks=tuple(m for m in fallbacks if m in under),
+            slice=slice_name,
         )

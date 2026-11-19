@@ -68,7 +68,7 @@ def test_task_defaults_and_frozen_dataclass():
         "independent_of_generator": True, "exclude_families": (),
         "expected_input_tokens": 1000, "expected_output_tokens": 200,
         "on_no_model": "refuse", "max_fallbacks": 2, "prior_category": None,
-        "timeout_s": 60.0, "fallback_below_bar": False,
+        "timeout_s": 60.0, "fallback_below_bar": False, "slices": {},
     }
     with pytest.raises(FrozenInstanceError):
         task.bar = 0.1

@@ -163,7 +163,9 @@ def test_the_executor_never_sends_a_call_to_a_model_too_small_for_it(fit_router)
     assert [model for model, _ in executor.provider.calls] == ["fiction/mid", "fiction/best"]
     assert result.model == "fiction/best"
     for record in monitor.records:
-        assert list(record) == V1_506_KEYS + ["prompt_tokens", "prompt_tokens_estimated"]
+        # v1.511 (row STRAT1b): `slice` comes between `tags` and the two size keys
+        assert list(record) == V1_506_KEYS + ["slice", "prompt_tokens",
+                                              "prompt_tokens_estimated"]
         assert type(record["prompt_tokens"]) is int and record["prompt_tokens"] == 1900
         assert record["prompt_tokens_estimated"] is True
 

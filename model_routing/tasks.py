@@ -3,13 +3,41 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, field, fields
 from pathlib import Path
-from typing import Dict, Optional, Tuple, Union
+from typing import Dict, Mapping, Optional, Tuple, Union
 
 PathLike = Union[str, Path]
 
 ON_NO_MODEL_CHOICES = ("refuse", "best_available")
+SLICE_KEYS = ("bar", "min_samples", "expected_input_tokens", "expected_output_tokens")
+
+
+def is_slice_name(value) -> bool:
+    """A slice name (DESIGN 4.2 v1.511): a non-empty str that holds no '@'."""
+    return isinstance(value, str) and value != "" and "@" not in value
+
+
+def _check_slice(task_name: str, name, values) -> Dict[str, object]:
+    if not is_slice_name(name):
+        raise ValueError(f"task {task_name!r}: slice name must be a non-empty string "
+                         f"without '@', got {name!r}")
+    if not isinstance(values, Mapping):
+        raise ValueError(f"task {task_name!r}: slice {name!r} must be a mapping")
+    for key, value in values.items():
+        if key not in SLICE_KEYS:
+            raise ValueError(f"task {task_name!r}: slice {name!r} has unknown key {key!r}")
+        if isinstance(value, bool):
+            ok = False
+        elif key == "bar":
+            ok = isinstance(value, (int, float)) and 0 <= value <= 1
+        elif key == "min_samples":
+            ok = isinstance(value, int) and value >= 1
+        else:
+            ok = isinstance(value, int) and value >= 0
+        if not ok:
+            raise ValueError(f"task {task_name!r}: slice {name!r} has invalid {key} {value!r}")
+    return dict(values)
 
 
 @dataclass(frozen=True)
@@ -18,7 +46,9 @@ class Task:
 
     ``bar`` is the minimum acceptable success rate against the task's
     acceptance check (for a judge, agreement with gold labels), judged on
-    the Wilson lower bound at ``confidence``. Invalid values raise
+    the Wilson lower bound at ``confidence``. ``slices`` maps a slice name to
+    that slice's own ``bar``, ``min_samples`` and token sizes, each one it does
+    not give coming from the task (DESIGN 4.2 v1.511). Invalid values raise
     ``ValueError`` at construction.
     """
 
@@ -35,6 +65,7 @@ class Task:
     prior_category: Optional[str] = None
     timeout_s: float = 60.0
     fallback_below_bar: bool = False
+    slices: Mapping[str, Mapping[str, object]] = field(default_factory=dict, hash=False)
 
     def __post_init__(self) -> None:
         if not isinstance(self.exclude_families, tuple):
@@ -58,6 +89,12 @@ class Task:
         if type(self.fallback_below_bar) is not bool:
             raise ValueError(f"task {self.name!r}: fallback_below_bar must be a bool, "
                              f"got {self.fallback_below_bar!r}")
+        if not isinstance(self.slices, Mapping):
+            raise ValueError(f"task {self.name!r}: slices must be a mapping")
+        if self.slices and "@" in self.name:
+            raise ValueError(f"task {self.name!r}: a task whose name holds '@' has no slices")
+        object.__setattr__(self, "slices", {name: _check_slice(self.name, name, values)
+                                            for name, values in self.slices.items()})
 
 
 _TASK_FIELDS = {f.name for f in fields(Task)}
