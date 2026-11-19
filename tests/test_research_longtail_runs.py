@@ -65,7 +65,6 @@ def test_design_12_22_specifies_the_note_and_12_26_names_it():
     assert "\u2013" not in lines[0] and "\u2014" not in lines[0]
 
 
-@pytest.mark.xfail(strict=True, raises=FileNotFoundError)
 def test_research_readme_lists_the_note():
     note()  # FileNotFoundError until the note exists
     text = RESEARCH_README.read_text(encoding="utf-8")
@@ -74,18 +73,18 @@ def test_research_readme_lists_the_note():
     assert text.count("\n- `research/longtail-runs.md` ") == 1
 
 
-@pytest.mark.xfail(strict=True, raises=FileNotFoundError)
 def test_run_0_lines_of_the_block_are_built_from_the_committed_file():
     lt, block = load(), results_block(note())
     summary = committed_summary()
-    models = json.loads(COMMITTED.read_text(encoding="utf-8"))["models"]
+    models = sorted(r["strategy"][len("model:"):] for r in summary
+                    if r["strategy"].startswith("model:") and r["bar"] == lt.BARS[0] and r["flavor"] == lt.FLAVORS[0])
+    assert len(models) == 4  # the converter's sorted `models`, as the block lists them
     lines = lt.routed_lines(0, summary) + lt.model_lines(0, summary, models) + [lt.baseline_line(0, summary)]
     assert len(lines) == 8 + 4 + 1
     for line in lines:
         assert block.count(line + "\n") == 1, line
 
 
-@pytest.mark.xfail(strict=True, raises=FileNotFoundError)
 def test_the_committed_model_rows_and_baseline_are_the_same_at_every_bar_and_flavor():
     lt = load()
     summary = committed_summary()
@@ -94,7 +93,6 @@ def test_the_committed_model_rows_and_baseline_are_the_same_at_every_bar_and_fla
         assert len(rows) == len(lt.BARS) * len(lt.FLAVORS) and len(set(rows)) == 1, strategy
 
 
-@pytest.mark.xfail(strict=True, raises=FileNotFoundError)
 def test_each_reading_it_number_is_in_the_block():
     text = note()
     block = set(NUMBER.findall(results_block(text)))
@@ -104,7 +102,6 @@ def test_each_reading_it_number_is_in_the_block():
     assert [n for n in found if n not in block] == []
 
 
-@pytest.mark.xfail(strict=True, raises=FileNotFoundError)
 def test_a_bad_option_exits_2_with_one_error_line(capsys):
     lt = load()
     assert lt.main(["--bogus"]) == 2
@@ -124,19 +121,16 @@ def data():
     return lt, lt.collect(lt.records())
 
 
-@pytest.mark.xfail(strict=True, raises=FileNotFoundError)
 def test_note_results_block_is_the_script_output(data):
     lt, runs = data
     assert results_block(note()) == lt.block(runs)
 
 
-@pytest.mark.xfail(strict=True, raises=FileNotFoundError)
 def test_run_0_is_the_committed_results_file(data):
     _, runs = data
     assert json.dumps(runs[0][1], indent=2) + "\n" == COMMITTED.read_text(encoding="utf-8")
 
 
-@pytest.mark.xfail(strict=True, raises=FileNotFoundError)
 def test_each_run_has_one_model_row_and_baseline_at_every_bar_and_flavor(data):
     lt, runs = data
     for run, (report, reduced) in runs.items():
@@ -146,7 +140,6 @@ def test_each_run_has_one_model_row_and_baseline_at_every_bar_and_flavor(data):
             assert len(rows) == 1, (run, strategy)
 
 
-@pytest.mark.xfail(strict=True, raises=FileNotFoundError)
 def test_the_unscored_runs_are_four_all_one_model(data):
     _, runs = data
     counts = [{m: len(v) for m, v in report["unscored"].items() if v} for report, _ in runs.values()]
