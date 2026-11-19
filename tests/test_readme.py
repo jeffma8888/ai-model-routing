@@ -291,3 +291,92 @@ def test_other_file_problems_catches_a_missing_stale_or_repeated_file():
     assert other_file_problems(twice, ["py.typed"]) == ["Layout block names py.typed more than once"]
     assert other_file_problems(SAMPLE.replace("## Layout", "## Files"), []) == [
         "expected one Layout block, found 0"]
+
+
+# DESIGN 3, v1.494 (row DOC45): the Layout block's evidence/ entry names every committed RESULTS.md.
+
+RESULTS_LINE = re.compile(r" {16}\(([^():]+): ([^()\s]+)\)")
+
+
+def results_lines(block):
+    """The lines indented under the block's evidence/ entry, in order."""
+    lines, inside = [], False
+    for line in block.split("\n"):
+        if line.startswith("evidence/ "):
+            inside = True
+        elif inside and line.startswith(" "):
+            lines.append(line)
+        elif inside:
+            break
+    return lines
+
+
+def results_problems(text, paths):
+    """Every way the evidence/ entry's lines differ from one `(<label>: <path>)` line per path."""
+    blocks = LAYOUT.findall(text)
+    if len(blocks) != 1:
+        return [f"expected one Layout block, found {len(blocks)}"]
+    entries = [line for line in blocks[0].split("\n") if line.startswith("evidence/ ")]
+    if len(entries) != 1:
+        return [f"expected one evidence/ entry in the Layout block, found {len(entries)}"]
+    named, problems = [], []
+    for line in results_lines(blocks[0]):
+        match = RESULTS_LINE.fullmatch(line)
+        if match is None:
+            problems.append(f"evidence/ entry line {line.strip()!r} is not (<label>: <path>)")
+        else:
+            named.append(match.group(2))
+    problems += [f"{p} missing from the evidence/ entry" for p in sorted(set(paths) - set(named))]
+    problems += [f"evidence/ entry names {p}, not a RESULTS.md of the checkout"
+                 for p in sorted(set(named) - set(paths))]
+    problems += [f"evidence/ entry names {p} more than once"
+                 for p in sorted({p for p in named if named.count(p) > 1})]
+    return problems
+
+
+@pytest.mark.xfail(strict=True, raises=AssertionError)
+def test_readme_layout_names_every_committed_results_md():
+    if not README.exists() or not (ROOT / "evidence").is_dir():
+        pytest.skip("README.md and evidence/ are not next to the tests")
+    paths = sorted(p.relative_to(ROOT).as_posix() for p in ROOT.glob("evidence/*/RESULTS.md"))
+    assert {"evidence/longtail-swe/RESULTS.md", "evidence/registry-pair-delegation/RESULTS.md"} <= set(paths)
+    assert results_problems(README.read_text(encoding="utf-8"), paths) == []
+
+
+RESULTS_SAMPLE = SAMPLE.replace("tests/          the suite\n", (
+    "evidence/       committed results\n"
+    "                (A: evidence/a/RESULTS.md)\n"
+    "                (delegation on B: evidence/b/RESULTS.md)\n"
+    "tests/          the suite\n"))
+RESULTS_PATHS = ["evidence/a/RESULTS.md", "evidence/b/RESULTS.md"]
+
+
+def test_results_problems_passes_a_matching_block_and_reads_only_the_evidence_entry():
+    assert results_problems(RESULTS_SAMPLE, RESULTS_PATHS) == []
+    assert claim_problems(RESULTS_SAMPLE, *SAMPLE_ARGS) == []
+    after = RESULTS_SAMPLE.replace("tests/          the suite\n",
+                                   "tests/          the suite\n                (C: evidence/c/RESULTS.md)\n")
+    assert results_problems(after, RESULTS_PATHS) == []
+
+
+def test_results_problems_catches_a_missing_stale_repeated_or_malformed_line():
+    gone = RESULTS_SAMPLE.replace("                (A: evidence/a/RESULTS.md)\n", "")
+    assert results_problems(gone, RESULTS_PATHS) == ["evidence/a/RESULTS.md missing from the evidence/ entry"]
+    stale = RESULTS_SAMPLE.replace("(A: evidence/a/RESULTS.md)\n",
+                                   "(A: evidence/a/RESULTS.md)\n                (C: evidence/c/RESULTS.md)\n")
+    assert results_problems(stale, RESULTS_PATHS) == [
+        "evidence/ entry names evidence/c/RESULTS.md, not a RESULTS.md of the checkout"]
+    twice = RESULTS_SAMPLE.replace("(A: evidence/a/RESULTS.md)\n",
+                                   "(A: evidence/a/RESULTS.md)\n                (A again: evidence/a/RESULTS.md)\n")
+    assert results_problems(twice, RESULTS_PATHS) == ["evidence/ entry names evidence/a/RESULTS.md more than once"]
+    bare = RESULTS_SAMPLE.replace("(A: evidence/a/RESULTS.md)", "evidence/a/RESULTS.md")
+    assert results_problems(bare, RESULTS_PATHS) == [
+        "evidence/ entry line 'evidence/a/RESULTS.md' is not (<label>: <path>)",
+        "evidence/a/RESULTS.md missing from the evidence/ entry"]
+    colon = RESULTS_SAMPLE.replace("(A: evidence", "(A: B: evidence")
+    assert results_problems(colon, RESULTS_PATHS)[0].startswith("evidence/ entry line '(A: B: ")
+    shallow = RESULTS_SAMPLE.replace("                (A: ", "               (A: ")
+    assert results_problems(shallow, RESULTS_PATHS)[0].startswith("evidence/ entry line '(A: ")
+    assert results_problems(RESULTS_SAMPLE.replace("## Layout", "## Files"), RESULTS_PATHS) == [
+        "expected one Layout block, found 0"]
+    assert results_problems(SAMPLE, RESULTS_PATHS) == ["expected one evidence/ entry in the Layout block, found 0"]
