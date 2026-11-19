@@ -657,9 +657,9 @@ python evidence/routerbench/results.py --table evidence/livecodebench/results.js
 
 ### LLMRouterBench
 
-- Dataset: [NPULH/LLMRouterBench](https://huggingface.co/datasets/NPULH/LLMRouterBench), pinned at revision [`b95870f`](https://huggingface.co/datasets/NPULH/LLMRouterBench/tree/b95870f9e60c589e82f7972c91ffa8de9ca89f85), one file `bench-release.tar.gz` of 1,283,503,080 bytes
-- Licence: MIT, as its LICENSE file states, with the line "Copyright (c) 2025-2026 LLMRouterBench contributors"; its scope paragraph keeps third-party material under its own licence. This repo commits only derived numbers
-- What was run: 13 API models from 2025, 9 benchmarks, each one routing task (`aime` 60 items, `arc-agi` 400, `arenahard` 749, `gpqa` 198, `hle` 2,157, `livecodebench` 1,055, `livemathbench` 121, `mmlupro` 3,000 and `simpleqa` 4,326, 12,066 in all), 50 seeds, routed at bars 0.1 to 0.8 in both flavors. A success is a score of 1 (a 0.5 from the `arenahard` judge is a miss), the cost the record's own `cost`
+- Dataset: [NPULH/LLMRouterBench](https://huggingface.co/datasets/NPULH/LLMRouterBench), revision [`b95870f`](https://huggingface.co/datasets/NPULH/LLMRouterBench/tree/b95870f9e60c589e82f7972c91ffa8de9ca89f85), `bench-release.tar.gz` of 1,283,503,080 bytes
+- Licence: MIT, with the line "Copyright (c) 2025-2026 LLMRouterBench contributors". This repo commits only derived numbers
+- What was run: 13 models, 9 benchmarks, each one routing task (`aime` 60 items, `arc-agi` 400, `arenahard` 749, `gpqa` 198, `hle` 2,157, `livecodebench` 1,055, `livemathbench` 121, `mmlupro` 3,000 and `simpleqa` 4,326, 12,066 in all), 50 seeds, routed at bars 0.1 to 0.8
 - Full results, with all 13 single models: [RESULTS.md](evidence/llmrouterbench/RESULTS.md) and [results.json](evidence/llmrouterbench/results.json); source and pool: [evidence/llmrouterbench/README.md](evidence/llmrouterbench/README.md)
 
 Held-out success is the share of held-out items whose record scored 1, pooled over the 9 tasks, and cost is the recorded cost of answering them, both averaged over the seeds; the ratio divides that cost by the cost of the best single model. The cleared rate is the share of the 450 (task, seed) cells where some model cleared the bar on the calibration half, and the bar-violation rate is the share of cleared cells whose held-out success fell below the bar.
@@ -692,11 +692,7 @@ Held-out success is the share of held-out items whose record scored 1, pooled ov
 | Best model on the calibration half, per task | 0.615 | 171.3368 |
 | Cheapest model on the calibration half, per task | 0.530 | 3.3909 |
 
-Reading it:
-
-- `cost_blind` reaches 0.615 at 0.473 of the best single model's cost at every bar, 0.0223 above that model's held-out success, against `best_on_calibration`'s 0.615 at 0.468. Routing per task is what pays here: at bar 0.1 it routes every seed of `arc-agi`, `hle`, `livecodebench` and `mmlupro` to `openai/gpt-5`, which is about as good as `google/gemini-2.5-pro` over all items and costs about half as much, while the other 5 tasks split their seeds among two or more models
-
-The `cost_effective` reading, in-sample gain, bar violations, half scores, dropped benchmarks and the models' date and costs are in [RESULTS.md](evidence/llmrouterbench/RESULTS.md#reading-it) `## Reading it`.
+The `cost_effective` and `cost_blind` readings, the in-sample gain, bar violations, half scores, dropped benchmarks and the models' date and costs are in [RESULTS.md](evidence/llmrouterbench/RESULTS.md#reading-it) `## Reading it`.
 
 Regenerate (the converter downloads the pinned file, about 1.28 GB, into a cache folder outside the repo, and verifying, reading and converting it takes about 13 seconds once it is cached; the `evidence` workflow reruns these commands on GitHub and fails if `results.json` changes by a byte, while the test suite rebuilds `results.json` from them only where the pinned file is cached):
 

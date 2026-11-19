@@ -58,7 +58,14 @@ def test_the_12_19_v1_358_bullet_gives_the_shape_to_v1_445():
     for old in ("from v1.359 the README subsection", "is 6,469 bytes", "are the three it keeps", "cap 6,500)"):
         assert old not in text
     after = line("- README trim (v1.446, row DOC28c, to the 12.8 v1.444 routing cap of 5,000 bytes): ")
-    assert "holds what v1.359 held but" in after and "v1.359 holds" not in after
+    # v1.503 (row DOC44e) trimmed it again, so the v1.446 bullet reads as history too, and its own bullet
+    # holds the size and shape in force.
+    assert "held what v1.359 held but" in after and "holds what v1.359 held" not in after
+    for old in ("the subsection is 4,993 bytes", "it keeps the second", "Its source lines drop `",
+                "The link line becomes"):
+        assert old not in after, old
+    now = line("- README trim (v1.503, row DOC44e, to the 12.8 v1.473 routing cap of 4,600 bytes): ")
+    assert "holds what v1.446 held but its `Reading it:` line and its one bullet" in now
 
 
 def test_the_13_10_v1_72_bullet_gives_the_trail_sentence_to_v1_447():

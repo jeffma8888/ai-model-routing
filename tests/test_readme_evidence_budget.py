@@ -42,8 +42,8 @@ the registry-pair delegation one (row E25e), fits with its glance bullet. ``HELD
 their a531339 sizes until rows DOC44b to DOC44j trim each to its cap and move it to ``RETRIMMED``; while ``HELD`` is
 not empty the projection is at most ``HOLD_CAP``, 64,500 bytes, and once it is empty the section itself is, while
 ``CLASS`` names twelve headings. ``TRIMMED`` keeps the v1.444 plan, each part at most its ``V1_444_CAPS`` cap.
-Row DOC44b (v1.474) moved ``AutoBench`` and ``AutoBench judges`` to ``RETRIMMED``, row DOC44c (v1.475) ``tau2-bench``
-and row DOC44d (v1.476) ``LiveCodeBench``.
+Row DOC44b (v1.474) moved ``AutoBench`` and ``AutoBench judges`` to ``RETRIMMED``, row DOC44c (v1.475) ``tau2-bench``,
+row DOC44d (v1.476) ``LiveCodeBench`` and row DOC44e (v1.503) ``LLMRouterBench``.
 """
 import re
 from pathlib import Path
@@ -84,7 +84,7 @@ PENDING = {}
 # Delegation on AutoBench's 1,199, Delegation on LLMRouterBench's 880, Delegation on the LLM Routing Response
 # Bank's 867 and tau2-bench's 776 (TRIMMED) the ce21e81 projection is 69,678 - 7,080 = 62,598.
 # v1.473 (row DOC44a): each part over the v1.473 caps and its size at a531339, until its row trims it.
-HELD = {"LLMRouterBench": 4_993, "LLM Routing Response Bank": 4_997, "Registry pair": 4_957,
+HELD = {"LLM Routing Response Bank": 4_997, "Registry pair": 4_957,
         "Delegation on AutoBench": 5_499, "Delegation on LLMRouterBench": 5_494,
         "Delegation on the LLM Routing Response Bank": 5_498}
 # The row that trims each held part (v1.473); it moves the part to RETRIMMED as (its a531339 size, its row).
@@ -94,7 +94,8 @@ PLAN_ROWS = {"AutoBench": "DOC44b", "AutoBench judges": "DOC44b", "tau2-bench": 
              "Delegation on the LLM Routing Response Bank": "DOC44j"}
 RETRIMMED = {"AutoBench": (4_664, "DOC44b"), "AutoBench judges": (4_742, "DOC44b"),  # v1.474
              "tau2-bench": (4_993, "DOC44c"),  # v1.475
-             "LiveCodeBench": (4_929, "DOC44d")}  # v1.476
+             "LiveCodeBench": (4_929, "DOC44d"),  # v1.476
+             "LLMRouterBench": (4_993, "DOC44e")}  # v1.503
 # v1.473: the section at a531339, and with each held part at its cap; HOLD_CAP leaves room under SECTION_CAP for
 # a subsection at the delegation cap and GLANCE_ROOM bytes for its glance bullet, its line and newline.
 PLAN_SECTION, PLAN_PROJECTION, HOLD_CAP, GLANCE_ROOM = 67_878, 64_312, 64_500, 500
@@ -700,8 +701,9 @@ def test_a_broken_hold_is_named(text, held, message):
 # `### tau2-bench` and `### LLMRouterBench` by a byte each, and 12.15 and 12.19 give each size from v1.464.
 # v1.475 (row DOC44c): the 12.15 bullet of row DOC44c gives the size its trim leaves.
 TRIM_SIZES = {"tau2-bench": ("12.15", "from v1.475 the subsection is {:,} bytes by that measure (4,993 from v1.464)"),
-              "LLMRouterBench": ("12.19", "from v1.464 the subsection is {:,} bytes by that measure (4,992 from "
-                                          "v1.446, "),
+              # v1.503 (row DOC44e): the 12.19 bullet of that row gives the size its trim leaves.
+              "LLMRouterBench": ("12.19", "from v1.503 the subsection is {:,} bytes by that measure (4,993 from "
+                                          "v1.464, 4,992 from v1.446, "),
               # v1.474 (row DOC44b): 12.10 and 12.12 give the size each trim leaves.
               "AutoBench": ("12.10", "from v1.474 the subsection is {:,} bytes by that measure (4,664 from v1.371)"),
               "AutoBench judges": ("12.12", "from v1.474 the subsection is {:,} bytes by that measure (4,742 from "
@@ -727,7 +729,7 @@ def test_the_trim_bullets_give_the_subsections_size():  # 12.15, 12.19 to v1.473
     for name, (number, clause) in TRIM_SIZES.items():
         stated = clause.format(sizes[name])
         assert design.count(stated) == 1 and design_subsection(design, number).count(stated) == 1, name
-        assert sizes[name] <= limit(name)  # v1.473: held, until rows DOC44c (v1.475) and DOC44e
+        assert sizes[name] <= limit(name)  # v1.473: held, until rows DOC44c (v1.475) and DOC44e (v1.503)
     # The 12.15 bullet moved to the end of 12.19 is in the file once but no longer in its own subsection.
     tau2 = TRIM_SIZES["tau2-bench"][1].format(sizes["tau2-bench"])
     line = next(line for line in design.split("\n") if tau2 in line)
@@ -818,13 +820,20 @@ def test_a_large_part_left_out_of_the_v1_473_plan_also_breaks_the_projection():
     # `Delegation on AutoBench` left out is over its cap, and its 499 bytes over are no longer cut from the
     # projection: 64,312 + 499 = 64,811 at a531339, over HOLD_CAP (`AutoBench`'s 64 stayed under it), and from
     # v1.474 (row DOC44b) the README's projection + 499, 64,238 + 499 = 64,737.
+    # v1.503 (row DOC44e): the trims have taken the projection to 63,856, so 499 bytes more stay under
+    # HOLD_CAP and only the cap problem is named; the projection needs the room left as well, here in
+    # `### RouterBench`, which no entry holds and whose own cap it stays under.
     text = README.read_text(encoding="utf-8")
     held = {k: v for k, v in HELD.items() if k != "Delegation on AutoBench"}
     now = projection(measure(text))
-    assert now <= PLAN_PROJECTION and now + 499 > HOLD_CAP
-    assert problems(text, held=held) == [
-        "`### Delegation on AutoBench` is 5,499 bytes, over its delegation cap 5,000",
-        f"with each held part at its cap the section would be {now + 499:,} bytes, over {HOLD_CAP:,}"]
+    cap = "`### Delegation on AutoBench` is 5,499 bytes, over its delegation cap 5,000"
+    assert now <= PLAN_PROJECTION and now + 499 <= HOLD_CAP
+    assert problems(text, held=held) == [cap]
+    room = HOLD_CAP - (now + 499)
+    bigger = grown(text, "RouterBench", dict(measure(text)[2:])["RouterBench"] + room + 1)
+    assert projection(measure(bigger), held=held) == HOLD_CAP + 1
+    assert problems(bigger, held=held) == [
+        cap, f"with each held part at its cap the section would be {HOLD_CAP + 1:,} bytes, over {HOLD_CAP:,}"]
 
 
 def test_a_twelve_heading_section_over_the_hold_is_named_once_held_is_empty():

@@ -34,6 +34,11 @@ the first two Reading it bullets and the seventh RESULTS.md bullet, then one lin
 other Reading it bullet and limit, and the Reading it phrases of the dropped bullets, in RESULTS.md
 and absent from the subsection.
 
+v1.503 (DESIGN 12.19 and 12.8 v1.503, row DOC44e): the subsection is trimmed to the 4,600-byte routing cap of
+12.8 v1.473. Its source lines shed four clauses and its one Reading it bullet goes, so its four source bullets
+are its only bullets and the link line names both readings; each dropped clause is in RESULTS.md or the
+evidence README, and the tests here require it there and absent from the subsection.
+
 v1.446 (DESIGN 12.19 and 12.8 v1.446, row DOC28c): the subsection is trimmed to its 5,000-byte routing cap
 of 12.8 v1.444. It drops its `Limits:` line and bullet, sheds words of its source lines, and keeps one
 Reading it bullet, the second (`cost_blind`), since with the first kept it would still be over its cap;
@@ -540,10 +545,12 @@ def readme_counts(results):
     parts = [f"`{t}` {v['items']:,}" + (" items" if i == 0 else "")
              for i, (t, v) in enumerate(tasks.items())]
     bars = config["bars"]
-    return (f"- What was run: {len(models.pop())} API models from 2025, {len(tasks)} benchmarks, each one "
+    # v1.503 (row DOC44e): ` API`, ` from 2025`, ` in both flavors` and the sentence on what a success and the
+    # cost are are shed; the RESULTS.md opening paragraph and its models-date bullet state them, and the routed
+    # table has a row per flavor.
+    return (f"- What was run: {len(models.pop())} models, {len(tasks)} benchmarks, each one "
             f"routing task ({join(parts)}, {sum(v['items'] for v in tasks.values()):,} in all), "
-            f"{len(config['seeds'])} seeds, routed at bars {bars[0]} to {bars[-1]} in both flavors. A success "
-            "is a score of 1 (a 0.5 from the `arenahard` judge is a miss), the cost the record's own `cost`")
+            f"{len(config['seeds'])} seeds, routed at bars {bars[0]} to {bars[-1]}")
 
 
 def readme_columns(results):
@@ -588,11 +595,12 @@ def readme_tables(results):
 def readme_source_lines(cv, results):
     models = len({tuple(v["models"]) for v in results["tasks"].values()}.pop())
     return [
-        f"- Dataset: [NPULH/LLMRouterBench](https://huggingface.co/datasets/NPULH/LLMRouterBench), pinned "
-        f"at revision [`{cv.REVISION[:7]}`](https://huggingface.co/datasets/NPULH/LLMRouterBench/tree/"
-        f"{cv.REVISION}), one file `{cv.FILE}` of {cv.SIZE:,} bytes",
-        f"- Licence: MIT, as its LICENSE file states, with the line \"{COPYRIGHT}\"; its scope paragraph "
-        "keeps third-party material under its own licence. This repo commits only derived numbers",
+        # v1.503 (row DOC44e): `pinned at`, `one file`, `as its LICENSE file states,` and the scope-paragraph
+        # clause are shed, each stated in RESULTS.md `## Source and licence`.
+        f"- Dataset: [NPULH/LLMRouterBench](https://huggingface.co/datasets/NPULH/LLMRouterBench), "
+        f"revision [`{cv.REVISION[:7]}`](https://huggingface.co/datasets/NPULH/LLMRouterBench/tree/"
+        f"{cv.REVISION}), `{cv.FILE}` of {cv.SIZE:,} bytes",
+        f"- Licence: MIT, with the line \"{COPYRIGHT}\". This repo commits only derived numbers",
         f"- Full results, with all {models} single models: [RESULTS.md](evidence/llmrouterbench/RESULTS.md) "
         f"and [results.json](evidence/llmrouterbench/results.json); source and pool: {EVIDENCE_LINK}"]
 
@@ -605,15 +613,20 @@ def test_readme_llmrouterbench_counts_and_tables_are_the_committed_results(cv):
 
 
 # v1.446 (row DOC28c): the link line names the dropped `cost_effective` bullet and the dropped limit.
-LINK_LINE = ("The `cost_effective` reading, in-sample gain, bar violations, half scores, dropped benchmarks and "
-             "the models' date and costs are in [RESULTS.md](evidence/llmrouterbench/RESULTS.md#reading-it) "
-             "`## Reading it`.")
+# v1.503 (row DOC44e): it names the `cost_blind` reading too, the last bullet the subsection held.
+LINK_LINE = ("The `cost_effective` and `cost_blind` readings, the in-sample gain, bar violations, half scores, "
+             "dropped benchmarks and the models' date and costs are in "
+             "[RESULTS.md](evidence/llmrouterbench/RESULTS.md#reading-it) `## Reading it`.")
 DROPPED_SOURCE_CLAUSES = [" as a stream, with nothing extracted to disk",
                           ", such as the benchmarks' own questions,",
                           # v1.446 (row DOC28c): each with the file line that still states it.
                           " on Hugging Face", "checked by size and sha256", "commits no part of the dataset",
                           "split in half per seed", "routed rows that beat each", "the kept and dropped benchmarks",
-                          "\nLimits:\n"]
+                          "\nLimits:\n",
+                          # v1.503 (row DOC44e): its source words and the `Reading it:` line of its last bullet.
+                          "pinned at revision", "one file `bench-release.tar.gz`", "as its LICENSE file states",
+                          "scope paragraph", " API models", " from 2025", " in both flavors",
+                          "A success is a score of 1", "\nReading it:\n"]
 
 
 def test_readme_llmrouterbench_reading_and_limits_are_results_md_lines():
@@ -622,35 +635,30 @@ def test_readme_llmrouterbench_reading_and_limits_are_results_md_lines():
     # the other seven, and their phrases, are in RESULTS.md alone.
     section = readme_subsection()
     reading, limits = results_md_bullets()
-    kept, dropped = [reading[1]], [reading[0]] + reading[2:] + limits
-    block = f"Reading it:\n\n{to_readme(kept[0])}\n\n{LINK_LINE}\n\n"
-    assert section.count(block) == 1
-    for bullet in dropped:
+    assert section.count(f"\n{LINK_LINE}\n") == 1 and "Reading it:" not in section
+    for bullet in reading + limits:  # v1.503: every one of the eight is in RESULTS.md alone
         assert bullet[2:] not in section and to_readme(bullet)[2:] not in section, bullet
     phrases = [p for p in reading_phrases(committed()) if not p.startswith("the committed file,")]
     assert len(phrases) == len(reading_phrases(committed())) - 1
-    shown = [p for p in phrases if p in kept[0]]
-    assert len(shown) == 3, shown  # the `cost_blind` bullet's; 7 with the `cost_effective` one (v1.359)
-    for phrase in phrases:
-        assert (to_readme(phrase) in section) == (phrase in shown), phrase
+    for phrase in phrases:  # v1.503: the three of the `cost_blind` bullet are gone from the subsection too
+        assert to_readme(phrase) not in section, phrase
     assert HALF_SCORES not in section and "per benchmark, not per prompt" not in section
     assert "](README.md)" not in section and "](results.json)" not in section and "../" not in section
 
 
-def test_readme_llmrouterbench_keeps_one_bullet_and_a_link_line(cv):
+def test_readme_llmrouterbench_keeps_no_reading_bullet_and_a_link_line(cv):
     """v1.359 (12.19 v1.358) kept the first two Reading it bullets and the seventh RESULTS.md bullet;
-    v1.446 (row DOC28c): after its four source bullets the subsection's only bullet is the second Reading
-    it one, after both tables, then the link line and the regenerate paragraph; the link line's anchor is
-    the RESULTS.md `## Reading it` heading, since that file has no `## Caveats` or `## Assumed`; the source
-    clauses it drops are in the files that state them."""
+    v1.446 (row DOC28c) kept the second Reading it one alone; v1.503 (row DOC44e): its four source bullets
+    are its only bullets, and the link line follows the baselines table, before the regenerate paragraph;
+    the link line's anchor is the RESULTS.md `## Reading it` heading, since that file has no `## Caveats` or
+    `## Assumed`; the source clauses it drops are in the files that state them."""
     section = readme_subsection()
-    reading, limits = results_md_bullets()
     bullets = [line for line in section.splitlines() if line.startswith("- ")]
-    assert len(bullets) == 5
-    assert bullets[4:] == [to_readme(reading[1])]
+    assert len(bullets) == 4 and bullets == readme_source_lines(cv, committed())[:2] + [
+        readme_counts(committed()), readme_source_lines(cv, committed())[2]]
     assert section.count(f"\n{LINK_LINE}\n\n{REGENERATE_LINE}\n\n```bash\n") == 1
     last_row = "| Cheapest model on the calibration half, per task |"
-    assert section.count(last_row) == 1 and section.index(last_row) < section.index("\nReading it:\n")
+    assert section.count(last_row) == 1 and section.index(last_row) < section.index(f"\n{LINK_LINE}\n")
     text = results_md()
     assert text.count("\n## Reading it\n") == 1
     assert "\n## Caveats\n" not in text and "\n## Assumed\n" not in text
@@ -660,6 +668,13 @@ def test_readme_llmrouterbench_keeps_one_bullet_and_a_link_line(cv):
     source = text.split("\n## Source and licence\n", 1)[1].split("\n## ", 1)[0]
     assert "The benchmarks' own questions are such third-party material" in source
     # v1.446 (row DOC28c): where each fact of a dropped source clause is still stated.
+    # v1.503 (row DOC44e): the same for its clauses, in this file's opening and `## Source and licence`.
+    assert "pinned revision [`" in text and "one file `bench-release.tar.gz`" in text
+    assert "as the dataset's LICENSE file states" in text
+    assert ("Third-party datasets, code, and other incorporated materials retain their original licenses."
+            in text)
+    assert "13 API models from 2025" in text and "The 13 models date from 2025" in text
+    assert "a success when the record's score is 1 and the record's own `cost` as the cost of the call" in text
     assert "checks it against its pinned size and sha256" in text
     assert "split in half by a seeded hash" in text
     assert "Routed rows beat these single models on both counts: " in text
