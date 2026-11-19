@@ -41,8 +41,6 @@ MODELS = [OPUS, LUNA, SOL, SOL61]
 STRATEGIES = ["routed", "oracle", "best_on_calibration", "cheapest"]
 TASK, ITEMS = "issue_resolution", 194
 RATES = ("cleared_rate", "bar_violation_rate", "below_bar_rate")
-pending = pytest.mark.xfail(strict=True, raises=FileNotFoundError,
-                            reason="evidence/longtail-swe/results.json lands in v1.482")
 
 
 def load(name, path):
@@ -107,21 +105,18 @@ def test_design_specifies_the_results_file_and_its_bars():
 
 # --- the committed file -----------------------------------------------------------------------
 
-@pending
 def test_committed_results_are_small_and_reduced(rs):
     assert RESULTS.stat().st_size < 300_000
     text = RESULTS.read_text(encoding="utf-8")
     assert text == json.dumps(rs.reduce(json.loads(text)), indent=2) + "\n"
 
 
-@pending
 def test_committed_results_have_the_config_task_and_models():
     results = committed()
     assert results["config"] == CONFIG
     assert results["tasks"] == {TASK: {"items": ITEMS, "models": MODELS}}
 
 
-@pending
 def test_committed_results_rows_are_unique_routed_and_costed():
     results = committed()
     keys = [(r["bar"], r["flavor"], r["strategy"]) for r in results["summary"]]
@@ -138,7 +133,6 @@ def test_committed_results_rows_are_unique_routed_and_costed():
     assert all(r["cost_usd"] > 0 for r in results["summary"] + results["per_task"])
 
 
-@pending
 def test_committed_cost_blind_is_one_row_above_best_on_calibration():
     results = committed()
     blind = [summary_row(results, bar, "cost_blind", "routed") for bar in BARS]
@@ -150,7 +144,6 @@ def test_committed_cost_blind_is_one_row_above_best_on_calibration():
             f"12.24's it is not `best_on_calibration`'s ({boc:.3f})") in body()
 
 
-@pending
 def test_design_bars_bullet_is_the_committed_file():
     results = committed()
     ce = {bar: summary_row(results, bar, "cost_effective", "routed") for bar in BARS}
@@ -161,7 +154,6 @@ def test_design_bars_bullet_is_the_committed_file():
     assert phrase in body()
 
 
-@pending
 def test_design_halves_bullet_rates_are_the_committed_file():
     results = committed()
     at = {(bar, flavor): summary_row(results, bar, flavor, "routed") for bar in (0.7, 0.8) for flavor in FLAVORS}
@@ -219,7 +211,6 @@ def calibration_counts(rows, seed):
     return counts, len(half)
 
 
-@pending
 def test_real_results_regenerate_byte_identical(rs, real_result):
     reduced = rs.reduce({k: v for k, v in real_result.items() if k != "cells"})
     assert json.dumps(reduced, indent=2) + "\n" == RESULTS.read_text(encoding="utf-8")
