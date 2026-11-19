@@ -349,7 +349,6 @@ SECTIONS = ["## Source and licence", "## Results", "## Reading it", "## Regenera
 ROW_KEYS = ["task", "item", "model", "correct", "cost_usd"]
 NOT_KEPT = "no prompt, message, tool call, patch or token count"
 HOME = re.compile(r"(?m)(^|[\s(])/(Users|home)/")
-XFAIL_MD = pytest.mark.xfail(strict=True, raises=FileNotFoundError)
 
 
 def results_md():
@@ -609,13 +608,11 @@ def language_table():
     return "\n".join(rows) + "\n"
 
 
-@XFAIL_MD
 def test_results_md_shows_the_table_of_the_committed_results(rs):
     block = "```text\n" + TABLE_COMMAND + "\n" + rs.table(committed()) + "\n```\n"
     assert block in results_md()
 
 
-@XFAIL_MD
 def test_results_md_source_and_licence_strings():
     full = results_md()
     text = section(full, "## Source and licence")
@@ -633,7 +630,6 @@ def test_results_md_source_and_licence_strings():
     assert not HOME.search(full)
 
 
-@XFAIL_MD
 def test_results_md_opening_results_reading_and_regenerate_are_built(rs):
     text, results = results_md(), committed()
     cv = load("longtail_swe_convert_for_sections", FOLDER / "convert.py")
@@ -645,13 +641,11 @@ def test_results_md_opening_results_reading_and_regenerate_are_built(rs):
     assert section(text, "## Regenerate") == regenerate_section(cv)
 
 
-@XFAIL_MD
 def test_results_md_sections_in_order():
     heads = [line for line in results_md().split("\n") if line.startswith("## ")]
     assert heads == SECTIONS
 
 
-@XFAIL_MD
 def test_evidence_readme_states_the_source_models_languages_and_row_keys():
     text = evidence_readme()
     assert "(RESULTS.md)" in text and "(results.json)" in text
