@@ -2,7 +2,8 @@
 
 The converter is a script outside the package (``evidence/longtail-swe/convert.py``), standard library only but
 for ``pyarrow``, which only ``read_rows`` imports, so it is loaded from its path by an autouse fixture. Every test
-uses small synthetic rows or files in a temporary folder, except one CLI run on the four pinned files, which runs
+uses small synthetic rows, files in a temporary folder or committed files, except one CLI run on the four pinned
+files, which runs
 only when ``pyarrow`` is installed and all four are in the default cache, and skips otherwise (CI never downloads
 them).
 """
@@ -384,7 +385,8 @@ def test_convert_refusals(cv):
         ("run must be an int >= 0", recs, True),
         ("run must be an int >= 0", recs, "0"),
         ("repeated run", recs + [dict(recs[0])], 0),
-        ("item language differs", recs[:1] + [dict(recs[1], item=recs[0]["item"], language="Dart", run=1)] + recs[2:], 0),
+        # review iter-342 should-fix 2: one fault per case, a fresh run of one item in another language
+        ("item language differs", recs + [dict(recs[0], language="Dart", run=2)], 0),
         ("incomplete item", [r for r in recs if (r["item"], r["model"], r["run"]) != ("b__y-2", LUNA, 0)], 0),
     ]
     for opening, given, run in cases:
@@ -400,9 +402,19 @@ def test_convert_incomplete_item_names_the_item_and_a_model(cv):
     assert "b__y-2" in str(exc.value) and LUNA in str(exc.value)
 
 
-def test_convert_a_run_no_record_has_is_incomplete_or_empty(cv):
-    with pytest.raises(ValueError):
+def test_convert_a_run_no_record_has_is_an_incomplete_item(cv):
+    # review iter-342 should-fix 3: the items are every item any record names, at any run
+    with pytest.raises(ValueError) as exc:
         cv.convert(sample(cv), run=5)
+    assert str(exc.value).startswith("incomplete item")
+
+
+def test_convert_every_item_dropped_is_no_items(cv):
+    recs = [dict(r, statement_matches=False) if r["run"] == 0 and r["model"] == LUNA else r for r in sample(cv)]
+    with pytest.raises(ValueError) as exc:
+        cv.convert(recs)
+    assert str(exc.value).startswith("no items")
+    assert cv.convert(recs, run=1)[1]["tasks"] == {TASK: {"items": 3}}
 
 
 # verify, fetch and read_rows
@@ -467,6 +479,32 @@ def test_fetch_retries_then_fails_and_removes_part(cv, tmp_path, monkeypatch):
         cv.fetch(tmp_path)
     assert len(calls) == cv.ATTEMPTS == 3
     assert not list(tmp_path.rglob("*.part"))
+
+
+def test_fetch_bad_present_file_left_in_place(cv, tmp_path, monkeypatch):
+    # review iter-342 should-fix 5: `fetch` as 12.20, a present file that fails `verify` refused and kept
+    _pin(monkeypatch, cv, FAKE)
+    name = sorted(FAKE)[0]
+    bad = _write(tmp_path / name, b"changed")
+    monkeypatch.setattr(cv.urllib.request, "urlopen", lambda *a, **k: pytest.fail("downloaded"))
+    with pytest.raises(ValueError):
+        cv.fetch(tmp_path)
+    assert bad.read_bytes() == b"changed"
+
+
+def test_fetch_wrong_download_removed_and_not_retried(cv, tmp_path, monkeypatch):
+    _pin(monkeypatch, cv, FAKE)
+    calls = []
+
+    def opener(u, timeout):
+        calls.append(u)
+        return contextlib.closing(io.BytesIO(b"x"))
+
+    monkeypatch.setattr(cv.urllib.request, "urlopen", opener)
+    with pytest.raises(ValueError):
+        cv.fetch(tmp_path)
+    assert calls == [cv.url(sorted(FAKE)[0])]
+    assert not list(tmp_path.rglob("*.part")) and not (tmp_path / sorted(FAKE)[0]).exists()
 
 
 def test_read_rows_without_pyarrow_says_to_install_the_extra(cv, tmp_path, monkeypatch):
