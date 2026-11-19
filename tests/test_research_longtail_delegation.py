@@ -154,6 +154,63 @@ def test_prose_numbers_are_in_the_block():
     assert not missing, missing
 
 
+SPREAD = r"median ([\d,]+), 10th to 90th percentile ([\d,]+) to ([\d,]+)"
+MODEL_ROW = re.compile(r"^(\S+/\S+) +([\d,]+) +(\d+) of (\d+) +([\d,]+) +(\d+) +([\d,]+)$", re.M)
+
+
+def keyed(block):
+    """The block's statistics keyed by what they describe (review iter-352 should-fix 1)."""
+    def spread(label):
+        found = re.findall(re.escape(label) + ": " + SPREAD, block)
+        assert len(found) == 1, label
+        return found[0]
+    rows = {m: dict(zip(("window", "over", "rows", "input", "calls", "per_call"), rest))
+            for m, *rest in MODEL_ROW.findall(block)}
+    empty = re.findall(r"model_patch: " + SPREAD + r"; (\d+) empty", block)
+    assert len(rows) == 4 and len(empty) == 1
+    return {"brief": spread("brief, the run's user prompt"), "result": spread("result, the run's model_patch"),
+            "input": spread("run input tokens"), "output": spread("run output tokens"),
+            "calls": spread("model calls a run"), "empty": empty[0][3], "models": rows,
+            "events": re.findall(r"all ([\d,]+) runs of the four files: (\d+)", block)[0]}
+
+
+def test_reading_numbers_describe_their_rows():
+    text = note()
+    k = keyed(results_block(text))
+    short = next(line for line in text.split("\n") if line.startswith("- Short answer: "))
+    reading = section(text, "Reading it")
+    overs = sorted(int(r["over"]) for r in k["models"].values())
+    rows = {r["rows"] for r in k["models"].values()}
+    assert len(rows) == 1
+    per_call = sorted((int(r["per_call"].replace(",", "")) for r in k["models"].values()))
+    for phrase in (f"model calls (median {k['calls'][0]})", f"on {overs[0]} to {overs[-1]} of each model's {rows.pop()} rows",
+                   f"({k['events'][1]} usage or tokens keys on its events)",
+                   f"a median {k['brief'][0]} and {k['result'][0]} tokens"):
+        assert phrase in short, phrase
+    for phrase in (f"the user prompt is a median {k['brief'][0]} tokens (10th to 90th percentile {k['brief'][1]} to "
+                   f"{k['brief'][2]})", f"the patch a median {k['result'][0]} ({k['result'][1]} to {k['result'][2]}), with "
+                   f"{k['empty']} empty patch", f"a median {k['calls'][0]} model calls ({k['calls'][1]} to {k['calls'][2]})",
+                   f"input total a median {k['input'][0]} tokens ({k['input'][1]} to {k['input'][2]})",
+                   f"against a median {k['output'][0]} output tokens", f"like the {k['input'][0]} above",
+                   f"a median of {per_call[0]:,} to {per_call[-1]:,} tokens by model",
+                   f"{k['events'][1]} of the events, or of their messages, carry a usage or tokens key, over all "
+                   f"{k['events'][0]} runs"):
+        assert phrase in reading, phrase
+    for model, r in k["models"].items():
+        assert f"{r['over']} (`{model}`)" in reading, model
+    windows = sorted({r["window"] for r in k["models"].values()})
+    assert f"context window, {' or '.join(windows)} tokens" in reading
+
+
+def test_keyed_reading_fails_on_swapped_counts():
+    text = note()
+    swapped = text.replace("154 (`anthropic/claude-opus-5.5`)", "@@").replace("111 (`openai/gpt-6.1-sol`)", "154 (`openai/gpt-6.1-sol`)").replace("@@", "111 (`anthropic/claude-opus-5.5`)")
+    assert swapped != text
+    k = keyed(results_block(swapped))
+    reading = section(swapped, "Reading it")
+    assert any(f"{r['over']} (`{m}`)" not in reading for m, r in k["models"].items())
+
+
 def test_bad_option_exits_2_with_one_error_line(capsys):
     assert load().main(["--bogus"]) == 2
     err = capsys.readouterr().err.strip().split("\n")
