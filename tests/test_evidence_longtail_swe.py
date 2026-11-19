@@ -627,11 +627,12 @@ def test_cli_bad_out_downloads_nothing(cv, tmp_path, monkeypatch, capsys, make):
     assert code == 2 and stdout == "" and err.startswith("error: --out")
 
 
-@pytest.mark.parametrize("value", ["-1", "x", "1.5", ""])
+# v1.486 (review iter-343 nit 2): `int` would take "+1", " 1", "1 ", "1\n" and the Arabic-Indic three; ASCII digits only
+@pytest.mark.parametrize("value", ["-1", "x", "1.5", "", "+1", " 1", "1 ", "\u0663", "\u00b2", "1\n"])
 def test_cli_bad_run_downloads_nothing(cv, tmp_path, monkeypatch, capsys, value):
     monkeypatch.setattr(cv, "fetch", lambda cache_dir=None: pytest.fail("fetched"))
     code, stdout, err = _run(cv, ["--out", str(tmp_path / "o.jsonl"), "--run", value], capsys)
-    assert code == 2 and stdout == "" and err.startswith("error: ")
+    assert code == 2 and stdout == "" and err.startswith("error: --run must be ") and err.count("\n") == 1
 
 
 def test_cli_needs_out(cv, monkeypatch, capsys):
