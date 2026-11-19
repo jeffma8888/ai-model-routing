@@ -339,6 +339,8 @@ LEGAL_TEXT = (
 # v1.492 (row E26j, review iter-345 nit 5): the third paragraph of LEGAL.md section 3, joined onto one line,
 # names evaluation use and holds two em dashes, so RESULTS.md paraphrases it in a bullet of its own after the
 # three quotes instead of quoting it; the test keeps the paragraph only to check the paraphrase is not a copy.
+# The paraphrase keeps the duty only (v1.493, review iter-349 nit 2): it leaves out `solely responsible` and
+# the closing sentence, advice to seek one's own legal counsel.
 LEGAL_S3_P3 = (
     "Before using this dataset \u2014 particularly for training, fine-tuning, evaluation, or redistribution "
     "\u2014 users are solely responsible for reviewing and complying with the applicable terms of every model "
@@ -347,7 +349,7 @@ LEGAL_S3_P3 = (
 LEGAL_PARAPHRASE = (
     "- LEGAL.md's section 3 also asks (paraphrased, not quoted) that anyone using the dataset, above all to "
     "train, fine-tune, evaluate or redistribute, first check and follow the terms of each model or tool whose "
-    "output it may hold")
+    "output the dataset may hold")
 SHARED_RUN = 4  # the paraphrase may share no run of this many words or more with LEGAL_S3_P3
 CC_BY = "https://creativecommons.org/licenses/by/4.0/"
 PAPER = ("Longtail-SWE: High-Quality SWE Tasks for Underrepresented Languages",
@@ -677,7 +679,14 @@ def test_results_md_paraphrases_legal_section_3_evaluation_use():
     for use in ("train", "fine-tune", "evaluate", "redistribute"):
         assert use in _words(LEGAL_PARAPHRASE), use
     assert _longest_shared_run(_words(LEGAL_PARAPHRASE), _words(LEGAL_S3_P3)) < SHARED_RUN
+
+
+def test_longest_shared_run_counts_consecutive_words():
+    """v1.493 (review iter-349 nit 3): the helper alone, so its failure is not read as a RESULTS.md one."""
     assert _longest_shared_run(_words("a b c d e"), _words("x b c d y")) == 3
+    assert _longest_shared_run(_words("a b a b"), _words("b a b a")) == 3
+    assert _longest_shared_run(_words("a b"), _words("c d")) == 0
+    assert _longest_shared_run([], _words("a")) == 0
 
 
 def test_results_md_opening_results_reading_and_regenerate_are_built(rs):
