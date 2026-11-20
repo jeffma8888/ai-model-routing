@@ -87,7 +87,7 @@ def table(results: dict) -> str:
     return "\n".join(lines)
 
 
-def _slice_rows(slice_summary, blocks) -> list:
+def _slice_rows(slice_summary, blocks) -> list[list[str]]:
     """v1.521: per (bar, flavor) in config order, its slice_summary rows in their order."""
     rows = []
     for bar, flavor in blocks:

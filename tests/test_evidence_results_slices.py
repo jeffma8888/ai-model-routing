@@ -123,7 +123,7 @@ def test_reduce_keeps_the_slice_keys_after_per_task(rs):
 def test_reduce_names_the_missing_slice_key(rs, present, missing):
     result = hand()
     result.pop(missing)
-    with pytest.raises(ValueError, match=missing):
+    with pytest.raises(ValueError, match=f"no {missing!r}"):
         rs.reduce(result)
     assert present in result
 
