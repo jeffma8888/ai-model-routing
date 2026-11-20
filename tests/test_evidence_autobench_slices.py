@@ -34,8 +34,6 @@ SLICES = {"difficulty": {"1-very-simple": 48, "2-simple": 50, "3-unmarked": 42, 
                     "world_knowledge": 91}}
 HEADINGS = ["Results", "Next to the dataset's headline", "Reading it", "Sensitivity", "Slices", "Caveats",
             "Regenerate"]
-missing = pytest.mark.xfail(strict=True, raises=FileNotFoundError,
-                            reason="v1.524 commits the four slice files")
 
 
 def path(name):
@@ -180,7 +178,6 @@ def test_design_12_27_specifies_the_slice_files():
 
 # --- the committed files ----------------------------------------------------------------------
 
-@missing
 @pytest.mark.parametrize("name", list(FILES))
 def test_each_slice_file_is_small_reduced_and_pinned(rs, name):
     field, min_samples = FILES[name]
@@ -207,7 +204,6 @@ def test_each_slice_file_is_small_reduced_and_pinned(rs, name):
 
 # --- the RESULTS.md section -------------------------------------------------------------------
 
-@missing
 def test_results_md_slices_section_sits_in_place_and_shows_the_tables(rs):
     files = {name: load(name) for name in FILES}
     text = RESULTS_MD.read_text(encoding="utf-8")
@@ -226,7 +222,6 @@ def test_results_md_slices_section_sits_in_place_and_shows_the_tables(rs):
     assert body.index("\nReading it:\n") < body.index(regenerate_block())
 
 
-@missing
 def test_results_md_slices_numbers_are_the_files():
     files = {name: load(name) for name in FILES}
     results = json.loads(RESULTS.read_text(encoding="utf-8"))
@@ -250,7 +245,6 @@ def labelled_rows():
     return rows
 
 
-@missing
 @pytest.mark.parametrize("name", list(FILES))
 def test_real_slice_files_regenerate_byte_identical(rs, labelled_rows, name):
     field, min_samples = FILES[name]
