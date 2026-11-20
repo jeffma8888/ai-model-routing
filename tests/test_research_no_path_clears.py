@@ -21,6 +21,7 @@ is not, and a stand-in whose arguments differ makes the call.
 """
 
 import contextlib
+import dataclasses
 import importlib.util
 import io
 import json
@@ -236,19 +237,20 @@ def lrb():
     return _load("t22_llmrouterbench_delegation_results", LRB_SCRIPT)
 
 
-def _sharing(lrb, kept, full):
+def _sharing(lrb, kept, full, call=evaluate_delegation):
     """A stand-in for the `evaluate_delegation` that the script's `main` and `rerun_selected` call: it answers
     with `full` when the call's rows, registry, bars, points and seeds are those tests/conftest.py
     `llmrouterbench_delegation_full` passes (`kept`, the models of the 13.13 registry.json, the 13.13 script's
-    `BARS`, `points()` and `range(SEEDS)`), and otherwise makes the call; the list records, per call, whether
-    `full` answered it (tests/test_research_reread_sensitivity.py's `_sharing`, v1.439, does the same)."""
+    `BARS`, `points()` and `range(SEEDS)`), and otherwise makes the call (`call`, a test's recorder in the hand
+    test); the list records, per call, whether `full` answered it (tests/test_research_reread_sensitivity.py's
+    `_sharing`, v1.439, does the same)."""
     session = (kept, Registry.load(LRB_REGISTRY).models,
                dict(bars=list(lrb.BARS), points=lrb.points(), seeds=range(lrb.SEEDS)))
     answered = []
 
     def shared(rows, registry, **kwargs):
         answered.append((rows, registry.models, kwargs) == session)
-        return full if answered[-1] else evaluate_delegation(rows, registry, **kwargs)
+        return full if answered[-1] else call(rows, registry, **kwargs)
 
     return shared, answered
 
@@ -256,7 +258,8 @@ def _sharing(lrb, kept, full):
 def test_a_shared_run_answers_only_the_session_call_and_is_still_checked(npc, lrb, tmp_path, monkeypatch):
     """On a hand matrix of the 13.13 models, `rerun_selected` takes a shared run whose config, tasks and summary
     are the committed file's as its own, refuses one whose summary is not, and a call whose arguments are not
-    the session's is made."""
+    the session's is made, whichever one of its rows, registry models, bars, points or seeds differs (review
+    iter-368 should-fix 1)."""
     models = [m.id for m in Registry.load(LRB_REGISTRY).models]
     rows = [{"task": "t", "item": f"q{i}", "model": m, "correct": (i + k) % 3 != 0, "input_tokens": 100 + i,
              "output_tokens": 50 + k} for i in range(6) for k, m in enumerate(models)]
@@ -281,6 +284,24 @@ def test_a_shared_run_answers_only_the_session_call_and_is_still_checked(npc, lr
     grid = dict(bars=[0.8], points=[POINT], seeds=range(2))
     assert shared(tiny(), reg, **grid) == evaluate_delegation(tiny(), reg, **grid)
     assert answered == [False]
+    # one argument at a time, every other one the session's: only the session's own call is answered
+    pool = Registry.load(LRB_REGISTRY)
+    first, *rest = pool.models
+    session = dict(rows=kept, registry=pool, bars=list(lrb.BARS), points=lrb.points(), seeds=range(lrb.SEEDS))
+    changed = {"rows": [dict(kept[0], correct=not kept[0]["correct"])] + kept[1:],
+               "registry": Registry([dataclasses.replace(first, price_in=first.price_in * 2), *rest]),
+               "bars": list(lrb.BARS)[:-1], "points": lrb.points()[:-1], "seeds": range(lrb.SEEDS - 1)}
+    made = []
+    shared, answered = _sharing(lrb, kept, "the session run",
+                                call=lambda rows, registry, **kwargs: made.append(kwargs) or "made")
+    args = dict(session, registry=Registry.load(LRB_REGISTRY))
+    assert shared(args.pop("rows"), args.pop("registry"), **args) == "the session run"
+    for key, value in changed.items():
+        args = dict(session, **{key: value})
+        assert args[key] != session[key] or key == "registry"
+        assert shared(args.pop("rows"), args.pop("registry"), **args) == "made", key
+    assert answered == [True] + [False] * 5 and len(made) == 5
+    assert changed["registry"].models != pool.models
 
 
 def test_script_is_standard_library_and_model_routing(npc):
