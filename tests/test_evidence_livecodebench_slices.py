@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pytest
 
-from model_routing import evaluate, outcomes_from_rows, split_items
+from model_routing import evaluate, outcomes_from_rows, split_items, wilson_lower_bound
 from test_evidence_livecodebench_results import BARS, CONFIG, ITEMS, TASK, load, model_ids
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -37,7 +37,6 @@ COMMANDS = [
     " --out evidence/livecodebench/slices-difficulty.json",
 ]
 OPENING = "The committed numbers but those of `## Slices` are in [results.json](results.json)."
-RED = pytest.mark.xfail(strict=True, raises=FileNotFoundError, reason="v1.529 commits the file")
 
 
 @pytest.fixture()
@@ -174,7 +173,6 @@ def test_design_12_28_specifies_the_slice_file():
 
 # --- the committed file -----------------------------------------------------------------------
 
-@RED
 def test_the_slice_file_is_small_reduced_and_pinned(rs, cv):
     assert FILE.stat().st_size < 300_000
     text = FILE.read_text(encoding="utf-8")
@@ -203,7 +201,6 @@ def test_the_slice_file_is_small_reduced_and_pinned(rs, cv):
 
 # --- the RESULTS.md section -------------------------------------------------------------------
 
-@RED
 def test_results_md_slices_section_sits_in_place_and_shows_the_table(rs):
     results = committed()
     text = RESULTS_MD.read_text(encoding="utf-8")
@@ -220,7 +217,6 @@ def test_results_md_slices_section_sits_in_place_and_shows_the_table(rs):
     assert text.isascii()
 
 
-@RED
 def test_results_md_slices_numbers_are_the_file():
     results = committed()
     body = section()
@@ -229,7 +225,6 @@ def test_results_md_slices_numbers_are_the_file():
     assert "Read these rates as resampling estimates for this pool, never as a guarantee (DESIGN 12.3)" in body
 
 
-@RED
 def test_file_phrases_follow_the_file():
     fake = json.loads(json.dumps(committed()))
     for r in fake["slice_summary"]:
@@ -258,7 +253,6 @@ def labelled(cv):
     return rows
 
 
-@RED
 def test_real_slice_file_regenerates_byte_identical(rs, labelled):
     result = evaluate(outcomes_from_rows(labelled, slice_by="difficulty"), bars=BARS, seeds=range(50),
                       flavors=("cost_blind",))
@@ -266,9 +260,24 @@ def test_real_slice_file_regenerates_byte_identical(rs, labelled):
     assert json.dumps(rs.reduce(result), indent=2) + "\n" == FILE.read_text(encoding="utf-8")
 
 
-@RED
 def test_real_pinned_numbers_are_in_the_section(labelled):
     committed()
     body = section()
     for phrase in pinned_phrases(labelled):
         assert phrase in body, phrase
+
+
+def test_real_hard_slice_best_rate_clears_0_7_on_no_calibration_half(labelled):
+    """Bullet (4), v1.529: a rate of at most the best `3-hard` rate has a Wilson lower bound under 0.7 on
+    every `3-hard` calibration half, so a `3-hard` route clears 0.7 only on a half above that rate."""
+    committed()
+    level = {r["item"]: r["difficulty"] for r in labelled}
+    hits = Counter(r["model"] for r in labelled if r["difficulty"] == "3-hard" and r["correct"])
+    best = max(hits.values()) / SLICES["3-hard"]
+    items = sorted(level)
+    sizes = {sum(1 for i in split_items(items, seed)[0] if level[i] == "3-hard") for seed in range(50)}
+    for n in sizes:
+        k = max(j for j in range(n + 1) if j / n <= best)
+        assert wilson_lower_bound(k, n, 0.95) < 0.7, n
+    assert ("a rate of at most 0.776 has a 95% Wilson lower bound (DESIGN 5.3) under 0.7 on any `3-hard` "
+            "calibration half") in section()

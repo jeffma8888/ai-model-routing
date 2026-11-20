@@ -1,6 +1,6 @@
 # LiveCodeBench results
 
-What `model-routing evaluate` measures on the public LiveCodeBench submissions: 67 models from 2023 to 2025 on 713 dated contest problems (2023-05-07 to 2024-10-05), one routing task, `code_generation`, with a success label from each problem's own test cases (`graded_list[0]`, the model's first sample passing them) and no cost. See [README.md](README.md) for what the converter reads and keeps, and DESIGN 12.17 for this file's contract. For each of 50 seeds the 713 problems are split in half by a seeded hash; the router calibrates on one half at a bar and is scored on the other half, next to the oracle, the best model on the calibration half, the `cheapest` baseline and each of the 67 models alone. The committed numbers are in [results.json](results.json).
+What `model-routing evaluate` measures on the public LiveCodeBench submissions: 67 models from 2023 to 2025 on 713 dated contest problems (2023-05-07 to 2024-10-05), one routing task, `code_generation`, with a success label from each problem's own test cases (`graded_list[0]`, the model's first sample passing them) and no cost. See [README.md](README.md) for what the converter reads and keeps, and DESIGN 12.17 for this file's contract. For each of 50 seeds the 713 problems are split in half by a seeded hash; the router calibrates on one half at a bar and is scored on the other half, next to the oracle, the best model on the calibration half, the `cheapest` baseline and each of the 67 models alone. The committed numbers but those of `## Slices` are in [results.json](results.json).
 
 This is `cost_blind` evidence only. The submissions record no cost, no token counts and no list price, so every row of the matrix has `cost_usd` 0.0, which is what `cost_blind` assumes of every model's token cost (DESIGN 12.16). `cost_effective` is not run: with every cost 0 its routing sorts reduce to `cost_blind`'s (DESIGN 5.3), so its rows would only repeat the `cost_blind` rows.
 
@@ -121,6 +121,55 @@ With every cost 0, the `cheapest` baseline is the model with the lowest ID, `age
 - With no cost, this matrix says which model clears a bar, never what it costs
 - Routing here is one task, so the router picks one model for all 713 problems, and those are the problems every one of the 67 kept files holds (DESIGN 12.16)
 - Size: the committed file, 175,413 bytes, holds only the summary and the routed per-task rows (DESIGN 12.7)
+
+## Slices
+
+Each problem object of the pinned files gives a difficulty, `easy`, `medium` or `hard`, and `convert.py --labels` writes it on every row as `1-easy`, `2-medium` or `3-hard` (see [README.md](README.md#problem-difficulty-for-the-slice-evidence)). `model-routing evaluate --slice-by difficulty` then scores each level as a slice of the one task (DESIGN 12.3). In the slices table, `pooled` is the task's own route, the routed rows above, scored on each slice's held-out problems, and `sliced` is a route calibrated on each slice's own calibration problems alone and scored on its held-out ones. The file behind every number in this section, but those the bullets below say come from the pinned files, is [slices-difficulty.json](slices-difficulty.json), `cost_blind` only and at the default `min_samples = 30`, as results.json; its summary and routed per-task rows are those of results.json.
+
+Problems per slice, of the 713: 238 `1-easy`, 279 `2-medium` and 196 `3-hard`.
+
+A rate in the slices table counts (slice, seed) pairs: `below_bar_rate` is the share whose held-out success fell below the bar, `cleared_rate` the share that cleared the bar on the calibration half, and `bar_violation_rate` the share of cleared ones whose held-out success fell below it. `slice_miss_rate` counts seeds: of those on which the route cleared (for `sliced`, on every slice) and met the bar on all the held-out problems, the share on which some slice fell below it.
+
+From `python evidence/routerbench/results.py --table evidence/livecodebench/slices-difficulty.json`, its third table:
+
+```text
+bar  flavor      strategy  success  cost_usd  below_bar_rate  cleared_rate  bar_violation_rate  slice_miss_rate
+---  ----------  --------  -------  --------  --------------  ------------  ------------------  ---------------
+0.1  cost_blind  pooled    0.902    0.0000    0.000           1.000         0.000               0.000
+0.1  cost_blind  sliced    0.900    0.0000    0.000           1.000         0.000               0.000
+0.2  cost_blind  pooled    0.902    0.0000    0.000           1.000         0.000               0.000
+0.2  cost_blind  sliced    0.900    0.0000    0.000           1.000         0.000               0.000
+0.3  cost_blind  pooled    0.902    0.0000    0.000           1.000         0.000               0.000
+0.3  cost_blind  sliced    0.900    0.0000    0.000           1.000         0.000               0.000
+0.4  cost_blind  pooled    0.902    0.0000    0.000           1.000         0.000               0.000
+0.4  cost_blind  sliced    0.900    0.0000    0.000           1.000         0.000               0.000
+0.5  cost_blind  pooled    0.902    0.0000    0.000           1.000         0.000               0.000
+0.5  cost_blind  sliced    0.900    0.0000    0.000           1.000         0.000               0.000
+0.6  cost_blind  pooled    0.902    0.0000    0.000           1.000         0.000               0.000
+0.6  cost_blind  sliced    0.900    0.0000    0.000           1.000         0.000               0.000
+0.7  cost_blind  pooled    0.902    0.0000    0.047           1.000         0.047               0.140
+0.7  cost_blind  sliced    0.900    0.0000    0.067           0.807         0.058               0.333
+0.8  cost_blind  pooled    0.902    0.0000    0.320           1.000         0.320               0.960
+0.8  cost_blind  sliced    0.900    0.0000    0.320           0.667         0.000               -
+0.9  cost_blind  pooled    0.902    0.0000    0.333           0.180         0.333               -
+0.9  cost_blind  sliced    0.900    0.0000    0.333           0.613         0.000               -
+```
+
+Reading it:
+
+- Slicing by difficulty buys nothing on this matrix: the sliced route's held-out success is 0.900 at every bar, against the pooled route's 0.902. In sample, on all 713 problems, the best model on each level solves 237 of 238 `1-easy`, 265 of 279 `2-medium` and 152 of 196 `3-hard` problems, 654 in all, against 651 for the best single model, `openai/o4-mini-high`, so even a perfect pick per level gains at most 3 of the 713 problems (these counts are from the pinned files)
+- The pooled route's held-out success is 0.986 on `1-easy`, 0.940 on `2-medium` and 0.748 on `3-hard`, at every bar, so the task's 0.902 hides a slice far below it. Of the seeds where the pooled route cleared and met the bar on all the held-out problems, some slice fell below it on 0.140 of them at bar 0.7 and on 0.960 at bar 0.8, and `3-hard` is the only slice whose `below_bar_rate` is above 0 there
+- The sliced route says which level a bar cannot hold: `1-easy` clears on every seed at every bar, while `3-hard` clears on 0.420 of the seeds at bar 0.7 and on none at 0.8 or 0.9, so the sliced `cleared_rate` is 0.807, 0.667 and 0.613 at bars 0.7, 0.8 and 0.9. At bar 0.9 `2-medium` clears on 0.840 of the seeds, where the pooled route clears on 0.180 of them, and no cleared `1-easy` or `2-medium` seed falls below the bar on held-out
+- Near its bar a slice's check is noisy: at bar 0.7 the sliced `3-hard` route's `bar_violation_rate` is 0.333, against the pooled route's 0.140 there, and from the pinned files the best model on `3-hard`, `openai/o4-mini-high`, solves 0.776 of its 196 problems, and a rate of at most 0.776 has a 95% Wilson lower bound (DESIGN 5.3) under 0.7 on any `3-hard` calibration half, so a `3-hard` route clears 0.7 only on a half that comes out above the slice's best rate, and that luck is paid back on the held-out half, as at bar 0.9 on the whole task (see Reading it above). Read these rates as resampling estimates for this pool, never as a guarantee (DESIGN 12.3)
+- Each slice's calibration half holds 77 to 153 problems over the 50 seeds (`3-hard` 77 to 117), never under `min_samples` 30 (from the pinned files), so no `--min-samples` sensitivity is run
+
+The file comes from these commands, after `python -m pip install -e .`; two runs give byte-identical files:
+
+```bash
+python evidence/livecodebench/convert.py --out livecodebench-labels.jsonl --labels
+model-routing evaluate --outcomes livecodebench-labels.jsonl --bar 0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 --seeds 50 --flavor cost_blind --slice-by difficulty --json > livecodebench-slices-difficulty.json
+python evidence/routerbench/results.py --evaluate livecodebench-slices-difficulty.json --out evidence/livecodebench/slices-difficulty.json
+```
 
 ## Regenerate
 
