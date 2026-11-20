@@ -39,6 +39,21 @@ COMMANDS = [
 ]
 OPENING = ("The file behind every number here but those of `## Cascades` is [results.json](results.json)")
 SINGLE = ("routed", "oracle", "best_on_calibration", "cheapest")
+RULES = [
+    "In each pair of the 4 agents the cheap one is the agent with the lower input list price in [prices.json](prices.json)",
+    "A `calls-over-N` signal hands up after call N of a cheap run that makes more than N calls, its `-no-write` form only "
+    "when none of those N calls is a write, and `transfer` at the cheap agent's call to `transfer_to_human_agents`",
+    "A row whose signal does not fire is the cheap run, its result and its recorded cost",
+    "A row handed up after call h takes the strong run's result, and its cost is the sum of the cheap run's recorded costs "
+    "of calls 1 to h, plus call h's prompt and completion tokens at the strong agent's input list price per million "
+    "tokens, the conversation so far read once more as the strong agent's uncached input, plus the strong run's recorded "
+    "cost",
+    "A row's `escalation_share` counts, over its (domain, seed) cells whose strategy names a cascade, the held-out items "
+    "handed up over those cells' held-out items, so for `routed` it is how often the cheap agent handed up an item routed "
+    "to a cascade, and `-` means that no cell named one",
+    "Each is one cascade fixed for all three domains, scored on the 50 seeds' held-out halves as a single agent is; the "
+    "file keeps no domain's row of a cascade or an agent, only the routed ones",
+]
 LIMITS = [
     "a signal measured on a benchmark may not exist in your product",
     "the strong run in the data is a fresh conversation with its own simulated user, so the replay assumes a "
@@ -139,7 +154,10 @@ def phrases(results, before):
     items = sum(t["items"] for t in results["tasks"].values())
     out = [f"{len(cascades)} cascades, so the router has {one(len(t['models']) for t in results['tasks'].values())} "
            f"candidates per domain, the {len(agents)} agents and the cascades, and the matrix gains "
-           f"{len(cascades) * items:,} rows, one per task and cascade"]
+           f"{len(cascades) * items:,} rows, one per item and cascade"]
+    sig = list(replay().SIGNALS)
+    out.append(f"each pair runs on {len(sig)} signals read from the cheap run's own calls: "
+               + ", ".join(f"`{s}`" for s in sig[:-1]) + f" and `{sig[-1]}`")
     # (1) cost_effective at each bar, against 12.15
     ce = {bar: (row(results, bar, "cost_effective", "routed"), row(before, bar, "cost_effective", "routed"))
           for bar in bars}
@@ -288,6 +306,42 @@ def test_the_section_states_the_limits_and_that_the_baselines_are_unchanged():
     for words in LIMITS + ["The `cheapest`, `best_on_calibration` and `oracle` rows and the 4 single-agent rows "
                            "are those of [results.json](results.json) at every bar and flavor"]:
         assert words in body, words
+
+
+def test_the_section_states_the_replay_rules():
+    committed()
+    body = " ".join(section().split())
+    for words in RULES:
+        assert words in body, words
+
+
+def call(cost, prompt, completion, write=False, transfer=False):
+    return {"cost_usd": cost, "prompt_tokens": prompt, "completion_tokens": completion, "write": write,
+            "transfer": transfer}
+
+
+def test_the_rules_the_section_states_are_the_replays():
+    """The paragraph's pair, hand-up and cost rules, checked on the replay itself (DESIGN 7 v1.539, v1.540)."""
+    r = replay()
+    _, prices = r.load_prices(r.PRICES)
+    assert all(prices[c.cheap] < prices[c.strong] for c in r.pair_cascades(MODELS, prices))
+    eleven = [call(0.01, 100, 10) for _ in range(11)]
+    assert r.hand_up(eleven, "calls-over-10") == 10 and r.hand_up(eleven[:10], "calls-over-10") is None
+    wrote = [call(0.01, 100, 10, write=(k == 3)) for k in range(11)]
+    assert r.hand_up(wrote, "calls-over-10-no-write") is None and r.hand_up(wrote, "calls-over-10") == 10
+    told = [call(0.01, 100, 10, transfer=(k == 4)) for k in range(6)]
+    assert r.hand_up(told, "transfer") == 5
+    cheap, strong = {"correct": True, "cost_usd": 0.3}, {"correct": False, "cost_usd": 1.5}
+    calls = [call(0.25, 1000, 100), call(0.5, 2000, 200), call(0.75, 3000, 300)]
+    assert r.cascade_cell(calls, cheap, strong, "calls-over-2", 2.0) == {
+        "correct": False, "cost_usd": 0.25 + 0.5 + (2000 + 200) * 2.0 / 1e6 + 1.5, "escalated": True}
+    assert r.cascade_cell(calls, cheap, strong, "calls-over-3", 2.0) == {
+        "correct": True, "cost_usd": 0.3, "escalated": False}
+
+
+def test_a_routed_escalation_share_is_none_exactly_when_no_seed_routes_to_a_cascade():
+    for r in committed()["per_task"]:
+        assert (r["escalation_share"] is None) == (to_cascade([r]) == 0), (r["bar"], r["flavor"], r["task"])
 
 
 # --- the pinned files, only when already cached
