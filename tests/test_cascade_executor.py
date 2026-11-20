@@ -147,7 +147,7 @@ def test_guard_call_delegated_takes_no_signals():
 @pytest.mark.parametrize("value", [[], "sig", 1, ("sig",), {"sig"}])
 def test_signals_that_is_no_mapping_is_a_value_error_before_select(value):
     h = Harness({})
-    with pytest.raises(ValueError, match="signals"):
+    with pytest.raises(ValueError, match="^signals must be None or a mapping, got "):
         h.executor.call("no-such-task", MESSAGES, signals=value)
     assert (h.provider.calls, h.monitor.records, h.ids) == ([], [], [])
 
@@ -296,6 +296,32 @@ def test_a_signal_exception_propagates_with_no_record_of_its_attempt():
     assert h.provider.calls == [(BEST, MESSAGES), (CHEAP, MESSAGES)]
     assert h.monitor.records == [
         record(BEST, 0, False, "error", error="ProviderError: down", flavor="cost_blind")]
+
+
+def test_a_signal_exception_on_the_first_entry_leaves_no_record():
+    # review iter-383 nit 2: nothing was recorded before the cheap attempt, so nothing is
+    def signal(text):
+        raise RuntimeError("boom")
+    h = Harness({CHEAP: ok("cheap answer", 40, 9), BEST: ok("strong answer", 55, 12)})
+    with pytest.raises(RuntimeError, match="boom"):
+        h.call(signals={"sig": signal})
+    assert h.provider.calls == [(CHEAP, MESSAGES)]
+    assert h.monitor.records == []
+
+
+def test_a_kept_cheap_text_that_fails_validate_on_the_last_entry_ends_the_call():
+    # review iter-383 nit 3: the cascade is the route's last entry, so its invalid kept
+    # cheap attempt is final and the call fails without a hand-up
+    h = Harness({CHEAP: ok("cheap answer", 40, 9), BEST: fail("down")})
+    with pytest.raises(AllModelsFailed) as caught:
+        h.call(flavor="cost_blind", signals={"sig": lambda text: False},
+               validate=lambda text: False)
+    assert route(caught.value.decision) == (BEST, CID)
+    assert h.provider.calls == [(BEST, MESSAGES), (CHEAP, MESSAGES)]
+    assert h.monitor.records == [
+        record(BEST, 0, False, "error", error="ProviderError: down", flavor="cost_blind"),
+        record(CHEAP, 1, True, "invalid", (40, 9), error="validation failed",
+               flavor="cost_blind", cascade=CID, escalated=False)]
 
 
 # --- records: below_bar_fallback follows the route entry, slices ----------------------------

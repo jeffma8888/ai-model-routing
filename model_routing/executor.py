@@ -130,8 +130,8 @@ class Executor:
         """
         _check_prompt_tokens(prompt_tokens)
         if signals is not None and not isinstance(signals, Mapping):
-            raise ValueError(f"signals must be None or a mapping of signal names to "
-                             f"callables, got {type(signals).__name__}")
+            raise ValueError(f"signals must be None or a mapping, "
+                             f"got {type(signals).__name__}")
         estimated = prompt_tokens is None
         size = estimate_prompt_tokens(messages) if estimated else prompt_tokens
         decision = self.router.select(task_name, flavor=flavor,
