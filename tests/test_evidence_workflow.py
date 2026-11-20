@@ -6,8 +6,8 @@ v1.215 running a repeated line once), from v1.397 last the one regenerate line o
 evidence/ledger-handoff/RESULTS.md (DESIGN 13.15), which has no README subsection, from v1.443
 after it the `## Regenerate` block of evidence/registry-pair/RESULTS.md (DESIGN 12.24), which has
 none yet either, from v1.472 that of evidence/registry-pair-delegation/RESULTS.md (DESIGN 13.17) and
-from v1.489 last that of evidence/longtail-swe/RESULTS.md (DESIGN 12.26), with `pyarrow` installed for
-it, and fails when a committed results file changes (DESIGN 12.13, v1.30),
+from v1.489 that of evidence/longtail-swe/RESULTS.md (DESIGN 12.26), with `pyarrow` installed for
+it, from v1.525 last the `## Slices` block of evidence/autobench-2026/RESULTS.md (DESIGN 12.27), and fails when a committed results file changes (DESIGN 12.13, v1.30),
 and both workflows run on one pinned runner image with a dated comment (v1.49), and the job
 has a time limit of ten times its slowest run, rounded up to whole five minutes, with no download
 retry until v1.406 (v1.152; 25 minutes, restated as 30 at v1.170, as 40 at v1.217, whose basis was the
@@ -79,6 +79,30 @@ LONGTAIL_LINES = [
     "python evidence/routerbench/results.py --evaluate longtail-swe-evaluate.json "
     "--out evidence/longtail-swe/results.json",
     "python evidence/routerbench/results.py --table evidence/longtail-swe/results.json"]
+# v1.525 (row STRAT3g): the AutoBench slice results have no README part yet (row STRAT4); the one `bash` block of
+# `## Slices` in their RESULTS.md (DESIGN 12.27), which has no install line, runs last, and its four files end Compare.
+SLICES_NOTES = "evidence/autobench-2026/RESULTS.md"
+SLICE_FILES = ["evidence/autobench-2026/slices-difficulty.json", "evidence/autobench-2026/slices-skill.json",
+               "evidence/autobench-2026/slices-difficulty-min10.json", "evidence/autobench-2026/slices-skill-min10.json"]
+SLICES_LINES = [
+    "python evidence/autobench-2026/convert.py --out autobench-labels.jsonl --task-by all --labels",
+    "model-routing evaluate --outcomes autobench-labels.jsonl --bar 0.6 0.7 0.8 0.9 --seeds 50 --slice-by difficulty "
+    "--json > autobench-slices-difficulty.json",
+    "python evidence/routerbench/results.py --evaluate autobench-slices-difficulty.json "
+    "--out evidence/autobench-2026/slices-difficulty.json",
+    "model-routing evaluate --outcomes autobench-labels.jsonl --bar 0.6 0.7 0.8 0.9 --seeds 50 --slice-by skill "
+    "--json > autobench-slices-skill.json",
+    "python evidence/routerbench/results.py --evaluate autobench-slices-skill.json "
+    "--out evidence/autobench-2026/slices-skill.json",
+    "model-routing evaluate --outcomes autobench-labels.jsonl --bar 0.6 0.7 0.8 0.9 --seeds 50 --slice-by difficulty "
+    "--min-samples 10 --json > autobench-slices-difficulty-min10.json",
+    "python evidence/routerbench/results.py --evaluate autobench-slices-difficulty-min10.json "
+    "--out evidence/autobench-2026/slices-difficulty-min10.json",
+    "model-routing evaluate --outcomes autobench-labels.jsonl --bar 0.6 0.7 0.8 0.9 --seeds 50 --slice-by skill "
+    "--min-samples 10 --json > autobench-slices-skill-min10.json",
+    "python evidence/routerbench/results.py --evaluate autobench-slices-skill-min10.json "
+    "--out evidence/autobench-2026/slices-skill-min10.json"]
+SLICES_COMPARE = "".join(f" {path}" for path in SLICE_FILES)
 EVIDENCE = "## Evidence: held-out results on public data\n"
 SUBSECTIONS = ("AutoBench", "AutoBench judges", "tau2-bench", "LiveCodeBench", "LLMRouterBench",
                "LLM Routing Response Bank", "Delegation on AutoBench", "Delegation on tau2-bench",
@@ -232,7 +256,8 @@ REPEAT_PROBLEM = "the top comment does not give the repeated-line rule"
 # line above `on:` is under 100 columns; the comment checks join its lines, so a reflow is safe.
 SUBSECTION_LIST = ("Reruns the regenerate commands of the README subsections "
                    + ", ".join(SUBSECTIONS[:-1]) + f" and {SUBSECTIONS[-1]}, and those of {LEDGER_NOTES}, "
-                   f"{REGISTRY_NOTES}, {REGISTRY_DELEGATION_NOTES} and {LONGTAIL_NOTES}, which")  # v1.489
+                   f"{REGISTRY_NOTES}, {REGISTRY_DELEGATION_NOTES}, {LONGTAIL_NOTES} and the Slices section of {SLICES_NOTES}, "
+                   "which")  # v1.489, v1.525
 SUBSECTION_PROBLEM = "the top comment does not name the rerun subsections in README heading order"
 WIDTH = 100
 WIDTH_PROBLEM = f"a line above on: is {WIDTH} columns or wider"
@@ -295,6 +320,25 @@ def longtail_commands():
     return block_commands(LONGTAIL_NOTES, LONGTAIL_INSTALL)
 
 
+def slices_commands():
+    """The lines of the one `bash` block of the AutoBench RESULTS.md `## Slices` (v1.525, DESIGN 12.27), which,
+    unlike a `## Regenerate` block, opens with no install line."""
+    text = (ROOT / SLICES_NOTES).read_text(encoding="utf-8")
+    assert text.count("\n## Slices\n") == 1
+    section = text.split("\n## Slices\n", 1)[1].split("\n## ", 1)[0]
+    found = re.findall(r"```bash\n(.*?)```", section, re.S)
+    assert len(found) == 1
+    block = found[0].rstrip("\n").split("\n")
+    assert not any(line.startswith(INSTALL) for line in block)
+    return block
+
+
+def before_slices(run):
+    """The `Regenerate` lines before the slices block, which ends them (v1.525)."""
+    assert run[-len(SLICES_LINES):] == SLICES_LINES
+    return run[:-len(SLICES_LINES)]
+
+
 def results_md_commands():
     """The RESULTS.md lines the step takes, in order: the ledger one (v1.397), the registry-pair block
     (v1.443), the registry-pair delegation one (v1.472) and the Longtail-SWE one (v1.489)."""
@@ -313,9 +357,9 @@ def regenerate_commands(text):
     """The lines the workflow reruns: the README commands, the ledger line (v1.397), from v1.452 (row E24c)
     the registry-pair block, which its README subsection holds too (its test requires the two blocks equal),
     from v1.472 (row E25c) the registry-pair delegation block and from v1.489 (row E26d) the Longtail-SWE
-    block, run last. `readme_commands` is the part
+    block, then from v1.525 (row STRAT3g) the AutoBench `## Slices` block, run last. `readme_commands` is the part
     the README evidence sentence speaks for (v1.464, row DOC39b, review iter-314 nit 6; again from v1.472)."""
-    return run_once(expected_commands(text) + results_md_commands())
+    return run_once(expected_commands(text) + results_md_commands() + slices_commands())
 
 
 def out_paths(commands):
@@ -550,7 +594,9 @@ def test_the_hand_built_list_count_is_the_one_design_states():
 
 def test_regenerate_leaves_out_the_three_repeated_converter_lines():
     commands = expected_commands(readme())
-    run = regenerate_commands(readme())
+    full = regenerate_commands(readme())
+    run = before_slices(full)  # v1.525: the nine slices lines end the step, none of them a repeat
+    assert slices_commands() == SLICES_LINES and len(full) == 64
     assert len(commands) == 45 and len(run) == 55 and run[-12] == ledger_command()
     assert run[-11:-7] == registry_commands() == REGISTRY_LINES  # v1.443
     # v1.472: the third repeat is the 12.23 converter line, which opens the 13.17 block too
@@ -663,11 +709,18 @@ MUTANTS = {
         t, lambda ls: [line for line in ls if line.strip() != REGISTRY_DELEGATION_RUN[0]]),
     # v1.489: the Longtail-SWE file, last in command order, its converter line and the `pyarrow` install
     "the compare step without the Longtail-SWE file": lambda t: t.replace(
-        " evidence/registry-pair-delegation/results.json evidence/longtail-swe/results.json\n",
-        " evidence/registry-pair-delegation/results.json\n", 1),
+        " evidence/registry-pair-delegation/results.json evidence/longtail-swe/results.json ",
+        " evidence/registry-pair-delegation/results.json ", 1),
     "a Longtail-SWE line dropped": lambda t: with_lines(
         t, lambda ls: [line for line in ls if line.strip() != LONGTAIL_LINES[0]]),
     "the install line without pyarrow": lambda t: t.replace(f"run: {WORKFLOW_INSTALL}\n", f"run: {INSTALL}\n", 1),
+    # v1.525: the last AutoBench slice file, last in command order, and the slices converter line
+    "the compare step without a slice file": lambda t: t.replace(
+        " evidence/autobench-2026/slices-skill.json evidence/autobench-2026/slices-difficulty-min10.json "
+        "evidence/autobench-2026/slices-skill-min10.json\n",
+        " evidence/autobench-2026/slices-skill.json evidence/autobench-2026/slices-difficulty-min10.json\n", 1),
+    "the slices converter line dropped": lambda t: with_lines(
+        t, lambda ls: [line for line in ls if line.strip() != SLICES_LINES[0]]),
     # v1.299: the response-bank file, directly after the LLMRouterBench one
     "the compare step without the response bank": lambda t: t.replace(
         "evidence/llmrouterbench/results.json evidence/response-bank/results.json ",
@@ -740,7 +793,8 @@ TIME_LIMIT_MUTANTS = {
 
 
 def test_the_mutant_count_is_the_one_design_states():
-    assert len(MUTANTS) == 41  # v1.489: the Longtail-SWE Compare file, its converter line and the pyarrow pin
+    assert len(MUTANTS) == 43  # v1.489: the Longtail-SWE Compare file, its converter line and the pyarrow pin;
+    # v1.525: a slice file in Compare and the slices converter line
     assert len(CACHE_MUTANTS) == 2 and set(CACHE_MUTANTS) <= set(MUTANTS)
     assert len(TIME_LIMIT_MUTANTS) == 5 and set(TIME_LIMIT_MUTANTS) <= set(MUTANTS)
     assert len(REPEAT_MUTANTS) == 2 and set(REPEAT_MUTANTS) <= set(MUTANTS)
@@ -895,6 +949,7 @@ def test_a_time_limit_mutant_fails_on_the_check_it_names(name):
                                   "the compare step without the registry pair",  # v1.443, row E24e
                                   "the compare step without the registry-pair delegation",  # v1.472, row E25c
                                   "the compare step without the Longtail-SWE file",  # v1.489, row E26d
+                                  "the compare step without a slice file",  # v1.525, row STRAT3g
                                   "the compare step without the response-bank delegation",  # v1.392, row DOC21c
                                   "the compare step without variants.json"])
 def test_a_compare_mutant_fails_on_the_compare_line_alone(name):
@@ -1010,29 +1065,30 @@ def test_the_workflow_reruns_the_response_bank_delegation_block():
     assert compare.endswith(" evidence/llmrouterbench-delegation/results.json "
                             "evidence/response-bank-delegation/results.json evidence/ledger-handoff/results.json "
                             "evidence/registry-pair/results.json "
-                            "evidence/registry-pair-delegation/results.json evidence/longtail-swe/results.json")
+                            "evidence/registry-pair-delegation/results.json evidence/longtail-swe/results.json"
+                            + SLICES_COMPARE)
 
 
 def test_the_workflow_reruns_the_ledger_handoff_line_after_the_readme_commands():
     # v1.397 (row E23c, DESIGN 13.15 Workflow bullet); from v1.443 the registry-pair block follows it
     assert ledger_command() == LEDGER_LINE
     text = workflow_text()
-    run = [line.strip() for line in regenerate_lines(text)[1]]
+    run = before_slices([line.strip() for line in regenerate_lines(text)[1]])  # v1.525
     assert run[-12] == LEDGER_LINE and run[-14:-12] == RB_TABLES and run.count(LEDGER_LINE) == 1
     compare = text.split("      - name: Compare\n", 1)[1].split("\n", 1)[0]
     assert compare.endswith(" evidence/response-bank-delegation/results.json evidence/ledger-handoff/results.json "
                             "evidence/registry-pair/results.json evidence/registry-pair-delegation/results.json "
-                            "evidence/longtail-swe/results.json")
+                            "evidence/longtail-swe/results.json" + SLICES_COMPARE)
     assert (ROOT / "evidence" / "ledger-handoff" / "results.json").is_file()
     ci_text = CI.read_text(encoding="utf-8")
     assert problems(MUTANTS["the ledger line dropped"](text), readme(), ci_text) == [
         "Regenerate is not the README commands in order"]
     design = DESIGN.read_text(encoding="utf-8")
     section = design.split("\n### 12.13 ", 1)[1].split("\n### ", 1)[0]
-    assert f"each of {len(MUTANTS)} broken workflows fails the check, the ten `Compare` mutants" in section
+    assert f"each of {len(MUTANTS)} broken workflows fails the check, the eleven `Compare` mutants" in section
     assert "then (v1.397) the regenerate line of `evidence/ledger-handoff/RESULTS.md` (13.15)" in section
-    assert ("sixteen files from `evidence/autobench-2026/results.json` to "
-            "`evidence/longtail-swe/results.json`") in section
+    assert ("twenty files from `evidence/autobench-2026/results.json` to "
+            "`evidence/autobench-2026/slices-skill-min10.json`") in section  # v1.525
     # v1.401 (row CI21): the basis is the slowest run on main, whatever its lines; v1.407 (row CI22),
     # by its latest attempt.
     assert (f"all on `main` and all successful by their latest attempt, the slowest is run {SLOWEST_RUN_ID} on "
@@ -1058,7 +1114,7 @@ def test_the_workflow_reruns_the_registry_pair_block_after_the_ledger_line():
     # the ledger line; from v1.472 the registry-pair delegation block follows them.
     assert registry_commands() == REGISTRY_LINES
     text = workflow_text()
-    run = [line.strip() for line in regenerate_lines(text)[1]]
+    run = before_slices([line.strip() for line in regenerate_lines(text)[1]])  # v1.525
     assert run[-11:-7] == REGISTRY_LINES and run[-12] == LEDGER_LINE
     assert all(run.count(line) == 1 for line in REGISTRY_LINES)
     compare = text.split("      - name: Compare\n", 1)[1].split("\n", 1)[0]
@@ -1088,15 +1144,17 @@ def test_the_workflow_reruns_the_registry_pair_delegation_block_after_the_regist
     assert registry_delegation_commands() == REGISTRY_DELEGATION_LINES
     assert REGISTRY_DELEGATION_LINES[0] == REGISTRY_LINES[0]  # the 12.23 converter line, left out
     text = workflow_text()
-    run = [line.strip() for line in regenerate_lines(text)[1]]
+    run = before_slices([line.strip() for line in regenerate_lines(text)[1]])  # v1.525
     assert run[-7:-4] == REGISTRY_DELEGATION_RUN and run[-8] == REGISTRY_LINES[-1]
     assert all(run.count(line) == 1 for line in REGISTRY_DELEGATION_RUN)
     assert run.count(REGISTRY_LINES[0]) == 1
     compare = text.split("      - name: Compare\n", 1)[1].split("\n", 1)[0]
     assert compare.endswith(" evidence/registry-pair/results.json "
-                            "evidence/registry-pair-delegation/results.json evidence/longtail-swe/results.json")
+                            "evidence/registry-pair-delegation/results.json evidence/longtail-swe/results.json"
+                            + SLICES_COMPARE)
     assert (ROOT / "evidence" / "registry-pair-delegation" / "results.json").is_file()
-    assert out_paths(regenerate_commands(readme()))[-2] == "evidence/registry-pair-delegation/results.json"
+    at = -2 - len(SLICE_FILES)  # v1.525: the four slice files follow it
+    assert out_paths(regenerate_commands(readme()))[at] == "evidence/registry-pair-delegation/results.json"
     assert "evidence/registry-pair-delegation/results.json" not in out_paths(readme_commands(readme()))
     ci_text = CI.read_text(encoding="utf-8")
     assert problems(MUTANTS["a registry-pair delegation line dropped"](text), readme(), ci_text) == [
@@ -1121,9 +1179,9 @@ def test_the_workflow_reruns_the_registry_pair_delegation_block_after_the_regist
             "by a byte (`DESIGN.md` 12.13, v1.472).") in before
 
 
-def test_the_workflow_installs_pyarrow_and_reruns_the_longtail_swe_block_last():
+def test_the_workflow_installs_pyarrow_and_reruns_the_longtail_swe_block_before_the_slices():
     # v1.489 (row E26d, DESIGN 12.13 Longtail-SWE bullet): the four lines of its RESULTS.md block after the
-    # registry-pair delegation lines, its results file last in Compare, and the `pyarrow` pin of the
+    # registry-pair delegation lines, its results file last in Compare until v1.525, and the `pyarrow` pin of the
     # `evidence` extra in the `Install` line, without the extra's pandas, which RouterBench's reason names;
     # the README sentence counts the file only once row E26e gives the block a subsection.
     assert longtail_commands() == LONGTAIL_LINES
@@ -1132,14 +1190,15 @@ def test_the_workflow_installs_pyarrow_and_reruns_the_longtail_swe_block_last():
     assert WORKFLOW_INSTALL == 'python -m pip install -e . "pyarrow>=14"' and "pandas" not in WORKFLOW_INSTALL
     text = workflow_text()
     assert text.count(f"        run: {WORKFLOW_INSTALL}\n") == 1 and "pandas" not in text.split("\non:\n", 1)[1]
-    run = [line.strip() for line in regenerate_lines(text)[1]]
+    run = before_slices([line.strip() for line in regenerate_lines(text)[1]])  # v1.525
     assert run[-4:] == LONGTAIL_LINES and run[-5] == REGISTRY_DELEGATION_RUN[-1]
     assert all(run.count(line) == 1 for line in LONGTAIL_LINES)
     compare = text.split("      - name: Compare\n", 1)[1].split("\n", 1)[0]
-    assert compare.endswith(" evidence/registry-pair-delegation/results.json evidence/longtail-swe/results.json")
-    assert compare.count(" evidence/") == 16
+    assert compare.endswith(" evidence/registry-pair-delegation/results.json evidence/longtail-swe/results.json"
+                            + SLICES_COMPARE)
+    assert compare.count(" evidence/") == 16 + len(SLICE_FILES)
     assert (ROOT / "evidence" / "longtail-swe" / "results.json").is_file()
-    assert out_paths(regenerate_commands(readme()))[-1] == "evidence/longtail-swe/results.json"
+    assert out_paths(regenerate_commands(readme()))[-1 - len(SLICE_FILES)] == "evidence/longtail-swe/results.json"
     assert "evidence/longtail-swe/results.json" not in out_paths(readme_commands(readme()))
     assert len(out_paths(readme_commands(readme()))) == 14
     ci_text = CI.read_text(encoding="utf-8")
@@ -1151,11 +1210,52 @@ def test_the_workflow_installs_pyarrow_and_reruns_the_longtail_swe_block_last():
     bullets = [line for line in section.split("\n") if line.startswith("- Longtail-SWE is rerun (v1.489, row E26d): ")]
     assert len(bullets) == 1 and "236,605,401 bytes (the 12.25 `FILES`)" in bullets[0] and "row E26e" in bullets[0]
     assert f"`Install` (`{WORKFLOW_INSTALL}`, " in section
-    assert ("then (v1.489) that block of `evidence/longtail-swe/RESULTS.md` (12.26) without its install line;"
-            in section)
+    assert ("then (v1.489) that block of `evidence/longtail-swe/RESULTS.md` (12.26) without its install line, "
+            "then (v1.525)" in section)  # v1.525: the slices block follows it
     # The RESULTS.md download line says the workflow reruns the block (12.13, 12.26).
     notes = (ROOT / LONGTAIL_NOTES).read_text(encoding="utf-8")
     before = notes.split("\n## Regenerate\n", 1)[1]
     assert ("The `evidence` workflow reruns these commands on GitHub and fails if `results.json` changes "
             "by a byte (`DESIGN.md` 12.13, v1.489)") in before
     assert "does not rerun" not in notes
+
+
+def test_the_workflow_reruns_the_autobench_slices_block_last():
+    # v1.525 (row STRAT3g, DESIGN 12.13 AutoBench slices bullet, 12.27 Workflow bullet): the nine lines of the
+    # `## Slices` block after the Longtail-SWE lines, none a repeat, and its four files last in Compare; the
+    # README sentence counts them only once row STRAT4 gives the slices a README part.
+    assert slices_commands() == SLICES_LINES
+    assert out_paths(SLICES_LINES) == SLICE_FILES
+    text = workflow_text()
+    run = [line.strip() for line in regenerate_lines(text)[1]]
+    assert run[-9:] == SLICES_LINES and run[-10] == LONGTAIL_LINES[-1]
+    assert all(run.count(line) == 1 for line in SLICES_LINES)
+    assert regenerate_commands(readme())[-9:] == SLICES_LINES
+    compare = text.split("      - name: Compare\n", 1)[1].split("\n", 1)[0]
+    assert compare.endswith(" evidence/longtail-swe/results.json" + SLICES_COMPARE)
+    assert compare.count(" evidence/") == 20
+    assert all((ROOT / path).is_file() for path in SLICE_FILES)
+    assert out_paths(regenerate_commands(readme()))[-4:] == SLICE_FILES
+    assert not set(SLICE_FILES) & set(out_paths(readme_commands(readme())))
+    assert len(out_paths(readme_commands(readme()))) == 14
+    ci_text = CI.read_text(encoding="utf-8")
+    assert problems(MUTANTS["the slices converter line dropped"](text), readme(), ci_text) == [
+        "Regenerate is not the README commands in order"]
+    assert problems(MUTANTS["the compare step without a slice file"](text), readme(), ci_text) == [
+        "Compare is not the diff of the committed results"]
+    design = DESIGN.read_text(encoding="utf-8")
+    section = design.split("\n### 12.13 ", 1)[1].split("\n### ", 1)[0]
+    bullets = [line for line in section.split("\n")
+               if line.startswith("- AutoBench slices are rerun (v1.525, row STRAT3g): ")]
+    assert len(bullets) == 1 and "nine lines of the 12.27 block last, none a repeat" in bullets[0]
+    assert "row STRAT4" in bullets[0] and "does not count its four files" in bullets[0]
+    assert ("then (v1.525) the one `bash` block of `## Slices` of `evidence/autobench-2026/RESULTS.md` (12.27), "
+            "which has none;") in section
+    spec = design.split("\n### 12.27 ", 1)[1].split("\n## ", 1)[0]
+    assert len([line for line in spec.split("\n") if line.startswith("- Workflow (v1.525, row STRAT3g): ")]) == 1
+    assert "12.13 workflow lines" not in spec
+    # The RESULTS.md line before the block says the workflow reruns it (12.13, 12.27).
+    notes = (ROOT / SLICES_NOTES).read_text(encoding="utf-8")
+    before = notes.split("\n## Slices\n", 1)[1].split("```bash", 1)[0].rstrip("\n").split("\n")[-1]
+    assert ("the `evidence` workflow reruns them on GitHub and fails if one of the four files changes by a byte "
+            "(`DESIGN.md` 12.13, v1.525):") in before

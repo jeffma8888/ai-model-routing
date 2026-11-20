@@ -141,7 +141,7 @@ Reading it:
 - No sliced row in the four files beats `openai/gpt-5.6-luna` alone (held-out success 0.872 at 0.3092 USD) on both counts. On this matrix slicing shows where the pooled route misses a slice, but it finds no cheaper way to that model's quality
 - A slice's held-out half holds about half of its 15 to 91 questions, so one question moves a slice's held-out rate far more than the task's, and a slice miss is partly sampling noise, not only a weaker route
 
-The four files come from these commands, after `python -m pip install -e .`; two runs give byte-identical files:
+The four files come from these commands, after `python -m pip install -e .`; two runs give byte-identical files, and the `evidence` workflow reruns them on GitHub and fails if one of the four files changes by a byte (`DESIGN.md` 12.13, v1.525):
 
 ```bash
 python evidence/autobench-2026/convert.py --out autobench-labels.jsonl --task-by all --labels

@@ -185,7 +185,7 @@ def test_design_12_27_specifies_the_slice_files():
         assert f"slices-{name}.json`" in body, name
     for words in ("`--slice-by difficulty` or `--slice-by skill`", "at `--min-samples 10`",
                   "gains `## Slices`, after `## Sensitivity` and before `## Caveats`",
-                  "`tests/test_evidence_autobench_slices.py`", "(row STRAT3g)", "(row STRAT4)",
+                  "`tests/test_evidence_autobench_slices.py`", "- Workflow (v1.525, row STRAT3g): ", "(row STRAT4)",
                   "6, 9, 16 and 35 (`wilson_lower_bound`)"):
         assert words in body, words
 
