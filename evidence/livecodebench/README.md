@@ -100,7 +100,7 @@ The other 6 files are never downloaded. A folder is dropped by the first of thes
 - There is no cost: the files carry no cost, no token counts and no list price. Every row has `cost_usd` 0.0, which is what `cost_blind` assumes of every model's token cost, and the 0.0 is never a measured or list-price cost. `cost_effective` is never run on this matrix: with every cost equal it would rank every model as equally cheap, so its rows would say nothing about cost
 - The items are the problems every kept file has. The files' problem sets nest, each inside the next, so the items are the problems of the smallest files, and a problem given two contest dates is an error
 - Model IDs come from a rule over the folder name: a fixed table of name prefixes gives the vendor (for example `Claude-` anthropic, `GPT-` or `O1`, `O3` and `O4` openai, `Gemini-` google, `DeepSeek-` and `DSCoder-` deepseek), then the name is lowercased with ` (` written as `-`, `)` removed and other spaces written as `-`, so `O3 (High)` is `openai/o3-high`. Each reasoning-effort or thinking setting is a model of its own, since a router would choose between them. A name that is not ASCII, that no rule covers, or that gives a model name outside `[a-z0-9][a-z0-9._-]*` is an error, not a guess
-- Only the model, the question id, the contest date and the label are kept from each problem; the problem text, the starter code and the generated code are never kept
+- Only the model, the question id, the contest date and the label are kept from each problem, and with `--labels` its difficulty; the problem text, the starter code and the generated code are never kept
 
 ## Regenerate the matrix
 
@@ -113,9 +113,18 @@ python evidence/livecodebench/convert.py --out livecodebench-matrix.jsonl
 
 With the default options on the pinned files the converter reports 67 models, keeps the 713 problems every kept file has, with contest dates 2023-05-07 to 2024-10-05, and writes 47,771 rows. The number of a model's own problems that are not kept is 0 for 12 models, 163 for 1, 167 for 22 and 342 for 32. The number of samples per problem is 1 for 34 models, 10 for 32 and 4 for 1. On the 713 problems the models' first-sample success rates run from 0.093 (`deepseek/dscoder-1.3b-ins`) to 0.913 (`openai/o4-mini-high`). Reading and converting the 67 cached files takes about 3 seconds.
 
+## Problem difficulty (for the slice evidence)
+
+```bash
+python evidence/livecodebench/convert.py --out livecodebench-labels.jsonl --labels
+model-routing evaluate --outcomes livecodebench-labels.jsonl --bar 0.6 --flavor cost_blind --slice-by difficulty
+```
+
+`--labels` adds a `difficulty` key to every row, after `cost_usd`: the level each problem object of the files gives, mapped to names that sort in difficulty order, `easy` to `1-easy`, `medium` to `2-medium` and `hard` to `3-hard`, so `evaluate --slice-by difficulty` can score each level as a slice of the one task (DESIGN 12.3). Any other value is an error, not a guess, and without `--labels` the rows and the report are exactly as before. The report gains a `labels` key with the kept problems per level: on the pinned files 238 `1-easy`, 279 `2-medium` and 196 `3-hard` of the 713, and no problem has two levels. So a slice's calibration half holds about 98 to 140 problems, above the evaluator's default `min_samples = 30`. The contract is DESIGN 12.16.
+
 ## Reading it
 
 - The models date from 2023 to 2025 and the 713 problems from 2023-05-07 to 2024-10-05, so many problems predate a model's training data: the contamination LiveCodeBench dates its problems to expose. A later model's rate on old problems can overstate what it does on new ones
 - A label is the test cases passing for the first sample at the run's own sampling settings, and the runs do not share them: they drew 1, 4 or 10 samples per problem
-- The problems come from LeetCode, AtCoder and Codeforces, so nothing of them is kept but the question id and the contest date
+- The problems come from LeetCode, AtCoder and Codeforces, so nothing of them is kept but the question id, the contest date and, with `--labels`, the level LiveCodeBench gives them
 - With no cost, this matrix says which model clears a bar, never what it costs

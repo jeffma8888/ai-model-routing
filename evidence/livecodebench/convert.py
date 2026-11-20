@@ -1,13 +1,13 @@
 """Convert the LiveCodeBench submissions into the evaluator's outcome matrix (DESIGN 12.16).
 
-Usage: python evidence/livecodebench/convert.py --out PATH [--cache DIR]
+Usage: python evidence/livecodebench/convert.py --out PATH [--cache DIR] [--labels]
 
 Standard library only. The 67 kept files of the pinned commit are downloaded into a cache outside
 the repo, each checked by size and sha256 before it is read, and read one at a time. A problem's
 label is its test cases passing for the first sample (``graded_list[0]``); the items are the
 question ids every kept file has. The files carry no cost, so every row has ``cost_usd`` 0.0 and
 the matrix feeds ``cost_blind`` only. Nothing is kept but model, question id, contest date and
-label: no problem text and no generated code.
+label, and with ``--labels`` each problem's difficulty: no problem text and no generated code.
 """
 
 import argparse
@@ -123,6 +123,8 @@ VENDORS = (
 )
 SLUG = re.compile(r"[a-z0-9][a-z0-9._-]*")
 DATE = re.compile(r"(\d{4}-\d{2}-\d{2})(T.*)?")
+# a problem's difficulty as the files write it, to a name that sorts in difficulty order (DESIGN 12.16 v1.526)
+DIFFICULTY = {"easy": "1-easy", "medium": "2-medium", "hard": "3-hard"}
 
 
 def model_id(folder) -> str:
@@ -159,8 +161,15 @@ def skip_reason(folder):
     return None
 
 
-def extract(records, folder) -> dict:
-    """One parsed file reduced to its model and, per question id, the first sample, date and sample count."""
+def _check_labels(labels) -> None:
+    if not isinstance(labels, bool):
+        raise ValueError(f"labels must be a bool, got {labels!r}")
+
+
+def extract(records, folder, labels=False) -> dict:
+    """One parsed file reduced to its model and, per question id, the first sample, date and sample count,
+    and with `labels` the problem's difficulty, mapped by DIFFICULTY (v1.526)."""
+    _check_labels(labels)
     model = model_id(folder)
     if not isinstance(records, list) or not records:
         raise ValueError(f"{folder}: the file must hold a non-empty list of problems")
@@ -181,11 +190,18 @@ def extract(records, folder) -> dict:
         if not isinstance(graded, list) or not graded or not all(isinstance(g, bool) for g in graded):
             raise ValueError(f"{folder}: question_id {qid}: graded_list must be a non-empty list of booleans")
         cells[qid] = {"correct": graded[0], "contest_date": m.group(1), "samples": len(graded)}
+        if labels:
+            level = rec.get("difficulty")
+            if not isinstance(level, str) or level not in DIFFICULTY:
+                raise ValueError(f"{folder}: question_id {qid}: difficulty {level!r} is not one of {sorted(DIFFICULTY)}")
+            cells[qid]["difficulty"] = DIFFICULTY[level]
     return {"folder": folder, "model": model, "cells": dict(sorted(cells.items()))}
 
 
-def convert(extracts) -> tuple:
-    """Rows over the question ids every extract has, sorted by (item, model), and a report."""
+def convert(extracts, labels=False) -> tuple:
+    """Rows over the question ids every extract has, sorted by (item, model), and a report; with `labels`
+    each row also has its problem's difficulty and the report counts the kept problems per level (v1.526)."""
+    _check_labels(labels)
     if not isinstance(extracts, (list, tuple)) or not extracts:
         raise ValueError("extracts must be a non-empty list or tuple")
     by_model = {}
@@ -193,11 +209,16 @@ def convert(extracts) -> tuple:
         if ex["model"] in by_model:
             raise ValueError(f"two files give model {ex['model']}")
         by_model[ex["model"]] = ex
-    dates = {}
+    dates, levels = {}, {}
     for model in sorted(by_model):
         for qid, cell in by_model[model]["cells"].items():
             if dates.setdefault(qid, cell["contest_date"]) != cell["contest_date"]:
                 raise ValueError(f"question_id {qid} has contest dates {dates[qid]} and {cell['contest_date']}")
+            if labels:
+                if "difficulty" not in cell:
+                    raise ValueError(f"{model}: question_id {qid} has no difficulty (extract it with labels=True)")
+                if levels.setdefault(qid, cell["difficulty"]) != cell["difficulty"]:
+                    raise ValueError(f"question_id {qid} has difficulties {levels[qid]} and {cell['difficulty']}")
     models = sorted(by_model)
     common = set(by_model[models[0]]["cells"])
     for model in models[1:]:
@@ -207,6 +228,9 @@ def convert(extracts) -> tuple:
         raise ValueError("no question id is common to every file")
     rows = [{"task": TASK, "item": qid, "model": model, "correct": by_model[model]["cells"][qid]["correct"], "cost_usd": 0.0}
             for qid in items for model in models]
+    if labels:
+        for row in rows:
+            row["difficulty"] = levels[row["item"]]
     report = {
         "models": models,
         "task": TASK,
@@ -216,6 +240,11 @@ def convert(extracts) -> tuple:
         "samples": {m: sorted({c["samples"] for c in by_model[m]["cells"].values()}) for m in models},
         "rows": len(rows),
     }
+    if labels:
+        counts = {}
+        for qid in items:
+            counts[levels[qid]] = counts.get(levels[qid], 0) + 1
+        report["labels"] = {"difficulty": dict(sorted(counts.items()))}
     return rows, report
 
 
@@ -332,14 +361,16 @@ def main(argv=None) -> int:
     parser = _Parser(prog="convert.py", description="LiveCodeBench submissions to an outcome matrix")
     parser.add_argument("--out", required=True, help="output JSONL path")
     parser.add_argument("--cache", default=None, help=f"download folder (default: {default_cache_dir()})")
+    parser.add_argument("--labels", action="store_true", help="keep each problem's difficulty as a row key (v1.526)")
     try:
         args = parser.parse_args(argv)
         out = _check_out(args.out)
         part = out.with_name(out.name + ".part")
         try:  # on any failure from here on, <out>.part goes, a stale one from an earlier run included
             root = fetch(args.cache)
-            extracts = [extract(read_file(root / name), name.split("/")[0]) for name in FILES]
-            rows, report = convert(extracts)
+            kw = {"labels": True} if args.labels else {}  # the default run makes the v1.62 calls
+            extracts = [extract(read_file(root / name), name.split("/")[0], **kw) for name in FILES]
+            rows, report = convert(extracts, **kw)
             write_jsonl(rows, part)
             # print before the rename, so a write to stdout that fails leaves --out as it was (v1.94)
             print_report(json.dumps(report, indent=2))

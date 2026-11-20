@@ -4,8 +4,8 @@ With ``labels=True`` (``convert.py --labels``) ``extract`` keeps each problem's 
 last cell key and ``convert`` writes it on every row after ``cost_usd``, so ``model-routing evaluate
 --slice-by difficulty`` (DESIGN 12.3 v1.514) can score each level as a slice of the one task. The
 three levels map to ``1-easy``, ``2-medium`` and ``3-hard``, so the evaluator's ascending slice order
-is difficulty order. Written under strict xfail with v1.526; the guards, which check what v1.62 keeps,
-pass before and after it. Every test uses small synthetic problem lists except the last, which reads
+is difficulty order. Written under strict xfail with v1.526; v1.527 implements it, so every test runs
+unmarked, and the two guards, which check what v1.62 keeps, passed before and after it. Every test uses small synthetic problem lists except the last, which reads
 the pinned files only when all 67 are already in the default cache and skips otherwise.
 """
 
@@ -22,7 +22,6 @@ SCRIPT = ROOT / "evidence" / "livecodebench" / "convert.py"
 EVIDENCE_README = ROOT / "evidence" / "livecodebench" / "README.md"
 DESIGN = ROOT / "DESIGN.md"
 
-RED = pytest.mark.xfail(strict=True, reason="DESIGN 12.16 v1.526, implemented by v1.527 (row STRAT3c)")
 MAPPING = {"easy": "1-easy", "medium": "2-medium", "hard": "3-hard"}
 CELL_KEYS = ["correct", "contest_date", "samples"]
 ROW_KEYS = ["task", "item", "model", "correct", "cost_usd"]
@@ -84,13 +83,11 @@ def test_without_labels_a_bad_difficulty_is_never_read(cv):
 
 # --- extract -------------------------------------------------------------------------------
 
-@RED
 def test_difficulty_mapping_is_the_three_levels_in_order(cv):
     assert cv.DIFFICULTY == MAPPING
     assert sorted(MAPPING.values()) == list(MAPPING.values())
 
 
-@RED
 def test_extract_labels_adds_difficulty_as_the_last_cell_key(cv):
     ex = cv.extract(files()[HAIKU], HAIKU, labels=True)
     assert list(ex) == ["folder", "model", "cells"] and list(ex["cells"]) == ["p1", "p2", "p3"]
@@ -99,13 +96,11 @@ def test_extract_labels_adds_difficulty_as_the_last_cell_key(cv):
     assert ex["cells"]["p2"] == {"correct": False, "contest_date": "2024-01-02", "samples": 1, "difficulty": "3-hard"}
 
 
-@RED
 def test_extract_labels_false_is_the_default(cv):
     for folder, recs in files().items():
         assert cv.extract(recs, folder, labels=False) == cv.extract(recs, folder)
 
 
-@RED
 @pytest.mark.parametrize("bad", ["", "Easy", "easy ", "very hard", None, 1, ["easy"], "missing"])
 def test_extract_labels_refuses_a_bad_difficulty_naming_folder_question_and_key(cv, bad):
     rec = problem("q9", bad)
@@ -117,13 +112,11 @@ def test_extract_labels_refuses_a_bad_difficulty_naming_folder_question_and_key(
     assert HAIKU in message and "q9" in message and "difficulty" in message
 
 
-@RED
 def test_extract_labels_checks_difficulty_after_graded_list(cv):
     with pytest.raises(ValueError, match="graded_list"):
         cv.extract([problem("q9", "very hard", graded_list=[1])], HAIKU, labels=True)
 
 
-@RED
 @pytest.mark.parametrize("labels", [1, 0, "yes", None])
 def test_labels_must_be_a_bool(cv, labels):
     with pytest.raises(ValueError, match="labels must be a bool"):
@@ -132,7 +125,6 @@ def test_labels_must_be_a_bool(cv, labels):
         cv.convert(extracts(cv), labels=labels)
 
 
-@RED
 def test_labels_is_checked_first(cv):
     with pytest.raises(ValueError, match="labels must be a bool"):
         cv.extract([], "AzeroGPT-64b", labels="yes")
@@ -142,7 +134,6 @@ def test_labels_is_checked_first(cv):
 
 # --- convert -------------------------------------------------------------------------------
 
-@RED
 def test_convert_labels_adds_difficulty_after_cost_and_a_last_report_key(cv):
     rows, report = cv.convert(extracts(cv, labels=True), labels=True)
     assert [list(r) for r in rows] == [ROW_KEYS + ["difficulty"]] * 4
@@ -153,7 +144,6 @@ def test_convert_labels_adds_difficulty_after_cost_and_a_last_report_key(cv):
     assert report["labels"] == {"difficulty": {"2-medium": 1, "3-hard": 1}}
 
 
-@RED
 def test_convert_labels_leave_every_other_value_as_it_was(cv):
     plain_rows, plain_report = cv.convert(extracts(cv))
     rows, report = cv.convert(extracts(cv, labels=True), labels=True)
@@ -163,7 +153,6 @@ def test_convert_labels_leave_every_other_value_as_it_was(cv):
     assert cv.convert(extracts(cv, labels=True)) == (plain_rows, plain_report)
 
 
-@RED
 def test_convert_labels_counts_levels_in_ascending_order(cv):
     a = [problem(f"p{i}", level) for i, level in enumerate(["hard", "easy", "medium", "easy"])]
     exs = [cv.extract(a, HAIKU, labels=True), cv.extract(a, O3, labels=True)]
@@ -172,7 +161,6 @@ def test_convert_labels_counts_levels_in_ascending_order(cv):
     assert list(report["labels"]["difficulty"]) == ["1-easy", "2-medium", "3-hard"]
 
 
-@RED
 def test_convert_labels_refuses_an_extract_made_without_labels(cv):
     recs = files()
     exs = [cv.extract(recs[HAIKU], HAIKU, labels=True), cv.extract(recs[O3], O3)]
@@ -181,7 +169,6 @@ def test_convert_labels_refuses_an_extract_made_without_labels(cv):
     assert "openai/o3-high" in str(info.value) and "p1" in str(info.value) and "difficulty" in str(info.value)
 
 
-@RED
 def test_convert_labels_refuses_two_difficulties_for_one_question(cv):
     exs = [cv.extract([problem("p1", "easy")], HAIKU, labels=True), cv.extract([problem("p1", "hard")], O3, labels=True)]
     with pytest.raises(ValueError, match="p1"):
@@ -189,7 +176,6 @@ def test_convert_labels_refuses_two_difficulties_for_one_question(cv):
     assert cv.convert([cv.extract([problem("p1", "easy")], HAIKU), cv.extract([problem("p1", "hard")], O3)])[1]["items"] == 1
 
 
-@RED
 def test_the_evaluator_slices_labelled_rows_by_difficulty(cv):
     a, b = [], []
     for i in range(80):
@@ -216,7 +202,6 @@ def write_cache(cv, monkeypatch, root):
     monkeypatch.setattr(cv, "fetch", lambda cache_dir=None: root)
 
 
-@RED
 def test_cli_labels_writes_the_difficulty_key(cv, monkeypatch, tmp_path, capsys):
     write_cache(cv, monkeypatch, tmp_path / "c")
     out = tmp_path / "o.jsonl"
@@ -236,7 +221,6 @@ README_LINES = [
 README_COUNTS = "238 `1-easy`, 279 `2-medium` and 196 `3-hard` of the 713"
 
 
-@RED
 def test_the_synopses_and_the_readme_name_labels():
     usage = SCRIPT.read_text(encoding="utf-8").split('"""')[1]
     assert "Usage: python evidence/livecodebench/convert.py --out PATH [--cache DIR] [--labels]" in usage
@@ -254,7 +238,6 @@ def test_the_synopses_and_the_readme_name_labels():
 
 # --- the pinned files, when cached ---------------------------------------------------------
 
-@RED
 def test_pinned_files_give_the_stated_difficulty_counts(cv):
     cache = cv.default_cache_dir()
     if not all((cache / name).is_file() for name in cv.FILES):
