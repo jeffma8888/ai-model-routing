@@ -2,7 +2,7 @@
 
 The script turns tau2-bench run messages and 12.14 matrix rows into cascade rows in the 12.1 v1.538
 format. These tests were committed before it under a module-level strict xfail whose error is the one
-loading a missing file by path raises, FileNotFoundError; the implementing commit removes the mark.
+loading a missing file by path raises, FileNotFoundError, and the implementing commit removed the mark.
 Every test uses synthetic messages and rows; none reads the pinned files."""
 
 import copy
@@ -18,8 +18,6 @@ ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "evidence" / "tau2-bench" / "cascades.py"
 TRANSFER = "transfer_to_human_agents"
 AT = "airline openai/x task '7' trial 0"
-
-pytestmark = pytest.mark.xfail(strict=True, raises=FileNotFoundError)
 
 _loaded = []
 
@@ -119,6 +117,7 @@ BAD = {
     "cost nan": [_with(cost=float("nan"))],
     "cost inf": [_with(cost=float("inf"))],
     "cost negative": [_with(cost=-0.5)],
+    "cost an int too large for a float": [_with(cost=10 ** 400)],
     "tool_calls not a list": [_with(tool_calls="get_user_details")],
     "a tool call not a dict": [_with(tool_calls=["get_user_details"])],
     "a tool call with no name": [_with(tool_calls=[{"arguments": {}}])],
@@ -205,7 +204,7 @@ def test_cascade_cell_on_transfer_reads_the_calls_up_to_the_transfer():
                    "escalated": True}
 
 
-@pytest.mark.parametrize("price", [True, "2", float("nan"), float("inf"), -1, -0.01, None])
+@pytest.mark.parametrize("price", [True, "2", float("nan"), float("inf"), -1, -0.01, None, 10 ** 400])
 def test_cascade_cell_refuses_a_bad_price(price):
     with pytest.raises(ValueError):
         m().cascade_cell(twelve(), CHEAP, STRONG, "calls-over-10", price)
