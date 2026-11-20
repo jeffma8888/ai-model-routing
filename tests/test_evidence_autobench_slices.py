@@ -113,6 +113,12 @@ def slice_phrases(files, results):
               if (r["bar"], r["flavor"], r["strategy"]) == (0.6, ce, "sliced")}
     assert clears == {"coding": 0.0, "creative_synthesis": 0.0, "math_reasoning": 0.0,
                       "planning_agentic": 0.0, "world_knowledge": 1.0}
+    # Review iter-371 should-fix 1: the most seeds on which a difficulty level clears at 0.6.
+    most = max(r["cleared_rate"] for r in d["per_slice"]
+               if (r["bar"], r["flavor"], r["strategy"]) == (0.6, ce, "sliced"))
+    assert 0 < most < 0.5
+    # Review iter-371 should-fix 2: a perfect score on 10 calibration questions clears 0.7, not 0.8.
+    assert 0.7 <= wilson_lower_bound(10, 10, 0.95) < 0.8 and d10["config"]["min_samples"] == 10
     # No slice clears at 0.9 in any file.
     for name in FILES:
         for r in files[name]["per_slice"]:
@@ -129,6 +135,7 @@ def slice_phrases(files, results):
     luna = next(r for r in results["summary"]
                 if (r["bar"], r["flavor"], r["strategy"]) == (0.6, ce, LUNA))
     sizes = []
+    sizes_all = [k for field in ("difficulty", "skill") for k in files[field]["tasks"]["all"]["slices"].values()]
     for field in ("difficulty", "skill"):
         counts = files[field]["tasks"]["all"]["slices"]
         sizes.append(f"by {field} " + ", ".join(f"{k} `{name}`" for name, k in list(counts.items())[:-1])
@@ -154,7 +161,14 @@ def slice_phrases(files, results):
         f"difficulty and {v['skill-min10']} by skill, against {v['difficulty']} and {v['skill']} at 30",
         f"a perfect score needs at least {fewest[0]}, {fewest[1]}, {fewest[2]} and {fewest[3]} calibration "
         f"questions for a Wilson lower bound of 0.6, 0.7, 0.8 and 0.9",
-        "and no slice clears at 0.9 in any file",
+        "so at `--min-samples 10` a perfect score on 10 calibration questions already clears 0.7, and no slice "
+        "clears at 0.9 in any file",
+        f"By difficulty each level clears on at most {r3(most)} of the seeds. On a seed where a slice does not "
+        "clear, its route is the model with the highest lower bound on that slice's few calibration questions "
+        "(DESIGN 5.3), so over all 50 seeds",
+        "Read these violation rates as resampling estimates for this matrix, never as a guarantee",
+        # Review iter-371 nit 3: the slice sizes, from the files.
+        f"A slice's held-out half holds about half of its {min(sizes_all)} to {max(sizes_all)} questions",
         luna_sentence(files, luna),
     ]
 
