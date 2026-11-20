@@ -163,7 +163,7 @@ Reading it:
 - Near its bar a slice's check is noisy: at bar 0.7 the sliced `3-hard` route's `bar_violation_rate` is 0.333, against the pooled route's 0.140 there, and from the pinned files the best model on `3-hard`, `openai/o4-mini-high`, solves 0.776 of its 196 problems, and a rate of at most 0.776 has a 95% Wilson lower bound (DESIGN 5.3) under 0.7 on every `3-hard` calibration half of the 50 seeds (77 to 117 problems), so a `3-hard` route clears 0.7 only on a half that comes out above the slice's best rate, and that luck is paid back on the held-out half, as at bar 0.9 on the whole task (see Reading it above). Read these rates as resampling estimates for this pool, never as a guarantee (DESIGN 12.3)
 - Each slice's calibration half holds 77 to 153 problems over the 50 seeds (`3-hard` 77 to 117), never under `min_samples` 30 (from the pinned files), so no `--min-samples` sensitivity is run
 
-The file comes from these commands, after `python -m pip install -e .`; two runs give byte-identical files:
+The file comes from these commands, after `python -m pip install -e .`; two runs give byte-identical files, and the `evidence` workflow reruns them on GitHub and fails if the file changes by a byte (`DESIGN.md` 12.13, v1.530):
 
 ```bash
 python evidence/livecodebench/convert.py --out livecodebench-labels.jsonl --labels

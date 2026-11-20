@@ -83,6 +83,9 @@ bullet and the `pyarrow` install.
 The AutoBench slices in the workflow (v1.525, row STRAT3g): the runner, token-permissions, no-cache, Steps,
 repeated-line and two `is rerun` lines of 12.13 drop asides and reasons that are not the contract, so 12.13 has
 room for the slices bullet and grows by 16 bytes, leaving rows CI27 and T21 the room they had.
+The LiveCodeBench slices in the workflow (v1.530, row STRAT3i): the workflow, no-cache, RouterBench and
+registry-pair delegation lines of 12.13 drop asides, the growth history of their lists and what the Steps line
+states, so 12.13 has room for the LiveCodeBench block in the slices bullet and grows by 9 bytes.
 
 The section totals (v1.456, row DOC37): each total is the one last set with the subsections it counted,
 `## 12.` 300,000 at v1.390 with 12.1 to 12.22 and `## 13.` 185,000 at v1.386 with 13.1 to 13.14
@@ -499,7 +502,7 @@ POINTERS = {
     "- Time limit and retries (v1.152, ": ("v1.152, v1.168, v1.170, v1.215, v1.217, v1.218, v1.225, v1.226, v1.268, "
                                            "v1.299, v1.301, v1.302, v1.317, v1.321, v1.374, v1.395, v1.398, "
                                            "v1.399, v1.401, v1.407, v1.442"),
-    "Purpose: a reader can see the twenty results files of the `Compare` step below ":
+    "Purpose: a reader can see the twenty-one results files of the `Compare` step below ":
         "v1.55, v1.65, v1.80, v1.84, v1.168, v1.200, v1.299",
     "- The workflow `.github/workflows/evidence.yml`, `name: evidence`, ":
         "v1.54, v1.55, v1.65, v1.80, v1.84, v1.168, v1.200, v1.299",
@@ -1093,9 +1096,10 @@ def test_12_13_states_its_contract_as_it_is_and_holds_no_growth_history():
     assert "12.13" not in PENDING and dict(measure(text)[1])["12.13"] <= CAPS["workflow"]
     # The counts are the ones the workflow and its tests hold now.
     compare = [line for line in workflow.workflow_text().splitlines() if "git diff --exit-code --" in line]
-    # ledger v1.397, registry pair v1.443, its delegation v1.472, Longtail-SWE v1.489, AutoBench slices v1.525
-    assert len(compare) == 1 and compare[0].count(" evidence/") == 20
-    assert body[0].startswith("Purpose: a reader can see the twenty results files of the `Compare` step below ")
+    # ledger v1.397, registry pair v1.443, its delegation v1.472, Longtail-SWE v1.489, AutoBench slices v1.525,
+    # LiveCodeBench slices v1.530
+    assert len(compare) == 1 and compare[0].count(" evidence/") == 21
+    assert body[0].startswith("Purpose: a reader can see the twenty-one results files of the `Compare` step below ")
     assert f"each of {len(workflow.MUTANTS)} broken workflows fails the check" in joined
     commands, run = workflow.expected_commands(workflow.readme()), workflow.regenerate_commands(workflow.readme())
     # v1.397 (row E23c): after the README commands it runs, the ledger RESULTS.md line, from v1.443
@@ -1107,8 +1111,9 @@ def test_12_13_states_its_contract_as_it_is_and_holds_no_growth_history():
     assert taken == [workflow.ledger_command()] + registry + delegation + longtail and len(taken) == 13
     # the 13.17 block opens with the 12.23 converter line the registry-pair lines already ran
     kept = [workflow.ledger_command()] + registry + delegation[1:] + longtail
-    # v1.525 (row STRAT3g): the 12.27 `## Slices` block, no `## Regenerate` block, runs last, all nine lines
-    slices = workflow.slices_commands()
+    # v1.525 (row STRAT3g): the 12.27 `## Slices` block, no `## Regenerate` block, all nine lines, and from v1.530
+    # (row STRAT3i) the three of the 12.28 one, run last
+    slices = workflow.slices_commands() + workflow.slices_commands(workflow.LCB_SLICES_NOTES)
     assert run[-len(kept) - len(slices):] == kept + slices and not set(taken + slices) & set(commands)
     readme_run = len(run) - len(kept) - len(slices)
     assert f"so the README holds {len(commands)} rerun commands and `Regenerate` runs {readme_run} of them, " \
@@ -1143,7 +1148,12 @@ def test_12_13_states_its_contract_as_it_is_and_holds_no_growth_history():
     # from v1.489 (row E26d) with Longtail-SWE
     assert len(heading) == 1 and heading[0].endswith(
         "; ledger hand-off v1.397; registry pair v1.443; registry-pair delegation v1.472; Longtail-SWE v1.489"
-        "; AutoBench slices v1.525)")
+        "; AutoBench slices v1.525; LiveCodeBench slices v1.530)")
+    # v1.530 (row STRAT3i): the asides and growth history four lines dropped stay out
+    for words in ("(so a failing command stops the step)", "(one per rerun subsection and two in",
+                  "from v1.299 12.20", "the registry pair v1.443, its delegation v1.472",
+                  "after the registry-pair lines, `Regenerate`", "reads the matrix those lines write"):
+        assert words not in joined, words
     # v1.443: the restatements the three `is rerun` lines dropped stay out
     for words in ("directly after `pooled.json`", "names it next to last", "after the four `### LLMRouterBench` lines",
                   "`SUBSECTIONS` holds it after"):

@@ -5,9 +5,9 @@ name: evidence
 # AutoBench, Delegation on tau2-bench, Delegation on LLMRouterBench and Delegation on the
 # LLM Routing Response Bank, and those of evidence/ledger-handoff/RESULTS.md,
 # evidence/registry-pair/RESULTS.md, evidence/registry-pair-delegation/RESULTS.md,
-# evidence/longtail-swe/RESULTS.md and the Slices section of evidence/autobench-2026/RESULTS.md,
-# which download the pinned dataset files and check their sha256, then fails if a committed
-# results file changed (DESIGN.md 12.13).
+# evidence/longtail-swe/RESULTS.md and the Slices sections of evidence/autobench-2026/RESULTS.md
+# and evidence/livecodebench/RESULTS.md, which download the pinned dataset files and check
+# their sha256, then fails if a committed results file changed (DESIGN.md 12.13).
 # RouterBench is left out of it, since its source is a 99,567,659-byte pickle that needs
 # pandas and its evaluate step takes about 70 seconds.
 # A README line identical to one already run in the step is not run again when no line
@@ -116,5 +116,8 @@ jobs:
           python evidence/routerbench/results.py --evaluate autobench-slices-difficulty-min10.json --out evidence/autobench-2026/slices-difficulty-min10.json
           model-routing evaluate --outcomes autobench-labels.jsonl --bar 0.6 0.7 0.8 0.9 --seeds 50 --slice-by skill --min-samples 10 --json > autobench-slices-skill-min10.json
           python evidence/routerbench/results.py --evaluate autobench-slices-skill-min10.json --out evidence/autobench-2026/slices-skill-min10.json
+          python evidence/livecodebench/convert.py --out livecodebench-labels.jsonl --labels
+          model-routing evaluate --outcomes livecodebench-labels.jsonl --bar 0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 --seeds 50 --flavor cost_blind --slice-by difficulty --json > livecodebench-slices-difficulty.json
+          python evidence/routerbench/results.py --evaluate livecodebench-slices-difficulty.json --out evidence/livecodebench/slices-difficulty.json
       - name: Compare
-        run: git diff --exit-code -- evidence/autobench-2026/results.json evidence/autobench-judges/results.json evidence/tau2-bench/results.json evidence/livecodebench/results.json evidence/llmrouterbench/results.json evidence/response-bank/results.json evidence/delegation/results.json evidence/delegation/variants.json evidence/tau2-bench-delegation/results.json evidence/tau2-bench-delegation/pooled.json evidence/llmrouterbench-delegation/results.json evidence/response-bank-delegation/results.json evidence/ledger-handoff/results.json evidence/registry-pair/results.json evidence/registry-pair-delegation/results.json evidence/longtail-swe/results.json evidence/autobench-2026/slices-difficulty.json evidence/autobench-2026/slices-skill.json evidence/autobench-2026/slices-difficulty-min10.json evidence/autobench-2026/slices-skill-min10.json
+        run: git diff --exit-code -- evidence/autobench-2026/results.json evidence/autobench-judges/results.json evidence/tau2-bench/results.json evidence/livecodebench/results.json evidence/llmrouterbench/results.json evidence/response-bank/results.json evidence/delegation/results.json evidence/delegation/variants.json evidence/tau2-bench-delegation/results.json evidence/tau2-bench-delegation/pooled.json evidence/llmrouterbench-delegation/results.json evidence/response-bank-delegation/results.json evidence/ledger-handoff/results.json evidence/registry-pair/results.json evidence/registry-pair-delegation/results.json evidence/longtail-swe/results.json evidence/autobench-2026/slices-difficulty.json evidence/autobench-2026/slices-skill.json evidence/autobench-2026/slices-difficulty-min10.json evidence/autobench-2026/slices-skill-min10.json evidence/livecodebench/slices-difficulty.json

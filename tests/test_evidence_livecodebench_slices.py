@@ -165,7 +165,7 @@ def test_design_12_28_specifies_the_slice_file():
     assert text.index("\n### 12.27 ") < text.index(heading) < text.index("\n## 13. ")
     for words in ("`--slice-by difficulty`", "`--flavor cost_blind`", *COMMANDS,
                   "gains `## Slices`, after `## Reading it` and before `## Regenerate`",
-                  "`tests/test_evidence_livecodebench_slices.py`", "(row STRAT3i)", "(row STRAT4)",
+                  "`tests/test_evidence_livecodebench_slices.py`", "- Workflow (v1.530, row STRAT3i): ", "(row STRAT4)",
                   "238 (`1-easy`), 279 (`2-medium`) and 196 (`3-hard`)", "77 to 153 items over the 50 seeds",
                   "(in sample, 3 of 713)"):
         assert words in body, words
