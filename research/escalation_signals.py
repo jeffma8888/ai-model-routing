@@ -50,8 +50,9 @@ def _load(path: Path, name: str):
 def tool_types(source: str, label: str) -> dict:
     """{tool name: its ToolType member} for each function `source` decorates `@is_tool(ToolType.X)`.
 
-    A commented-out decorator is no decorator, so its function is no tool. An is_tool decorator whose
-    one argument is not `ToolType.X`, a name decorated twice, or a source with no tool is a ValueError."""
+    A commented-out decorator is no decorator, so its function is no tool. An is_tool decorator that is
+    not a call of the bare name `is_tool` (`@is_tool`, `@x.is_tool(...)`), one whose one argument is not
+    `ToolType.X`, a name decorated twice, or a source with no tool is a ValueError."""
     try:
         tree = ast.parse(source)
     except SyntaxError as exc:
@@ -61,8 +62,13 @@ def tool_types(source: str, label: str) -> dict:
         if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             continue
         for dec in node.decorator_list:
-            if not (isinstance(dec, ast.Call) and isinstance(dec.func, ast.Name) and dec.func.id == "is_tool"):
+            func = dec.func if isinstance(dec, ast.Call) else dec
+            named = (isinstance(func, ast.Name) and func.id == "is_tool") or (
+                isinstance(func, ast.Attribute) and func.attr == "is_tool")
+            if not named:
                 continue
+            if not (isinstance(dec, ast.Call) and isinstance(dec.func, ast.Name)):
+                raise ValueError(f"{label}: {node.name}: is_tool is not called by its bare name")
             arg = dec.args[0] if len(dec.args) == 1 and not dec.keywords else None
             if not (isinstance(arg, ast.Attribute) and isinstance(arg.value, ast.Name) and arg.value.id == "ToolType"):
                 raise ValueError(f"{label}: {node.name}: is_tool takes no single ToolType.X argument")
@@ -90,13 +96,14 @@ def fetch_tools(folder, convert) -> dict:
             try:
                 with urllib.request.urlopen(url, timeout=TIMEOUT) as response:
                     part.write_bytes(response.read())
-                convert.verify(part, size, sha256)
-            except ValueError:
-                part.unlink(missing_ok=True)
-                raise
             except Exception as exc:
                 part.unlink(missing_ok=True)
                 raise OSError(f"{target.name}: download failed: {exc}") from exc
+            try:
+                convert.verify(part, size, sha256)
+            except BaseException:
+                part.unlink(missing_ok=True)
+                raise
             part.replace(target)
         sources[domain] = target.read_text(encoding="utf-8")
     return sources
@@ -119,8 +126,9 @@ def _tool_names(value, at) -> list:
 def reduce_run(run, tools: dict, convert, trial: int = TRIAL) -> dict:
     """One parsed run file at `trial`: its domain, agent, message counts and per run, in task order,
     (agent calls, passed, called transfer_to_human_agents, the 1-based agent call of its first write call
-    or None). The labels are the converter's: `convert.extract` checks the run and reads each reward."""
-    e = convert.extract(run, trial)
+    or None). The labels are the converter's: `convert.extract` checks the run, reads each reward and,
+    with `tokens=True`, checks that each usage holds int token counts, so every agent call can be priced."""
+    e = convert.extract(run, trial, tokens=True)
     domain, agent = e["domain"], e["agent"]
     if domain not in tools:
         raise ValueError(f"{domain}: no tools file is pinned for this domain")
@@ -198,17 +206,20 @@ def report(reduced: list, tools: dict, revision: str) -> list:
                      f"{sum(ok for _, ok, _, _ in r['runs']):>4}  {_median(n):>12}  {max(n, default=0):>9}  "
                      f"{_share(with_usage, r['messages']):>11}  {len(transfer):>8}  {sum(transfer):>13}  "
                      f"{wrote:>10}")
-    lines += ["", "pooled over each domain's agents",
-              f"{'domain':<{dom}}  runs  pass  pass_rate  transfer  transfer_pass  transfer_rate  write_runs",
-              f"{'-' * dom}  ----  ----  ---------  --------  -------------  -------------  ----------"]
+    lines += ["", "pooled over each domain's agents (no_transfer: runs that never call transfer_to_human_agents)",
+              f"{'domain':<{dom}}  runs  pass  pass_rate  transfer  transfer_pass  transfer_rate  "
+              "no_transfer  no_transfer_rate  write_runs",
+              f"{'-' * dom}  ----  ----  ---------  --------  -------------  -------------  "
+              "-----------  ----------------  ----------"]
     for domain in sorted({r["domain"] for r in rows}):
         pooled = [run for r in rows if r["domain"] == domain for run in r["runs"]]
         passed = sum(ok for _, ok, _, _ in pooled)
         transfer = [ok for _, ok, t, _ in pooled if t]
+        other = [ok for _, ok, t, _ in pooled if not t]
         wrote = sum(w is not None for _, _, _, w in pooled)
         lines.append(f"{domain:<{dom}}  {len(pooled):>4}  {passed:>4}  {_share(passed, len(pooled)):>9}  "
                      f"{len(transfer):>8}  {sum(transfer):>13}  {_share(sum(transfer), len(transfer)):>13}  "
-                     f"{wrote:>10}")
+                     f"{len(other):>11}  {_share(sum(other), len(other)):>16}  {wrote:>10}")
     cell = 10
     lines += ["", "runs over N agent calls, each cell over/pass/wrote (wrote: a write call among its first N calls)",
               f"{'domain':<{dom}}  {'agent':<{width}}" + "".join(f"  {'N=' + str(n):>{cell}}" for n in GRID),

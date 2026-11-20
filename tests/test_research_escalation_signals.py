@@ -82,6 +82,8 @@ def test_tool_types_reads_each_decorated_function(sig):
     "class A:\n    @is_tool(ToolType.READ)\n    def f(self):\n        pass\n"
     "class B:\n    @is_tool(ToolType.READ)\n    def f(self):\n        pass\n",
     "def f(:\n",
+    "@is_tool\ndef f():\n    pass\n",
+    "@kit.is_tool(ToolType.READ)\ndef f():\n    pass\n",
 ])
 def test_tool_types_rejects_what_it_cannot_read(sig, source):
     with pytest.raises(ValueError, match="^t: "):
@@ -130,8 +132,9 @@ def test_reduce_run_counts_calls_transfers_and_the_first_write(sig, convert):
 @pytest.mark.parametrize("message", [
     {"role": "assistant", "content": "x", "tool_calls": None},
     {"role": "assistant", "content": "x", "tool_calls": [{"name": "look"}], "usage": None},
-    {"role": "assistant", "content": "x", "tool_calls": [{"id": "1"}], "usage": {"prompt_tokens": 1}},
-    {"role": "assistant", "content": "x", "tool_calls": "look", "usage": {"prompt_tokens": 1}},
+    {"role": "assistant", "content": "x", "tool_calls": [{"id": "1"}], "usage": {"prompt_tokens": 1, "completion_tokens": 1}},
+    {"role": "assistant", "content": "x", "tool_calls": "look", "usage": {"prompt_tokens": 1, "completion_tokens": 1}},
+    {"role": "assistant", "content": "x", "tool_calls": None, "usage": {"prompt_tokens": 1}},
     "not an object",
 ])
 def test_reduce_run_rejects_a_message_it_cannot_read(sig, convert, message):
@@ -155,8 +158,8 @@ def test_report_on_a_stub(sig, convert):
     assert lines[3].split() == ["domain", "agent", "runs", "pass", "calls_median", "calls_max", "usage_share",
                                 "transfer", "transfer_pass", "write_runs"]
     assert lines[5].split() == ["shop", "openai/gpt-x", "3", "2", "1", "3", "0.625", "1", "0", "1"]
-    pooled = lines.index("pooled over each domain's agents")
-    assert lines[pooled + 3].split() == ["shop", "3", "2", "0.667", "1", "0", "0.000", "1"]
+    pooled = next(k for k, line in enumerate(lines) if line.startswith("pooled over each domain's agents (no_transfer"))
+    assert lines[pooled + 3].split() == ["shop", "3", "2", "0.667", "1", "0", "0.000", "2", "1.000", "1"]
     grid = next(k for k, line in enumerate(lines) if line.startswith("runs over N agent calls"))
     assert lines[grid + 1].split() == ["domain", "agent"] + [f"N={n}" for n in sig.GRID]
     assert lines[grid + 3].split() == ["shop", "openai/gpt-x", "0/0/0", "0/0/0", "0/0/0", "0/0/0", "0/0/0"]
@@ -167,13 +170,16 @@ def test_report_on_a_stub(sig, convert):
 
 
 def test_report_grid_counts_a_write_only_among_the_first_n_calls(sig):
-    reduced = [{"domain": "d", "agent": "v/m", "messages": 40, "without_first": 2, "without_later": 0,
-                "runs": [(12, True, False, 3), (12, False, False, 11), (8, True, False, None)]}]
+    # review iter-378 should-fix 4: a run of exactly N calls is not over N, and a first write at call N is
+    # among the first N, so `c > n` and `w <= n` are pinned at both boundaries
+    reduced = [{"domain": "d", "agent": "v/m", "messages": 60, "without_first": 5, "without_later": 0,
+                "runs": [(12, True, False, 3), (12, False, False, 11), (8, True, False, None),
+                         (10, True, False, 10), (11, False, False, 10)]}]
     lines = sig.report(reduced, {"d": {"w": "WRITE"}}, "f" * 40)
     grid = next(k for k, line in enumerate(lines) if line.startswith("runs over N agent calls"))
-    assert lines[grid + 3].split()[2:] == ["3/2/1", "2/1/1", "0/0/0", "0/0/0", "0/0/0"]
+    assert lines[grid + 3].split()[2:] == ["5/3/1", "3/1/2", "0/0/0", "0/0/0", "0/0/0"]
     rows = next(k for k, line in enumerate(lines) if line.startswith("pooled over each domain's agents (no_write"))
-    assert lines[rows + 4].split() == ["d", "10", "2", "0.500", "1", "0.000", "1", "1.000"]
+    assert lines[rows + 4].split() == ["d", "10", "3", "0.333", "1", "0.000", "2", "1.000"]
     assert lines[-1] == "transfer_to_human_agents: d absent"
 
 
@@ -225,7 +231,7 @@ def test_measured_block_starts_with_the_command():
     assert _block(_measured()).splitlines()[0] == COMMAND
 
 
-def test_measured_prose_numbers_are_in_the_block():
+def test_measured_prose_number_tokens_appear_in_the_block():
     section = _measured()
     block = _block(section)
     prose = VERSION.sub(" ", DATE.sub(" ", section.replace(block, "")))
@@ -236,10 +242,10 @@ def test_measured_prose_numbers_are_in_the_block():
 def test_measured_section_sets_esc3_signal_and_grid():
     section = _measured()
     for phrase in ("- Decision for row ESC3:", "`calls-over-N-no-write`", "`calls-over-N`",
-                   "N = 10, 15 and 20", "`transfer_to_human_agents` is no signal"):
+                   "N = 10, 15 and 20", "a third signal, `transfer`", "an empty cell is no result"):
         assert phrase in section, phrase
     plan = _note().split("\n## What row ESC3 runs\n", 1)[1].split("\n## ", 1)[0]
-    assert "`calls-over-N-no-write`" in plan and "N = 10, 15 and 20" in plan
+    assert "`calls-over-N-no-write`" in plan and "N = 10, 15 and 20" in plan and "`transfer`" in plan
 
 
 def test_the_spec_bullet_follows_the_escalation_bullet_in_design_7():
@@ -251,7 +257,8 @@ def test_the_spec_bullet_follows_the_escalation_bullet_in_design_7():
     spec = part[part.index(head):]
     for phrase in ("`research/escalation_signals.py`", "`TOOL_FILES`", "`@is_tool(ToolType.WRITE)`",
                    "an agent call is an agent message with a `usage`", "`GRID = (5, 10, 15, 20, 30)`",
-                   "`over/pass/wrote`", "`calls-over-N-no-write`", "N = 10, 15 and 20", "(row ESC1c)"):
+                   "`over/pass/wrote`", "`calls-over-N-no-write`", "N = 10, 15 and 20", "(row ESC1c)",
+                   "`tokens=True`", "`no_transfer`", "the third signal `transfer`", "among the first N"):
         assert phrase in spec, phrase
 
 
