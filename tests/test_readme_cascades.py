@@ -102,7 +102,8 @@ def test_the_part_says_how_to_call_and_check_a_cascade():
                   "keeps the cheap model's answer when the signal is false",
                   "when it is true, or the cheap call fails, the strong model starts fresh on the same messages",
                   "`validate` checks whichever answer the entry keeps",
-                  "Each log record names the model it called and carries `cascade` and `escalated`",
+                  "Each log record names the model it called, and the records of a cascade entry's attempts also "
+                  "carry `cascade` and `escalated`",
                   "a cascade's row names its ID as `model`, gives the whole cascade's `cost_usd` and a true or false "
                   "`escalated`", "`escalation_share`: of the held-out items in the cells routed to a cascade, the "
                   "share the cheap model handed up"):
@@ -132,6 +133,16 @@ def test_the_replay_numbers_are_the_committed_ones():
             f"more than N agent calls for N of {words}, each also in a form that needs no write among the first N "
             f"calls, and the agent's call to transfer to a human agent") in body
     assert f"averaged over the {len(results['config']['seeds'])} seeds" in body
+    # review iter-388 must-fix 1: a handed-up row is not only recorded spend, it adds the re-read
+    assert ("on a handed-up conversation it adds the conversation so far, read once more as the strong agent's "
+            "uncached input at its input list price") in body
+    calls = [{"cost_usd": 0.25, "prompt_tokens": 1000, "completion_tokens": 100, "write": False, "transfer": False},
+             {"cost_usd": 0.5, "prompt_tokens": 2000, "completion_tokens": 200, "write": False, "transfer": False},
+             {"cost_usd": 0.75, "prompt_tokens": 3000, "completion_tokens": 300, "write": False, "transfer": False}]
+    cheap, strong = {"correct": True, "cost_usd": 0.3}, {"correct": False, "cost_usd": 1.5}
+    cell = replay().cascade_cell(calls, cheap, strong, "calls-over-2", 2.0)
+    recorded = 0.25 + 0.5 + 1.5
+    assert cell["escalated"] and abs(cell["cost_usd"] - recorded - (2000 + 200) * 2.0 / 1e6) < 1e-12
 
 
 def test_the_fixed_cascade_numbers_are_the_committed_ones():
@@ -199,7 +210,9 @@ def test_the_part_states_the_limits():
                   "The strong run in the data is a fresh conversation, so the replay restarts the conversation at "
                   "the hand-up, as the executor does",
                   "`calls-over-N` and `transfer` may hand up a run in which the cheap agent already wrote",
-                  "which the replay assumes undone", "only the `-no-write` signals never hand such a run up"):
+                  "which the replay assumes undone", "only the `-no-write` signals never hand such a run up",
+                  # review iter-388 should-fix 2: -no-write does not make a telecom hand-up state-safe
+                  "but in telecom the user's own device actions change state too, and no signal counts them"):
         assert words in body, words
     r = replay()  # the -no-write rule the part states, on the replay itself (DESIGN 7 v1.539)
     calls = [{"cost_usd": 0.0, "prompt_tokens": 1, "completion_tokens": 1, "write": k == 0, "transfer": False}
@@ -214,7 +227,8 @@ def test_design_names_the_part():
                if line.startswith("- v1.543 README (row ESC3d): `## Start cheap, escalate on a signal`")]
     assert len(bullets) == 1
     for words in ("`tests/test_readme_cascades.py`", "the 12.15 results.json", "holds no `bash` block and no transcript",
-                  "still counts 14 files"):
+                  "still counts 14 files", "the re-read at the strong agent's input price",
+                  "telecom's user device actions", "only a cascade entry's records carry"):
         assert words in bullets[0], words
     sub = text.split("\n### 12.29 ", 1)[1].split("\n## ", 1)[0]
     assert "- README (v1.543, 7): README `## Start cheap, escalate on a signal` (row ESC3d)" in sub
