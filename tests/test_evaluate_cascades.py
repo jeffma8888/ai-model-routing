@@ -5,7 +5,8 @@ DESIGN 7 v1.532 gives a cascade an outcome-matrix row of its own: `model` its `i
 routes each cell with the matrix's cascades as 5.2 candidates (`select(..., cascades=True)`),
 keeps `cheapest`, `best_on_calibration` and `oracle` to the single models, and reports how often
 the cheap model escalated on held-out items as `escalation_share`. Row ESC4 wrote these tests
-under strict xfail; the guards pin what v1.538 keeps and pass before and after it.
+under strict xfail and then implemented v1.538; the guards pin what v1.538 keeps and passed
+before and after it.
 
 The planted matrix, 60 items `q000` to `q059` on each task, every cost a whole number of dollars
 so each sum is exact:
@@ -23,15 +24,16 @@ fiction/cheap clears and costs least, so `u` routes to it. Every count is read f
 """
 
 import hashlib
+import importlib
 import json
 
 import pytest
 
 from model_routing import Outcome, evaluate, outcomes_from_rows, split_items, wilson_lower_bound
-from model_routing import evaluate as evaluate_module
 from model_routing.cli import main
 
-RED = pytest.mark.xfail(strict=True, reason="row ESC4: DESIGN 12 v1.538 is not code yet")
+# the module, since `model_routing.evaluate` is the re-exported function
+evaluate_module = importlib.import_module("model_routing.evaluate")
 
 CHEAP, STRONG = "fiction/cheap", "fiction/strong"
 CASCADE = f"{CHEAP}>{STRONG}@sig"
@@ -153,20 +155,17 @@ V1_537_CLI_DIGEST = "38f1791242bfebdde8d1d112d258c272ac3c8e3832f6238dc3b433ca013
 
 # --- 12.1: reading a cascade row ---
 
-@RED
 def test_outcome_gains_a_last_escalated_field_defaulting_to_none():
     o = Outcome("t", "q000", CHEAP, True, 1.0)
     assert o.escalated is None
     assert Outcome("t", "q000", CASCADE, True, 1.0, None, True).escalated is True
 
 
-@RED
 def test_a_cascade_rows_escalated_is_read_and_a_model_rows_is_none():
     outcomes = outcomes_from_rows(single_rows("t")[:2] + cascade_rows("t")[:2])
     assert [o.escalated for o in outcomes] == [None, None, True, False]
 
 
-@RED
 @pytest.mark.parametrize("value", [None, 1, 0, "true"])
 def test_a_cascade_row_needs_a_bool_escalated(value):
     row = dict(cascade_rows("t")[0], escalated=value)
@@ -177,14 +176,12 @@ def test_a_cascade_row_needs_a_bool_escalated(value):
         outcomes_from_rows([row])
 
 
-@RED
 def test_a_cascade_row_carries_no_token_counts():
     row = dict(cascade_rows("t")[0], input_tokens=10, output_tokens=5)
     with pytest.raises(ValueError, match="token"):
         outcomes_from_rows([row])
 
 
-@RED
 @pytest.mark.parametrize("model", ["fiction/a>fiction/b", f"{CHEAP}>{CHEAP}@sig",
                                    "fiction/a>fiction/b@Bad", "a>b>c@sig"])
 def test_a_model_holding_a_gt_sign_must_be_a_cascade_id(model):
@@ -193,7 +190,6 @@ def test_a_model_holding_a_gt_sign_must_be_a_cascade_id(model):
         outcomes_from_rows([row])
 
 
-@RED
 @pytest.mark.parametrize("value", [True, False, None])
 def test_only_a_cascade_row_carries_escalated(value):
     row = dict(single_rows("t")[0], escalated=value)
@@ -203,7 +199,6 @@ def test_only_a_cascade_row_carries_escalated(value):
 
 # --- 12.3: the checks ---
 
-@RED
 @pytest.mark.parametrize("missing", [CHEAP, STRONG])
 def test_a_cascade_needs_both_its_models_in_the_matrix(missing):
     rows = [r for r in planted_rows() if r["model"] != missing]
@@ -211,7 +206,6 @@ def test_a_cascade_needs_both_its_models_in_the_matrix(missing):
         run(rows)
 
 
-@RED
 def test_an_outcome_built_in_code_is_checked_as_a_row_is():
     outcomes = list(outcomes_from_rows(planted_rows()))
     k = next(n for n, o in enumerate(outcomes) if o.model == CASCADE)
@@ -229,7 +223,6 @@ def test_an_outcome_built_in_code_is_checked_as_a_row_is():
 
 # --- 12.3: routing and scoring ---
 
-@RED
 def test_each_cell_routes_t_to_the_cascade_and_u_to_the_cheap_model():
     result = run(planted_rows())
     for seed in SEEDS:
@@ -243,12 +236,12 @@ def test_each_cell_routes_t_to_the_cascade_and_u_to_the_cheap_model():
     assert cell_of(result, "t", 0)["cost_usd"]["routed"] == 395.0
 
 
-@RED
 def test_the_baselines_range_over_the_single_models():
     result = run(planted_rows())
     for cell in result["cells"]:
-        # the cascade ties fiction/strong on calibration successes at a lower mean cost
-        assert cell["models"]["best_on_calibration"] == STRONG
+        # on t the cascade ties fiction/strong on calibration successes at a lower mean cost; on
+        # u fiction/cheap is right on every item and costs least
+        assert cell["models"]["best_on_calibration"] == (STRONG if cell["task"] == "t" else CHEAP)
         assert cell["models"]["cheapest"] == CHEAP
     rows = [dict(r, cost_usd=0.5) if r["model"] == CASCADE else r for r in planted_rows()]
     for cell in run(rows)["cells"]:
@@ -259,14 +252,13 @@ def test_the_baselines_range_over_the_single_models():
             1.0 if cell["task"] == "u" or i % 3 else strong_cost(cell["task"], i) for i in h)
 
 
-@RED
 def test_the_cascade_is_priced_by_5_2_over_a_registry_of_the_single_models(monkeypatch):
     seen = []
 
     class Recording(evaluate_module.Router):
         def select(self, *args, **kw):
             decision = super().select(*args, **kw)
-            seen.append((sorted(m.id for m in self.registry.models()), kw, decision))
+            seen.append((sorted(m.id for m in self.registry.models), kw, decision))
             return decision
 
     monkeypatch.setattr(evaluate_module, "Router", Recording)
@@ -283,7 +275,6 @@ def test_the_cascade_is_priced_by_5_2_over_a_registry_of_the_single_models(monke
     assert sum(cascade_cost("t", i) for i in c) / len(c) == 9.0
 
 
-@RED
 def test_each_cell_holds_an_escalation_share_per_strategy():
     result = run(planted_rows())
     for seed in SEEDS:
@@ -300,7 +291,6 @@ def test_each_cell_holds_an_escalation_share_per_strategy():
     assert cell_of(result, "t", 0)["escalation_share"]["routed"] == 18 / 35
 
 
-@RED
 def test_summary_and_per_task_rows_end_with_an_escalation_share():
     result = run(planted_rows())
     esc_t = sum(sum(escalates("t", i) for i in held(s)) for s in SEEDS)
@@ -322,7 +312,6 @@ def test_summary_and_per_task_rows_end_with_an_escalation_share():
     assert per_task["t", "routed"]["routed_models"] == {CASCADE: 3}
 
 
-@RED
 def test_a_sliced_cell_routes_its_slices_with_the_cascades():
     rows = [dict(r, part="even" if index(r["item"]) % 2 == 0 else "odd")
             for r in planted_rows(("t",))]
@@ -338,7 +327,6 @@ def test_a_sliced_cell_routes_its_slices_with_the_cascades():
 
 # --- 12.4: the CLI ---
 
-@RED
 def test_the_cli_table_gains_an_escalation_share_column(tmp_path, capsys):
     path = write(tmp_path / "o.jsonl", planted_rows())
     assert main(["evaluate", "--outcomes", path, "--bar", "0.8", "--seeds", "3",
@@ -355,7 +343,6 @@ def test_the_cli_table_gains_an_escalation_share_column(tmp_path, capsys):
     assert oracle[-1] == "-"
 
 
-@RED
 def test_the_cli_json_keeps_the_escalation_share(tmp_path, capsys):
     path = write(tmp_path / "o.jsonl", planted_rows())
     assert main(["evaluate", "--outcomes", path, "--bar", "0.8", "--seeds", "3",

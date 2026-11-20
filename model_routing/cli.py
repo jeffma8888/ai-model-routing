@@ -314,16 +314,18 @@ def _cmd_evaluate(args) -> int:
 
     def fmt(value):
         return "-" if value is None else f"{value:.3f}"
+    # v1.538: an escalation_share column only when the outcomes hold a cascade row
+    escalation = ["escalation_share"] if "escalation_share" in result["summary"][0] else []
     blocks = []
     for bar in result["config"]["bars"]:
         for flavor in result["config"]["flavors"]:
             rows = [[r["strategy"], fmt(r["success"]), f"{r['cost_usd']:.4f}",
                      fmt(r["below_bar_rate"]), fmt(r["cleared_rate"]),
-                     fmt(r["bar_violation_rate"])]
+                     fmt(r["bar_violation_rate"])] + [fmt(r[k]) for k in escalation]
                     for r in result["summary"] if r["bar"] == bar and r["flavor"] == flavor]
             blocks.append(f"bar {bar}, {flavor}\n" + _table(
                 ["strategy", "success", "cost_usd", "below_bar_rate", "cleared_rate",
-                 "bar_violation_rate"], rows))
+                 "bar_violation_rate"] + escalation, rows))
             if "slice_summary" in result:
                 # v1.514: the (bar, flavor)'s slice_summary rows, slice_miss_rate last
                 rows = [[r["strategy"], fmt(r["success"]), f"{r['cost_usd']:.4f}",

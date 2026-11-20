@@ -12,7 +12,7 @@ from typing import Dict, Iterable, List, Optional, Sequence, Tuple, Union
 from .registry import Model, Registry
 from .router import FLAVORS, Router
 from .stats import Stats
-from .tasks import Task, is_slice_name
+from .tasks import Task, is_slice_name, parse_cascade_id
 
 PathLike = Union[str, Path]
 
@@ -27,6 +27,7 @@ class Outcome:
     correct: bool
     cost_usd: float
     slice: Optional[str] = None  # v1.514: last, so five positional arguments keep their meaning
+    escalated: Optional[bool] = None  # v1.538: a cascade row's, None on a model's
 
 
 def _is_int(v) -> bool:
@@ -42,6 +43,17 @@ def _row_to_outcome(row, registry: Optional[Registry], slice_by: Optional[str] =
             raise ValueError(f"outcome row needs a non-empty string {key!r}: {row!r}")
     if "correct" not in row or type(row["correct"]) is not bool:
         raise ValueError(f"'correct' must be true or false: {row!r}")
+    if ">" in row["model"]:
+        # v1.538: a cascade row, as calibrate_from_results reads one (DESIGN 7 v1.532)
+        if parse_cascade_id(row["model"]) is None:
+            raise ValueError(f"model {row['model']!r} holds '>' but is no valid cascade id: "
+                             f"{row!r}")
+        if "input_tokens" in row or "output_tokens" in row:
+            raise ValueError(f"a cascade row carries no token counts: {row!r}")
+        if type(row.get("escalated")) is not bool:
+            raise ValueError(f"a cascade row needs 'escalated' true or false: {row!r}")
+    elif "escalated" in row:
+        raise ValueError(f"only a cascade row carries 'escalated': {row!r}")
     if "cost_usd" in row:
         cost = row["cost_usd"]
         if isinstance(cost, bool) or not isinstance(cost, (int, float)) or not isfinite(cost) \
@@ -63,7 +75,8 @@ def _row_to_outcome(row, registry: Optional[Registry], slice_by: Optional[str] =
         if not is_slice_name(name) or "@" in row["task"]:
             raise ValueError(f"a slice must be a non-empty string without '@' on a task "
                              f"without '@': {row!r}")
-    return Outcome(row["task"], row["item"], row["model"], row["correct"], cost, name)
+    return Outcome(row["task"], row["item"], row["model"], row["correct"], cost, name,
+                   row.get("escalated"))
 
 
 def _check_slice_by(slice_by) -> None:
@@ -157,6 +170,22 @@ def _check_run_options(bars: list, seeds: list, flavors: list, min_samples, conf
     _check_fraction(calibration_fraction)
 
 
+def _is_cascade(model) -> bool:
+    return isinstance(model, str) and ">" in model
+
+
+def _check_cascade_outcome(o: Outcome) -> None:
+    """12.1's cascade-row rules on an Outcome, which may be built in code (12.3, v1.538)."""
+    where = f"outcome for task {o.task!r}, item {o.item!r}, model {o.model!r}"
+    if _is_cascade(o.model):
+        if parse_cascade_id(o.model) is None:
+            raise ValueError(f"{where}: the model holds '>' but is no valid cascade id")
+        if type(o.escalated) is not bool:
+            raise ValueError(f"{where}: a cascade outcome needs escalated true or false")
+    elif o.escalated is not None:
+        raise ValueError(f"{where}: only a cascade outcome carries escalated")
+
+
 def _strategies(models: Sequence[str]) -> List[str]:
     return ["routed", "oracle", "best_on_calibration", "cheapest"] + [f"model:{m}" for m in models]
 
@@ -176,6 +205,8 @@ def evaluate(outcomes, bars, seeds=range(10), flavors=("cost_effective", "cost_b
     if not outcomes:
         raise ValueError("no outcomes")
     _check_run_options(bars, seeds, flavors, min_samples, confidence, calibration_fraction)
+    for o in outcomes:
+        _check_cascade_outcome(o)
 
     table: Dict[Tuple[str, str], Dict[str, Outcome]] = {}
     models = sorted({o.model for o in outcomes})
@@ -191,6 +222,12 @@ def evaluate(outcomes, bars, seeds=range(10), flavors=("cost_effective", "cost_b
             if m not in by_model:
                 raise ValueError(f"incomplete matrix: no row for task {task!r}, item {item!r}, "
                                  f"model {m!r}")
+    for cid in (m for m in models if _is_cascade(m)):
+        cascade = parse_cascade_id(cid)
+        for role, m in (("cheap", cascade.cheap), ("strong", cascade.strong)):
+            if m not in models:
+                raise ValueError(f"cascade {cid!r}: its {role} model {m!r} is not a model of "
+                                 f"the matrix")
     task_items: Dict[str, List[str]] = {}
     for task, item in table:
         task_items.setdefault(task, []).append(item)
@@ -248,7 +285,7 @@ def evaluate(outcomes, bars, seeds=range(10), flavors=("cost_effective", "cost_b
         "tasks": task_info,
         "cells": cells,
         "summary": _summary(cells, sums, bars, flavors, seeds, tasks, strategies),
-        "per_task": _per_task(cells, bars, flavors, seeds, tasks, strategies),
+        "per_task": _per_task(cells, bars, flavors, seeds, tasks, strategies, sums),
     }
     if groups:
         result["per_slice"] = _per_slice(cells, bars, flavors, groups)
@@ -261,8 +298,11 @@ def _split_sums(table, models, task, cal, held) -> dict:
     """The sums of one (task, seed) that neither the bar nor the flavor enters (12.3, v1.135):
     calibration counts and mean costs, each model's held-out success, correct count and cost, the
     oracle's held-out pair and correct count, and the two baselines' picks; ``best`` is ranked on the
-    calibration count, since ``n_cal`` is one number per (task, seed) (v1.266)."""
+    calibration count, since ``n_cal`` is one number per (task, seed) (v1.266). The oracle and the
+    baselines range over the single models, and each cascade's escalated items on C and on H are
+    counted (v1.538)."""
     n_cal, n = len(cal), len(held)
+    singles = [m for m in models if not _is_cascade(m)]
     succ = {m: sum(table[task, i][m].correct for i in cal) for m in models}
     mean_cost = {m: fsum(table[task, i][m].cost_usd for i in cal) / n_cal for m in models}
     held_correct = {m: sum(table[task, i][m].correct for i in held) for m in models}
@@ -271,14 +311,18 @@ def _split_sums(table, models, task, cal, held) -> dict:
     ok, spend = 0, []
     for i in held:
         row = table[task, i]
-        right = [row[m].cost_usd for m in models if row[m].correct]
+        right = [row[m].cost_usd for m in singles if row[m].correct]
         ok += bool(right)
-        spend.append(min(right) if right else min(row[m].cost_usd for m in models))
+        spend.append(min(right) if right else min(row[m].cost_usd for m in singles))
+    cascades = [m for m in models if _is_cascade(m)]
     return {"n_cal": n_cal, "n_held": n, "succ": succ, "mean_cost": mean_cost,
             "held_success": held_success, "held_cost": held_cost, "held_correct": held_correct,
             "oracle": (ok / n, fsum(spend)), "oracle_correct": ok,
-            "cheapest": min(models, key=lambda m: (mean_cost[m], m)),
-            "best": min(models, key=lambda m: (-succ[m], mean_cost[m], m))}
+            "cheapest": min(singles, key=lambda m: (mean_cost[m], m)),
+            "best": min(singles, key=lambda m: (-succ[m], mean_cost[m], m)),
+            "cal_escalated": {m: sum(table[task, i][m].escalated for i in cal) for m in cascades},
+            "held_escalated": {m: sum(table[task, i][m].escalated for i in held)
+                               for m in cascades}}
 
 
 @dataclass(frozen=True)
@@ -305,16 +349,29 @@ def _routed_registry(models, mean_cost) -> Registry:
                                         mean_cost=mean_cost[m]) for m in models])
 
 
-def _cell(split, models, strategies, task, bar, flavor, seed, min_samples, confidence) -> dict:
-    n_cal, succ, mean_cost = split["n_cal"], split["succ"], split["mean_cost"]
+def _routed_router(split, models, task, key, bar, min_samples, confidence):
+    """A cell's router (12.3): the single models over ``_routed_registry``, the matrix's cascades
+    as the task's, by ascending ``id``, and every model's and cascade's counts under ``key``, the
+    task or ``<task>@<slice>`` (v1.538); and the cascades, empty when the matrix has none."""
+    singles = [m for m in models if not _is_cascade(m)]
+    cascades = tuple(parse_cascade_id(m) for m in models if _is_cascade(m))
     stats = Stats()
-    for m in models:
-        stats.add(task, m, succ[m], n_cal)
-    registry = _routed_registry(models, mean_cost)
+    for m in singles:
+        stats.add(key, m, split["succ"][m], split["n_cal"])
+    for c in cascades:
+        stats.add(key, c.id, split["succ"][c.id], split["n_cal"],
+                  escalated=split["cal_escalated"][c.id])
     t = Task(name=task, bar=bar, min_samples=min_samples, confidence=confidence,
              independent_of_generator=False, expected_input_tokens=1, expected_output_tokens=0,
-             on_no_model="best_available", max_fallbacks=0)
-    decision = Router(registry, {task: t}, stats).select(task, flavor)
+             on_no_model="best_available", max_fallbacks=0, cascades=cascades)
+    return Router(_routed_registry(singles, split["mean_cost"]), {task: t}, stats), cascades
+
+
+def _cell(split, models, strategies, task, bar, flavor, seed, min_samples, confidence) -> dict:
+    n_cal = split["n_cal"]
+    router, cascades = _routed_router(split, models, task, task, bar, min_samples, confidence)
+    # v1.538: cascades=True only with a cascade, so a run without one is v1.537's call
+    decision = router.select(task, flavor, **({"cascades": True} if cascades else {}))
     chosen = {"routed": decision.primary, "best_on_calibration": split["best"],
               "cheapest": split["cheapest"]}
     success, cost = {}, {}
@@ -324,10 +381,35 @@ def _cell(split, models, strategies, task, bar, flavor, seed, min_samples, confi
             continue
         m = chosen[s] if s in chosen else s[len("model:"):]
         success[s], cost[s] = split["held_success"][m], split["held_cost"][m]
-    return {"bar": bar, "flavor": flavor, "seed": seed, "task": task,
+    cell = {"bar": bar, "flavor": flavor, "seed": seed, "task": task,
             "calibration_items": n_cal, "held_out_items": split["n_held"],
             "cleared": not decision.below_bar, "models": chosen,
             "success": success, "cost_usd": cost}
+    if cascades:
+        # v1.538: the escalated held-out share of the cascade a strategy names, else None
+        held_escalated = split["held_escalated"]
+        cell["escalation_share"] = {
+            s: (held_escalated[m] / split["n_held"] if m in held_escalated else None)
+            for s, m in ((s, _named(cell, s)) for s in strategies)}
+    return cell
+
+
+def _named(cell, strategy) -> Optional[str]:
+    """The model ``strategy`` names in ``cell``, None for the oracle."""
+    if strategy == "oracle":
+        return None
+    return cell["models"][strategy] if strategy in cell["models"] else strategy[len("model:"):]
+
+
+def _escalation_share(sums, cells, strategy) -> Optional[float]:
+    """Over the cells in which ``strategy`` names a cascade, their escalated held-out items over
+    their held-out items, both integers from the (task, seed) sums; None when there are none."""
+    escalated = items = 0
+    for c in cells:
+        if c["escalation_share"][strategy] is not None:
+            escalated += sums[c["task"], c["seed"]]["held_escalated"][_named(c, strategy)]
+            items += c["held_out_items"]
+    return escalated / items if items else None
 
 
 def _rates(cells, strategy, bar):
@@ -369,10 +451,12 @@ def _summary(cells, sums, bars, flavors, seeds, tasks, strategies):
                              "cost_usd": fsum(per_seed_cost) / len(seeds),
                              "below_bar_rate": below, "cleared_rate": cleared,
                              "bar_violation_rate": violation})
+                if "escalation_share" in group[0]:
+                    rows[-1]["escalation_share"] = _escalation_share(sums, group, s)
     return rows
 
 
-def _per_task(cells, bars, flavors, seeds, tasks, strategies):
+def _per_task(cells, bars, flavors, seeds, tasks, strategies, sums):
     rows = []
     for bar in bars:
         for flavor in flavors:
@@ -394,6 +478,8 @@ def _per_task(cells, bars, flavors, seeds, tasks, strategies):
                                  "below_bar_rate": below, "cleared_rate": cleared,
                                  "bar_violation_rate": violation,
                                  "routed_models": routed_models})
+                    if "escalation_share" in group[0]:
+                        rows[-1]["escalation_share"] = _escalation_share(sums, group, s)
     return rows
 
 
@@ -431,16 +517,12 @@ def _slice_entries(slice_split, models, cell, min_samples, confidence) -> dict:
     costs, each scored on H_S."""
     task, bar, flavor = cell["task"], cell["bar"], cell["flavor"]
     pooled = cell["models"]["routed"]
-    t = Task(name=task, bar=bar, min_samples=min_samples, confidence=confidence,
-             independent_of_generator=False, expected_input_tokens=1, expected_output_tokens=0,
-             on_no_model="best_available", max_fallbacks=0)
     out = {}
     for name, split in slice_split.items():
-        stats = Stats()
-        for m in models:
-            stats.add(f"{task}@{name}", m, split["succ"][m], split["n_cal"])
-        decision = Router(_routed_registry(models, split["mean_cost"]), {task: t}, stats).select(
-            task, flavor, slice=name)
+        router, cascades = _routed_router(split, models, task, f"{task}@{name}", bar,
+                                          min_samples, confidence)
+        decision = router.select(task, flavor, slice=name,
+                                 **({"cascades": True} if cascades else {}))
         chosen = {"pooled": pooled, "sliced": decision.primary}
         out[name] = {"calibration_items": split["n_cal"], "held_out_items": split["n_held"],
                      "cleared": not decision.below_bar, "models": chosen,
