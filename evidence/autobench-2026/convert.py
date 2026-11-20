@@ -1,7 +1,7 @@
 """Convert the public AutoBench Router Benchmark 2026 into the evaluator's outcome matrix (DESIGN 12.9).
 
 Usage: python evidence/autobench-2026/convert.py --out PATH [--cache DIR] [--width W] [--task-by {domain,all}]
-                                                 [--tokens] [--registry PATH]
+                                                 [--tokens] [--labels] [--registry PATH]
 
 Standard library only. Every file is pinned by size and sha256 and checked before it is
 read; the dataset's own SHA256SUMS must agree with the pins. Success is the dataset's
@@ -9,6 +9,8 @@ Delta-Hit: a score within ``width`` of the mean of the best ``top_k`` pool score
 same question, which is relative to this pool and not an absolute acceptance check.
 ``--tokens`` adds each call's token counts to the rows and ``--registry`` writes a models.json
 registry from the pool's list prices: the inputs of the delegation evidence (DESIGN 13.9).
+``--labels`` adds each question's difficulty, skill and domain to its rows, so
+``model-routing evaluate --slice-by`` can score each as a slice (DESIGN 12.9 v1.518).
 """
 
 from __future__ import annotations
@@ -38,6 +40,11 @@ FILES = {
     SUMS: (1198, "2bb56265da42a3743a493f6b27e2e100597a78ec1724ae4a288fe585ec56b08a"),
 }
 TASK_BY = ("domain", "all")
+# questions.csv `difficulty` as written -> slice name; the number prefix sorts the slices in difficulty order,
+# and `a` is the level written with no adjective, between the simple and the difficult ones (v1.518).
+DIFFICULTY = {"a very simple": "1-very-simple", "a simple": "2-simple", "a": "3-unmarked",
+              "a difficult": "4-difficult", "a very difficult": "5-very-difficult"}
+LABELS = (("difficulty", "difficulty"), ("skill", "intended_skill"), ("domain", "ddc_domain"))
 SUMS_LINE = re.compile(r"([0-9a-f]{64})  (\S.*)")
 
 
@@ -213,12 +220,29 @@ def _count(text, what: str, pid: str, model: str) -> int:
     return int(value)
 
 
-def convert(matrix, questions, pool, width, top_k: int = 3, task_by: str = "domain", tokens: bool = False):
+def _labels(q, pid: str) -> dict:
+    """The row keys `difficulty`, `skill` and `domain` of question `q` (v1.518), each a slice name (12.1)."""
+    difficulty = q.get("difficulty")
+    if not isinstance(difficulty, str) or difficulty not in DIFFICULTY:
+        raise ValueError(f"question {pid!r}: difficulty {difficulty!r} is not one of {', '.join(map(repr, DIFFICULTY))}")
+    out = {"difficulty": DIFFICULTY[difficulty]}
+    for key, column in LABELS[1:]:
+        value = q.get(column)
+        if not _text(value) or "@" in value:
+            raise ValueError(f"question {pid!r}: {column} {value!r} is not a non-empty string without '@'")
+        out[key] = value
+    return out
+
+
+def convert(matrix, questions, pool, width, top_k: int = 3, task_by: str = "domain", tokens: bool = False,
+            labels: bool = False):
     names = pool_models(pool)
     _check_options(width, top_k, task_by, len(names))
     if not isinstance(tokens, bool):
         raise ValueError(f"tokens must be a bool, got {tokens!r}")
-    task_of = {}
+    if not isinstance(labels, bool):
+        raise ValueError(f"labels must be a bool, got {labels!r}")
+    task_of, label_of = {}, {}
     for q in questions:
         pid = q.get("prompt_id") if isinstance(q, dict) else None
         if not _text(pid):
@@ -232,6 +256,8 @@ def convert(matrix, questions, pool, width, top_k: int = 3, task_by: str = "doma
             task_of[pid] = domain
         else:
             task_of[pid] = "all"
+        if labels:
+            label_of[pid] = _labels(q, pid)
     seen, scores, out_of_pool = set(), {pid: {} for pid in task_of}, {}
     for r in matrix:
         pid, model = (r.get("prompt_id"), r.get("model")) if isinstance(r, dict) else (None, None)
@@ -256,6 +282,7 @@ def convert(matrix, questions, pool, width, top_k: int = 3, task_by: str = "doma
                   _count(r.get("output_tokens"), "output_tokens", pid, model)) if tokens else None
         scores[pid][model] = (value, 0.0 if cost == 0 else cost, counts)
     rows, kept, dropped, unscored = [], {}, {}, 0
+    counts_of = {key: {} for key, _ in LABELS}
     for pid in sorted(task_of):
         task, cells = task_of[pid], scores[pid]
         if len(cells) < len(names):
@@ -263,6 +290,9 @@ def convert(matrix, questions, pool, width, top_k: int = 3, task_by: str = "doma
             unscored += len(names) - len(cells)
             continue
         kept[task] = kept.get(task, 0) + 1
+        if labels:
+            for key, value in label_of[pid].items():
+                counts_of[key][value] = counts_of[key].get(value, 0) + 1
         pool_scores = [cells[d][0] for d in names]
         for display, mid in names.items():
             value, cost, counts = cells[display]
@@ -270,12 +300,16 @@ def convert(matrix, questions, pool, width, top_k: int = 3, task_by: str = "doma
                    "correct": delta_hit(value, pool_scores, width, top_k), "cost_usd": cost}
             if counts is not None:
                 out["input_tokens"], out["output_tokens"] = counts
+            if labels:
+                out.update(label_of[pid])
             rows.append(out)
     rows.sort(key=lambda x: (x["task"], x["item"], x["model"]))
     report = {"models": sorted(names.values()), "width": width, "top_k": top_k, "task_by": task_by,
               "kept": dict(sorted(kept.items())), "dropped_unscored": dict(sorted(dropped.items())),
               "unscored_cells": unscored, "dropped_out_of_pool": dict(sorted(out_of_pool.items())),
               "rows": len(rows)}
+    if labels:
+        report["labels"] = {key: dict(sorted(found.items())) for key, found in counts_of.items()}
     return rows, report
 
 
@@ -361,6 +395,8 @@ def main(argv=None) -> int:
                         help="task = the question's domain, or one task for all (default: %(default)s)")
     parser.add_argument("--tokens", action="store_true",
                         help="also write each row's input_tokens and output_tokens")
+    parser.add_argument("--labels", action="store_true",
+                        help="also write each row's difficulty, skill and domain, for evaluate --slice-by")
     parser.add_argument("--registry", default=None,
                         help="also write a models.json registry built from the pool's list prices")
     try:
@@ -382,7 +418,7 @@ def main(argv=None) -> int:
         width = args.width if args.width is not None else params["delta_signal"]
         pool = json.loads((folder / "pool.json").read_text(encoding="utf-8"))
         rows, report = convert(read_csv(folder / "matrix.csv"), read_csv(folder / "questions.csv"), pool,
-                               width, params["top_k"], args.task_by, args.tokens)
+                               width, params["top_k"], args.task_by, args.tokens, args.labels)
         registry = pool_registry(pool) if args.registry is not None else None
         targets = [Path(args.out)] + ([Path(args.registry)] if registry is not None else [])
         parts = [t.with_name(t.name + ".part") for t in targets]

@@ -4,9 +4,9 @@ With ``labels=True`` (``convert.py --labels``) every row also carries its questi
 ``difficulty``, ``skill`` and ``domain``, so ``model-routing evaluate --slice-by difficulty``
 (DESIGN 12.3 v1.514) can score each difficulty as a slice of the pooled task. The five written
 difficulty levels map to ``1-very-simple`` to ``5-very-difficult``, so the evaluator's ascending
-slice order is difficulty order. The tests marked ``RED`` fail until v1.519 implements v1.518
-(strict, so one that passes early fails the suite); the unmarked ones guard what v1.518 keeps
-and pass before and after it. Every test uses tiny in-memory tables except the last, which
+slice order is difficulty order. Written under strict xfail with v1.518; v1.519 implements it,
+so every test runs unmarked, and the two that guarded what v1.518 keeps passed before and after
+it. Every test uses tiny in-memory tables except the last, which
 reads the pinned files only when they are already in the default cache and skips otherwise.
 """
 
@@ -23,7 +23,6 @@ ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "evidence" / "autobench-2026" / "convert.py"
 EVIDENCE_README = ROOT / "evidence" / "autobench-2026" / "README.md"
 DESIGN = ROOT / "DESIGN.md"
-RED = pytest.mark.xfail(strict=True, reason="row STRAT3a implements DESIGN v1.518 in v1.519")
 
 POOL = {"members": [
     {"display_id": "Alpha-1", "openrouter_id": "x-ai/alpha-1", "family": "A"},
@@ -78,13 +77,11 @@ def test_rows_without_labels_have_the_v1_21_keys(cv):
     assert "labels" not in report
 
 
-@RED
 def test_difficulty_mapping_is_the_five_written_levels(cv):
     assert cv.DIFFICULTY == MAPPING
     assert sorted(MAPPING.values()) == list(MAPPING.values())
 
 
-@RED
 def test_labels_add_three_keys_after_cost(cv):
     matrix, questions = small()
     rows, _ = cv.convert(matrix, questions, POOL, 0.5, 1, "all", labels=True)
@@ -94,7 +91,6 @@ def test_labels_add_three_keys_after_cost(cv):
                        "q/2": ("2-simple", "coding", "9 History")}
 
 
-@RED
 def test_labels_follow_the_token_counts(cv):
     matrix, questions = small()
     rows, _ = cv.convert(matrix, questions, POOL, 0.5, 1, "all", tokens=True, labels=True)
@@ -102,7 +98,6 @@ def test_labels_follow_the_token_counts(cv):
     assert rows[0]["input_tokens"] == 10 and rows[0]["output_tokens"] == 20
 
 
-@RED
 def test_labels_leave_every_other_value_as_it_was(cv):
     matrix, questions = small()
     for task_by in ("all", "domain"):
@@ -114,7 +109,6 @@ def test_labels_leave_every_other_value_as_it_was(cv):
         assert cv.convert(matrix, questions, POOL, 0.5, 1, task_by, labels=False) == (plain, plain_report)
 
 
-@RED
 def test_report_counts_kept_questions_per_label(cv):
     matrix, questions = small()
     _, report = cv.convert(matrix, questions, POOL, 0.5, 1, "all", labels=True)
@@ -124,7 +118,6 @@ def test_report_counts_kept_questions_per_label(cv):
     assert list(report["labels"]) == LABEL_KEYS
 
 
-@RED
 @pytest.mark.parametrize("change, column", [
     ({"difficulty": "a medium"}, "difficulty"),
     ({"difficulty": ""}, "difficulty"),
@@ -149,7 +142,6 @@ def test_without_labels_a_bad_label_is_never_read(cv):
     assert len(rows) == 4
 
 
-@RED
 @pytest.mark.parametrize("labels", [1, "yes", None])
 def test_labels_must_be_a_bool(cv, labels):
     matrix, questions = small()
@@ -157,7 +149,6 @@ def test_labels_must_be_a_bool(cv, labels):
         cv.convert(matrix, questions, POOL, 0.5, 1, "all", labels=labels)
 
 
-@RED
 def test_the_evaluator_slices_labelled_rows_by_difficulty(cv):
     questions, matrix = [], []
     for i in range(40):
@@ -183,7 +174,6 @@ def write_folder(folder, matrix, questions):
     (folder / "frozen_params.json").write_text(json.dumps({"delta_signal": 0.5, "top_k": 1}), encoding="utf-8")
 
 
-@RED
 def test_cli_labels_writes_the_label_keys(cv, monkeypatch, tmp_path, capsys):
     matrix, questions = small()
     write_folder(tmp_path / "c", matrix, questions)
@@ -197,7 +187,6 @@ def test_cli_labels_writes_the_label_keys(cv, monkeypatch, tmp_path, capsys):
     assert [list(json.loads(line)) for line in out.read_text(encoding="utf-8").splitlines()] == [BASE_KEYS] * 4
 
 
-@RED
 def test_the_synopses_and_the_readme_name_labels():
     usage = SCRIPT.read_text(encoding="utf-8").split('"""')[1]
     assert "[--labels]" in usage
@@ -212,7 +201,6 @@ def test_the_synopses_and_the_readme_name_labels():
 PINNED = ("matrix.csv", "questions.csv", "pool.json", "frozen_params.json", "SHA256SUMS")
 
 
-@RED
 def test_pinned_files_give_the_stated_label_counts(cv):
     folder = cv.default_cache_dir()
     if not all((folder / name).is_file() for name in PINNED):

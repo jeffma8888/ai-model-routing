@@ -45,6 +45,15 @@ python evidence/autobench-2026/convert.py --out autobench-matrix.jsonl --task-by
 
 `--tokens` adds `input_tokens` and `output_tokens` to every row, the cell's own `matrix.csv` columns as integers. `output_tokens` already counts the reasoning tokens, so `reasoning_tokens` is not read. Without `--tokens` the rows are exactly as before. `--registry` writes a `models.json`-format file (DESIGN 4.1) built from `pool.json`: each model's ID, `family`, `context_window` and its list prices per 1M tokens, `input_cost_per_mtok` and `output_cost_per_mtok`. `evaluate_delegation` (DESIGN 13.9) needs both, because a hand-off charges one item's tokens to two models, and a billed per-call total cannot be split that way. A cost from this registry is a list-price estimate: on the default rows, list price times tokens has a median ratio of 1.000 to the billed cost (2 rows are billed 0 and left out).
 
+## Question labels (for the slice evidence)
+
+```bash
+python evidence/autobench-2026/convert.py --out autobench-labels.jsonl --task-by all --labels
+model-routing evaluate --outcomes autobench-labels.jsonl --bar 0.8 --slice-by difficulty
+```
+
+`--labels` adds three keys to every row, from `questions.csv`: `difficulty`, `skill` (`intended_skill` as written) and `domain` (`ddc_domain` as written), so `evaluate --slice-by` can score each value as a slice of the task (DESIGN 12.3). The file writes five difficulty levels, and the converter maps them to names that sort in that order: `a very simple` to `1-very-simple`, `a simple` to `2-simple`, `a` (the level written with no adjective, between the simple and the difficult ones) to `3-unmarked`, `a difficult` to `4-difficult` and `a very difficult` to `5-very-difficult`. Without `--labels` the rows are exactly as before. The report gains a `labels` key with the kept questions per value: on the pinned files 48, 50, 42, 33 and 30 for the five levels, and 15 (`coding`) to 91 (`world_knowledge`) for the five skills. So a slice's calibration half holds about 15 to 25 questions, under the evaluator's default `min_samples = 30`: at the default no slice clears, and a slice routes to the model with the highest lower bound on its own few questions.
+
 ## What is dropped, and why
 
 - Unscored cells: 107 pool cells have no score (no judge rated them, and 100 of them have a billed cost of 0). A question is kept only when all 20 pool models have a score on it, so the matrix is complete as the evaluator requires; the 49 questions with an unscored cell are dropped and counted, never scored as misses
