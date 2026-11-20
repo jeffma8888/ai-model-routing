@@ -198,8 +198,8 @@ def test_a_slice_with_an_empty_side_is_refused():
     rows = planted_rows() + sliced_rows("support", [("lone", ["z000"], True)])
     with pytest.raises(ValueError) as exc:
         run(rows)
-    message = str(exc.value)
-    assert "'support'" in message and "'lone'" in message and "seed" in message
+    assert str(exc.value) == ("task 'support' slice 'lone', seed 0: the calibration or held-out "
+                              "split is empty")
 
 
 @RED
