@@ -5,10 +5,10 @@ When ``model-routing evaluate --slice-by FIELD --json`` (DESIGN 12.3 v1.514) giv
 ``per_task``, and ``table`` prints a third table after the baselines: the CLI's slices table
 (12.4 v1.514) with the bar and the flavor in front, one row per (bar, flavor, strategy) in
 config order. A result with neither key reduces and prints exactly as before, so every committed
-file the script wrote stays byte for byte. The tests marked ``RED`` fail until v1.522 implements
-v1.521 (strict, so one that passes early fails the suite); the unmarked ones guard what v1.521
-keeps and pass before and after it. Every test uses in-memory results except the last, which
-reads the committed results files and their RESULTS.md.
+file the script wrote stays byte for byte. Written under strict xfail with v1.521; v1.522
+implements it, so every test runs unmarked, and the ones that guard what v1.521 keeps passed
+before and after it. Every test uses in-memory results except the last, which reads the
+committed results files and their RESULTS.md.
 """
 
 import copy
@@ -22,7 +22,6 @@ from model_routing import evaluate, outcomes_from_rows
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "evidence" / "routerbench" / "results.py"
-RED = pytest.mark.xfail(strict=True, reason="row STRAT3e implements DESIGN v1.521 in v1.522")
 # The committed results files this script writes (the README regenerate commands and the
 # evidence workflow pass each to `results.py --evaluate`).
 COMMITTED = ("routerbench", "autobench-2026", "autobench-judges", "tau2-bench", "livecodebench",
@@ -105,7 +104,6 @@ HAND_SLICES = "\n".join([
 ])
 
 
-@RED
 def test_reduce_keeps_the_slice_keys_after_per_task(rs):
     result = hand()
     before = copy.deepcopy(result)
@@ -120,7 +118,6 @@ def test_reduce_keeps_the_slice_keys_after_per_task(rs):
     assert rs.reduce(out) == out
 
 
-@RED
 @pytest.mark.parametrize("present, missing", [("per_slice", "slice_summary"),
                                               ("slice_summary", "per_slice")])
 def test_reduce_names_the_missing_slice_key(rs, present, missing):
@@ -136,13 +133,11 @@ def test_reduce_of_an_unsliced_result_keeps_four_keys(rs):
     assert list(out) == ["config", "tasks", "summary", "per_task"]
 
 
-@RED
 def test_table_adds_the_slices_table_known_answer(rs):
     result = hand()
     assert rs.table(result) == rs.table(unsliced(result)) + "\n\n" + HAND_SLICES
 
 
-@RED
 def test_table_lists_the_slice_rows_in_config_order(rs):
     result = hand(bars=(0.8, 0.9), flavors=("cost_effective", "cost_blind"))
     result["slice_summary"].reverse()
@@ -154,7 +149,6 @@ def test_table_lists_the_slice_rows_in_config_order(rs):
                     for st in ("sliced", "pooled")]
 
 
-@RED
 def test_table_refuses_a_block_without_slice_rows(rs):
     result = hand(bars=(0.8, 0.9))
     result["slice_summary"] = [r for r in result["slice_summary"] if r["bar"] != 0.9]
@@ -180,7 +174,6 @@ def planted_rows():
     return rows
 
 
-@RED
 def test_a_real_sliced_run_reduces_and_prints_its_slice_summary(rs):
     result = evaluate(outcomes_from_rows(planted_rows(), slice_by="difficulty"),
                       bars=[0.6, 0.9], seeds=range(3), min_samples=5)
@@ -203,7 +196,6 @@ def test_a_real_sliced_run_reduces_and_prints_its_slice_summary(rs):
                                 fmt(r["slice_miss_rate"])]
 
 
-@RED
 def test_cli_writes_a_sliced_file_and_prints_three_tables(rs, tmp_path, capsys):
     result = hand()
     full, out = tmp_path / "full.json", tmp_path / "results.json"

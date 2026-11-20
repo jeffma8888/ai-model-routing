@@ -5,8 +5,9 @@ Usage:
   python evidence/routerbench/results.py --table results.json
 
 Standard library only. ``--evaluate`` reads the output of ``model-routing evaluate --json``
-and keeps the summary and the routed per-task rows; ``--table`` prints the two tables
-that RESULTS.md shows.
+and keeps the summary and the routed per-task rows, and a sliced run's ``per_slice`` and
+``slice_summary`` (v1.521); ``--table`` prints the two tables that RESULTS.md shows, and a
+third, the slices table, when the file has ``slice_summary``.
 """
 
 from __future__ import annotations
@@ -17,6 +18,9 @@ import sys
 from pathlib import Path
 
 KEYS = ("config", "tasks", "summary", "per_task")
+SLICE_KEYS = ("per_slice", "slice_summary")
+SLICE_COLUMNS = ("success", "cost_usd", "below_bar_rate", "cleared_rate", "bar_violation_rate",
+                 "slice_miss_rate")
 
 
 def reduce(result: dict) -> dict:
@@ -25,6 +29,13 @@ def reduce(result: dict) -> dict:
             raise ValueError(f"result has no {key!r} key")
     out = {key: result[key] for key in KEYS[:3]}
     out["per_task"] = [row for row in result["per_task"] if row["strategy"] == "routed"]
+    present = [key for key in SLICE_KEYS if key in result]
+    if len(present) == 1:
+        missing = SLICE_KEYS[1 - SLICE_KEYS.index(present[0])]
+        raise ValueError(f"result has {present[0]!r} but no {missing!r} key")
+    for key in present:
+        # v1.521: a sliced run's keys, unchanged, both strategies of per_slice kept
+        out[key] = result[key]
     return out
 
 
@@ -70,7 +81,22 @@ def table(results: dict) -> str:
     lines = _layout(["bar", "flavor", "success", "cost_usd", "vs_best_model", "cleared_rate",
                      "bar_violation_rate"], routed_rows)
     lines += [""] + _layout(["strategy", "success", "cost_usd"], baseline_rows)
+    if "slice_summary" in results:
+        lines += [""] + _layout(["bar", "flavor", "strategy", *SLICE_COLUMNS],
+                                _slice_rows(results["slice_summary"], blocks))
     return "\n".join(lines)
+
+
+def _slice_rows(slice_summary, blocks) -> list:
+    """v1.521: per (bar, flavor) in config order, its slice_summary rows in their order."""
+    rows = []
+    for bar, flavor in blocks:
+        block = [r for r in slice_summary if (r["bar"], r["flavor"]) == (bar, flavor)]
+        if not block:
+            raise ValueError(f"no slice_summary row for bar {bar}, {flavor}")
+        rows += [[str(bar), flavor, r["strategy"], _rate(r["success"]), f"{r['cost_usd']:.4f}",
+                  *(_rate(r[key]) for key in SLICE_COLUMNS[2:])] for r in block]
+    return rows
 
 
 class _UsageError(Exception):
