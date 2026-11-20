@@ -47,8 +47,6 @@ LIMITS = [
     "`calls-over-N-no-write` never hands such a run up while `calls-over-N` and `transfer` do",
     "in telecom the user's own device actions change state too, and no signal counts them",
 ]
-FILE_MISSING = pytest.mark.xfail(strict=True, raises=FileNotFoundError,
-                                 reason="evidence/tau2-bench/cascades.json lands with v1.542")
 _loaded = []
 
 
@@ -179,6 +177,10 @@ def phrases(results, before):
     cheap = min(winners, key=lambda r: (r["cost_usd"], r["strategy"]))
     out.append(f"the cheapest of them, `{cheap['strategy'][6:]}`, costs {r3(cheap['cost_usd'] / best['cost_usd'])} "
                f"of the agent's")
+    # the table's vs_best_model column divides by the 12.7 `table` pick over every `model:` row
+    top = min(agents + cascades, key=lambda r: (-r["success"], r["cost_usd"], r["strategy"]))
+    out.append(f"`vs_best_model` divides each cost by that of the best `model:` row, here the cascade "
+               f"`{top['strategy'][6:]}`, not a single agent")
     return out
 
 
@@ -213,7 +215,6 @@ def test_design_12_29_specifies_the_cascade_results():
 
 # --- the committed file
 
-@FILE_MISSING
 def test_the_file_is_small_reduced_and_holds_the_config_and_the_tasks(rs):
     text = FILE.read_text(encoding="utf-8")
     assert len(text.encode("utf-8")) < 300_000
@@ -227,7 +228,6 @@ def test_the_file_is_small_reduced_and_holds_the_config_and_the_tasks(rs):
     assert results["tasks"] == {task: {"items": n, "models": ids} for task, n in TASKS.items()}
 
 
-@FILE_MISSING
 def test_the_rows_have_unique_keys_the_cascade_key_last_and_fifty_seeds():
     results = committed()
     summary = [(r["bar"], r["flavor"], r["strategy"]) for r in results["summary"]]
@@ -238,7 +238,6 @@ def test_the_rows_have_unique_keys_the_cascade_key_last_and_fifty_seeds():
     assert all(r["strategy"] == "routed" and sum(r["routed_models"].values()) == 50 for r in results["per_task"])
 
 
-@FILE_MISSING
 def test_each_model_row_is_the_same_at_every_bar_and_flavor():
     results = committed()
     by = {}
@@ -248,7 +247,6 @@ def test_each_model_row_is_the_same_at_every_bar_and_flavor():
     assert len(by) == 46 and all(len(v) == 1 for v in by.values())
 
 
-@FILE_MISSING
 def test_the_single_model_rows_are_those_of_results_json():
     found, before = single_rows(committed()), {}
     for r in old()["summary"]:
@@ -260,7 +258,6 @@ def test_the_single_model_rows_are_those_of_results_json():
 
 # --- RESULTS.md
 
-@FILE_MISSING
 def test_results_md_holds_the_section_in_place_with_the_opening():
     committed()
     text = RESULTS_MD.read_text(encoding="utf-8")
@@ -269,7 +266,6 @@ def test_results_md_holds_the_section_in_place_with_the_opening():
     assert text.isascii() and "\u2013" not in text and "\u2014" not in text
 
 
-@FILE_MISSING
 def test_the_section_shows_the_first_table_block_and_the_commands(rs):
     results = committed()
     body = section()
@@ -279,7 +275,6 @@ def test_the_section_shows_the_first_table_block_and_the_commands(rs):
     assert "[cascades.json](cascades.json)" in body and "[prices.json](prices.json)" in body
 
 
-@FILE_MISSING
 def test_each_number_of_the_section_is_the_file():
     results = committed()
     body = " ".join(section().split())
@@ -287,7 +282,6 @@ def test_each_number_of_the_section_is_the_file():
         assert words in body, words
 
 
-@FILE_MISSING
 def test_the_section_states_the_limits_and_that_the_baselines_are_unchanged():
     committed()
     body = " ".join(section().split())
@@ -312,7 +306,6 @@ def pinned_rows(tmp_path_factory):
     return [json.loads(line) for line in out.read_text(encoding="utf-8").splitlines()]
 
 
-@FILE_MISSING
 def test_pinned_rows_rebuild_the_file_byte_for_byte(rs, pinned_rows):
     text = FILE.read_text(encoding="utf-8")
     result = evaluate(outcomes_from_rows(pinned_rows), bars=BARS, seeds=range(50))

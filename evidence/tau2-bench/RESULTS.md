@@ -1,6 +1,6 @@
 # tau2-bench results
 
-What `model-routing evaluate` measures on the public tau2-bench paper results: 4 agent models from 2025, each in 3 customer-service domains (airline 50 tasks, retail 114, telecom 114), one conversation per task and agent with a simulated user, a success label from the run's own program checks (`reward_info.reward` of 1) and the agent's recorded cost of that conversation (`agent_cost`; the simulated user's `user_cost` is never counted). See [README.md](README.md) for what the converter reads and keeps, and DESIGN 12.15 for this file's contract. Each domain is one routing task, the converter's default, because a task in this library is one kind of job and the three domains are three kinds. For each of 50 seeds the tasks of each domain are split in half by a seeded hash; the router calibrates on one half at a bar and is scored on the other half, next to the oracle, the best agent on the calibration half, the cheapest agent and every single agent (DESIGN 12.3). The file behind every number here is [results.json](results.json): the summary rows and the routed per-domain rows, including how many of the 50 seeds routed to each agent. It is made by the RouterBench results script, `evidence/routerbench/results.py`, which does not depend on the dataset.
+What `model-routing evaluate` measures on the public tau2-bench paper results: 4 agent models from 2025, each in 3 customer-service domains (airline 50 tasks, retail 114, telecom 114), one conversation per task and agent with a simulated user, a success label from the run's own program checks (`reward_info.reward` of 1) and the agent's recorded cost of that conversation (`agent_cost`; the simulated user's `user_cost` is never counted). See [README.md](README.md) for what the converter reads and keeps, and DESIGN 12.15 for this file's contract. Each domain is one routing task, the converter's default, because a task in this library is one kind of job and the three domains are three kinds. For each of 50 seeds the tasks of each domain are split in half by a seeded hash; the router calibrates on one half at a bar and is scored on the other half, next to the oracle, the best agent on the calibration half, the cheapest agent and every single agent (DESIGN 12.3). The file behind every number here but those of `## Cascades` is [results.json](results.json): the summary rows and the routed per-domain rows, including how many of the 50 seeds routed to each agent. It is made by the RouterBench results script, `evidence/routerbench/results.py`, which does not depend on the dataset.
 
 The bars run from 0.3 to 0.8, every tenth from the one below the lowest per-domain agent success rate to the one above the highest: the agents' per-domain success rates at trial 0 run from 0.368 to 0.798. The bars were chosen after a first run at the 0.6 to 0.9 of the other datasets, where 0.8 and 0.9 cleared no cell and nothing was said below 0.6; the table still holds 0.6 to 0.8.
 
@@ -93,6 +93,46 @@ model-routing evaluate --outcomes tau2-trial-1.jsonl --bar 0.3 0.4 0.5 0.6 0.7 0
 ```
 
 Repeat the last two lines with `--trial 2` and `--trial 3`.
+
+## Cascades
+
+A cascade starts each conversation on a cheap agent and hands it to a stronger one when a signal fires (DESIGN 7). The numbers of this section come from [cascades.json](cascades.json): the same evaluator run, at the same bars and seeds, on the matrix above with cascade rows added by `cascades.py`, the replay of DESIGN 7 v1.539 and v1.540. In each pair of the 4 agents the cheap one is the agent with the lower input list price in [prices.json](prices.json), and each pair runs on 7 signals read from the cheap run's own calls (`calls-over-N` and `calls-over-N-no-write` for N = 10, 15 and 20, and `transfer`). That gives 42 cascades, so the router has 46 candidates per domain, the 4 agents and the cascades, and the matrix gains 11,676 rows, one per task and cascade. A cascade row keeps the cheap run's result and recorded cost when its signal does not fire. When it fires after call N, the row takes the strong run's result, and its cost is the cheap run's first N calls, call N's prompt and completion tokens again at the strong agent's input price, and the strong run's recorded cost. The router takes each cascade as a candidate beside the agents, judged by its own calibration successes and priced with its share of hand-ups (DESIGN 12.3). `escalation_share` is the share of the held-out tasks routed to a cascade that the cheap agent handed up, and `-` means that no cascade was routed to.
+
+The first block of `python evidence/routerbench/results.py --table evidence/tau2-bench/cascades.json`, the routed rows. `vs_best_model` divides each cost by that of the best `model:` row, here the cascade `openai/o4-mini-2025-04-16>anthropic/claude-3-7-sonnet-20250219@calls-over-10`, not a single agent:
+
+```text
+bar  flavor          success  cost_usd  vs_best_model  cleared_rate  bar_violation_rate
+---  --------------  -------  --------  -------------  ------------  ------------------
+0.3  cost_effective  0.553    7.5116    0.129          0.733         0.000
+0.3  cost_blind      0.602    43.1779   0.743          0.733         0.000
+0.4  cost_effective  0.563    20.7001   0.356          0.547         0.110
+0.4  cost_blind      0.602    43.1779   0.743          0.547         0.122
+0.5  cost_effective  0.562    22.8151   0.392          0.347         0.000
+0.5  cost_blind      0.602    43.1779   0.743          0.347         0.000
+0.6  cost_effective  0.563    26.2674   0.452          0.333         0.060
+0.6  cost_blind      0.602    43.1779   0.743          0.333         0.000
+0.7  cost_effective  0.588    34.8283   0.599          0.153         0.261
+0.7  cost_blind      0.602    43.1779   0.743          0.153         0.043
+0.8  cost_effective  0.591    36.0885   0.621          0.007         1.000
+0.8  cost_blind      0.602    43.1779   0.743          0.007         1.000
+```
+
+Reading it:
+
+- With cascades, `cost_effective` routes at each bar at this held-out success and cost, against the 12.15 routed row without them: bar 0.3 0.553 at 7.5116 USD against 0.547 at 9.1340 USD; bar 0.4 0.563 at 20.7001 USD against 0.544 at 15.6738 USD; bar 0.5 0.562 at 22.8151 USD against 0.545 at 16.4831 USD; bar 0.6 0.563 at 26.2674 USD against 0.559 at 24.2031 USD; bar 0.7 0.588 at 34.8283 USD against 0.578 at 30.7979 USD; bar 0.8 0.591 at 36.0885 USD against 0.578 at 31.0962 USD. It beats the 12.15 row on both counts at bar 0.3 only. A cascade takes 50 of the 150 (domain, seed) cells at bar 0.3 and 137 at bar 0.8.
+- `cost_blind` routes at 0.602 held-out success for 43.1779 USD at every bar, against 12.15's 0.589 at 40.3751 USD, with 122 of the 150 cells routed to a cascade.
+- Per domain at bar 0.3, `cost_effective`, with cascades and then the 12.15 row: `airline`: 0.521 at 2.9704 USD, `escalation_share` 0.377, 32 of the 50 seeds routed to a cascade, against 0.516 at 2.3602 USD; `retail`: 0.692 at 0.7711 USD, `escalation_share` -, 0 of the 50 seeds routed to a cascade, against 0.692 at 0.7711 USD; `telecom`: 0.425 at 3.7701 USD, `escalation_share` 0.498, 18 of the 50 seeds routed to a cascade, against 0.412 at 6.0027 USD.
+- The best single agent, `anthropic/claude-3-7-sonnet-20250219`, holds 0.612 at 63.2133 USD. 3 cascades beat it on both counts: `openai/o4-mini-2025-04-16>anthropic/claude-3-7-sonnet-20250219@calls-over-10` 0.627 at 58.1419 USD, `escalation_share` 0.776; `openai/o4-mini-2025-04-16>anthropic/claude-3-7-sonnet-20250219@calls-over-10-no-write` 0.618 at 34.0048 USD, `escalation_share` 0.396; `openai/gpt-4.1-2025-04-14>anthropic/claude-3-7-sonnet-20250219@calls-over-10` 0.617 at 59.0811 USD, `escalation_share` 0.696; the cheapest of them, `openai/o4-mini-2025-04-16>anthropic/claude-3-7-sonnet-20250219@calls-over-10-no-write`, costs 0.538 of the agent's. Each is one fixed cascade for all three domains, scored on the 50 seeds' held-out halves as a single agent is.
+- The `cheapest`, `best_on_calibration` and `oracle` rows and the 4 single-agent rows are those of [results.json](results.json) at every bar and flavor: the cascades change the `routed` rows and add one `model:` row each.
+- Limits: a signal measured on a benchmark may not exist in your product; the strong run in the data is a fresh conversation with its own simulated user, so the replay assumes a hand-up that restarts the conversation; a write the cheap agent made before the hand-up would stay in a real system, which the replay cannot see, so `calls-over-N-no-write` never hands such a run up while `calls-over-N` and `transfer` do; and in telecom the user's own device actions change state too, and no signal counts them.
+
+The commands, with the replay downloading the 12 pinned run files and the 3 domains' tool files as [README.md](README.md) says:
+
+```bash
+python evidence/tau2-bench/cascades.py --out tau2-cascades.jsonl
+model-routing evaluate --outcomes tau2-cascades.jsonl --bar 0.3 0.4 0.5 0.6 0.7 0.8 --seeds 50 --json > tau2-cascades-evaluate.json
+python evidence/routerbench/results.py --evaluate tau2-cascades-evaluate.json --out evidence/tau2-bench/cascades.json
+```
 
 ## Regenerate
 
