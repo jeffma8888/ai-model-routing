@@ -81,7 +81,7 @@ LONGTAIL_LINES = [
     "python evidence/routerbench/results.py --evaluate longtail-swe-evaluate.json "
     "--out evidence/longtail-swe/results.json",
     "python evidence/routerbench/results.py --table evidence/longtail-swe/results.json"]
-# v1.525 (row STRAT3g): the AutoBench slice results have no README part yet (row STRAT4); the one `bash` block of
+# v1.525 (row STRAT3g): the README part on slices (row STRAT4, v1.531) holds none of it; the one `bash` block of
 # `## Slices` in their RESULTS.md (DESIGN 12.27), which has no install line, runs last, and its four files end Compare.
 SLICES_NOTES = "evidence/autobench-2026/RESULTS.md"
 SLICE_FILES = ["evidence/autobench-2026/slices-difficulty.json", "evidence/autobench-2026/slices-skill.json",
@@ -105,7 +105,7 @@ SLICES_LINES = [
     "python evidence/routerbench/results.py --evaluate autobench-slices-skill-min10.json "
     "--out evidence/autobench-2026/slices-skill-min10.json"]
 SLICES_COMPARE = "".join(f" {path}" for path in SLICE_FILES)
-# v1.530 (row STRAT3i): the LiveCodeBench slice results have no README part yet either (row STRAT4); the one
+# v1.530 (row STRAT3i): the README part on slices (row STRAT4, v1.531) holds none of this either; the one
 # `bash` block of `## Slices` in their RESULTS.md (DESIGN 12.28) runs after the AutoBench one, and its file ends Compare.
 LCB_SLICES_NOTES = "evidence/livecodebench/RESULTS.md"
 LCB_SLICE_FILE = "evidence/livecodebench/slices-difficulty.json"
@@ -1250,7 +1250,7 @@ def test_the_workflow_installs_pyarrow_and_reruns_the_longtail_swe_block_before_
 def test_the_workflow_reruns_the_autobench_slices_block_before_the_livecodebench_one():
     # v1.525 (row STRAT3g, DESIGN 12.13 slices bullet, 12.27 Workflow bullet): the nine lines of the
     # `## Slices` block after the Longtail-SWE lines, none a repeat, and its four files after the Longtail-SWE one
-    # in Compare, last until v1.530; the README sentence counts them only once row STRAT4 gives the slices a README part.
+    # in Compare, last until v1.530; the README sentence does not count them: the README part on slices links them.
     assert slices_commands() == SLICES_LINES
     assert out_paths(SLICES_LINES) == SLICE_FILES
     text = workflow_text()
@@ -1294,7 +1294,7 @@ def test_the_workflow_reruns_the_autobench_slices_block_before_the_livecodebench
 def test_the_workflow_reruns_the_livecodebench_slices_block_last():
     # v1.530 (row STRAT3i, DESIGN 12.13 slices bullet, 12.28 Workflow bullet): the three lines of the LiveCodeBench
     # `## Slices` block after the AutoBench slices lines, none a repeat (its converter line is not the v1.65 one),
-    # and its file last in Compare; the README sentence counts it only once row STRAT4 gives the slices a README part.
+    # and its file last in Compare; the README sentence does not count it: the README part on slices links it.
     assert slices_commands(LCB_SLICES_NOTES) == LCB_SLICES_LINES
     assert out_paths(LCB_SLICES_LINES) == [LCB_SLICE_FILE]
     text = workflow_text()

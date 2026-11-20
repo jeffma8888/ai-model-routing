@@ -382,6 +382,44 @@ if decision.mode == "delegate":
 - An inline decision raises `ValueError`, because the parent does that work in its own call; so does a caller tag named `delegated` or `parent`
 - `model-routing report --log calls.jsonl --by tag:delegated` splits the spend between hand-offs (group `true`) and other calls (group `(none)`). The parent's share of a hand-off (writing the brief, reading the result) is spent in the parent's own calls, not in these records
 
+## Split a task into slices
+
+A task's measured success rate is an average over the mix of its calibration items. Say 80% of a support task's tickets are quick fixes and 20% are deep investigations across services. A model right on 99% of the quick ones and 64% of the deep ones averages 92%, so it clears a 0.85 bar while failing about a third of the deep tickets, and if the mix shifts toward deep tickets the bar stops holding with nothing in the stats to show it.
+
+The fix is to split the task by something known before the call. A slice is a named part of a task, routed on its own counts. You assign each call to a slice by your own rule (the queue a ticket came from, the size of a change) or with a cheap classifier; the library never classifies.
+
+1. **Give a slice its own values** in the tasks file if it needs them: a `bar`, `min_samples`, `expected_input_tokens` or `expected_output_tokens`. A slice the file does not name takes every value from its task:
+
+   ```json
+   {"tasks": [{"name": "support", "bar": 0.85, "slices": {"deep": {"bar": 0.9}}}]}
+   ```
+
+2. **Tag each calibration line with its slice**, for example `"slice": "deep"`. `calibrate` adds the trial to the task and to `support@deep`, so the task's own counts still cover every line.
+
+3. **Name the slice on each call**: `Router.select(..., slice="deep")`, `Executor.call(..., slice="deep")` or `model-routing select --slice S`. A sliced call is admitted only on that slice's own counts, so a model measured only on the whole task is `insufficient_samples` on every slice, and the task's `on_no_model` applies until some model has `min_samples` trials there. Each log record carries the call's `slice`.
+
+4. **Check the split offline.** `model-routing evaluate --slice-by FIELD` reads each outcome row's slice from FIELD and, for each bar and flavor, sets `pooled` (the task's route, scored on each slice's held-out items) beside `sliced` (each slice routed on its own calibration items), with `slice_miss_rate`: of the seeds on which a route cleared and met the bar on the whole task, the share on which some slice fell below it.
+
+What the public data shows, from the slice results of [AutoBench](evidence/autobench-2026/RESULTS.md#slices) and [LiveCodeBench](evidence/livecodebench/RESULTS.md#slices), which hold the commands that rebuild them:
+
+- **The average hides a weak slice.** On LiveCodeBench the task's route scores 0.902 on held-out problems, but 0.986 on `1-easy`, 0.940 on `2-medium` and 0.748 on `3-hard`. On AutoBench, of the seeds on which the `cost_effective` route cleared and met bar 0.6 on the whole task, some difficulty level fell below it on 0.540
+- **Slicing finds the weak slice, but on these two datasets it buys no cheaper way to the same quality.** The sliced LiveCodeBench route scores 0.900 against the pooled 0.902, and on AutoBench no sliced row beats always calling `openai/gpt-5.6-luna` (0.872 at 0.3092 USD) on success and cost together
+- **Small slices are the trade-off.** AutoBench's five difficulty levels hold 30 to 50 of its 203 questions each, so a calibration half holds about half that, under the default `min_samples = 30`: with `cost_effective`, a level clears bar 0.6 on its own counts in 0.032 of the (level, seed) pairs. At `--min-samples 10` it clears in 0.956 of them, but the check gets looser: at bar 0.8 the share of cleared pairs that fall below the bar on held-out questions rises from 0.000 to 0.127
+
+A slice needs labelled items of its own: even a model that is right every time needs 16 of them before its lower bound clears 0.8:
+
+```text
+$ model-routing plan --success 1.0 --bar 0.8
+success:     1.0
+bar:         0.8
+confidence:  0.95
+items:       16
+successes:   16
+lower_bound: 0.806392
+```
+
+So a split pays where each slice can get enough labelled items to clear its own bar. Until then a sliced call routes by `on_no_model`, or, with a lower `min_samples`, on a looser check: that is the price of no longer hiding the slice inside the task's average.
+
 ## Monitoring and cost attribution
 
 Each attempt is one JSON line with the task, flavor, model, family, attempt index, outcome, latency, tokens, list-price `cost_usd`, `routing_cost_usd` (0 in `cost_blind`), `below_bar`, `basis` and your tags; an attempt on a fallback under the bar (a task with `fallback_below_bar`, above) also carries `below_bar_fallback: true`. An `Executor.call` attempt ends with `prompt_tokens` and `prompt_tokens_estimated`: the request size the context-window check read (above), and whether the executor estimated it. Roll it up any way you need:
