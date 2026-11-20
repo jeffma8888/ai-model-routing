@@ -295,12 +295,11 @@ def run_calls(run, tools, trial=TRIAL) -> tuple:
 
 
 def report(as_of, matrix, cascades, rows, out_rows, calls, greetings) -> dict:
-    ids = {cascade.id for cascade in cascades}
-    counts = {}
+    """The CLI's report; ``escalated`` lists every cascade for every task of ``kept`` (DESIGN 7 v1.540)."""
+    counts = {task: {cascade.id: 0 for cascade in cascades} for task in matrix["kept"]}
     for row in out_rows:
-        if row["model"] in ids:
-            by_task = counts.setdefault(row["task"], {})
-            by_task[row["model"]] = by_task.get(row["model"], 0) + int(row["escalated"])
+        if row["model"] in counts.get(row["task"], {}):
+            counts[row["task"]][row["model"]] += int(row["escalated"])
     return {"revision": convert.REVISION, "prices_as_of": as_of, "models": sorted(matrix["models"]),
             "trial": matrix["trial"], "kept": matrix["kept"], "agent_calls": sum(len(v) for v in calls.values()),
             "greetings": greetings, "model_rows": len(rows), "cascades": len(cascades),

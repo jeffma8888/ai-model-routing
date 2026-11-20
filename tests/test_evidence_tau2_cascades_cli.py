@@ -10,8 +10,10 @@ tool files are in the default cache (CI never downloads them), `main` runs on th
 is checked against research/escalation.md `## Measured signals (row ESC1b)` and its single-model rows
 against the 12.14 default matrix's digest pinned in tests/test_evidence_tau2_calls.py."""
 
+import contextlib
 import datetime
 import hashlib
+import io
 import importlib.util
 import json
 import math
@@ -26,6 +28,8 @@ ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "evidence" / "tau2-bench" / "cascades.py"
 PRICES = ROOT / "evidence" / "tau2-bench" / "prices.json"
 NOTE = ROOT / "research" / "escalation.md"
+# the 12.14 default matrix (trial 0, one task per domain, no token keys), the `()` pin of
+# tests/test_evidence_tau2_calls.py test_pinned_matrices_without_calls_are_the_v175_bytes_when_cached
 DEFAULT_MATRIX_SHA256 = "b2fccfd79c9afa172c4069dfa25a2026c58c50ade0ba5ad9873088a4dd7794b9"
 MINI, O4, G41, SONNET = ("openai/gpt-4.1-mini-2025-04-14", "openai/o4-mini-2025-04-16",
                          "openai/gpt-4.1-2025-04-14", "anthropic/claude-3-7-sonnet-20250219")
@@ -97,6 +101,7 @@ BAD_PRICES = {
     "price-negative": _doc(models=[_entry(price_in=-0.1)]),
     "price-str": _doc(models=[_entry(price_in="1")]),
     "price-huge-int": _doc(models=[_entry(price_in=10 ** 400)]),
+    "price-nan": _doc(models=[_entry(price_in=float("nan"))]),  # json.dumps writes NaN, json.loads reads it
     "source-http": _doc(models=[_entry(source="http://x.example/c")]),
     "source-not-str": _doc(models=[_entry(source=None)]),
     "notes-not-str": _doc(models=[_entry(notes=1)]),
@@ -325,6 +330,80 @@ def test_main_refuses_a_price_file_that_misses_an_agent(tmp_path, monkeypatch, c
     assert not out.exists() and not (tmp_path / "rows.jsonl.part").exists()
 
 
+def _nothing_written(code, tmp_path, capsys, out, old=None):
+    assert code == 2
+    captured = capsys.readouterr()
+    assert captured.out == "" and captured.err.startswith("error: ") and len(captured.err.splitlines()) == 1
+    if old is None:
+        assert not out.exists()
+    else:
+        assert out.read_text(encoding="utf-8") == old
+    assert not (tmp_path / "rows.jsonl.part").exists()
+    return captured.err
+
+
+def test_a_failed_print_leaves_an_old_out_and_no_part(tmp_path, monkeypatch, capsys):
+    # review iter-386 should-fix 1: the rename comes after the print, and the part is always removed
+    _stub_cli(tmp_path, monkeypatch)
+    out = tmp_path / "rows.jsonl"
+    out.write_text("old\n", encoding="utf-8")
+
+    def boom(text):
+        assert (tmp_path / "rows.jsonl.part").exists()
+        raise BrokenPipeError("broken pipe")
+
+    monkeypatch.setattr(m().convert, "print_report", boom)
+    _nothing_written(m().main(["--out", str(out)]), tmp_path, capsys, out, old="old\n")
+
+
+def test_a_failed_write_leaves_no_part(tmp_path, monkeypatch, capsys):
+    _stub_cli(tmp_path, monkeypatch)
+    out = tmp_path / "rows.jsonl"
+
+    def boom(rows, path):
+        Path(path).write_text("half", encoding="utf-8")
+        raise OSError("disk full")
+
+    monkeypatch.setattr(m().convert, "write_jsonl", boom)
+    err = _nothing_written(m().main(["--out", str(out)]), tmp_path, capsys, out)
+    assert err == "error: disk full\n"
+
+
+def test_a_bad_price_file_downloads_nothing(tmp_path, monkeypatch, capsys):
+    # review iter-386 should-fix 2: PRICES is read after the --out check and before any download
+    _stub_cli(tmp_path, monkeypatch)
+    m().PRICES.write_text("{", encoding="utf-8")
+    fetched = []
+    monkeypatch.setattr(m().convert, "fetch", lambda cache_dir=None: fetched.append(cache_dir))
+    out = tmp_path / "rows.jsonl"
+    err = _nothing_written(m().main(["--out", str(out)]), tmp_path, capsys, out)
+    assert fetched == [] and "prices.json" in err
+
+
+@pytest.mark.parametrize("failure", ["fetch_tools", "tool_types"])
+def test_a_tools_failure_is_one_line_and_writes_nothing(failure, tmp_path, monkeypatch, capsys):
+    _stub_cli(tmp_path, monkeypatch)
+    if failure == "fetch_tools":
+        def fetch_tools(where, convert):
+            raise OSError("airline-tools.py: download failed: boom")
+    else:
+        def fetch_tools(where, convert):
+            return {"airline": "def f(:\n"}
+    monkeypatch.setattr(m().signals, "fetch_tools", fetch_tools)
+    out = tmp_path / "rows.jsonl"
+    err = _nothing_written(m().main(["--out", str(out)]), tmp_path, capsys, out)
+    assert "airline-tools.py" in err
+
+
+def test_report_lists_every_cascade_for_every_kept_task():
+    # review iter-386 nit 4: a task with no kept item still gets its cascades, each at 0
+    cascade = Cascade(MINI, G41, "transfer")
+    row = {"task": "a", "item": "a|1", "model": cascade.id, "correct": True, "cost_usd": 1.0, "escalated": True}
+    matrix = {"models": [MINI, G41], "trial": 0, "kept": {"a": 1, "b": 0}}
+    got = m().report("2026-11-20", matrix, [cascade], [], [row], {}, 0)
+    assert got["escalated"] == {"a": {cascade.id: 1}, "b": {cascade.id: 0}}
+
+
 def test_main_refuses_an_unknown_option_with_exit_2(capsys):
     assert m().main(["--out", "x.jsonl", "--trial", "1"]) == 2
     captured = capsys.readouterr()
@@ -375,8 +454,6 @@ def pinned(tmp_path_factory):
     if not all(path.is_file() for path in names):
         pytest.skip("the 12 pinned tau2-bench run files or the 3 tool files are not in the default cache")
     out = tmp_path_factory.mktemp("cascades") / "rows.jsonl"
-    import contextlib
-    import io
     buffer = io.StringIO()
     with contextlib.redirect_stdout(buffer):
         code = m().main(["--out", str(out)])
@@ -390,6 +467,7 @@ def test_pinned_report_counts(pinned):
     assert report["revision"] == m().convert.REVISION and report["prices_as_of"] == "2026-11-20"
     assert report["models"] == sorted(AGENTS) and report["trial"] == 0
     assert report["kept"] == {"airline": 50, "retail": 114, "telecom": 114}
+    # exit 0 means agent_calls refused no greeting: each of the 1,112 (a null usage) costs 0 (v1.539)
     assert (report["agent_calls"], report["greetings"]) == (calls, greetings) == (17360, 1112)
     assert (report["model_rows"], report["cascades"], report["cascade_rows"], report["rows"]) == (
         1112, 42, 11676, 12788)
@@ -412,6 +490,13 @@ def test_pinned_escalated_items_are_the_esc1b_counts_of_the_cheap_agent(pinned):
     assert report["escalated"] == want
     assert want["telecom"][f"{MINI}>{G41}@calls-over-20-no-write"] == 51
     assert want["airline"][f"{O4}>{SONNET}@transfer"] == 21
+    written = {}  # review iter-386 nit 1: the written file's flags, not only the report's counts
+    for line in pinned[1].read_text(encoding="utf-8").splitlines():
+        row = json.loads(line)
+        if "escalated" in row:
+            by_task = written.setdefault(row["task"], {})
+            by_task[row["model"]] = by_task.get(row["model"], 0) + row["escalated"]
+    assert written == want
 
 
 def test_pinned_single_model_rows_are_the_default_matrix(pinned):
