@@ -3,8 +3,8 @@
 The note says why a cascade (a cheap model, a signal the caller computes, a strong model) is one
 routing candidate with its own calibration, which converted public datasets record a signal a
 replay can compute, and which dataset and signal row ESC3 runs first. DESIGN 7 v1.532 is the spec
-row ESC2 implements in three parts, the first (row ESC2a, v1.535) its types and stats. These
-tests read only committed text."""
+row ESC2 implements in three parts, the first (row ESC2a, v1.535) its types and stats and the
+second (row ESC2b, v1.536) its candidates and cost. These tests read only committed text."""
 
 import re
 from pathlib import Path
@@ -123,6 +123,7 @@ def test_the_spec_holds_each_contract_item():
     for phrase in (
         "row ESC2 implements it in three parts, and a part is spec only until its row ships",
         "the types and stats, v1.535 (row ESC2a)",
+        "the candidates and cost, v1.536 (row ESC2b)",
         "`research/escalation.md`",
         "never inherits the strong model's pass",
         "`@dataclass(frozen=True) class Cascade`, exported: `cheap: str`, `strong: str`, `signal: str`",
