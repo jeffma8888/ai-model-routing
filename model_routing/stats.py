@@ -10,7 +10,7 @@ from pathlib import Path
 from statistics import NormalDist
 from typing import Dict, Iterable, Optional, Tuple, Union
 
-from .tasks import is_slice_name
+from .tasks import is_slice_name, parse_cascade_id
 
 PathLike = Union[str, Path]
 
@@ -25,6 +25,27 @@ def _check_counts(successes: int, trials: int) -> None:
     if successes < 0 or trials < 0 or successes > trials:
         raise ValueError(
             f"invalid counts: successes={successes}, trials={trials}")
+
+
+def _is_cascade_key(model_id: object) -> bool:
+    return isinstance(model_id, str) and ">" in model_id
+
+
+def _check_escalated(model_id: object, trials: int, escalated: Optional[int],
+                     has_tokens: bool) -> Optional[int]:
+    """Validate ``escalated`` for this key: a count for a cascade, ``None`` for a model (DESIGN 7)."""
+    if not _is_cascade_key(model_id):
+        if escalated is not None:
+            raise ValueError(f"escalated is only for a cascade key, got model {model_id!r}")
+        return None
+    if parse_cascade_id(model_id) is None:
+        raise ValueError(f"model {model_id!r} holds '>' but is no valid cascade id")
+    if has_tokens:
+        raise ValueError(f"a cascade key holds no token totals: {model_id!r}")
+    if not _is_int(escalated) or not 0 <= escalated <= trials:
+        raise ValueError(f"escalated must be an integer from 0 to trials={trials} on cascade "
+                         f"{model_id!r}, got {escalated!r}")
+    return escalated
 
 
 def _check_tokens(trials: int, input_tokens: Optional[int], output_tokens: Optional[int],
@@ -104,12 +125,15 @@ class Stats:
 
     A key may also hold measured token totals: the summed input and output tokens of
     ``token_trials`` of its trials. The router prices a model that has them at its own
-    mean tokens per call on the task (DESIGN 4.3, 5.2).
+    mean tokens per call on the task (DESIGN 4.3, 5.2). A cascade key (its ``id`` holds
+    ``>``) holds no token totals but an escalation count, the trials on which its cheap
+    model handed the call up (DESIGN 7 v1.532).
     """
 
     def __init__(self) -> None:
         self._counts: Dict[Tuple[str, str], Tuple[int, int]] = {}
         self._tokens: Dict[Tuple[str, str], Tuple[int, int, int]] = {}
+        self._escalated: Dict[Tuple[str, str], int] = {}
 
     def get(self, task: str, model_id: str) -> Tuple[int, int]:
         """Return ``(successes, trials)``, or ``(0, 0)`` when nothing is recorded."""
@@ -117,18 +141,22 @@ class Stats:
 
     def add(self, task: str, model_id: str, successes: int, trials: int, *,
             input_tokens: Optional[int] = None, output_tokens: Optional[int] = None,
-            token_trials: Optional[int] = None) -> None:
+            token_trials: Optional[int] = None, escalated: Optional[int] = None) -> None:
         """Add these counts, and any token totals, to the existing ones for the key.
 
         ``input_tokens`` and ``output_tokens`` go together and are totals over
-        ``token_trials`` of these ``trials`` (default: all of them). Raises
-        ``ValueError`` and adds nothing when any argument is invalid.
+        ``token_trials`` of these ``trials`` (default: all of them). ``escalated``, how many
+        of these trials escalated, is required for a cascade key and refused for any other.
+        Raises ``ValueError`` and adds nothing when any argument is invalid.
         """
         _check_counts(successes, trials)
         n = _check_tokens(trials, input_tokens, output_tokens, token_trials)
+        e = _check_escalated(model_id, trials, escalated, input_tokens is not None)
         key = (task, model_id)
         s, t = self.get(task, model_id)
         self._counts[key] = (s + successes, t + trials)
+        if e is not None:
+            self._escalated[key] = self._escalated.get(key, 0) + e
         if n:
             i, o, k = self.tokens(task, model_id)
             self._tokens[key] = (i + input_tokens, o + output_tokens, k + n)
@@ -136,6 +164,10 @@ class Stats:
     def tokens(self, task: str, model_id: str) -> Tuple[int, int, int]:
         """Return ``(input_tokens, output_tokens, token_trials)``, ``(0, 0, 0)`` when none."""
         return self._tokens.get((task, model_id), (0, 0, 0))
+
+    def escalations(self, task: str, cascade_id: str) -> int:
+        """Return how many of a cascade's trials escalated, 0 when nothing is recorded."""
+        return self._escalated.get((task, cascade_id), 0)
 
     def mean_tokens(self, task: str, model_id: str) -> Optional[Tuple[int, int]]:
         """Return the mean input and output tokens per recorded call, each rounded up.
@@ -148,11 +180,11 @@ class Stats:
         return -(-i // k), -(-o // k)
 
     def merge(self, other: "Stats") -> "Stats":
-        """Return a new Stats holding the summed counts and token totals of both operands."""
+        """Return a new Stats holding the summed counts, token totals and escalations of both."""
         merged = Stats()
         for source in (self, other):
             for key, (s, t) in source._counts.items():
-                merged.add(*key, s, t)
+                merged.add(*key, s, t, escalated=source._escalated.get(key))
             for key, (i, o, k) in source._tokens.items():
                 a, b, n = merged._tokens.get(key, (0, 0, 0))
                 merged._tokens[key] = (a + i, b + o, n + k)
@@ -167,7 +199,8 @@ class Stats:
         """Load stats from ``{"stats": [{"task", "model", "successes", "trials"}]}``.
 
         A row may also carry ``input_tokens``, ``output_tokens`` and ``token_trials``,
-        all three or none.
+        all three or none. A cascade row (its ``model`` holds ``>``) carries ``escalated``
+        and no token keys, and no other row carries ``escalated``.
         """
         raw = json.loads(Path(path).read_text(encoding="utf-8"))
         if not isinstance(raw, dict) or not isinstance(raw.get("stats"), list):
@@ -190,6 +223,10 @@ class Stats:
             if present and not all(_is_int(row[k]) for k in _TOKEN_KEYS):
                 raise ValueError(f"{path}: token keys must be integers: {row!r}")
             tokens = {k: row[k] for k in present}
+            if "escalated" in row:
+                if not _is_cascade_key(model_id):
+                    raise ValueError(f"{path}: only a cascade row carries escalated: {row!r}")
+                tokens["escalated"] = row["escalated"]
             try:
                 stats.add(str(task), str(model_id), successes, trials, **tokens)
             except ValueError as exc:
@@ -201,6 +238,8 @@ class Stats:
         rows = []
         for (task, model_id), (s, t) in self.items():
             row = {"task": task, "model": model_id, "successes": s, "trials": t}
+            if (task, model_id) in self._escalated:
+                row["escalated"] = self._escalated[(task, model_id)]
             i, o, k = self.tokens(task, model_id)
             if k:
                 row.update(input_tokens=i, output_tokens=o, token_trials=k)
@@ -214,7 +253,8 @@ def calibrate_from_results(rows: Iterable[dict]) -> Stats:
     ``correct`` must be a real boolean. A row may carry ``input_tokens`` and
     ``output_tokens``, both or neither, and then adds one token trial with those counts.
     A row with a ``slice`` adds its trial under ``<task>`` and ``<task>@<slice>``
-    (DESIGN 4.3 v1.511).
+    (DESIGN 4.3 v1.511). A cascade row (its ``model`` holds ``>``) carries a boolean
+    ``escalated`` and no token counts, and no other row carries ``escalated`` (DESIGN 7).
     Every row is validated before the returned Stats exists, so a bad row anywhere
     raises ``ValueError``.
     """
@@ -242,6 +282,14 @@ def calibrate_from_results(rows: Iterable[dict]) -> Stats:
             tokens = {"input_tokens": row["input_tokens"], "output_tokens": row["output_tokens"]}
             if not all(_is_int(v) and v >= 0 for v in tokens.values()):
                 raise ValueError(f"token counts must be integers >= 0: {row!r}")
+        if _is_cascade_key(model_id):
+            if has_in:
+                raise ValueError(f"a cascade row carries no token counts: {row!r}")
+            if type(row.get("escalated")) is not bool:
+                raise ValueError(f"a cascade row needs 'escalated' true or false: {row!r}")
+            tokens["escalated"] = 1 if row["escalated"] else 0
+        elif "escalated" in row:
+            raise ValueError(f"only a cascade row carries 'escalated': {row!r}")
         slice_name = row.get("slice")
         keys = [task]
         if slice_name is not None:

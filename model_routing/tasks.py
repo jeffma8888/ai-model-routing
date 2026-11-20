@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field, fields
 from pathlib import Path
 from typing import Dict, Mapping, Optional, Tuple, Union
@@ -11,6 +12,8 @@ PathLike = Union[str, Path]
 
 ON_NO_MODEL_CHOICES = ("refuse", "best_available")
 SLICE_KEYS = ("bar", "min_samples", "expected_input_tokens", "expected_output_tokens")
+CASCADE_KEYS = ("cheap", "strong", "signal")
+_SIGNAL = re.compile(r"[a-z0-9][a-z0-9._-]*")
 
 
 def is_slice_name(value) -> bool:
@@ -41,6 +44,55 @@ def _check_slice(task_name: str, name, values) -> Dict[str, object]:
 
 
 @dataclass(frozen=True)
+class Cascade:
+    """A cheap model, a signal the caller computes on its result, and a strong model.
+
+    The call starts on ``cheap`` and is handed up to ``strong`` when the signal fires. A
+    cascade is one routing candidate named by its ``id``, with calibration of its own
+    (DESIGN 7 v1.532). Invalid fields raise ``ValueError`` at construction.
+    """
+
+    cheap: str
+    strong: str
+    signal: str
+
+    def __post_init__(self) -> None:
+        for name in CASCADE_KEYS:
+            value = getattr(self, name)
+            if not isinstance(value, str) or value == "":
+                raise ValueError(f"cascade {name} must be a non-empty string, got {value!r}")
+        for name in ("cheap", "strong"):
+            value = getattr(self, name)
+            if ">" in value or "@" in value:
+                raise ValueError(f"cascade {name} model ID must not contain '>' or '@', "
+                                 f"got {value!r}")
+        if self.cheap == self.strong:
+            raise ValueError(f"cascade cheap and strong must differ, both are {self.cheap!r}")
+        if _SIGNAL.fullmatch(self.signal) is None:
+            raise ValueError(f"cascade signal must match [a-z0-9][a-z0-9._-]*, "
+                             f"got {self.signal!r}")
+
+    @property
+    def id(self) -> str:
+        """``<cheap>><strong>@<signal>``, the cascade's model ID in stats and decisions."""
+        return f"{self.cheap}>{self.strong}@{self.signal}"
+
+
+def parse_cascade_id(value) -> Optional[Cascade]:
+    """The ``Cascade`` whose ``id`` is ``value``, or ``None`` when it names none (DESIGN 7)."""
+    if not isinstance(value, str) or value.count(">") != 1:
+        return None
+    cheap, rest = value.split(">")
+    if rest.count("@") != 1:
+        return None
+    strong, signal = rest.split("@")
+    try:
+        return Cascade(cheap, strong, signal)
+    except ValueError:
+        return None
+
+
+@dataclass(frozen=True)
 class Task:
     """A routing task.
 
@@ -48,8 +100,9 @@ class Task:
     acceptance check (for a judge, agreement with gold labels), judged on
     the Wilson lower bound at ``confidence``. ``slices`` maps a slice name to
     that slice's own ``bar``, ``min_samples`` and token sizes, each one it does
-    not give coming from the task (DESIGN 4.2 v1.511). Invalid values raise
-    ``ValueError`` at construction.
+    not give coming from the task (DESIGN 4.2 v1.511). ``cascades`` holds the task's
+    cascades, stored as a tuple with no two of one ``id`` (DESIGN 7 v1.532). Invalid values
+    raise ``ValueError`` at construction.
     """
 
     name: str
@@ -66,6 +119,7 @@ class Task:
     timeout_s: float = 60.0
     fallback_below_bar: bool = False
     slices: Mapping[str, Mapping[str, object]] = field(default_factory=dict, hash=False)
+    cascades: Tuple[Cascade, ...] = ()
 
     def __post_init__(self) -> None:
         if not isinstance(self.exclude_families, tuple):
@@ -95,9 +149,42 @@ class Task:
             raise ValueError(f"task {self.name!r}: a task whose name holds '@' has no slices")
         object.__setattr__(self, "slices", {name: _check_slice(self.name, name, values)
                                             for name, values in self.slices.items()})
+        try:
+            cascades = tuple(self.cascades)
+        except TypeError:
+            raise ValueError(f"task {self.name!r}: cascades must be an iterable of Cascade, "
+                             f"got {self.cascades!r}") from None
+        ids = set()
+        for cascade in cascades:
+            if not isinstance(cascade, Cascade):
+                raise ValueError(f"task {self.name!r}: each cascade must be a Cascade, "
+                                 f"got {cascade!r}")
+            if cascade.id in ids:
+                raise ValueError(f"task {self.name!r}: duplicate cascade {cascade.id!r}")
+            ids.add(cascade.id)
+        object.__setattr__(self, "cascades", cascades)
 
 
 _TASK_FIELDS = {f.name for f in fields(Task)}
+
+
+def _load_cascades(path: PathLike, value) -> Tuple[Cascade, ...]:
+    """A task row's ``cascades``: a JSON list of objects with exactly the three keys."""
+    if not isinstance(value, list):
+        raise ValueError(f"{path}: 'cascades' must be a list of objects, got {value!r}")
+    cascades = []
+    for obj in value:
+        if not isinstance(obj, dict) or sorted(obj) != sorted(CASCADE_KEYS):
+            raise ValueError(f"{path}: each cascade must be an object with exactly the keys "
+                             f"{', '.join(CASCADE_KEYS)}, got {obj!r}")
+        try:
+            cascade = Cascade(**obj)
+        except ValueError as exc:
+            raise ValueError(f"{path}: {exc}") from None
+        if any(c.id == cascade.id for c in cascades):
+            raise ValueError(f"{path}: duplicate cascade {cascade.id!r}")
+        cascades.append(cascade)
+    return tuple(cascades)
 
 
 def load_tasks(path: PathLike) -> Dict[str, Task]:
@@ -113,6 +200,8 @@ def load_tasks(path: PathLike) -> Dict[str, Task]:
         if unknown:
             raise ValueError(f"{path}: unknown task fields {sorted(unknown)}")
         values = {k: tuple(v) if isinstance(v, list) else v for k, v in row.items()}
+        if "cascades" in row:
+            values["cascades"] = _load_cascades(path, row["cascades"])
         try:
             task = Task(**values)
         except TypeError as exc:

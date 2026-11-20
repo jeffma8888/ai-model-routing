@@ -99,6 +99,11 @@ def _tasks_json(task: Task) -> str:
     row["exclude_families"] = list(task.exclude_families)
     if not row["slices"]:
         del row["slices"]
+    if row["cascades"]:
+        row["cascades"] = [{"cheap": c.cheap, "strong": c.strong, "signal": c.signal}
+                           for c in task.cascades]
+    else:
+        del row["cascades"]
     return json.dumps({"tasks": [row]}, indent=2) + "\n"
 
 

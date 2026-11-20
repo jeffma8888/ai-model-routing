@@ -121,9 +121,9 @@ def test_rows_without_a_slice_count_once_under_the_task():
 
 # --- 4.2 the field -------------------------------------------------------------------------
 
-def test_slices_is_the_last_field_and_empty_by_default():
+def test_slices_follows_fallback_below_bar_and_is_empty_by_default():
     names = [f.name for f in dataclasses.fields(Task)]
-    assert names[-2:] == ["fallback_below_bar", "slices"]
+    assert names[-3:] == ["fallback_below_bar", "slices", "cascades"]  # cascades: v1.535
     assert Task("t", 0.5).slices == {}
 
 

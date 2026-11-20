@@ -5,9 +5,9 @@ caller computes fires on the cheap model's result (DESIGN 7 v1.532, research/esc
 Row ESC2a ships its types and its calibration: `Cascade` (exported), `Task.cascades` and
 `load_tasks`, the escalation count `Stats` keeps beside a cascade's counts and in its file,
 and `calibrate_from_results` on a cascade row. The candidates and cost (row ESC2b) and the
-executor and records (row ESC2c) come later. The tests marked `RED` fail until row ESC2a's
-implementing commit (strict, so one that passes early fails the suite); the unmarked ones guard
-what v1.535 keeps, every output made without a cascade, and pass before and after it.
+executor and records (row ESC2c) come later. The tests were written under strict xfail and the
+implementing commit removed the marks; the three guards at the end pin what v1.535 keeps, every
+output made without a cascade, and passed before and after it.
 """
 
 import dataclasses
@@ -22,8 +22,6 @@ from model_routing import (
     DATA_DIR, NoModelClearsBar, Priors, Registry, Router, Stats, Task, calibrate_from_results,
     evaluate, load_outcomes, load_tasks, run_demo,
 )
-
-RED = pytest.mark.xfail(strict=True, reason="row ESC2a implements DESIGN 7 v1.532 and v1.535")
 
 CHEAP, STRONG, SIGNAL = "fiction/cheap", "fiction/best", "public-test-failed"
 CASCADE_ID = "fiction/cheap>fiction/best@public-test-failed"
@@ -67,7 +65,6 @@ def write_stats(tmp_path, rows):
 
 # --- Cascade -------------------------------------------------------------------------------
 
-@RED
 def test_cascade_is_exported_frozen_and_named_by_its_id():
     from model_routing import Cascade
     c = cascade()
@@ -81,13 +78,11 @@ def test_cascade_is_exported_frozen_and_named_by_its_id():
         c.cheap = "fiction/mid"
 
 
-@RED
 @pytest.mark.parametrize("signal", ["s", "0", "public-test-failed", "calls.over_15", "a-b.c_d9"])
 def test_a_signal_of_the_pattern_is_accepted(signal):
     assert cascade(signal=signal).id == f"{CHEAP}>{STRONG}@{signal}"
 
 
-@RED
 @pytest.mark.parametrize("args", [
     ("", STRONG, SIGNAL), (CHEAP, "", SIGNAL), (CHEAP, STRONG, ""),
     (1, STRONG, SIGNAL), (CHEAP, None, SIGNAL), (CHEAP, STRONG, 7),
@@ -104,13 +99,11 @@ def test_a_bad_cascade_is_a_value_error(args):
 
 # --- Task.cascades and load_tasks ----------------------------------------------------------
 
-@RED
 def test_cascades_is_the_last_task_field_and_defaults_to_an_empty_tuple():
     assert [f.name for f in dataclasses.fields(Task)][-2:] == ["slices", "cascades"]
     assert Task("t", 0.8).cascades == ()
 
 
-@RED
 def test_a_positional_task_keeps_its_meaning_and_stores_a_tuple():
     c = cascade()
     task = Task("t", 0.8, 30, 0.95, True, (), 1000, 200, "refuse", 2, None, 60.0, False, {}, [c])
@@ -120,7 +113,6 @@ def test_a_positional_task_keeps_its_meaning_and_stores_a_tuple():
     assert task == Task("t", 0.8, cascades=(cascade(),))
 
 
-@RED
 @pytest.mark.parametrize("value", [
     (cascade, cascade),  # two cascades with one id (built inside the test)
     ({"cheap": CHEAP, "strong": STRONG, "signal": SIGNAL},),
@@ -136,7 +128,6 @@ def test_a_bad_cascades_value_is_a_value_error_naming_the_task(value):
         Task("t", 0.8, cascades=value)
 
 
-@RED
 def test_load_tasks_reads_cascades_and_a_row_without_it_gets_none(tmp_path):
     path = write_tasks(tmp_path, [
         {"name": "t", "bar": 0.8, "cascades": [{"cheap": CHEAP, "strong": STRONG, "signal": SIGNAL},
@@ -149,7 +140,6 @@ def test_load_tasks_reads_cascades_and_a_row_without_it_gets_none(tmp_path):
     assert tasks["u"].cascades == ()
 
 
-@RED
 @pytest.mark.parametrize("value", [
     {"cheap": CHEAP, "strong": STRONG, "signal": SIGNAL},
     "x",
@@ -171,14 +161,12 @@ def test_load_tasks_refuses_a_bad_cascades_value_naming_the_file(tmp_path, value
         load_tasks(path)
 
 
-@RED
 def test_no_packaged_task_has_a_cascade():
     tasks = load_tasks(DATA_DIR / "example_tasks.json")
     assert len(tasks) == 8
     assert all(task.cascades == () for task in tasks.values())
 
 
-@RED
 def test_the_demo_tasks_file_holds_cascades_only_for_a_task_that_has_one():
     from model_routing.demo import _tasks_json
     plain = json.loads(_tasks_json(Task("t", 0.8)))["tasks"][0]
@@ -191,7 +179,6 @@ def test_the_demo_tasks_file_holds_cascades_only_for_a_task_that_has_one():
 
 # --- Stats ---------------------------------------------------------------------------------
 
-@RED
 def test_add_keeps_the_escalation_count_beside_the_counts():
     stats = Stats()
     stats.add("t", CASCADE_ID, 3, 4, escalated=2)
@@ -206,11 +193,10 @@ def test_add_keeps_the_escalation_count_beside_the_counts():
     assert stats.escalations("v", CASCADE_ID) == 0
     assert stats.tokens("t", CASCADE_ID) == (0, 0, 0)
     assert stats.tokens("t", CHEAP) == (60, 12, 6)
-    assert stats.items() == [(("t", CASCADE_ID), (4, 7)), (("t", CHEAP), (5, 6)),
+    assert stats.items() == [(("t", CHEAP), (5, 6)), (("t", CASCADE_ID), (4, 7)),
                              (("u", CASCADE_ID), (2, 2))]
 
 
-@RED
 @pytest.mark.parametrize("model_id, extra", [
     (CASCADE_ID, {}),
     (CASCADE_ID, {"escalated": None}),
@@ -237,7 +223,6 @@ def test_add_refuses_a_bad_escalation_and_adds_nothing(model_id, extra):
     assert stats.escalations("t", model_id) == 0
 
 
-@RED
 def test_merge_sums_the_escalations_and_leaves_both_operands():
     a, b = Stats(), Stats()
     a.add("t", CASCADE_ID, 3, 4, escalated=2)
@@ -251,7 +236,6 @@ def test_merge_sums_the_escalations_and_leaves_both_operands():
     assert a.escalations("t", CASCADE_ID) == 2 and b.escalations("t", CASCADE_ID) == 3
 
 
-@RED
 def test_save_writes_escalated_right_after_trials_on_cascade_rows_only(tmp_path):
     stats = Stats()
     stats.add("t", CASCADE_ID, 3, 4, escalated=2)
@@ -260,9 +244,10 @@ def test_save_writes_escalated_right_after_trials_on_cascade_rows_only(tmp_path)
     path = tmp_path / "stats.json"
     stats.save(path)
     rows = json.loads(path.read_text(encoding="utf-8"))["stats"]
+    assert [row["model"] for row in rows] == [STRONG, CHEAP, CASCADE_ID]
     assert [list(row) for row in rows] == [
-        ["task", "model", "successes", "trials", "input_tokens", "output_tokens", "token_trials"],
         ["task", "model", "successes", "trials"],
+        ["task", "model", "successes", "trials", "input_tokens", "output_tokens", "token_trials"],
         ["task", "model", "successes", "trials", "escalated"],
     ]
     assert rows[2] == {"task": "t", "model": CASCADE_ID, "successes": 3, "trials": 4, "escalated": 2}
@@ -290,7 +275,6 @@ def test_a_stats_with_no_cascade_saves_v1_534_bytes(tmp_path):
     assert Stats.load(path).items() == stats.items()
 
 
-@RED
 @pytest.mark.parametrize("row", [
     {"model": CASCADE_ID},
     {"model": CASCADE_ID, "escalated": None},
@@ -313,7 +297,6 @@ def test_stats_load_refuses_a_bad_escalation_row_naming_the_file(tmp_path, row):
 
 # --- calibrate_from_results ----------------------------------------------------------------
 
-@RED
 def test_calibrate_from_results_counts_a_cascade_row_with_its_escalation():
     rows = [
         {"task": "t", "model": CASCADE_ID, "item": "a", "correct": True, "escalated": False,
@@ -340,7 +323,6 @@ def test_calibrate_from_results_counts_a_cascade_row_with_its_escalation():
 GOOD = {"task": "t", "model": CASCADE_ID, "correct": True, "escalated": False}
 
 
-@RED
 @pytest.mark.parametrize("bad", [
     {"task": "t", "model": CHEAP, "correct": True, "escalated": False},
     {"task": "t", "model": CHEAP, "correct": True, "escalated": None},
