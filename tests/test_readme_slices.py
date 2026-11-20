@@ -75,7 +75,9 @@ def test_the_part_says_how_to_split_a_task_and_check_the_split():
                   "`support@deep`", "the task's own counts still cover every line",
                   '`Router.select(..., slice="deep")`', '`Executor.call(..., slice="deep")`',
                   "`model-routing select --slice S`", "admitted only on that slice's own counts",
-                  "`insufficient_samples` on every slice", "the task's `on_no_model` applies",
+                  "`insufficient_samples` on every slice",
+                  "`on_no_model` applies until some model has `min_samples` trials on the slice and a lower bound "
+                  "that clears its bar",
                   "Each log record carries the call's `slice`", "`model-routing evaluate --slice-by FIELD`",
                   "`pooled` (the task's route, scored on each slice's held-out items)",
                   "`sliced` (each slice routed on its own calibration items)", "`slice_miss_rate`"):
@@ -116,6 +118,10 @@ def test_the_livecodebench_numbers_are_the_committed_ones():
     assert (f"On LiveCodeBench the task's route scores {pooled} on held-out problems, but {easy} on `1-easy`, "
             f"{medium} on `2-medium` and {hard} on `3-hard`") in body
     assert f"The sliced LiveCodeBench route scores {sliced} against the pooled {pooled}" in body
+    # review iter-376 must-fix 1: the dataset records no cost, so its finding is about success only
+    assert {r["cost_usd"] for r in data["slice_summary"]} == {0.0} and data["config"]["flavors"] == ["cost_blind"]
+    assert "raised no held-out success on LiveCodeBench" in body and "that dataset records no cost" in body
+    assert "on these two datasets it buys no cheaper way" not in body
 
 
 def test_the_autobench_numbers_are_the_committed_ones():
