@@ -9,6 +9,15 @@ DESIGN 13.8 v1.338 (row R30): the script also reruns the LLMRouterBench (13.13) 
 (13.14) delegation runs, each checked against its committed results.json, and prints one line per
 bar in each flavor's block; the note gains a dated section on the two runs, and the cached-file
 tests also need their pinned files.
+
+v1.520 (row T22): the cached-file fixture answers the script's `evaluate_delegation` call for the
+LLMRouterBench rerun with the session's run of tests/conftest.py `llmrouterbench_delegation_full` when
+the call's rows, registry, bars, points and seeds are those that fixture passes, and makes every other
+call, so a suite pays the 13.13 evaluation once (tests/test_research_reread_sensitivity.py does the same
+since v1.439); the script still checks that run's config, tasks and summary against results.json and
+rebuilds its row 7 cells. A test pins that the session's run answered the fourth of the five calls and
+no other; on a hand matrix the script takes a shared run that is the committed file's, refuses one that
+is not, and a stand-in whose arguments differ makes the call.
 """
 
 import contextlib
@@ -56,6 +65,9 @@ SECTION = "LLMRouterBench and the response bank (2026-11-13)"
 DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
 # v1.338: the response bank's registry, for a small matrix its script's select_rows keeps
 BANK_REGISTRY = ROOT / "evidence" / "response-bank-delegation" / "registry.json"
+# v1.520 (row T22): the 13.13 script and registry, whose run the session's fixture shares
+LRB_SCRIPT = ROOT / "evidence" / "llmrouterbench-delegation" / "results.py"
+LRB_REGISTRY = LRB_SCRIPT.with_name("registry.json")
 # Section and row numbers of DESIGN.md, and the runs' 50 seeds: the only numbers of the note's
 # prose that are not in the script's output
 ALLOWED = {"13.5", "13.9", "13.10", "13.12", "13.13", "13.14", "3", "4", "6", "7", "50"}
@@ -217,6 +229,60 @@ def test_main_prints_nothing_to_stdout_when_a_rerun_is_refused(npc, monkeypatch,
     assert seen == ["llmrouterbench-delegation", "response-bank-delegation"]
 
 
+# --- the session's evaluation shared with the LLMRouterBench rerun (v1.520, row T22) -------------
+
+@pytest.fixture(scope="module")
+def lrb():
+    return _load("t22_llmrouterbench_delegation_results", LRB_SCRIPT)
+
+
+def _sharing(lrb, kept, full):
+    """A stand-in for the `evaluate_delegation` that the script's `main` and `rerun_selected` call: it answers
+    with `full` when the call's rows, registry, bars, points and seeds are those tests/conftest.py
+    `llmrouterbench_delegation_full` passes (`kept`, the models of the 13.13 registry.json, the 13.13 script's
+    `BARS`, `points()` and `range(SEEDS)`), and otherwise makes the call; the list records, per call, whether
+    `full` answered it (tests/test_research_reread_sensitivity.py's `_sharing`, v1.439, does the same)."""
+    session = (kept, Registry.load(LRB_REGISTRY).models,
+               dict(bars=list(lrb.BARS), points=lrb.points(), seeds=range(lrb.SEEDS)))
+    answered = []
+
+    def shared(rows, registry, **kwargs):
+        answered.append((rows, registry.models, kwargs) == session)
+        return full if answered[-1] else evaluate_delegation(rows, registry, **kwargs)
+
+    return shared, answered
+
+
+def test_a_shared_run_answers_only_the_session_call_and_is_still_checked(npc, lrb, tmp_path, monkeypatch):
+    """On a hand matrix of the 13.13 models, `rerun_selected` takes a shared run whose config, tasks and summary
+    are the committed file's as its own, refuses one whose summary is not, and a call whose arguments are not
+    the session's is made."""
+    models = [m.id for m in Registry.load(LRB_REGISTRY).models]
+    rows = [{"task": "t", "item": f"q{i}", "model": m, "correct": (i + k) % 3 != 0, "input_tokens": 100 + i,
+             "output_tokens": 50 + k} for i in range(6) for k, m in enumerate(models)]
+    path = tmp_path / "lrb.jsonl"
+    path.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    kept, dropped = lrb.select_rows(rows, models)
+    assert (kept, dropped) == (rows, [])
+    committed = json.loads(LRB_SCRIPT.with_name("results.json").read_text(encoding="utf-8"))
+    shared, answered = _sharing(lrb, kept, committed)
+    monkeypatch.setattr(npc, "evaluate_delegation", shared)
+    got_rows, got_registry, result = npc.rerun_selected(str(path), "llmrouterbench-delegation", "t22_lrb_hand")
+    assert answered == [True] and got_rows == kept and result is committed
+    assert got_registry.models == Registry.load(LRB_REGISTRY).models
+    shared, answered = _sharing(lrb, kept, dict(committed, summary={}))
+    monkeypatch.setattr(npc, "evaluate_delegation", shared)
+    with pytest.raises(ValueError, match=r"^the rerun is not evidence/llmrouterbench-delegation/results\.json$"):
+        npc.rerun_selected(str(path), "llmrouterbench-delegation", "t22_lrb_hand")
+    assert answered == [True]
+    # rows, registry or grid other than the session's: the stand-in makes the call
+    shared, answered = _sharing(lrb, kept, None)
+    reg = registry()
+    grid = dict(bars=[0.8], points=[POINT], seeds=range(2))
+    assert shared(tiny(), reg, **grid) == evaluate_delegation(tiny(), reg, **grid)
+    assert answered == [False]
+
+
 def test_script_is_standard_library_and_model_routing(npc):
     text = SCRIPT.read_text(encoding="utf-8")
     imports = {m.split(".")[0] for m in re.findall(r"^(?:from|import) ([\w.]+)", text, flags=re.M)}
@@ -270,9 +336,11 @@ def test_readme_limitations_and_research_index_link_the_note():
 # --- the pinned files, only when already cached ------------------------------------------------
 
 @pytest.fixture(scope="module")
-def output(tmp_path_factory, llmrouterbench_pinned, response_bank_pinned):
+def pinned_run(tmp_path_factory, lrb, llmrouterbench_pinned, response_bank_pinned, llmrouterbench_delegation_full):
     """The script's stdout on the five runs' matrices, rebuilt in process from the cached files (the
-    LLMRouterBench and response-bank matrices are the session fixtures' converter output, v1.338)."""
+    LLMRouterBench and response-bank matrices are the session fixtures' converter output, v1.338), whether
+    the session's 13.13 run answered each of the script's `evaluate_delegation` calls, and that run (v1.520,
+    row T22: a suite pays the 13.13 evaluation once, in tests/conftest.py `llmrouterbench_delegation_full`)."""
     ab = _load("r5_autobench_convert", ROOT / "evidence" / "autobench-2026" / "convert.py")
     t2 = _load("r5_tau2_convert", ROOT / "evidence" / "tau2-bench" / "convert.py")
     a_dir, t_dir = ab.default_cache_dir(), t2.default_cache_dir()
@@ -296,14 +364,23 @@ def output(tmp_path_factory, llmrouterbench_pinned, response_bank_pinned):
     lrb_code, _report, lrb_path = llmrouterbench_pinned
     bank_code, _out, bank_err, bank_path = response_bank_pinned
     assert lrb_code == 0 and bank_code == 0, bank_err
+    kept, _dropped, full = llmrouterbench_delegation_full
+    script = _load("r5_script", SCRIPT)
+    script.evaluate_delegation, answered = _sharing(lrb, kept, full)
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
-        code = _load("r5_script", SCRIPT).main([
+        code = script.main([
             "--autobench", str(out / "autobench.jsonl"), "--autobench-registry", str(out / "pool.json"),
             "--tau2", str(out / "tau2.jsonl"), "--tau2-pooled", str(out / "tau2-pooled.jsonl"),
             "--llmrouterbench", str(lrb_path), "--response-bank", str(bank_path)])
     assert code == 0
-    return buf.getvalue()
+    return buf.getvalue(), answered, full
+
+
+@pytest.fixture(scope="module")
+def output(pinned_run):
+    """The script's stdout on the pinned files (`pinned_run`)."""
+    return pinned_run[0]
 
 
 def runs(output):
@@ -316,6 +393,18 @@ def runs(output):
 def test_note_results_block_is_the_script_output(output):
     [text] = _blocks(NOTE.read_text(encoding="utf-8"), "text")
     assert text == COMMAND + "\n" + output
+
+
+def test_the_llmrouterbench_rerun_shares_the_session_evaluation(lrb, pinned_run):
+    """Of the script's five calls, the fourth, the 13.13 rerun's, had the session call's arguments, so the
+    session's run answered it and no other; that run records the 13.13 grid and the committed registry's
+    models as its parents (v1.520, row T22)."""
+    _out, answered, full = pinned_run
+    assert answered == [False, False, False, True, False]
+    config = full["config"]
+    assert (config["bars"], config["points"], config["seeds"]) == (list(lrb.BARS), lrb.points(),
+                                                                     list(range(lrb.SEEDS)))
+    assert config["parents"] == [m.id for m in Registry.load(LRB_REGISTRY).models]
 
 
 def test_output_backs_the_readme_bullet(output):
