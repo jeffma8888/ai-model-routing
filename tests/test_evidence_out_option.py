@@ -1,14 +1,16 @@
 """The `--out` check of the evidence CLIs that download (DESIGN 12.14 v1.171 and v1.174, rows H4 and H4b;
-13.15 v1.418, row E23d; 12.20, 12.23 and 12.25 v1.486, rows T13 and E26f).
+13.15 v1.418, row E23d; 12.20, 12.23 and 12.25 v1.486, rows T13 and E26f; 7 v1.540, row ESC3b).
 
-Eleven CLIs check `--out` before they fetch anything: the tau2-bench converter (12.14), the
+Twelve CLIs check `--out` before they fetch anything: the tau2-bench converter (12.14), the
 LiveCodeBench converter (12.16), the LLMRouterBench converter (12.18), the TRAIL summary
 (13.11), from v1.174 the RouterBench converter (12.6), the AutoBench converter (12.9) and
 the AutoBench judges script (12.11), the last two also on `--registry` when it is given, after
 `--out` and before their four-files check, in this test from v1.418, the ledger hand-off
 converter (13.15), which has taken the check since it was written (v1.394), and from v1.486 the
 response-bank (12.20), registry-pair (12.23) and Longtail-SWE (12.25) converters, each written
-with it. Every `evidence/*/*.py` that defines `_check_out` is one of them (v1.486). A value whose last
+with it, and from v1.540 the tau2-bench cascade replay (7), written with it and, as judges.py does,
+calling the check and `fetch` of the `convert` module it loads. Every `evidence/*/*.py` that defines
+`_check_out` is one of them (v1.486). A value whose last
 `/`-separated part is empty, `.` or `..`, a path or `<path>.part` that is an existing folder (a
 link to one counts), or a path whose parent is not an existing folder is a bad option: `main`
 returns 2 with one `error: <option>` line and nothing on stdout, and neither fetches nor writes a
@@ -42,7 +44,9 @@ CLIS = {
     "response-bank": ROOT / "evidence" / "response-bank" / "convert.py",
     "registry-pair": ROOT / "evidence" / "registry-pair" / "convert.py",
     "longtail-swe": ROOT / "evidence" / "longtail-swe" / "convert.py",
+    "tau2-cascades": ROOT / "evidence" / "tau2-bench" / "cascades.py",
 }
+LOADS_CONVERT = ("autobench-judges", "tau2-cascades")  # each calls the check and fetch of its loaded convert
 REGISTRY_CLIS = ("autobench", "autobench-judges")
 _LOADED = {}
 
@@ -67,7 +71,7 @@ def load(name):
 def owner(name):
     """The module whose `fetch` and `_check_out` the CLI calls: judges.py uses its loaded `convert`."""
     module = load(name)
-    return module.convert if name == "autobench-judges" else module
+    return module.convert if name in LOADS_CONVERT else module
 
 
 def _folder(root):
@@ -126,8 +130,9 @@ PASSED_BEFORE = {
     "response-bank": set(),
     "registry-pair": set(),
     "longtail-swe": set(),
+    "tau2-cascades": set(),  # v1.540: written with the check
 }
-WRITTEN_WITH = {"ledger-handoff", "response-bank", "registry-pair", "longtail-swe"}
+WRITTEN_WITH = {"ledger-handoff", "response-bank", "registry-pair", "longtail-swe", "tau2-cascades"}
 REGISTRY_PASSED_BEFORE = {cli: set(BAD) for cli in REGISTRY_CLIS}
 LATE = {"routerbench", "autobench", "autobench-judges"}  # the three that took the check in v1.175
 
@@ -164,10 +169,10 @@ def test_the_red_cases_are_bad_cases():
     assert sum(len(PASSED_BEFORE[cli]) for cli in LATE) == 36
     assert sum(len(cases) for cases in REGISTRY_PASSED_BEFORE.values()) == 24
     assert all(PASSED_BEFORE[cli] == set() for cli in WRITTEN_WITH) and WRITTEN_WITH <= set(CLIS)
-    assert len(CLIS) == 11
+    assert len(CLIS) == 12
 
 
-def test_the_checks_are_one_check():  # the eleven CLIS; ledger copy matches from v1.419, response-bank v1.487
+def test_the_checks_are_one_check():  # the twelve CLIS; ledger copy matches from v1.419, response-bank v1.487
     sources = {cli: inspect.getsource(owner(cli)._check_out) for cli in CLIS}
     texts = {}
     for cli, text in sources.items():
@@ -182,11 +187,12 @@ def test_every_cli_defining_the_check_is_in_clis():
     naming = {path for path, text in texts.items() if "_check_out" in text}
     defining = {path for path, text in texts.items() if re.search(r"^\s*def _check_out\(", text, re.M)}
     assert naming == set(CLIS.values())
-    assert defining == naming - {CLIS["autobench-judges"]}
+    assert defining == naming - {CLIS[cli] for cli in LOADS_CONVERT}
 
 
-def test_judges_has_no_copy_of_the_check():
-    assert "_check_out" not in vars(load("autobench-judges"))
+@pytest.mark.parametrize("cli", LOADS_CONVERT)
+def test_judges_has_no_copy_of_the_check(cli):  # v1.540: nor has the cascade replay
+    assert "_check_out" not in vars(load(cli))
 
 
 def _refused(cli, argv, option, tmp_path, monkeypatch, capsys, value, start=None):

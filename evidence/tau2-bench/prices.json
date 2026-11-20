@@ -1,0 +1,30 @@
+{
+  "as_of": "2026-11-20",
+  "note": "Input list prices of the four tau2-bench agents, in USD per million tokens, read on 2026-11-20. evidence/tau2-bench/cascades.py prices a cascade's hand-up with them: the strong model reads the cheap run's last call, its prompt and completion, as uncached input (DESIGN 7 v1.539 and v1.540). The recorded 2025 costs of each run are never repriced.",
+  "models": [
+    {
+      "id": "anthropic/claude-3-7-sonnet-20250219",
+      "price_in": 3,
+      "source": "https://github.com/sierra-research/tau2-bench/tree/033bf082f48e4a3c6a1256208e93cf2ce9c3bb6f/data/tau2/results/final",
+      "notes": "No current vendor page states its price. The input price is the one its recorded costs give exactly, as evidence/tau2-bench-delegation/registry.json records (DESIGN 13.12)."
+    },
+    {
+      "id": "openai/gpt-4.1-2025-04-14",
+      "price_in": 2.0,
+      "source": "https://platform.openai.com/docs/models/gpt-4.1",
+      "notes": "The model page lists this snapshot as Deprecated; input price as that page states it on 2026-11-20."
+    },
+    {
+      "id": "openai/gpt-4.1-mini-2025-04-14",
+      "price_in": 0.4,
+      "source": "https://platform.openai.com/docs/models/gpt-4.1-mini",
+      "notes": "The model page lists this snapshot as Deprecated; input price as that page states it on 2026-11-20."
+    },
+    {
+      "id": "openai/o4-mini-2025-04-16",
+      "price_in": 1.1,
+      "source": "https://platform.openai.com/docs/models/o4-mini",
+      "notes": "The model page lists this snapshot as Shut down; input price as that page states it on 2026-11-20."
+    }
+  ]
+}

@@ -1,4 +1,6 @@
-"""Replay a cascade of two tau2-bench agents on a signal from the cheap run's own calls (DESIGN 7 v1.539).
+"""Replay a cascade of two tau2-bench agents on a signal from the cheap run's own calls (DESIGN 7 v1.539, v1.540).
+
+Usage: python evidence/tau2-bench/cascades.py --out PATH [--cache DIR]
 
 Standard library and ``model_routing``. A cascade starts an item on the cheap agent and hands it up to
 the strong one when its signal fires: ``calls-over-N`` (more than N agent calls), ``calls-over-N-no-write``
@@ -8,15 +10,40 @@ cheap run's label and cost; handed up at call h, the strong run's label, and as 
 h calls, call h's prompt and completion read by the strong model as uncached input at its input list price,
 and the strong run. The strong run in the data starts fresh, with its own simulated user, so a row replays
 a hand-up that restarts the conversation, and ``calls-over-N`` and ``transfer`` may hand up a run that has
-written, which assumes the cheap agent's writes undone (research/escalation.md). This version holds the
-reduction and the replay rule on messages and rows a caller passes in; it downloads, prices and writes
-nothing (rows ESC3b to ESC3f).
+written, which assumes the cheap agent's writes undone (research/escalation.md). The CLI (v1.540) reads
+the 12 pinned run files through convert.py in this folder and each domain's write tools through
+research/escalation_signals.py, both loaded from their paths, never copied, and writes the 12.14 matrix at
+trial 0, one task per domain, with one row per cascade and item for each pair of the four agents, its
+cheap agent the one at the lower input list price of prices.json, and each signal of SIGNALS; it prints a
+report of the counts. No result is computed here (rows ESC3c to ESC3f).
 """
 
+import argparse
+import datetime
+import importlib.util
+import itertools
+import json
 import math
 import re
+import sys
+from pathlib import Path
 
 from model_routing import Cascade
+
+_HERE = Path(__file__).resolve().parent
+PRICES = _HERE / "prices.json"
+TRIAL = 0
+
+
+def _load(path, name):
+    spec = importlib.util.spec_from_file_location(name, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+convert = _load(_HERE / "convert.py", "tau2_bench_convert_for_cascades")
+signals = _load(_HERE.parents[1] / "research" / "escalation_signals.py", "escalation_signals_for_cascades")
 
 TRANSFER = "transfer_to_human_agents"
 SIGNALS = ("calls-over-10", "calls-over-10-no-write", "calls-over-15", "calls-over-15-no-write",
@@ -176,3 +203,149 @@ def cascade_rows(rows, calls, cascades, prices) -> list:
                                 cells[(task, item, cascade.strong)], cascade.signal, price)
             out.append({"task": task, "item": item, "model": cascade.id, **cell})
     return sorted(out, key=_key)
+
+
+_PRICE_KEYS = ("as_of", "note", "models")
+_ENTRY_KEYS = ("id", "price_in", "source", "notes")
+_DATE = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}")
+
+
+def _real_date(value) -> bool:
+    if not isinstance(value, str) or _DATE.fullmatch(value) is None:
+        return False
+    try:
+        datetime.date.fromisoformat(value)
+    except ValueError:
+        return False
+    return True
+
+
+def load_prices(path) -> tuple:
+    """``(as_of, {id: price_in})`` of a dated price file (DESIGN 7 v1.540); a ValueError naming it."""
+    path = Path(path)
+    name = path.name
+    try:
+        doc = json.loads(path.read_text(encoding="utf-8"))
+    except (ValueError, RecursionError) as exc:  # JSONDecodeError and UnicodeDecodeError are ValueErrors
+        raise ValueError(f"{name}: not a valid UTF-8 JSON file ({type(exc).__name__}: {exc})") from None
+    if not isinstance(doc, dict) or set(doc) != set(_PRICE_KEYS):
+        raise ValueError(f"{name}: not an object with exactly the keys {', '.join(_PRICE_KEYS)}")
+    if not _real_date(doc["as_of"]):
+        raise ValueError(f"{name}: as_of {doc['as_of']!r} is not a real YYYY-MM-DD date")
+    if not isinstance(doc["note"], str):
+        raise ValueError(f"{name}: note is a {type(doc['note']).__name__}, not a str")
+    models = doc["models"]
+    if not isinstance(models, list) or not models:
+        raise ValueError(f"{name}: models is not a non-empty list")
+    prices = {}
+    for k, entry in enumerate(models):
+        if not isinstance(entry, dict) or set(entry) != set(_ENTRY_KEYS):
+            raise ValueError(f"{name}: models[{k}] is not an object with exactly the keys {', '.join(_ENTRY_KEYS)}")
+        model = entry["id"]
+        if not isinstance(model, str) or not model:
+            raise ValueError(f"{name}: models[{k}] id {model!r} is not a non-empty str")
+        if model in prices:
+            raise ValueError(f"{name}: model {model} is repeated")
+        if not _price(entry["price_in"]):
+            raise ValueError(f"{name}: {model} price_in {entry['price_in']!r} is not a finite number >= 0")
+        source = entry["source"]
+        if not isinstance(source, str) or not source.startswith("https://"):
+            raise ValueError(f"{name}: {model} source {source!r} is not an https:// URL")
+        if not isinstance(entry["notes"], str):
+            raise ValueError(f"{name}: {model} notes is a {type(entry['notes']).__name__}, not a str")
+        prices[model] = entry["price_in"]
+    return doc["as_of"], prices
+
+
+def pair_cascades(models, prices) -> list:
+    """One Cascade per pair of ``models`` and signal of SIGNALS, the cheap model at the lower price_in."""
+    models = sorted(set(models))
+    missing = [model for model in models if model not in prices]
+    if missing:
+        raise ValueError(f"no price for {', '.join(missing)}")
+    unused = sorted(set(prices) - set(models))
+    if unused:
+        raise ValueError(f"a price for a model with no run: {', '.join(unused)}")
+    found = []
+    for a, b in itertools.combinations(models, 2):
+        if prices[a] == prices[b]:
+            raise ValueError(f"{a} and {b} have one price_in {prices[a]!r}, so neither is the cheap model")
+        cheap, strong = (a, b) if prices[a] < prices[b] else (b, a)
+        found += [Cascade(cheap, strong, signal) for signal in SIGNALS]
+    return sorted(found, key=lambda cascade: cascade.id)
+
+
+def run_calls(run, tools, trial=TRIAL) -> tuple:
+    """``(extract, {(agent, item): agent_calls}, greetings)`` of one parsed run file at ``trial``."""
+    e = convert.extract(run, trial)
+    domain, agent = e["domain"], e["agent"]
+    if domain not in tools:
+        raise ValueError(f"{domain}: no tools file is pinned for this domain")
+    writes = {name for name, kind in tools[domain].items() if kind == "WRITE"}
+    calls, greetings = {}, 0
+    for entry in run["simulations"]:
+        if entry["trial"] != trial or entry["task_id"] not in e["cells"]:
+            continue
+        at = f"{domain} {agent} task {entry['task_id']!r} trial {trial}"
+        messages = entry.get("messages")
+        found = agent_calls(messages, writes, at)
+        calls[(agent, f"{domain}|{entry['task_id']}")] = found
+        greetings += sum(1 for message in messages if message.get("role") == "assistant") - len(found)
+    return e, calls, greetings
+
+
+def report(as_of, matrix, cascades, rows, out_rows, calls, greetings) -> dict:
+    ids = {cascade.id for cascade in cascades}
+    counts = {}
+    for row in out_rows:
+        if row["model"] in ids:
+            by_task = counts.setdefault(row["task"], {})
+            by_task[row["model"]] = by_task.get(row["model"], 0) + int(row["escalated"])
+    return {"revision": convert.REVISION, "prices_as_of": as_of, "models": sorted(matrix["models"]),
+            "trial": matrix["trial"], "kept": matrix["kept"], "agent_calls": sum(len(v) for v in calls.values()),
+            "greetings": greetings, "model_rows": len(rows), "cascades": len(cascades),
+            "cascade_rows": len(out_rows) - len(rows), "rows": len(out_rows),
+            "escalated": {task: {cid: counts[task][cid] for cid in sorted(counts[task])} for task in sorted(counts)}}
+
+
+def main(argv=None) -> int:
+    parser = convert._Parser(prog="cascades.py", description="tau2-bench cascade replay rows")
+    parser.add_argument("--out", required=True, help="output JSONL path")
+    parser.add_argument("--cache", default=None, help=f"download folder (default: {convert.default_cache_dir()})")
+    try:
+        args = parser.parse_args(argv)
+        out = convert._check_out(args.out)
+    except (convert._UsageError, ValueError) as exc:
+        print(f"error: {convert._one_line(exc)}", file=sys.stderr)
+        return 2
+    part = out.with_name(out.name + ".part")
+    try:
+        as_of, prices = load_prices(PRICES)
+        folder = Path(convert.fetch(args.cache))
+        sources = signals.fetch_tools(folder / "tools", convert)
+        tools = {domain: signals.tool_types(text, f"{domain}-tools.py") for domain, text in sources.items()}
+        extracts, calls, greetings = [], {}, 0
+        for name in convert.FILES:  # one run file in memory at a time
+            e, found, seen = run_calls(convert.read_run(folder / name), tools)
+            extracts.append(e)
+            calls.update(found)
+            greetings += seen
+        rows, matrix = convert.convert(extracts, "domain")
+        cascades = pair_cascades(matrix["models"], prices)
+        out_rows = cascade_rows(rows, calls, cascades, prices)
+        summary = report(as_of, matrix, cascades, rows, out_rows, calls, greetings)
+        try:
+            convert.write_jsonl(out_rows, part)
+            # print before the rename, so a write to stdout that fails leaves --out as it was (12.14 v1.94)
+            convert.print_report(json.dumps(summary, indent=2))
+            part.replace(out)
+        finally:
+            part.unlink(missing_ok=True)
+    except (ValueError, OSError) as exc:
+        print(f"error: {convert._one_line(exc)}", file=sys.stderr)
+        return 2
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

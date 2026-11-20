@@ -43,10 +43,6 @@ def m():
     return _loaded[0]
 
 
-pytestmark = pytest.mark.xfail(strict=True, raises=AttributeError,
-                               reason="row ESC3b: load_prices, pair_cascades, run_calls and main land next")
-
-
 # --- the price file
 
 def test_price_file_holds_the_four_agents_read_on_the_day():
