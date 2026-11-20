@@ -68,7 +68,7 @@ def test_parse_signal_reads_each_form(signal, parsed):
 
 @pytest.mark.parametrize("signal", ["calls-over-0", "calls-over-010", "calls-over-", "calls-over-10-no-writes",
                                     "calls-over-10 ", "calls-over--1", "Transfer", "transfer-", "", "calls-over-1.5",
-                                    "calls-over-\u0661\u0660", 10, None, b"transfer"])
+                                    "calls-over-\u0661\u0660", "calls-over-" + "1" * 5000, 10, None, b"transfer"])
 def test_parse_signal_refuses_every_other_value(signal):
     with pytest.raises(ValueError, match="unknown signal") as info:
         m().parse_signal(signal)
@@ -138,6 +138,13 @@ BAD = {
 def test_agent_calls_refuses_a_bad_message_naming_where(case):
     with pytest.raises(ValueError) as info:
         m().agent_calls(BAD[case], {"book_reservation"}, AT)
+    assert str(info.value).startswith(AT)
+
+
+@pytest.mark.parametrize("writes", ["book_reservation", b"book_reservation"])
+def test_agent_calls_refuses_a_str_of_writes(writes):
+    with pytest.raises(ValueError, match="not a collection of tool names") as info:
+        m().agent_calls([agent(1, 1, 0.1, "b")], writes, AT)
     assert str(info.value).startswith(AT)
 
 
@@ -262,6 +269,12 @@ def test_cascade_rows_keep_every_key_of_a_row_and_sort_whatever_the_input_order(
     assert m().cascade_rows(matrix(), {}, [], {}) == matrix()
 
 
+def test_cascade_rows_read_one_shot_iterables_once():
+    listed = m().cascade_rows(matrix(), matrix_calls(), [Cascade(C, S, "calls-over-10")], {S: 2.0})
+    got = m().cascade_rows(iter(matrix()), matrix_calls(), iter([Cascade(C, S, "calls-over-10")]), {S: 2.0})
+    assert got == listed and len(got) == 6
+
+
 def _bad(kind):
     rows, calls, cascades, prices = matrix(), matrix_calls(), [Cascade(C, S, "calls-over-10")], {S: 2.0}
     if kind == "repeated row":
@@ -282,6 +295,8 @@ def _bad(kind):
         rows = [r for r in rows if (r["model"], r["item"]) != (C, "t|b")]
     elif kind == "no price":
         prices = {C: 0.4}
+    elif kind == "bad price":
+        prices = {S: "2"}
     elif kind == "no calls":
         del calls[(C, "t|b")]
     return rows, calls, cascades, prices
@@ -289,7 +304,7 @@ def _bad(kind):
 
 @pytest.mark.parametrize("kind", ["repeated row", "not a Cascade", "repeated cascade", "unknown signal",
                                   "cheap with no row", "strong with no row", "item only the cheap has",
-                                  "item only the strong has", "no price", "no calls"])
+                                  "item only the strong has", "no price", "bad price", "no calls"])
 def test_cascade_rows_refuse_before_any_output(kind):
     rows, calls, cascades, prices = _bad(kind)
     with pytest.raises(ValueError) as info:

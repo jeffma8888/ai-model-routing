@@ -31,8 +31,8 @@ def parse_signal(signal) -> tuple:
     if isinstance(signal, str):
         if signal == "transfer":
             return ("transfer", None)
-        found = _CALLS_OVER.fullmatch(signal) if signal.isascii() else None
-        if found is not None:
+        found = _CALLS_OVER.fullmatch(signal)  # [0-9] matches ASCII digits only
+        if found is not None and len(found.group(1)) <= 4000:  # int() refuses longer digit strings
             return ("calls-over-no-write" if found.group(2) else "calls-over", int(found.group(1)))
     raise ValueError(f"unknown signal {signal!r}: a signal is calls-over-<N>, calls-over-<N>-no-write or transfer")
 
@@ -68,6 +68,8 @@ def agent_calls(messages, writes, at="") -> list:
     """One dict per agent call (an agent message with a usage), in message order, keys CALL_KEYS."""
     if not isinstance(messages, list):
         raise ValueError(f"{at}: messages is not a list")
+    if isinstance(writes, (str, bytes)):
+        raise ValueError(f"{at}: writes is a {type(writes).__name__}, not a collection of tool names")
     writes = set(writes)
     calls = []
     for message in messages:
@@ -128,6 +130,8 @@ def _key(row) -> tuple:
 
 def cascade_rows(rows, calls, cascades, prices) -> list:
     """A copy of every row plus one cascade row per cascade and (task, item) of its cheap model, sorted."""
+    rows = list(rows)  # read once, so a one-shot iterable of rows keeps every row
+    cascades = list(cascades)
     cells = {}
     for row in rows:
         key = (row["task"], row["item"], row["model"])
@@ -158,6 +162,9 @@ def cascade_rows(rows, calls, cascades, prices) -> list:
             raise ValueError(f"cascade {cid}: {odd!r} has a row of only one of its two models")
         if cascade.strong not in prices:
             raise ValueError(f"cascade {cid}: its strong model {cascade.strong} has no price")
+        if not _price(prices[cascade.strong]):
+            raise ValueError(f"cascade {cid}: its strong model's price {prices[cascade.strong]!r} is not a finite"
+                             " number >= 0")
         for task, item in sorted(items[cascade.cheap], key=str):
             if (cascade.cheap, item) not in calls:
                 raise ValueError(f"cascade {cid}: no calls for ({cascade.cheap!r}, {item!r})")
