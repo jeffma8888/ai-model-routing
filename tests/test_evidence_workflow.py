@@ -1100,7 +1100,7 @@ def test_the_workflow_reruns_the_ledger_handoff_line_after_the_readme_commands()
     # v1.397 (row E23c, DESIGN 13.15 Workflow bullet); from v1.443 the registry-pair block follows it
     assert ledger_command() == LEDGER_LINE
     text = workflow_text()
-    run = before_slices([line.strip() for line in regenerate_lines(text)[1]])  # v1.525
+    run = before_slices([line.strip() for line in regenerate_lines(text)[1]])  # v1.525, v1.530
     assert run[-12] == LEDGER_LINE and run[-14:-12] == RB_TABLES and run.count(LEDGER_LINE) == 1
     compare = text.split("      - name: Compare\n", 1)[1].split("\n", 1)[0]
     assert compare.endswith(" evidence/response-bank-delegation/results.json evidence/ledger-handoff/results.json "
@@ -1141,7 +1141,7 @@ def test_the_workflow_reruns_the_registry_pair_block_after_the_ledger_line():
     # the ledger line; from v1.472 the registry-pair delegation block follows them.
     assert registry_commands() == REGISTRY_LINES
     text = workflow_text()
-    run = before_slices([line.strip() for line in regenerate_lines(text)[1]])  # v1.525
+    run = before_slices([line.strip() for line in regenerate_lines(text)[1]])  # v1.525, v1.530
     assert run[-11:-7] == REGISTRY_LINES and run[-12] == LEDGER_LINE
     assert all(run.count(line) == 1 for line in REGISTRY_LINES)
     compare = text.split("      - name: Compare\n", 1)[1].split("\n", 1)[0]
@@ -1171,7 +1171,7 @@ def test_the_workflow_reruns_the_registry_pair_delegation_block_after_the_regist
     assert registry_delegation_commands() == REGISTRY_DELEGATION_LINES
     assert REGISTRY_DELEGATION_LINES[0] == REGISTRY_LINES[0]  # the 12.23 converter line, left out
     text = workflow_text()
-    run = before_slices([line.strip() for line in regenerate_lines(text)[1]])  # v1.525
+    run = before_slices([line.strip() for line in regenerate_lines(text)[1]])  # v1.525, v1.530
     assert run[-7:-4] == REGISTRY_DELEGATION_RUN and run[-8] == REGISTRY_LINES[-1]
     assert all(run.count(line) == 1 for line in REGISTRY_DELEGATION_RUN)
     assert run.count(REGISTRY_LINES[0]) == 1
@@ -1217,7 +1217,7 @@ def test_the_workflow_installs_pyarrow_and_reruns_the_longtail_swe_block_before_
     assert WORKFLOW_INSTALL == 'python -m pip install -e . "pyarrow>=14"' and "pandas" not in WORKFLOW_INSTALL
     text = workflow_text()
     assert text.count(f"        run: {WORKFLOW_INSTALL}\n") == 1 and "pandas" not in text.split("\non:\n", 1)[1]
-    run = before_slices([line.strip() for line in regenerate_lines(text)[1]])  # v1.525
+    run = before_slices([line.strip() for line in regenerate_lines(text)[1]])  # v1.525, v1.530
     assert run[-4:] == LONGTAIL_LINES and run[-5] == REGISTRY_DELEGATION_RUN[-1]
     assert all(run.count(line) == 1 for line in LONGTAIL_LINES)
     compare = text.split("      - name: Compare\n", 1)[1].split("\n", 1)[0]
