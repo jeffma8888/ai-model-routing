@@ -167,7 +167,7 @@ def test_design_12_28_specifies_the_slice_file():
                   "gains `## Slices`, after `## Reading it` and before `## Regenerate`",
                   "`tests/test_evidence_livecodebench_slices.py`", "(row STRAT3i)", "(row STRAT4)",
                   "238 (`1-easy`), 279 (`2-medium`) and 196 (`3-hard`)", "77 to 153 items over the 50 seeds",
-                  "row E14's in-sample 3 of 713"):
+                  "(in sample, 3 of 713)"):
         assert words in body, words
 
 
@@ -232,6 +232,27 @@ def test_file_phrases_follow_the_file():
             r["success"] = 0.5
     said = file_phrases(fake)[1]
     assert said.startswith("the sliced route's held-out success is 0.500 at every bar")
+    # Review iter-374 should-fix 1: one source value per phrase moves that phrase and no other.
+    def every_bar(name, strategy, key):
+        def change(results):
+            for bar in BARS:
+                slice_of(results, bar, name, strategy)[key] = 0.5
+        return change
+    moves = {
+        0: lambda results: results["tasks"][TASK]["slices"].update({"3-hard": 197}),
+        2: every_bar("1-easy", "pooled", "success"),
+        3: lambda results: summary_of(results, 0.7, "pooled").update({"slice_miss_rate": 0.5}),
+        4: lambda results: slice_of(results, 0.7, "3-hard", "sliced").update({"cleared_rate": 0.5}),
+        5: lambda results: slice_of(results, 0.9, "2-medium", "sliced").update({"cleared_rate": 0.5}),
+        6: lambda results: slice_of(results, 0.7, "3-hard", "pooled").update({"bar_violation_rate": 0.5}),
+    }
+    base = file_phrases(committed())
+    for index, change in moves.items():
+        moved = json.loads(json.dumps(committed()))
+        change(moved)
+        said = file_phrases(moved)
+        assert [k for k in range(len(base)) if said[k] != base[k]] == [index], index
+        assert "0.500" in said[index] or "197" in said[index], index
     slice_of(fake, 0.8, "3-hard", "sliced")["cleared_rate"] = 0.02
     with pytest.raises(AssertionError):
         file_phrases(fake)
@@ -269,15 +290,17 @@ def test_real_pinned_numbers_are_in_the_section(labelled):
 
 def test_real_hard_slice_best_rate_clears_0_7_on_no_calibration_half(labelled):
     """Bullet (4), v1.529: a rate of at most the best `3-hard` rate has a Wilson lower bound under 0.7 on
-    every `3-hard` calibration half, so a `3-hard` route clears 0.7 only on a half above that rate."""
+    every `3-hard` calibration half of the 50 seeds, so a `3-hard` route clears 0.7 only on a half above
+    that rate (review iter-374 should-fix 2: a half of 147 or more would clear it)."""
     committed()
     level = {r["item"]: r["difficulty"] for r in labelled}
     hits = Counter(r["model"] for r in labelled if r["difficulty"] == "3-hard" and r["correct"])
-    best = max(hits.values()) / SLICES["3-hard"]
+    best = round(max(hits.values()) / SLICES["3-hard"], 3)  # the stated 0.776 (review iter-374 nit 1)
     items = sorted(level)
     sizes = {sum(1 for i in split_items(items, seed)[0] if level[i] == "3-hard") for seed in range(50)}
     for n in sizes:
         k = max(j for j in range(n + 1) if j / n <= best)
         assert wilson_lower_bound(k, n, 0.95) < 0.7, n
-    assert ("a rate of at most 0.776 has a 95% Wilson lower bound (DESIGN 5.3) under 0.7 on any `3-hard` "
-            "calibration half") in section()
+    assert best == 0.776 and (min(sizes), max(sizes)) == (77, 117)
+    assert ("a rate of at most 0.776 has a 95% Wilson lower bound (DESIGN 5.3) under 0.7 on every `3-hard` "
+            "calibration half of the 50 seeds (77 to 117 problems)") in section()

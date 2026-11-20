@@ -179,7 +179,7 @@ def test_design_12_27_specifies_the_slice_files():
     text = DESIGN.read_text(encoding="utf-8")
     heading = "\n### 12.27 AutoBench slice results (`evidence/autobench-2026/slices-*.json`, v1.523)\n"
     assert text.count(heading) == 1
-    body = text.split(heading, 1)[1].split("\n## ", 1)[0]
+    body = text.split(heading, 1)[1].split("\n## ", 1)[0].split("\n### ", 1)[0]  # 12.28 follows (v1.528)
     assert text.index("\n### 12.26 ") < text.index(heading) < text.index("\n## 13. ")
     for name in FILES:
         assert f"slices-{name}.json`" in body, name

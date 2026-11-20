@@ -1251,7 +1251,7 @@ def test_the_workflow_reruns_the_autobench_slices_block_last():
     assert "row STRAT4" in bullets[0] and "does not count its four files" in bullets[0]
     assert ("then (v1.525) the one `bash` block of `## Slices` of `evidence/autobench-2026/RESULTS.md` (12.27), "
             "which has none;") in section
-    spec = design.split("\n### 12.27 ", 1)[1].split("\n## ", 1)[0]
+    spec = design.split("\n### 12.27 ", 1)[1].split("\n## ", 1)[0].split("\n### ", 1)[0]  # 12.28 follows (v1.528)
     assert len([line for line in spec.split("\n") if line.startswith("- Workflow (v1.525, row STRAT3g): ")]) == 1
     assert "12.13 workflow lines" not in spec
     # The RESULTS.md line before the block says the workflow reruns it (12.13, 12.27).
