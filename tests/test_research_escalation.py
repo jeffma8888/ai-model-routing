@@ -3,7 +3,8 @@
 The note says why a cascade (a cheap model, a signal the caller computes, a strong model) is one
 routing candidate with its own calibration, which converted public datasets record a signal a
 replay can compute, and which dataset and signal row ESC3 runs first. DESIGN 7 v1.532 is the spec
-row ESC2 implements; no code reads it yet. These tests read only committed text."""
+row ESC2 implements in three parts, the first (row ESC2a, v1.535) its types and stats. These
+tests read only committed text."""
 
 import re
 from pathlib import Path
@@ -120,7 +121,8 @@ def test_the_spec_is_in_design_7_after_the_slices_bullet():
 def test_the_spec_holds_each_contract_item():
     spec = escalation_spec()
     for phrase in (
-        "spec only: row ESC2 implements it, so until then no code reads it",
+        "row ESC2 implements it in three parts, and a part is spec only until its row ships",
+        "the types and stats, v1.535 (row ESC2a)",
         "`research/escalation.md`",
         "never inherits the strong model's pass",
         "`@dataclass(frozen=True) class Cascade`, exported: `cheap: str`, `strong: str`, `signal: str`",
