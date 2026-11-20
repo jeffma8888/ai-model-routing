@@ -24,7 +24,6 @@ from model_routing import (
     Registry, Router, Stats, Task, load_tasks, run_demo, wilson_lower_bound,
 )
 
-XFAIL = pytest.mark.xfail(strict=True, reason="row ESC2b: the router code lands in the next commit")
 
 CHEAP, MID, BEST, TWIN, PEER = (
     "fiction/cheap", "fiction/mid", "fiction/best", "fiction/twin", "fiction/peer")
@@ -65,9 +64,9 @@ def planted_stats(cascade=(95, 100, 20)):
 
 
 def task(**fields):
-    values = dict(min_samples=10, cascades=(C,))
+    values = dict(bar=0.8, min_samples=10, cascades=(C,))
     values.update(fields)
-    return Task("t", 0.8, **values)
+    return Task("t", **values)
 
 
 def router(t=None, stats=None, registry=REGISTRY, priors=None):
@@ -82,6 +81,14 @@ def by_id(decision_or_candidates):
 
 def route(decision):
     return (decision.primary, *decision.fallbacks)
+
+
+def candidates_of(r, *args, **kw):
+    """The candidates of the decision, or of the NoModelClearsBar it raises."""
+    try:
+        return r.select(*args, **kw).candidates
+    except NoModelClearsBar as exc:
+        return exc.candidates
 
 
 def with_cascades(tasks, registry):
@@ -117,7 +124,6 @@ def example_files():
 
 # --- the reason code and the keyword ------------------------------------------------------
 
-@XFAIL
 def test_the_reason_code_is_exported_after_passes():
     from model_routing import CASCADE_UNKNOWN_MODEL
     assert CASCADE_UNKNOWN_MODEL == "cascade_unknown_model"
@@ -126,20 +132,17 @@ def test_the_reason_code_is_exported_after_passes():
     assert names.index("CASCADE_UNKNOWN_MODEL") == names.index("PASSES") + 1
 
 
-@XFAIL
 @pytest.mark.parametrize("value", [1, 0, None, "true", 1.0, (C,)])
 def test_a_cascades_that_is_not_a_bool_is_a_value_error(value):
     with pytest.raises(ValueError, match="cascades"):
         router().select("t", cascades=value)
 
 
-@XFAIL
 def test_the_cascades_check_comes_before_the_task_lookup():
     with pytest.raises(ValueError, match="cascades"):
         router().select("absent", cascades=1)
 
 
-@XFAIL
 def test_a_registry_id_equal_to_a_cascade_id_is_a_value_error_with_cascades_only():
     registry = Registry([*REGISTRY.models, Model(CID, "fam-x", 1.0, 1.0, 100_000)])
     r = router(registry=registry)
@@ -152,16 +155,14 @@ def test_a_registry_id_equal_to_a_cascade_id_is_a_value_error_with_cascades_only
 
 # --- the candidate: order, family, counts, cost -------------------------------------------
 
-@XFAIL
 def test_one_candidate_per_cascade_after_the_registry_models_in_task_order():
-    decision = router(task(cascades=(C, D))).select("t", cascades=True)
+    decision = router(task(cascades=(D, C))).select("t", cascades=True)
     ids = [c.model_id for c in decision.candidates]
     assert ids == [CHEAP, MID, BEST, TWIN, PEER, D.id, CID]
     assert by_id(decision)[D.id].family == "fam-c"  # the strong model's family
     assert by_id(decision)[CID].family == "fam-c"
 
 
-@XFAIL
 def test_a_planted_cascade_by_hand_cost_effective():
     decision = router().select("t", cascades=True)
     c = by_id(decision)[CID]
@@ -183,7 +184,6 @@ def test_a_planted_cascade_by_hand_cost_effective():
     assert (decision.below_bar, decision.basis, decision.below_bar_fallbacks) == (False, "measured", ())
 
 
-@XFAIL
 def test_a_planted_cascade_by_hand_cost_blind():
     decision = router().select("t", "cost_blind", cascades=True)
     c = by_id(decision)[CID]
@@ -193,22 +193,18 @@ def test_a_planted_cascade_by_hand_cost_blind():
     assert route(decision) == (BEST, CID)
 
 
-@XFAIL
 def test_an_unmeasured_cascade_costs_what_its_cheap_model_does():
-    decision = router(stats=Stats()).select("t", cascades=True)
-    c = by_id(decision)[CID]
+    c = by_id(candidates_of(router(stats=Stats()), "t", cascades=True))[CID]
     assert c.list_cost == REGISTRY.get(CHEAP).cost(1000, 200) == pytest.approx(0.0014, rel=1e-12)
     assert (c.successes, c.trials, c.quality_lb) == (0, 0, 0.0)
     assert (c.eligible, c.passes, c.reason) == (True, False, "insufficient_samples")
 
 
-@XFAIL
 def test_a_cascade_that_never_escalated_costs_its_cheap_model_at_its_sizes():
     decision = router(stats=planted_stats(cascade=(95, 100, 0))).select("t", cascades=True)
     assert by_id(decision)[CID].list_cost == REGISTRY.get(CHEAP).cost(1200, 300)
 
 
-@XFAIL
 def test_the_cascade_reads_its_slice_key_alone():
     t = task(on_no_model="best_available",
              slices={"deep": {"bar": 0.9, "expected_input_tokens": 4000}})
@@ -226,7 +222,6 @@ def test_the_cascade_reads_its_slice_key_alone():
 
 # --- rules 1 to 5 on both models, the cheap one first --------------------------------------
 
-@XFAIL
 @pytest.mark.parametrize("kw, fields, cascade, reason", [
     ({"exclude_models": [CHEAP]}, {}, C, "excluded_model"),
     ({"exclude_models": [BEST]}, {}, C, "excluded_model"),
@@ -247,34 +242,30 @@ def test_the_cascade_reads_its_slice_key_alone():
     ({"generator_model": CHEAP}, {"exclude_families": ("fam-c",)}, C, "generator"),
 ])
 def test_rules_1_to_5_run_on_the_cheap_model_then_the_strong_one(kw, fields, cascade, reason):
-    decision_or_error = None
     r = router(task(cascades=(cascade,), on_no_model="best_available", **fields))
-    try:
-        decision_or_error = r.select("t", cascades=True, **kw)
-    except NoModelClearsBar as exc:
-        decision_or_error = exc
-    c = by_id(decision_or_error.candidates)[cascade.id]
+    c = by_id(candidates_of(r, "t", cascades=True, **kw))[cascade.id]
     assert (c.reason, c.eligible, c.passes) == (reason, False, False)
 
 
-@XFAIL
 @pytest.mark.parametrize("cascade", [Cascade(CHEAP, "fiction/absent", "sig"),
                                      Cascade("fiction/absent", BEST, "sig")])
 def test_a_cascade_with_a_model_the_registry_lacks(cascade):
     stats = planted_stats()
     stats.add("t", cascade.id, 95, 100, escalated=20)
+    r = router(task(cascades=(cascade,)), stats)
     # before any other rule: the excluded cheap model and the generator do not name it
-    decision = router(task(cascades=(cascade,)), stats).select(
-        "t", cascades=True, exclude_models=[CHEAP], generator_model=BEST)
-    c = by_id(decision)[cascade.id]
+    c = by_id(candidates_of(r, "t", cascades=True, exclude_models=[CHEAP],
+                            generator_model=BEST))[cascade.id]
     assert (c.reason, c.family, c.list_cost, c.routing_cost) == ("cascade_unknown_model", "", 0.0, 0.0)
     assert (c.eligible, c.passes, c.successes, c.trials) == (False, False, 95, 100)
-    assert cascade.id not in route(decision)
+    assert c.quality_lb == wilson_lower_bound(95, 100, 0.95)
+    decision = r.select("t", cascades=True)
+    assert by_id(decision)[cascade.id].reason == "cascade_unknown_model"
+    assert route(decision) == (BEST,)
 
 
 # --- rules 6 to 8 on its own trials, and 5.3 -------------------------------------------------
 
-@XFAIL
 @pytest.mark.parametrize("counts, reason, eligible", [
     ((5, 5, 1), "insufficient_samples", True),
     ((70, 100, 10), "below_bar", True),
@@ -286,7 +277,6 @@ def test_its_own_trials_and_bound_decide_rules_6_to_8(counts, reason, eligible):
     assert (c.reason, c.eligible, c.passes) == (reason, eligible, reason == "passes")
 
 
-@XFAIL
 def test_a_cascade_enters_the_best_available_measured_list():
     t = task(bar=0.99, on_no_model="best_available")
     decision = router(t, planted_stats(cascade=(99, 100, 30))).select("t", cascades=True)
@@ -296,7 +286,6 @@ def test_a_cascade_enters_the_best_available_measured_list():
     assert route(router(t, planted_stats(cascade=(99, 100, 30))).select("t")) == (BEST, CHEAP)
 
 
-@XFAIL
 def test_a_cascade_is_a_below_bar_fallback_as_a_model_is():
     t = task(bar=0.9, fallback_below_bar=True)
     decision = router(t).select("t", cascades=True)
@@ -306,7 +295,6 @@ def test_a_cascade_is_a_below_bar_fallback_as_a_model_is():
     assert route(router(t).select("t")) == (BEST, CHEAP)
 
 
-@XFAIL
 def test_priors_never_admit_a_cascade():
     priors = Priors({"cat": {"scores": {CHEAP: 0.5, BEST: 0.9, CID: 0.99}}})
     t = task(on_no_model="best_available", prior_category="cat")
@@ -318,14 +306,12 @@ def test_priors_never_admit_a_cascade():
     assert route(decision) == route(r.select("t"))
 
 
-@XFAIL
 def test_no_model_clears_bar_carries_the_cascade_candidates():
     with pytest.raises(NoModelClearsBar) as info:
         router(task(bar=0.99)).select("t", cascades=True)
     assert [c.model_id for c in info.value.candidates] == [CHEAP, MID, BEST, TWIN, PEER, CID]
 
 
-@XFAIL
 def test_a_cascade_candidate_dict_has_the_ten_candidate_keys():
     data = router().select("t", cascades=True).to_dict()
     keys = [f.name for f in dataclasses.fields(model_routing.Candidate)]
@@ -336,7 +322,6 @@ def test_a_cascade_candidate_dict_has_the_ten_candidate_keys():
     json.dumps(data)
 
 
-@XFAIL
 def test_with_cascades_true_a_task_without_cascades_routes_as_without_the_keyword():
     t = task(cascades=())
     for flavor in ("cost_effective", "cost_blind"):
@@ -345,7 +330,6 @@ def test_with_cascades_true_a_task_without_cascades_routes_as_without_the_keywor
 
 # --- without the keyword, or with False, every decision is v1.535's -----------------------
 
-@XFAIL
 def test_cascades_false_routes_the_demo_and_example_tasks_as_v1_535():
     registry, tasks, stats = demo_files()
     planted = with_cascades(tasks, registry)

@@ -8,7 +8,7 @@ from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 from .priors import Priors
 from .registry import Registry
 from .stats import Stats, wilson_lower_bound
-from .tasks import Task, is_slice_name
+from .tasks import Cascade, Task, is_slice_name
 
 EXCLUDED_MODEL = "excluded_model"
 EXCLUDED_FAMILY = "excluded_family"
@@ -18,6 +18,7 @@ CONTEXT_TOO_SMALL = "context_too_small"
 INSUFFICIENT_SAMPLES = "insufficient_samples"
 BELOW_BAR = "below_bar"
 PASSES = "passes"
+CASCADE_UNKNOWN_MODEL = "cascade_unknown_model"
 
 FLAVORS = ("cost_effective", "cost_blind")
 
@@ -46,7 +47,10 @@ def _sizes(stats: Stats, task: Task, model_id: str) -> Tuple[int, int]:
 
 @dataclass(frozen=True)
 class Candidate:
-    """One registry model as evaluated for a task, with the rule that decided it."""
+    """One registry model, or one cascade (DESIGN 7 v1.536), as evaluated for a task.
+
+    ``reason`` names the rule that decided it.
+    """
 
     model_id: str
     family: str
@@ -62,7 +66,11 @@ class Candidate:
 
 @dataclass(frozen=True)
 class RouteDecision:
-    """The chosen primary model, ordered fallbacks, and every candidate considered."""
+    """The chosen primary model, ordered fallbacks, and every candidate considered.
+
+    ``candidates`` holds one per registry model, in registry order, then, for a decision made
+    with ``cascades=True``, one per cascade of the task, in task order (DESIGN 5.1 v1.536).
+    """
 
     task: str
     flavor: str
@@ -116,7 +124,7 @@ class Router:
                generator_model: Optional[str] = None,
                exclude_models: Iterable[str] = (), *,
                prompt_tokens: Optional[int] = None,
-               slice: Optional[str] = None) -> RouteDecision:
+               slice: Optional[str] = None, cascades: bool = False) -> RouteDecision:
         """Route ``task_name`` and return a :class:`RouteDecision`.
 
         ``prompt_tokens`` is the size of the one request being routed: when given, the
@@ -124,18 +132,24 @@ class Router:
         so the primary and every fallback can hold that request, while prices stay at the
         task's sizes (DESIGN 5.2 v1.507). ``slice`` names a slice of the task: the bar is
         then judged on the counts under the stats key ``<task>@<slice>`` alone, with the
-        slice's ``bar``, ``min_samples`` and sizes (DESIGN 5.2 v1.511). Raises ``KeyError``
+        slice's ``bar``, ``min_samples`` and sizes (DESIGN 5.2 v1.511). With ``cascades``
+        True each cascade of the task is a candidate too, after the registry models, judged
+        on its own trials and priced at its cheap model's call plus its share of hand-ups to
+        its strong model, never on a prior (DESIGN 7 v1.532 and v1.536). Raises ``KeyError``
         for an unknown task or generator, ``ValueError`` for an unknown flavor, a
         ``prompt_tokens`` that is not an integer >= 0, a ``slice`` that is not a non-empty
-        string without '@', or a sliced task whose name holds '@' or whose slice key is
-        another task, and :class:`NoModelClearsBar` when nothing can be chosen under the
-        task's ``on_no_model`` policy.
+        string without '@', a sliced task whose name holds '@' or whose slice key is
+        another task, a ``cascades`` that is not a bool, or, with ``cascades`` True, a
+        registry ID equal to a cascade's ``id``, and :class:`NoModelClearsBar` when nothing
+        can be chosen under the task's ``on_no_model`` policy.
         """
         if flavor not in FLAVORS:
             raise ValueError(f"unknown flavor {flavor!r}; expected one of {FLAVORS}")
         _check_prompt_tokens(prompt_tokens)
         if slice is not None and not is_slice_name(slice):
             raise ValueError(f"slice must be a non-empty string without '@', got {slice!r}")
+        if not isinstance(cascades, bool):
+            raise ValueError(f"cascades must be a bool, got {cascades!r}")
         if task_name not in self.tasks:
             raise KeyError(f"unknown task: {task_name!r}")
         base = self.tasks[task_name]
@@ -147,6 +161,11 @@ class Router:
             if key in self.tasks:
                 raise ValueError(f"slice key {key!r} is also a task of this router")
             task = replace(base, name=key, slices={}, **base.slices.get(slice, {}))
+        routed = task.cascades if cascades else ()
+        for cascade in routed:
+            if cascade.id in self.registry:
+                raise ValueError(f"registry model {cascade.id!r} has the id of a cascade "
+                                 f"of task {base.name!r}")
         excluded = set(exclude_models)
         generator_family = None
         if generator_model is not None:
@@ -156,6 +175,9 @@ class Router:
         candidates = tuple(self._candidate(task, model, flavor, excluded,
                                            generator_model, generator_family, fit_input)
                            for model in self.registry.models)
+        candidates += tuple(self._cascade_candidate(task, cascade, flavor, excluded,
+                                                    generator_model, generator_family, fit_input)
+                            for cascade in routed)
 
         passing = [c for c in candidates if c.passes]
         if passing:
@@ -183,7 +205,10 @@ class Router:
 
         if self.priors is not None and task.prior_category is not None:
             scored = []
+            cascade_ids = {cascade.id for cascade in routed}
             for c in eligible:
+                if c.model_id in cascade_ids:  # a cascade has no prior (DESIGN 7 v1.532)
+                    continue
                 score = self.priors.score(task.prior_category, c.model_id)
                 if score is not None:
                     scored.append((score, c))
@@ -239,28 +264,39 @@ class Router:
                                  generator_model=generator_model,
                                  exclude_models=exclude_models)
 
+    @staticmethod
+    def _model_rule(task: Task, model, excluded: set, generator_model: Optional[str],
+                    generator_family: Optional[str], fit_input: int) -> Optional[str]:
+        """The first of rules 1 to 5 (DESIGN 5.2) that applies to ``model``, or None."""
+        if model.id in excluded:
+            return EXCLUDED_MODEL
+        if model.family in task.exclude_families:
+            return EXCLUDED_FAMILY
+        if task.independent_of_generator and generator_model is not None \
+                and model.id == generator_model:
+            return GENERATOR
+        if task.independent_of_generator and generator_family is not None \
+                and model.family == generator_family:
+            return GENERATOR_FAMILY
+        if model.context_window < fit_input + task.expected_output_tokens:
+            return CONTEXT_TOO_SMALL
+        return None
+
+    @staticmethod
+    def _measured_rule(task: Task, successes: int, trials: int) -> str:
+        """Rules 6 to 8 (DESIGN 5.2) on these counts."""
+        if trials < task.min_samples:
+            return INSUFFICIENT_SAMPLES
+        if wilson_lower_bound(successes, trials, task.confidence) < task.bar:
+            return BELOW_BAR
+        return PASSES
+
     def _candidate(self, task: Task, model, flavor: str, excluded: set,
                    generator_model: Optional[str],
                    generator_family: Optional[str], fit_input: int) -> Candidate:
         successes, trials = self.stats.get(task.name, model.id)
-        if model.id in excluded:
-            reason = EXCLUDED_MODEL
-        elif model.family in task.exclude_families:
-            reason = EXCLUDED_FAMILY
-        elif task.independent_of_generator and generator_model is not None \
-                and model.id == generator_model:
-            reason = GENERATOR
-        elif task.independent_of_generator and generator_family is not None \
-                and model.family == generator_family:
-            reason = GENERATOR_FAMILY
-        elif model.context_window < fit_input + task.expected_output_tokens:
-            reason = CONTEXT_TOO_SMALL
-        elif trials < task.min_samples:
-            reason = INSUFFICIENT_SAMPLES
-        elif wilson_lower_bound(successes, trials, task.confidence) < task.bar:
-            reason = BELOW_BAR
-        else:
-            reason = PASSES
+        reason = self._model_rule(task, model, excluded, generator_model, generator_family,
+                                  fit_input) or self._measured_rule(task, successes, trials)
         list_cost = self._list_cost(task, model)
         return Candidate(
             model_id=model.id,
@@ -268,6 +304,49 @@ class Router:
             successes=successes,
             trials=trials,
             quality_lb=wilson_lower_bound(successes, trials, task.confidence),
+            routing_cost=list_cost if flavor == "cost_effective" else 0.0,
+            list_cost=list_cost,
+            eligible=reason in _ELIGIBLE_REASONS,
+            passes=reason == PASSES,
+            reason=reason,
+        )
+
+    def _cascade_candidate(self, task: Task, cascade: Cascade, flavor: str, excluded: set,
+                           generator_model: Optional[str],
+                           generator_family: Optional[str], fit_input: int) -> Candidate:
+        """A cascade as one candidate (DESIGN 7 v1.532 and v1.536).
+
+        ``cascade_unknown_model`` when the registry lacks either model; else rule 1 on its
+        own ``id``, then rules 1 to 5 on the cheap model and then the strong one, then rules 6
+        to 8 on its own counts. Its cost is the cheap model's call at its sizes plus ``p``,
+        the share of its trials that escalated, times the strong model reading the input and
+        the cheap model's output and writing that output again.
+        """
+        successes, trials = self.stats.get(task.name, cascade.id)
+        quality_lb = wilson_lower_bound(successes, trials, task.confidence)
+        if cascade.cheap not in self.registry or cascade.strong not in self.registry:
+            return Candidate(model_id=cascade.id, family="", successes=successes,
+                             trials=trials, quality_lb=quality_lb, routing_cost=0.0,
+                             list_cost=0.0, eligible=False, passes=False,
+                             reason=CASCADE_UNKNOWN_MODEL)
+        cheap = self.registry.get(cascade.cheap)
+        strong = self.registry.get(cascade.strong)
+        reason = EXCLUDED_MODEL if cascade.id in excluded else None
+        for model in (cheap, strong):
+            if reason is None:
+                reason = self._model_rule(task, model, excluded, generator_model,
+                                          generator_family, fit_input)
+        if reason is None:
+            reason = self._measured_rule(task, successes, trials)
+        size_in, size_out = _sizes(self.stats, task, cheap.id)
+        p = self.stats.escalations(task.name, cascade.id) / trials if trials else 0.0
+        list_cost = cheap.cost(size_in, size_out) + p * strong.cost(size_in + size_out, size_out)
+        return Candidate(
+            model_id=cascade.id,
+            family=strong.family,
+            successes=successes,
+            trials=trials,
+            quality_lb=quality_lb,
             routing_cost=list_cost if flavor == "cost_effective" else 0.0,
             list_cost=list_cost,
             eligible=reason in _ELIGIBLE_REASONS,
