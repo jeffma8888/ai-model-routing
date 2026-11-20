@@ -2,7 +2,7 @@
 
 Question: how can a call start on a cheap model and hand the work up to a stronger one when a signal appears during the work, without weakening the library's guarantee that a route clears its task's bar on measured data, and which public data, with no API key, can test it?
 
-Short answer: treat a cascade (a cheap model, a named signal the caller computes, and a strong model) as one routing candidate with calibration rows of its own. It clears a bar only when the Wilson lower bound of its own measured successes does, so it never inherits the strong model's pass. Its expected cost is the cheap model's cost plus the measured escalation share times the strong model's cost of re-reading the context so far, uncached, and answering. `DESIGN.md` 7 v1.532 specifies it for row ESC2. Of the converted public datasets, tau2-bench is the one that records both a signal a harness can count during the work (the agent calls made so far) and the tokens of each call, so row ESC3 runs there first with the signal "more than N agent calls". Measured by row ESC1b, the call count tells in telecom and, at 10 calls, in airline, not in retail, and many runs write to the domain's state before the hand-up, so ESC3 escalates only a run with no write call yet (`calls-over-N-no-write`, N of 10, 15 and 20), and tries the agent's own transfer to a human as a third signal. LiveCodeBench gives the failed-check signal, a failed public test case, success only, since it records no cost: row ESC1c matched the failing tests its runner recorded against the public cases of the pinned problem release, and the signal `public-test-failed` is never wrong when it fires but finds about a third of the failures.
+Short answer: treat a cascade (a cheap model, a named signal the caller computes, and a strong model) as one routing candidate with calibration rows of its own. It clears a bar only when the Wilson lower bound of its own measured successes does, so it never inherits the strong model's pass. Its expected cost is the cheap model's cost plus the measured escalation share times the strong model's cost of re-reading the context so far, uncached, and answering. `DESIGN.md` 7 v1.532 specifies it for row ESC2. Of the converted public datasets, tau2-bench is the one that records both a signal a harness can count during the work (the agent calls made so far) and the tokens of each call, so row ESC3 runs there first with the signal "more than N agent calls". Measured by row ESC1b, the call count tells in telecom and, at 10 calls, in airline, not in retail, and many runs write to the domain's state before the hand-up, so ESC3 escalates only a run with no write call yet (`calls-over-N-no-write`, N of 10, 15 and 20), and tries the agent's own transfer to a human as a third signal. LiveCodeBench gives the failed-check signal, a failed public test case, success only, since it records no cost: row ESC1c matched the failing tests its runner recorded against the public cases of the pinned problem release, and the signal `public-test-failed` is never wrong when it fires but finds about three in five of the failures.
 
 ## Facts
 
@@ -139,84 +139,85 @@ problem release livecodebench/code_generation_lite at 0fe84c3912ea0c4d4a78037083
 runner LiveCodeBench/LiveCodeBench at 28fef95ea8c9f7a547c8329f2cd3d32b92c1fa24: public cases before private ones (get_evaluation_sample), the failing case recorded by truncatefn at 300 characters
 submissions at 6ca212e9c2039373f6e5069d37ffa9db66e23736: 67 kept files, 713 problems in every one (the 12.16 kept problems)
 sample problems: 101, contest dates 2024-06-01 to 2024-08-10, public cases per problem 2 to 4 (median 3), among the 12.16 kept problems: 101
+call-based (a func_name, cases recorded parsed): 48, standard input (recorded as text): 53
 
 model                                    problems  failed  public  other  input_only  no_test  unread  public_share  public_of_tested
 ---------------------------------------  --------  ------  ------  -----  ----------  -------  ------  ------------  ----------------
 agentica/deepcoder-14b-preview                101      20       0      0           0        0      20         0.000               n/a
-anthropic/claude-3-haiku                      101      80      34     45           0        1       0         0.425             0.430
-anthropic/claude-3.5-sonnet-20240620          101      61      22     38           0        1       0         0.361             0.367
-anthropic/claude-3.5-sonnet-20241022          101      54      15     39           0        0       0         0.278             0.278
-anthropic/claude-3.7-sonnet                   101      36       9     27           0        0       0         0.250             0.250
-anthropic/claude-opus-4                       101      30       9     21           0        0       0         0.300             0.300
-anthropic/claude-opus-4-thinking              101      23       7     16           0        0       0         0.304             0.304
-anthropic/claude-sonnet-4                     101      31      10     21           0        0       0         0.323             0.323
+anthropic/claude-3-haiku                      101      80      66     13           0        1       0         0.825             0.835
+anthropic/claude-3.5-sonnet-20240620          101      61      44     16           0        1       0         0.721             0.733
+anthropic/claude-3.5-sonnet-20241022          101      54      27     27           0        0       0         0.500             0.500
+anthropic/claude-3.7-sonnet                   101      36      13     23           0        0       0         0.361             0.361
+anthropic/claude-opus-4                       101      30      15     15           0        0       0         0.500             0.500
+anthropic/claude-opus-4-thinking              101      23      10     13           0        0       0         0.435             0.435
+anthropic/claude-sonnet-4                     101      31      15     16           0        0       0         0.484             0.484
 anthropic/claude-sonnet-4-thinking            101      26       5     21           0        0       0         0.192             0.192
 deepseek/deepseek-r1-0528                     101      13       0      0           0       13       0         0.000               n/a
-deepseek/deepseek-r1-lite-preview             101      30      10     14           0        6       0         0.333             0.417
-deepseek/deepseek-r1-preview                  101      20       4     16           0        0       0         0.200             0.200
-deepseek/deepseek-v3                          101      40      16     21           0        3       0         0.400             0.432
-deepseek/dscoder-1.3b-ins                     101      93      32     43           0       18       0         0.344             0.427
-deepseek/dscoder-33b-ins                      101      75      30     41           0        4       0         0.400             0.423
-deepseek/dscoder-6.7b-ins                     101      84      37     45           0        2       0         0.440             0.451
-google/gemini-2.5-flash-04-17                 101      21       5     14           0        2       0         0.238             0.263
-google/gemini-2.5-flash-05-20                 101      14       4      9           0        1       0         0.286             0.308
+deepseek/deepseek-r1-lite-preview             101      30      18      6           0        6       0         0.600             0.750
+deepseek/deepseek-r1-preview                  101      20       6     14           0        0       0         0.300             0.300
+deepseek/deepseek-v3                          101      40      26     11           0        3       0         0.650             0.703
+deepseek/dscoder-1.3b-ins                     101      93      70      5           0       18       0         0.753             0.933
+deepseek/dscoder-33b-ins                      101      75      62      9           0        4       0         0.827             0.873
+deepseek/dscoder-6.7b-ins                     101      84      71     11           0        2       0         0.845             0.866
+google/gemini-2.5-flash-04-17                 101      21       9     10           0        2       0         0.429             0.474
+google/gemini-2.5-flash-05-20                 101      14       7      6           0        1       0         0.500             0.538
 google/gemini-2.5-pro-03-25                   101      15       3      9           0        3       0         0.200             0.250
 google/gemini-2.5-pro-05-06                   101      11       5      6           0        0       0         0.455             0.455
 google/gemini-2.5-pro-06-05                   101      11       3      7           0        1       0         0.273             0.300
-google/gemini-exp-1206                        101      52      12     34           0        6       0         0.231             0.261
-google/gemini-flash-1.5-002                   101      60      20     38           0        2       0         0.333             0.345
-google/gemini-flash-2.0-exp                   101      56      15     37           0        4       0         0.268             0.288
-google/gemini-flash-2.0-thinking              101      46      13     30           0        3       0         0.283             0.302
-google/gemini-flash-2.0-thinking-01-21        101      39       7     30           0        2       0         0.179             0.189
-google/gemini-flash-2.0-thinking-12-19        101      39       8     29           0        2       0         0.205             0.216
-google/gemini-pro-1.5-002                     101      61      20     40           0        1       0         0.328             0.333
-lgai/exaone-4.0-32b                           101      16       2     13           0        1       0         0.125             0.133
-meta-llama/llama3.3-70b-ins                   101      65      24     37           0        4       0         0.369             0.393
-metastone/metastone-l1-7b                     101      40      18     12           0       10       0         0.450             0.600
-mistralai/codestral-latest                    101      69      28     39           0        2       0         0.406             0.418
-mistralai/mistral-large                       101      61      26     34           0        1       0         0.426             0.433
+google/gemini-exp-1206                        101      52      24     22           0        6       0         0.462             0.522
+google/gemini-flash-1.5-002                   101      60      34     24           0        2       0         0.567             0.586
+google/gemini-flash-2.0-exp                   101      56      26     26           0        4       0         0.464             0.500
+google/gemini-flash-2.0-thinking              101      46      17     26           0        3       0         0.370             0.395
+google/gemini-flash-2.0-thinking-01-21        101      39       8     29           0        2       0         0.205             0.216
+google/gemini-flash-2.0-thinking-12-19        101      39      13     24           0        2       0         0.333             0.351
+google/gemini-pro-1.5-002                     101      61      37     23           0        1       0         0.607             0.617
+lgai/exaone-4.0-32b                           101      16       3     12           0        1       0         0.188             0.200
+meta-llama/llama3.3-70b-ins                   101      65      41     20           0        4       0         0.631             0.672
+metastone/metastone-l1-7b                     101      40      29      1           0       10       0         0.725             0.967
+mistralai/codestral-latest                    101      69      52     15           0        2       0         0.754             0.776
+mistralai/mistral-large                       101      61      43     17           0        1       0         0.705             0.717
 moonshotai/kimi-k1.6-ioi                      101      15       6      8           0        1       0         0.400             0.429
-moonshotai/kimi-k1.6-ioi-high                 101      13       4      8           0        1       0         0.308             0.333
-nvidia/llama-3_1-nemotron-nano-8b-v1          101      34      14      6           0       14       0         0.412             0.700
-nvidia/llama-3_1-nemotron-ultra-253b-v1       101      17       4     13           0        0       0         0.235             0.235
-nvidia/openreasoning-nemotron-32b             101      17       4     13           0        0       0         0.235             0.235
-openai/gpt-4-0613                             101      71      34     37           0        0       0         0.479             0.479
-openai/gpt-4-turbo-1106                       101      65      24     40           0        1       0         0.369             0.375
-openai/gpt-4-turbo-2024-04-09                 101      58      25     31           0        2       0         0.431             0.446
-openai/gpt-4o-2024-05-13                      101      56      20     35           0        1       0         0.357             0.364
-openai/gpt-4o-2024-08-06                      101      59      26     33           0        0       0         0.441             0.441
-openai/gpt-4o-mini-2024-07-18                 101      63      20     43           0        0       0         0.317             0.317
-openai/o1-2024-12-17-high                     101      12       5      7           0        0       0         0.417             0.417
+moonshotai/kimi-k1.6-ioi-high                 101      13       5      7           0        1       0         0.385             0.417
+nvidia/llama-3_1-nemotron-nano-8b-v1          101      34      16      4           0       14       0         0.471             0.800
+nvidia/llama-3_1-nemotron-ultra-253b-v1       101      17       8      9           0        0       0         0.471             0.471
+nvidia/openreasoning-nemotron-32b             101      17       7     10           0        0       0         0.412             0.412
+openai/gpt-4-0613                             101      71      61     10           0        0       0         0.859             0.859
+openai/gpt-4-turbo-1106                       101      65      41     23           0        1       0         0.631             0.641
+openai/gpt-4-turbo-2024-04-09                 101      58      38     18           0        2       0         0.655             0.679
+openai/gpt-4o-2024-05-13                      101      56      34     21           0        1       0         0.607             0.618
+openai/gpt-4o-2024-08-06                      101      59      40     19           0        0       0         0.678             0.678
+openai/gpt-4o-mini-2024-07-18                 101      63      44     19           0        0       0         0.698             0.698
+openai/o1-2024-12-17-high                     101      12       6      6           0        0       0         0.500             0.500
 openai/o1-2024-12-17-low                      101      17       7      9           0        1       0         0.412             0.438
-openai/o1-2024-12-17-med                      101      19       8     11           0        0       0         0.421             0.421
-openai/o1-mini-2024-09-12                     101      32      13     18           0        1       0         0.406             0.419
-openai/o1-preview-2024-09-12                  101      47      13     33           0        1       0         0.277             0.283
-openai/o3-high                                101      12       3      5           0        4       0         0.250             0.375
+openai/o1-2024-12-17-med                      101      19      10      9           0        0       0         0.526             0.526
+openai/o1-mini-2024-09-12                     101      32      17     14           0        1       0         0.531             0.548
+openai/o1-preview-2024-09-12                  101      47      23     23           0        1       0         0.489             0.500
+openai/o3-high                                101      12       4      4           0        4       0         0.333             0.500
 openai/o3-mini-2025-01-31-high                101      16       5      7           0        4       0         0.312             0.417
-openai/o3-mini-2025-01-31-low                 101      19       7      9           0        3       0         0.368             0.438
-openai/o3-mini-2025-01-31-med                 101      17       6      6           0        5       0         0.353             0.500
-openai/o4-mini-high                           101       9       3      6           0        0       0         0.333             0.333
-openai/o4-mini-low                            101      19       7     10           0        2       0         0.368             0.412
-openai/o4-mini-medium                         101      10       3      5           0        2       0         0.300             0.375
-qwen/qwen2-ins-72b                            101      76      34     42           0        0       0         0.447             0.447
-qwen/qwen2.5-coder-ins-32b                    101      61      23     32           0        6       0         0.377             0.418
-qwen/qwen2.5-coder-ins-7b                     101      80      35     43           0        2       0         0.438             0.449
-qwen/qwen2.5-ins-32b                          101      62      26     35           0        1       0         0.419             0.426
-qwen/qwen2.5-ins-72b                          101      59      20     37           0        2       0         0.339             0.351
-qwen/qwen2.5-ins-7b                           101      77      35     41           0        1       0         0.455             0.461
+openai/o3-mini-2025-01-31-low                 101      19       9      7           0        3       0         0.474             0.562
+openai/o3-mini-2025-01-31-med                 101      17       7      5           0        5       0         0.412             0.583
+openai/o4-mini-high                           101       9       6      3           0        0       0         0.667             0.667
+openai/o4-mini-low                            101      19       9      8           0        2       0         0.474             0.529
+openai/o4-mini-medium                         101      10       4      4           0        2       0         0.400             0.500
+qwen/qwen2-ins-72b                            101      76      59     17           0        0       0         0.776             0.776
+qwen/qwen2.5-coder-ins-32b                    101      61      44     11           0        6       0         0.721             0.800
+qwen/qwen2.5-coder-ins-7b                     101      80      67     11           0        2       0         0.838             0.859
+qwen/qwen2.5-ins-32b                          101      62      44     17           0        1       0         0.710             0.721
+qwen/qwen2.5-ins-72b                          101      59      40     17           0        2       0         0.678             0.702
+qwen/qwen2.5-ins-7b                           101      77      68      8           0        1       0         0.883             0.895
 qwen/qwen3-235b-a22b                          101      15       0      0           0        0      15         0.000               n/a
-qwen/qwq-32b-preview                          101      40      14     17           0        9       0         0.350             0.452
-qwen/qwq-32b_temp                             101      23       2     14           0        7       0         0.087             0.125
+qwen/qwq-32b-preview                          101      40      22      9           0        9       0         0.550             0.710
+qwen/qwq-32b_temp                             101      23       3     13           0        7       0         0.130             0.188
 qwen/qwq-max-preview                          101      15       0      0           0        0      15         0.000               n/a
 xai/grok-3-mini-high                          101      15       3     11           0        1       0         0.200             0.214
-all                                         6,767   2,612     906  1,491           0      165      50         0.347             0.378
+all                                         6,767   2,612   1,559    838           0      165      50         0.597             0.650
 
-public matches by the 0-based index of the matched case: 0: 712, 1: 118, 2: 76
+public matches by the 0-based index of the matched case: 0: 1,207, 1: 248, 2: 99, 3: 5
 ```
 
-- Which release: the problems every kept file has are the 713 that 12.16 keeps, and the dataset card's `release_v4` is 713 problems, held in `test.jsonl` to `test4.jsonl`. Those four files are large (`DESIGN.md` 7 v1.534 pins their sizes), so the script reads the smallest, `test3.jsonl`, whose 101 problems are all among the 713: the counts are for that stated sample, 101 of the 713 problems in every kept file
-- The runner's order: at the pinned commit `get_evaluation_sample` lists a problem's public cases before its private ones, and the grader returns at the first failing case and records its input and expected output through `truncatefn` at 300 characters; the script checks both lines in the pinned files and compares through a copy of `truncatefn`. It never decodes the private cases, which the release stores as a pickle
-- The match: of the 2,612 failed first samples on the 101 problems, 906 (0.347) failed on a public case, their recorded input and expected output equal to one of the problem's public cases, 712 of them on its first; 1,491 hold a test that matches no public case, so by the runner's order they passed every public case and failed a private one. No failing test matched a public input with another expected output (`input_only` 0 in every file), so the recorded tests and the release's public cases agree. Over the failed samples that hold a test the public share is 0.378
-- What the match leaves out: 165 samples hold no test (an error before any case ran), among them all 13 of `deepseek/deepseek-r1-0528`; and three files hold no readable metadata, 50 samples: `agentica/deepcoder-14b-preview` (20, its metadata one string, not a list), `qwen/qwen3-235b-a22b` and `qwen/qwq-max-preview` (15 each, no metadata). The script does not confirm that each of the 1,491 is a private case, only that it is no public one
-- What a caller sees: a caller who runs a problem's public cases on the cheap answer runs the same cases in the same order, so it sees the failure the runner recorded for these 906, except where a time limit decides a case and the caller's machine is faster or slower
-- Decision for row ESC3: LiveCodeBench stays its second dataset, success only (`cost_blind`, since the files record no cost), with the signal `public-test-failed`: escalate when the cheap model's first sample fails a public case. The signal is never wrong when it fires, since a sample that fails a public case fails the problem, but it misses every failure only a private case finds, here 1,491 of 2,612, so a cascade keeps those wrong answers on the cheap model and its own success is measured, never assumed. ESC3 needs the public cases of all 713 kept problems, `test.jsonl` to `test4.jsonl`, or keeps to these 101; it counts a `no_test` sample both ways, escalated and kept, as a bound, and a file with no readable metadata is never a cheap model there
+- Which release: the problems every kept file has are the 713 that 12.16 keeps; the dataset card's `release_v4` is 713 problems, and the dataset's loader, `code_generation_lite.py` at the same revision, reads it from `ALLOWED_FILES["release_v4"]`, `test.jsonl` to `test4.jsonl`. Those four files are large (`DESIGN.md` 7 v1.534 pins their sizes), so the script reads the smallest, `test3.jsonl`, whose 101 problems are all among the 713: the counts are for that stated sample, 101 of the 713 problems in every kept file
+- The runner's order: at the pinned commit `get_evaluation_sample` lists a problem's public cases before its private ones, and the grader returns at the first failing case and records its input and expected output through `truncatefn` at 300 characters: as raw text for a standard-input problem, and for a call-based one (its metadata names a `func_name`) as `str` of the JSON-parsed input lines and output, since `grade_call_based` parses a case before it runs it. The script checks those lines in the pinned files and compares each failing test with a public case in the same recorded form, through a copy of `truncatefn`; of the 101 problems, 48 are call-based and 53 standard input. It never decodes the private cases, which the release stores as a pickle
+- The match: of the 2,612 failed first samples on the 101 problems, 1,559 (0.597) failed on a public case, their recorded input and expected output equal to one of the problem's public cases, 1,207 of them on its first; 838 hold a test that matches no public case, so by the runner's order they passed every public case and failed a private one. No failing test matched a public input with another expected output (`input_only` 0 in every file), so the recorded tests and the release's public cases agree. Over the failed samples that hold a test the public share is 0.650
+- What the match leaves out: 165 samples hold no test, the entry the runner's `run_test` returns, an `error_code` and `error_message` with no `inputs`, when testing itself raises, among them all 13 of `deepseek/deepseek-r1-0528`; and three files hold no readable metadata, 50 samples: `agentica/deepcoder-14b-preview` (20, its metadata one string, not a list), `qwen/qwen3-235b-a22b` and `qwen/qwq-max-preview` (15 each, no metadata). The script does not confirm that each of the 838 is a private case, only that it is no public one
+- What a caller sees: a caller who runs a problem's public cases on the cheap answer runs the same cases in the same order, so it sees the failure the runner recorded for these 1,559, except where a time limit decides a case and the caller's machine is faster or slower
+- Decision for row ESC3: LiveCodeBench stays its second dataset, success only (`cost_blind`, since the files record no cost), with the signal `public-test-failed`: escalate when the cheap model's first sample fails a public case. The signal is never wrong when it fires, since a sample that fails a public case fails the problem, but it misses every failure only a private case finds, here 838 of 2,612, so a cascade keeps those wrong answers on the cheap model and its own success is measured, never assumed. ESC3 needs the public cases of all 713 kept problems, `test.jsonl` to `test4.jsonl`, or keeps to these 101; it counts a `no_test` sample both ways, escalated and kept, as a bound, and a file with no readable metadata is never a cheap model there

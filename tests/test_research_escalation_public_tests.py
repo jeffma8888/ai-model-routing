@@ -65,13 +65,16 @@ def case(i, o, kind="stdin"):
     return {"input": i, "output": o, "testtype": kind}
 
 
-def line(qid, date, cases):
+def line(qid, date, cases, meta="{}"):
     return json.dumps({"question_id": qid, "contest_date": date, "public_test_cases": json.dumps(cases),
-                       "private_test_cases": "eJw=", "difficulty": "easy"})
+                       "private_test_cases": "eJw=", "difficulty": "easy", "metadata": meta})
+
+
+CALL = json.dumps({"func_name": "f"})
 
 
 LINES = [
-    line("q2", "2024-08-10T00:00:00", [case("a", "b", "functional")]),
+    line("q2", "2024-08-10T00:00:00", [case("[1, 2]\n3", "true", "functional")], CALL),
     line("q1", "2024-06-01T00:00:00", [case("1\n", "2\n"), case(LONG, "3\n"), case("5\n", "6\n")]),
 ]
 
@@ -79,9 +82,18 @@ LINES = [
 def test_read_release_keeps_each_problem_date_and_truncated_public_cases(pt):
     got = pt.read_release(LINES, "t.jsonl")
     assert list(got) == ["q1", "q2"]
-    assert got["q1"] == {"date": "2024-06-01",
+    assert got["q1"] == {"date": "2024-06-01", "call_based": False,
                          "cases": [("1\n", "2\n"), ("9" * 150 + MARK + "9" * 150, "3\n"), ("5\n", "6\n")]}
-    assert got["q2"] == {"date": "2024-08-10", "cases": [("a", "b")]}
+    # review iter-379 must-fix 1: grade_call_based records str() of the parsed input lines and output
+    assert got["q2"] == {"date": "2024-08-10", "call_based": True, "cases": [("[[1, 2], 3]", "True")]}
+
+
+def test_recorded_truncates_a_call_based_case_after_parsing(pt):
+    long = json.dumps(list(range(200)))
+    assert pt.recorded({"input": long, "output": '"ab"'}, True, "at") == (pt.truncate(str([list(range(200))])), "ab")
+    assert pt.recorded({"input": long, "output": '"ab"'}, False, "at") == (pt.truncate(long), '"ab"')
+    with pytest.raises(ValueError, match="^at: a call-based public case is not JSON"):
+        pt.recorded({"input": "a", "output": "1"}, True, "at")
 
 
 @pytest.mark.parametrize("lines", [
@@ -95,6 +107,12 @@ def test_read_release_keeps_each_problem_date_and_truncated_public_cases(pt):
     [line("q1", "2024-06-01", [{"input": "1"}])],
     [json.dumps({"question_id": "q1", "contest_date": "2024-06-01", "public_test_cases": "nope"})],
     [json.dumps({"question_id": "q1", "contest_date": "2024-06-01"})],
+    [json.dumps({"question_id": "q1", "contest_date": "2024-06-01", "public_test_cases": json.dumps([case("1", "2")])})],
+    [line("q1", "2024-06-01", [case("1", "2")], "[]")],
+    [line("q1", "2024-06-01", [case("1", "2", "functional")], json.dumps({"func_name": ""}))],
+    [line("q1", "2024-06-01", [case("1", "2", "functional")])],
+    [line("q1", "2024-06-01", [case("1", "2")], CALL)],
+    [line("q1", "2024-06-01", [case("a", "1", "functional")], CALL)],
 ])
 def test_read_release_rejects_what_it_cannot_read(pt, lines):
     with pytest.raises(ValueError, match="^t.jsonl"):
@@ -148,10 +166,10 @@ def rec(qid, ok, *meta):
 
 FILE_A = [rec("q1", False, [json.dumps({"inputs": "9" * 150 + MARK + "9" * 150, "expected": "3\n", "output": "4\n",
                                          "error_code": -2})]),
-          rec("q2", False, [{"inputs": "a", "expected": "c", "error_code": -2}]),
+          rec("q2", False, [{"inputs": "[[1, 2], 3]", "expected": "False", "error_code": -2}]),
           rec("q3", False, [json.dumps({"inputs": "a", "expected": "b"})])]
 FILE_B = [rec("q1", False, [json.dumps({"error_code": -4, "error_message": "x"})]), rec("q2", True, "{}")]
-FILE_C = [rec("q1", False), rec("q2", False, [json.dumps({"inputs": "z", "expected": "b"})]),
+FILE_C = [rec("q1", False), rec("q2", False, [json.dumps({"inputs": "z", "expected": "True"})]),
           rec("q3", True, [json.dumps({"execution time": 1.0})])]
 
 
@@ -177,24 +195,25 @@ def test_reduce_file_counts_each_kind_over_the_sample_problems(pt, convert):
 def test_report_on_a_stub(pt, convert):
     rows, release = reduced(pt, convert)
     lines = pt.report(rows, release, ("r" * 40, "u" * 40, "s" * 40))
-    assert lines[:5] == [
+    assert lines[:6] == [
         f"problem release livecodebench/code_generation_lite at {'r' * 40}, read: test3.jsonl",
         f"runner LiveCodeBench/LiveCodeBench at {'u' * 40}: public cases before private ones "
         "(get_evaluation_sample), the failing case recorded by truncatefn at 300 characters",
         f"submissions at {'s' * 40}: 3 kept files, 2 problems in every one (the 12.16 kept problems)",
         "sample problems: 2, contest dates 2024-06-01 to 2024-08-10, public cases per problem 1 to 3 (median 2), "
         "among the 12.16 kept problems: 2",
+        "call-based (a func_name, cases recorded parsed): 1, standard input (recorded as text): 1",
         "",
     ]
-    assert lines[5].split() == ["model", "problems", "failed", "public", "other", "input_only", "no_test", "unread",
+    assert lines[6].split() == ["model", "problems", "failed", "public", "other", "input_only", "no_test", "unread",
                                 "public_share", "public_of_tested"]
-    assert [row.split() for row in lines[7:11]] == [
+    assert [row.split() for row in lines[8:12]] == [
         ["anthropic/claude-3-haiku", "2", "1", "0", "0", "0", "1", "0", "0.000", "n/a"],
         ["openai/gpt-4-0613", "2", "2", "1", "0", "1", "0", "0", "0.500", "0.500"],
         ["qwen/qwen2-ins-72b", "2", "2", "0", "1", "0", "0", "1", "0.000", "0.000"],
         ["all", "6", "5", "1", "1", "1", "1", "1", "0.200", "0.333"],
     ]
-    assert lines[11:] == ["", "public matches by the 0-based index of the matched case: 1: 1"]
+    assert lines[12:] == ["", "public matches by the 0-based index of the matched case: 1: 1"]
 
 
 def test_report_says_none_when_no_sample_matched_a_public_case(pt, convert):
@@ -206,8 +225,11 @@ def test_report_says_none_when_no_sample_matched_a_public_case(pt, convert):
 RUNNER_OK = {
     "lcb_runner/benchmarks/code_generation.py":
         "x = [t.input\n for t in self.public_test_cases + self.private_test_cases]\n"
-        "y = [t.output\n for t in self.public_test_cases + self.private_test_cases]\n",
-    "lcb_runner/evaluation/testing_util.py": "def truncatefn(s, length=300):\n    return s\n",
+        "y = [t.output\n for t in self.public_test_cases + self.private_test_cases]\n"
+        'z = {"fn_name": self.metadata.get("func_name", None)}\n',
+    "lcb_runner/evaluation/testing_util.py": "def truncatefn(s, length=300):\n    return s\n"
+        'a = [[json.loads(line) for line in inputs.split("\\n")] for inputs in all_inputs]\n'
+        "all_outputs = [json.loads(output) for output in all_outputs]\n",
 }
 
 
@@ -221,6 +243,14 @@ def test_check_runner_reads_the_order_and_the_truncation(pt):
     two["lcb_runner/evaluation/testing_util.py"] = "def truncatefn(s, length=200):\n"
     with pytest.raises(ValueError, match="^testing_util.py: "):
         pt.check_runner(two)
+    three = dict(RUNNER_OK)
+    three["lcb_runner/evaluation/testing_util.py"] = RUNNER_OK["lcb_runner/evaluation/testing_util.py"].split("all_outputs")[0]
+    with pytest.raises(ValueError, match="^testing_util.py: 'all_outputs"):
+        pt.check_runner(three)
+    four = dict(RUNNER_OK)
+    four["lcb_runner/benchmarks/code_generation.py"] = RUNNER_OK["lcb_runner/benchmarks/code_generation.py"].split("z = ")[0]
+    with pytest.raises(ValueError, match="^code_generation.py: .*fn_name"):
+        pt.check_runner(four)
 
 
 def test_main_turns_a_fetch_error_into_one_line_and_exit_2(pt, tmp_path, monkeypatch, capsys):
@@ -305,7 +335,9 @@ def test_the_spec_bullet_follows_the_signals_bullet_in_design_7():
     for phrase in ("`research/escalation_public_tests.py`", "`RELEASE_FILES`", "`SAMPLE = (\"test3.jsonl\",)`",
                    "`RUNNER_FILES`", "`for t in self.public_test_cases + self.private_test_cases` twice",
                    "`def truncatefn(s, length=300):`", "imports no `pickle`", "`input_only`", "`no_test`", "`unread`",
-                   "`public_share`", "`public_of_tested`", "`public-test-failed`", "`test.jsonl` to `test4.jsonl`"):
+                   "`public_share`", "`public_of_tested`", "`public-test-failed`", "`test.jsonl` to `test4.jsonl`",
+                   "`func_name`", "`grade_call_based`", "is parsed as JSON first and must then be an object",
+                   "the three unread `release_v4` files"):
         assert phrase in spec, phrase
 
 

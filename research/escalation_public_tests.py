@@ -7,11 +7,12 @@ pinned by bytes and sha256 in RELEASE_FILES), downloaded into DIR/release, and t
 RUNNER_REVISION (RUNNER_FILES), downloaded into DIR/runner, DIR being the 12.16 converter's cache folder
 unless --cache names another; then the 67 kept submission files the converter downloads, each file
 checked by size and sha256 before it is read. From a release line it reads only question_id,
-contest_date and public_test_cases; the private cases, a base64 zlib pickle, are never decoded. The
-runner lists a problem's public cases before its private ones and records the first failing case
-through truncatefn, so a failed first sample whose recorded inputs and expected equal truncate() of one
-public case failed that public case, and one that matches none passed every public case and failed a
-private one. Prints, per kept file, the sample problems, the failed first samples and how each was
+contest_date, metadata and public_test_cases; the private cases, a base64 zlib pickle, are never
+decoded. The runner lists a problem's public cases before its private ones and records the first
+failing case through truncatefn: as raw text for a standard-input problem, and for a call-based one (its
+metadata names a func_name) as str() of the JSON-parsed input lines and output. So a failed first sample
+whose recorded inputs and expected equal one public case's recorded form failed that public case, and
+one that matches none passed every public case and failed a private one. Prints, per kept file, the sample problems, the failed first samples and how each was
 matched. Standard library only. Read by research/escalation.md (DESIGN 7 v1.534, row ESC1c).
 """
 
@@ -48,7 +49,11 @@ RUNNER_FILES = {
     "lcb_runner/evaluation/testing_util.py": (18276, "b7cb6a8a69807bb868150a61742e25d7bb5328bbe01d514471b6ec43c9fa9ed2"),
 }
 ORDER_LINE = "for t in self.public_test_cases + self.private_test_cases"
+FN_NAME_LINE = '"fn_name": self.metadata.get("func_name", None)'
 TRUNCATE_LINE = "def truncatefn(s, length=300):"
+# grade_call_based parses each case before it runs it, and records the parsed values (review iter-379 must-fix 1)
+PARSE_LINES = ('[json.loads(line) for line in inputs.split("\\n")] for inputs in all_inputs',
+               "all_outputs = [json.loads(output) for output in all_outputs]")
 LENGTH = 300
 TIMEOUT = 60
 KINDS = ("public", "other", "input_only", "no_test", "unread")
@@ -108,20 +113,42 @@ def fetch(folder, convert) -> dict:
 
 def check_runner(sources: dict) -> None:
     """A ValueError unless code_generation.py lists the public cases first in both lists of
-    get_evaluation_sample and testing_util.py truncates at 300 characters."""
-    if sources["lcb_runner/benchmarks/code_generation.py"].count(ORDER_LINE) != 2:
+    get_evaluation_sample and takes fn_name from the problem's func_name, and testing_util.py truncates
+    at 300 characters and parses a call-based case's input lines and output as JSON."""
+    generation = sources["lcb_runner/benchmarks/code_generation.py"]
+    if generation.count(ORDER_LINE) != 2:
         raise ValueError(f"code_generation.py: {ORDER_LINE!r} is not there twice")
-    if sources["lcb_runner/evaluation/testing_util.py"].count(TRUNCATE_LINE) != 1:
-        raise ValueError(f"testing_util.py: {TRUNCATE_LINE!r} is not there once")
+    if generation.count(FN_NAME_LINE) != 1:
+        raise ValueError(f"code_generation.py: {FN_NAME_LINE!r} is not there once")
+    testing = sources["lcb_runner/evaluation/testing_util.py"]
+    for line in (TRUNCATE_LINE,) + PARSE_LINES:
+        if testing.count(line) != 1:
+            raise ValueError(f"testing_util.py: {line!r} is not there once")
 
 
 def _is_case(value) -> bool:
     return isinstance(value, dict) and isinstance(value.get("input"), str) and isinstance(value.get("output"), str)
 
 
+def recorded(case: dict, call_based: bool, at: str) -> tuple:
+    """(inputs, expected) as the runner records one public case: truncate of the raw text for a
+    standard-input problem; for a call-based one truncate of str() of the list of its JSON-parsed input
+    lines and of its JSON-parsed output, as grade_call_based parses them."""
+    if not call_based:
+        return truncate(case["input"]), truncate(case["output"])
+    try:
+        args = [json.loads(line) for line in case["input"].split("\n")]
+        want = json.loads(case["output"])
+    except ValueError as exc:
+        raise ValueError(f"{at}: a call-based public case is not JSON ({exc})") from exc
+    return truncate(str(args)), truncate(str(want))
+
+
 def read_release(lines, label: str) -> dict:
-    """{question_id: {"date": "YYYY-MM-DD", "cases": [(truncate(input), truncate(output)), ...]}}, sorted,
-    from the lines of one release file; only question_id, contest_date and public_test_cases are read."""
+    """{question_id: {"date": "YYYY-MM-DD", "call_based": bool, "cases": [(inputs, expected), ...]}},
+    sorted, the cases in their recorded form, from the lines of one release file; only question_id,
+    contest_date, metadata and public_test_cases are read. A problem is call-based when its metadata
+    names a func_name; its cases' testtype must then be functional, and stdin otherwise."""
     problems = {}
     for k, line in enumerate(lines, 1):
         at = f"{label} line {k}"
@@ -147,7 +174,21 @@ def read_release(lines, label: str) -> dict:
         if not isinstance(cases, list) or not cases or not all(_is_case(c) for c in cases):
             raise ValueError(f"{at}: question_id {qid}: public_test_cases is not a non-empty JSON list of "
                              "input and output strings")
-        problems[qid] = {"date": found.group(1), "cases": [(truncate(c["input"]), truncate(c["output"])) for c in cases]}
+        try:
+            meta = json.loads(record.get("metadata"))
+        except (TypeError, ValueError):
+            meta = None
+        if not isinstance(meta, dict):
+            raise ValueError(f"{at}: question_id {qid}: metadata is not a JSON object string")
+        name = meta.get("func_name")
+        if name is not None and (not isinstance(name, str) or not name):
+            raise ValueError(f"{at}: question_id {qid}: func_name {name!r} is not a non-empty string")
+        call_based = name is not None
+        kind = "functional" if call_based else "stdin"
+        if any(c.get("testtype") != kind for c in cases):
+            raise ValueError(f"{at}: question_id {qid}: a public case's testtype is not {kind!r}")
+        problems[qid] = {"date": found.group(1), "call_based": call_based,
+                         "cases": [recorded(c, call_based, f"{at}: question_id {qid}") for c in cases]}
     if not problems:
         raise ValueError(f"{label}: no problem")
     return dict(sorted(problems.items()))
@@ -221,6 +262,7 @@ def report(rows: list, release: dict, revisions: tuple, sample=SAMPLE) -> list:
     common = set.intersection(*(r["items"] for r in rows))
     cases = [len(p["cases"]) for p in release.values()]
     dates = sorted(p["date"] for p in release.values())
+    called = sum(p["call_based"] for p in release.values())
     width = max([len("model"), len("all")] + [len(r["model"]) for r in rows])
     heads = COLUMNS + ("public_share", "public_of_tested")
     lines = [
@@ -232,6 +274,8 @@ def report(rows: list, release: dict, revisions: tuple, sample=SAMPLE) -> list:
         f"sample problems: {len(release)}, contest dates {dates[0]} to {dates[-1]}, public cases per problem "
         f"{min(cases)} to {max(cases)} (median {statistics.median(cases):g}), among the 12.16 kept problems: "
         f"{len(common & set(release))}",
+        f"call-based (a func_name, cases recorded parsed): {called}, standard input (recorded as text): "
+        f"{len(release) - called}",
         "",
         f"{'model':<{width}}" + "".join(f"  {h}" for h in heads),
         f"{'-' * width}" + "".join(f"  {'-' * len(h)}" for h in heads),
