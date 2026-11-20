@@ -238,7 +238,7 @@ class Stats:
         rows = []
         for (task, model_id), (s, t) in self.items():
             row = {"task": task, "model": model_id, "successes": s, "trials": t}
-            if (task, model_id) in self._escalated:
+            if (task, model_id) in self._escalated:  # .add sets it for every cascade key, even at 0
                 row["escalated"] = self._escalated[(task, model_id)]
             i, o, k = self.tokens(task, model_id)
             if k:

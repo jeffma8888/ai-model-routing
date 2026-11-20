@@ -6,7 +6,7 @@ Row ESC2a ships its types and its calibration: `Cascade` (exported), `Task.casca
 `load_tasks`, the escalation count `Stats` keeps beside a cascade's counts and in its file,
 and `calibrate_from_results` on a cascade row. The candidates and cost (row ESC2b) and the
 executor and records (row ESC2c) come later. The tests were written under strict xfail and the
-implementing commit removed the marks; the three guards at the end pin what v1.535 keeps, every
+implementing commit removed the marks; the three unmarked guards pin what v1.535 keeps, every
 output made without a cascade, and passed before and after it.
 """
 
