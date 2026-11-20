@@ -15,7 +15,7 @@ from typing import Iterable, List, Optional, Sequence
 
 from .registry import _tier_prices
 from .router import FLAVORS, NoModelClearsBar, RouteDecision, Router, _sizes
-from .stats import Stats, wilson_lower_bound
+from .stats import Stats, _is_cascade_key, wilson_lower_bound
 from .tasks import Task
 
 INLINE = "inline"
@@ -175,7 +175,8 @@ def _briefed_stats(stats: Stats, task_name: str, brief_tokens: int) -> Stats:
     Rounding up ``(I + B * n) / n`` gives the rounded-up ``I / n`` plus B exactly, so
     the delegate's ``select`` prices a measured model at its mean input plus B (13.3).
     With no brief or no token totals on the task, ``stats`` itself is returned, as v1.32
-    passed it.
+    passed it. A cascade key keeps its escalation count and holds no token totals (DESIGN 7
+    v1.536).
     """
     rows = [(key, counts) for key, counts in stats.items() if key[0] == task_name]
     if brief_tokens == 0 or not any(stats.tokens(*key)[2] for key, _ in rows):
@@ -187,6 +188,8 @@ def _briefed_stats(stats: Stats, task_name: str, brief_tokens: int) -> Stats:
         if n:
             tokens = {"input_tokens": i + brief_tokens * n, "output_tokens": o,
                       "token_trials": n}
+        if _is_cascade_key(model_id):
+            tokens["escalated"] = stats.escalations(name, model_id)
         copy.add(name, model_id, successes, trials, **tokens)
     return copy
 

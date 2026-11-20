@@ -367,7 +367,6 @@ def test_guard_without_the_keyword_a_planted_cascade_is_no_candidate():
     assert route(decision) == (BEST,)
 
 
-@pytest.mark.xfail(strict=True, reason="review iter-382: the briefed stats copy lands next commit")
 def test_decide_delegation_passes_no_cascades_and_keeps_a_cascade_key():
     # the stats hold token counts on the task and a cascade key, and the brief is not empty,
     # so decide_delegation briefs a copy of them (13.3); v1.535 dropped the escalation count
