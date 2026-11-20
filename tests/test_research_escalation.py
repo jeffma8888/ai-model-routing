@@ -21,7 +21,7 @@ SECTIONS = [
     "What row ESC3 runs",
     "What row ESC2 implements",
     "Measured signals (row ESC1b)",
-    "Not settled here (row ESC1c)",
+    "Public tests matched (row ESC1c)",
 ]
 
 
