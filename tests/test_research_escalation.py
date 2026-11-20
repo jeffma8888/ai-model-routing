@@ -20,7 +20,8 @@ SECTIONS = [
     "Signals the public data can test",
     "What row ESC3 runs",
     "What row ESC2 implements",
-    "Not settled here (row ESC1b)",
+    "Measured signals (row ESC1b)",
+    "Not settled here (row ESC1c)",
 ]
 
 
