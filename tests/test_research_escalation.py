@@ -74,10 +74,12 @@ def test_the_note_names_the_dataset_and_signal_for_esc3():
     assert "the signal `calls-over-N`" in body
     assert "escalated when the cheap run makes more than N agent calls" in body
     assert "uncached input" in body and "the strong run's list-price cost" in body
+    signals = section(note(), "Signals the public data can test")
+    assert "236 of the 278 failed first samples" in signals and "7 no test at all" in signals
     assert "a signal measured on a benchmark may not exist in your product" in body
 
 
-def test_the_signal_table_covers_every_converted_dataset_once():
+def test_the_signal_table_rows_are_the_datasets_in_order():
     body = section(note(), "Signals the public data can test")
     rows = [line for line in body.splitlines() if line.startswith("| ") and not line.startswith("| Dataset")]
     assert len(rows) == 7
@@ -95,8 +97,9 @@ def test_the_signal_table_covers_every_converted_dataset_once():
 
 def test_the_design_numbers_the_note_cites_are_design_headings():
     text = DESIGN.read_text(encoding="utf-8")
-    for number in ("12.6", "12.9", "12.14", "12.15", "12.16", "12.18", "12.20", "12.23", "12.25", "12.27",
-                   "12.28", "13.11"):
+    cited = set(re.findall(r"\b(1[23]\.\d+)\b", note()))
+    assert {"12.14", "12.16", "12.25", "13.11"} <= cited
+    for number in sorted(cited):
         assert f"\n### {number} " in text, number
 
 
@@ -124,18 +127,30 @@ def test_the_spec_holds_each_contract_item():
         "`[a-z0-9][a-z0-9._-]*`",
         "`cascades: tuple[Cascade, ...] = ()`, after `slices` (4.2)",
         "one trial of a cascade is one item run through the whole cascade",
-        "an `escalated` key on cascade rows only",
+        "`.add` gains a keyword `escalated=None`",
         "`select` gains a keyword `cascades=False`",
         "`CASCADE_UNKNOWN_MODEL = \"cascade_unknown_model\"`",
         "priors never admit it",
         "`list_cost = cheap.cost(in, out) + p * strong.cost(in + out, out)`",
-        "`p = escalated / trials`",
+        "`p = stats.escalations(task, id) / trials`",
         "`signals: Mapping[str, Callable[[str], bool]] | None = None`",
         "`select(..., cascades=signals is not None)`",
         "the strong model is called with the same `messages`",
         "`.call_delegated` is unchanged",
-        "gains `cascade` (its `id`) and `escalated`",
+        "gains `cascade` (its `id`, a str) and `escalated` (a bool:",
         "a cascade of more than two models",
+        "`.escalations(task, cascade_id) -> int`",
+        "`.save` writes it right after `trials` on cascade rows only",
+        "a cascade key never holds token totals",
+        "`family` `\"\"`, and `list_cost` and `routing_cost` `0.0`",
+        "a registry ID equal to a cascade's `id` is a `ValueError`",
+        "enters the `best_available` measured list and the v1.201 below-bar fallbacks",
+        "the sizes 5.2 prices the cheap model at for this call",
+        "so for it the price is an upper bound",
+        "`CallResult.model` is the model that gave the final text",
+        "does not escalate (a caller who wants its check to escalate folds it into the signal)",
+        "in that order right after `slice`, before `prompt_tokens`",
+        "counts in `fallback_calls` and `fallback_rate`",
     ):
         assert phrase in spec, phrase
 
