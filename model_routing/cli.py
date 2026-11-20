@@ -108,6 +108,8 @@ def _build_parser() -> argparse.ArgumentParser:
     ev.add_argument("--min-samples", type=int, default=30)
     ev.add_argument("--confidence", type=float, default=0.95)
     ev.add_argument("--registry", default=str(DATA_DIR / "models.json"))
+    ev.add_argument("--slice-by", default=None, metavar="FIELD",
+                    help="the outcome-row key that names each row's slice (DESIGN 12.4 v1.514)")
     ev.add_argument("--json", action="store_true")
 
     dg = sub.add_parser("delegate",
@@ -297,7 +299,7 @@ def _cmd_evaluate(args) -> int:
     from .evaluate import _read_rows, evaluate, outcomes_from_rows
     registry = Registry.load(args.registry)
     matrix_rows = _read_rows(args.outcomes)
-    outcomes = outcomes_from_rows(matrix_rows, registry)
+    outcomes = outcomes_from_rows(matrix_rows, registry, slice_by=args.slice_by)
     # DESIGN 10 and 12.4 v1.411: a valid row without cost_usd was priced from the registry
     token_priced = {row["model"] for row in matrix_rows if "cost_usd" not in row}
     result = evaluate(outcomes, bars=args.bar or [0.8],
@@ -322,6 +324,16 @@ def _cmd_evaluate(args) -> int:
             blocks.append(f"bar {bar}, {flavor}\n" + _table(
                 ["strategy", "success", "cost_usd", "below_bar_rate", "cleared_rate",
                  "bar_violation_rate"], rows))
+            if "slice_summary" in result:
+                # v1.514: the (bar, flavor)'s slice_summary rows, slice_miss_rate last
+                rows = [[r["strategy"], fmt(r["success"]), f"{r['cost_usd']:.4f}",
+                         fmt(r["below_bar_rate"]), fmt(r["cleared_rate"]),
+                         fmt(r["bar_violation_rate"]), fmt(r["slice_miss_rate"])]
+                        for r in result["slice_summary"]
+                        if r["bar"] == bar and r["flavor"] == flavor]
+                blocks.append(f"bar {bar}, {flavor}, slices\n" + _table(
+                    ["strategy", "success", "cost_usd", "below_bar_rate", "cleared_rate",
+                     "bar_violation_rate", "slice_miss_rate"], rows))
     print("\n\n".join(blocks))
     _warn_expired_prices(registry, args.today, token_priced)
     return EXIT_OK

@@ -12,7 +12,7 @@ from typing import Dict, Iterable, List, Optional, Sequence, Tuple, Union
 from .registry import Model, Registry
 from .router import FLAVORS, Router
 from .stats import Stats
-from .tasks import Task
+from .tasks import Task, is_slice_name
 
 PathLike = Union[str, Path]
 
@@ -26,13 +26,15 @@ class Outcome:
     model: str
     correct: bool
     cost_usd: float
+    slice: Optional[str] = None  # v1.514: last, so five positional arguments keep their meaning
 
 
 def _is_int(v) -> bool:
     return isinstance(v, int) and not isinstance(v, bool)
 
 
-def _row_to_outcome(row, registry: Optional[Registry]) -> Outcome:
+def _row_to_outcome(row, registry: Optional[Registry], slice_by: Optional[str] = None
+                    ) -> Outcome:
     if not isinstance(row, dict):
         raise ValueError(f"outcome row must be an object, got {row!r}")
     for key in ("task", "item", "model"):
@@ -55,16 +57,32 @@ def _row_to_outcome(row, registry: Optional[Registry]) -> Outcome:
         cost = registry.get(row["model"]).cost(tin, tout)
     else:
         raise ValueError(f"outcome row needs 'cost_usd' or both token counts: {row!r}")
-    return Outcome(row["task"], row["item"], row["model"], row["correct"], cost)
+    name = None if slice_by is None else row.get(slice_by)
+    if name is not None:
+        # v1.514: a slice is a 4.2 slice name, on a task whose name holds no '@' (as 4.3)
+        if not is_slice_name(name) or "@" in row["task"]:
+            raise ValueError(f"a slice must be a non-empty string without '@' on a task "
+                             f"without '@': {row!r}")
+    return Outcome(row["task"], row["item"], row["model"], row["correct"], cost, name)
 
 
-def outcomes_from_rows(rows: Iterable[dict], registry: Optional[Registry] = None
-                       ) -> Tuple[Outcome, ...]:
-    """Validate outcome-matrix rows (DESIGN 12.1) and return them as Outcomes in input order."""
+def _check_slice_by(slice_by) -> None:
+    if slice_by is not None and (not isinstance(slice_by, str) or not slice_by):
+        raise ValueError(f"slice_by must be a non-empty string, got {slice_by!r}")
+
+
+def outcomes_from_rows(rows: Iterable[dict], registry: Optional[Registry] = None, *,
+                       slice_by: Optional[str] = None) -> Tuple[Outcome, ...]:
+    """Validate outcome-matrix rows (DESIGN 12.1) and return them as Outcomes in input order.
+
+    ``slice_by`` names the row key that holds each row's slice (v1.514); without it every
+    Outcome's slice is None and a ``slice`` key is an extra key.
+    """
+    _check_slice_by(slice_by)
     out: List[Outcome] = []
     seen = set()
     for row in rows:
-        o = _row_to_outcome(row, registry)
+        o = _row_to_outcome(row, registry, slice_by)
         key = (o.task, o.item, o.model)
         if key in seen:
             raise ValueError(f"repeated outcome for task {o.task!r}, item {o.item!r}, "
@@ -74,9 +92,11 @@ def outcomes_from_rows(rows: Iterable[dict], registry: Optional[Registry] = None
     return tuple(out)
 
 
-def load_outcomes(path: PathLike, registry: Optional[Registry] = None) -> Tuple[Outcome, ...]:
+def load_outcomes(path: PathLike, registry: Optional[Registry] = None, *,
+                  slice_by: Optional[str] = None) -> Tuple[Outcome, ...]:
     """Read an outcome-matrix JSONL file; errors name ``<path>:<line>``."""
-    return outcomes_from_rows(_read_rows(path), registry)
+    _check_slice_by(slice_by)
+    return outcomes_from_rows(_read_rows(path), registry, slice_by=slice_by)
 
 
 def _read_rows(path: PathLike) -> List[dict]:
@@ -147,7 +167,9 @@ def evaluate(outcomes, bars, seeds=range(10), flavors=("cost_effective", "cost_b
 
     Returns ``config``, ``tasks``, ``cells``, ``summary`` and ``per_task``; the
     routed choice comes from ``Router.select`` so the shipped rules are what is
-    measured. Deterministic for the same outcomes in any order.
+    measured. Deterministic for the same outcomes in any order. When outcomes name
+    slices (v1.514), each cell of a sliced task also scores the pooled and the sliced
+    route per slice, and ``per_slice`` and ``slice_summary`` follow ``per_task``.
     """
     outcomes = tuple(outcomes)
     bars, seeds, flavors = list(bars), list(seeds), list(flavors)
@@ -181,11 +203,21 @@ def evaluate(outcomes, bars, seeds=range(10), flavors=("cost_effective", "cost_b
                 raise ValueError(f"task {task!r}, seed {seed}: the calibration or held-out "
                                  f"split is empty")
             splits[task, seed] = (cal, held)
+    groups = _slice_groups(table, tasks, task_items)
+    for task, by_slice in groups.items():
+        for seed in seeds:
+            cal, held = (set(part) for part in splits[task, seed])
+            for name, items in by_slice.items():
+                if cal.isdisjoint(items) or held.isdisjoint(items):
+                    raise ValueError(f"task {task!r} slice {name!r}, seed {seed}: the calibration "
+                                     f"or held-out split is empty")
 
     strategies = _strategies(models)
     # v1.135: a (task, seed)'s sums, filled by the first cell that needs them and read by every
     # cell of that (task, seed) at any bar or flavor; local to this call
     sums: Dict[Tuple[str, int], dict] = {}
+    # v1.514: a sliced (task, seed)'s sums on C_S and H_S per slice, filled once as v1.135
+    slice_sums: Dict[Tuple[str, int], Dict[str, dict]] = {}
     cells = []
     for bar in bars:
         for flavor in flavors:
@@ -194,17 +226,34 @@ def evaluate(outcomes, bars, seeds=range(10), flavors=("cost_effective", "cost_b
                     if (task, seed) not in sums:
                         cal, held = splits[task, seed]
                         sums[task, seed] = _split_sums(table, models, task, cal, held)
-                    cells.append(_cell(sums[task, seed], models, strategies, task, bar, flavor,
-                                       seed, min_samples, confidence))
-    return {
+                        if task in groups:
+                            slice_sums[task, seed] = {
+                                name: _split_sums(table, models, task,
+                                                  [i for i in cal if i in items],
+                                                  [i for i in held if i in items])
+                                for name, items in groups[task].items()}
+                    cell = _cell(sums[task, seed], models, strategies, task, bar, flavor,
+                                 seed, min_samples, confidence)
+                    if task in groups:
+                        cell["slices"] = _slice_entries(slice_sums[task, seed], models, cell,
+                                                        min_samples, confidence)
+                    cells.append(cell)
+    task_info = {t: {"items": len(task_items[t]), "models": models} for t in tasks}
+    for t, by_slice in groups.items():
+        task_info[t]["slices"] = {name: len(items) for name, items in by_slice.items()}
+    result = {
         "config": {"bars": bars, "seeds": seeds, "flavors": flavors,
                    "calibration_fraction": calibration_fraction, "min_samples": min_samples,
                    "confidence": confidence},
-        "tasks": {t: {"items": len(task_items[t]), "models": models} for t in tasks},
+        "tasks": task_info,
         "cells": cells,
         "summary": _summary(cells, sums, bars, flavors, seeds, tasks, strategies),
         "per_task": _per_task(cells, bars, flavors, seeds, tasks, strategies),
     }
+    if groups:
+        result["per_slice"] = _per_slice(cells, bars, flavors, groups)
+        result["slice_summary"] = _slice_summary(cells, slice_sums, bars, flavors, seeds)
+    return result
 
 
 def _split_sums(table, models, task, cal, held) -> dict:
@@ -344,4 +393,137 @@ def _per_task(cells, bars, flavors, seeds, tasks, strategies):
                                  "below_bar_rate": below, "cleared_rate": cleared,
                                  "bar_violation_rate": violation,
                                  "routed_models": routed_models})
+    return rows
+
+
+SLICE_STRATEGIES = ("pooled", "sliced")
+
+
+def _slice_groups(table, tasks, task_items) -> Dict[str, Dict[str, frozenset]]:
+    """``{task: {slice: items}}`` for each sliced task, slices ascending (12.3, v1.514), after the
+    checks that every row of an item names one slice and that a task is all sliced or all not."""
+    slice_of = {}
+    for (task, item), by_model in sorted(table.items()):
+        names = {o.slice for o in by_model.values()}
+        if len(names) > 1:
+            raise ValueError(f"task {task!r}, item {item!r}: its rows name different slices")
+        slice_of[task, item] = names.pop()
+    groups = {}
+    for task in tasks:
+        items = sorted(task_items[task])
+        if all(slice_of[task, i] is None for i in items):
+            continue
+        none = [i for i in items if slice_of[task, i] is None]
+        if none:
+            raise ValueError(f"task {task!r}: item {none[0]!r} has no slice while other items "
+                             f"have one")
+        by_slice: Dict[str, set] = {}
+        for i in items:
+            by_slice.setdefault(slice_of[task, i], set()).add(i)
+        groups[task] = {name: frozenset(by_slice[name]) for name in sorted(by_slice)}
+    return groups
+
+
+def _slice_entries(slice_split, models, cell, min_samples, confidence) -> dict:
+    """A sliced cell's ``slices`` (12.3, v1.514): per slice, the cell's ``routed`` model as
+    ``pooled`` and, as ``sliced``, the primary of ``select(slice=S)`` on C_S's counts and mean
+    costs, each scored on H_S."""
+    task, bar, flavor = cell["task"], cell["bar"], cell["flavor"]
+    pooled = cell["models"]["routed"]
+    t = Task(name=task, bar=bar, min_samples=min_samples, confidence=confidence,
+             independent_of_generator=False, expected_input_tokens=1, expected_output_tokens=0,
+             on_no_model="best_available", max_fallbacks=0)
+    out = {}
+    for name, split in slice_split.items():
+        stats = Stats()
+        for m in models:
+            stats.add(f"{task}@{name}", m, split["succ"][m], split["n_cal"])
+        decision = Router(_routed_registry(models, split["mean_cost"]), {task: t}, stats).select(
+            task, flavor, slice=name)
+        chosen = {"pooled": pooled, "sliced": decision.primary}
+        out[name] = {"calibration_items": split["n_cal"], "held_out_items": split["n_held"],
+                     "cleared": not decision.below_bar, "models": chosen,
+                     "success": {k: split["held_success"][m] for k, m in chosen.items()},
+                     "cost_usd": {k: split["held_cost"][m] for k, m in chosen.items()}}
+    return out
+
+
+def _slice_cleared(cell, entry, strategy) -> bool:
+    """``pooled`` clears when the cell does, ``sliced`` when the slice's own decision does."""
+    return cell["cleared"] if strategy == "pooled" else entry["cleared"]
+
+
+def _slice_rates(units, bar):
+    """``below_bar_rate``, ``cleared_rate`` and ``bar_violation_rate`` over (cleared, success)
+    units, as ``_rates`` gives them for ``routed``."""
+    below = sum(success < bar for _, success in units) / len(units)
+    cleared = [success for ok, success in units if ok]
+    violation = sum(success < bar for success in cleared) / len(cleared) if cleared else None
+    return below, len(cleared) / len(units), violation
+
+
+def _per_slice(cells, bars, flavors, groups):
+    rows = []
+    for bar in bars:
+        for flavor in flavors:
+            for task in sorted(groups):
+                group = [c for c in cells if c["bar"] == bar and c["flavor"] == flavor
+                         and c["task"] == task]
+                for name in groups[task]:
+                    pairs = [(c, c["slices"][name]) for c in group]
+                    for st in SLICE_STRATEGIES:
+                        units = [(_slice_cleared(c, e, st), e["success"][st]) for c, e in pairs]
+                        below, cleared, violation = _slice_rates(units, bar)
+                        routed: Dict[str, int] = {}
+                        for _, e in pairs:
+                            routed[e["models"][st]] = routed.get(e["models"][st], 0) + 1
+                        rows.append({"bar": bar, "flavor": flavor, "task": task, "slice": name,
+                                     "strategy": st,
+                                     "success": fsum(e["success"][st] for _, e in pairs)
+                                     / len(pairs),
+                                     "cost_usd": fsum(e["cost_usd"][st] for _, e in pairs)
+                                     / len(pairs),
+                                     "below_bar_rate": below, "cleared_rate": cleared,
+                                     "bar_violation_rate": violation,
+                                     "routed_models": dict(sorted(routed.items()))})
+    return rows
+
+
+def _slice_summary(cells, slice_sums, bars, flavors, seeds):
+    rows = []
+    for bar in bars:
+        for flavor in flavors:
+            group = [c for c in cells if c["bar"] == bar and c["flavor"] == flavor
+                     and "slices" in c]
+            for st in SLICE_STRATEGIES:
+                per_seed_success, per_seed_cost, units = [], [], []
+                met = missed = 0
+                for seed in seeds:
+                    correct = total = 0
+                    spend = []
+                    for c in (c for c in group if c["seed"] == seed):
+                        split = slice_sums[c["task"], seed]
+                        right, every_cleared, some_below = 0, True, False
+                        for name, e in c["slices"].items():
+                            ok = _slice_cleared(c, e, st)
+                            right += split[name]["held_correct"][e["models"][st]]
+                            spend.append(e["cost_usd"][st])
+                            units.append((ok, e["success"][st]))
+                            every_cleared = every_cleared and ok
+                            some_below = some_below or e["success"][st] < bar
+                        correct += right
+                        total += c["held_out_items"]
+                        # v1.514, v1.515: the task's held-out success from integer counts
+                        if every_cleared and right / c["held_out_items"] >= bar:
+                            met += 1
+                            missed += some_below
+                    per_seed_success.append(correct / total)
+                    per_seed_cost.append(fsum(spend))
+                below, cleared, violation = _slice_rates(units, bar)
+                rows.append({"bar": bar, "flavor": flavor, "strategy": st,
+                             "success": fsum(per_seed_success) / len(seeds),
+                             "cost_usd": fsum(per_seed_cost) / len(seeds),
+                             "below_bar_rate": below, "cleared_rate": cleared,
+                             "bar_violation_rate": violation,
+                             "slice_miss_rate": missed / met if met else None})
     return rows

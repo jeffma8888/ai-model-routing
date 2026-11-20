@@ -6,8 +6,8 @@ cell of a sliced task then scores two routes on each slice's held-out items: `po
 `routed` model, and `sliced`, the primary of `Router.select(..., slice=S)` on that slice's own
 calibration counts. `per_slice` and `slice_summary` report their success, cost and bar rates, and
 `slice_miss_rate` counts how often a route that meets the bar on the task misses it on a slice.
-The tests marked `RED` fail until row STRAT2b implements v1.514 (strict, so one that passes early
-fails the suite); the unmarked ones guard what v1.514 keeps and pass before and after it.
+Row STRAT2a wrote these tests under strict xfail and row STRAT2b implemented v1.514; the guards
+pinned what v1.514 keeps and passed before and after.
 
 The planted matrix: on `support`, 400 quick items and 100 deep ones. fiction/cheap costs 1.0 a
 call and answers every quick item and no deep one; fiction/best costs 8.0 and answers every
@@ -26,8 +26,6 @@ from model_routing import (
     Outcome, evaluate, load_outcomes, outcomes_from_rows, split_items, wilson_lower_bound,
 )
 from model_routing.cli import main
-
-RED = pytest.mark.xfail(strict=True, reason="row STRAT2b implements DESIGN v1.514")
 
 V1_513_KEYS = ["config", "tasks", "cells", "summary", "per_task"]
 CELL_KEYS = ["bar", "flavor", "seed", "task", "calibration_items", "held_out_items", "cleared",
@@ -120,20 +118,17 @@ def test_the_cli_without_slice_by_ignores_a_slice_key(tmp_path, capsys):
 
 # --- 12.1: reading a slice ---
 
-@RED
 def test_outcome_gains_a_last_slice_field_defaulting_to_none():
     o = Outcome("support", "q000", CHEAP, True, 1.0)
     assert o.slice is None
     assert Outcome("support", "q000", CHEAP, True, 1.0, "quick").slice == "quick"
 
 
-@RED
 def test_slice_by_reads_each_rows_slice():
     outcomes = outcomes_from_rows(planted_rows(key="difficulty"), slice_by="difficulty")
     assert {(o.item[0], o.slice) for o in outcomes} == {("q", "quick"), ("d", "deep")}
 
 
-@RED
 def test_load_outcomes_takes_slice_by(tmp_path):
     path = tmp_path / "m.jsonl"
     path.write_text("".join(json.dumps(r) + "\n" for r in planted_rows()), encoding="utf-8")
@@ -141,21 +136,18 @@ def test_load_outcomes_takes_slice_by(tmp_path):
                                                                        slice_by="slice")
 
 
-@RED
 def test_an_absent_or_null_value_is_no_slice():
     rows = strip(planted_rows())
     rows[0]["slice"] = None
     assert all(o.slice is None for o in outcomes_from_rows(rows, slice_by="slice"))
 
 
-@RED
 @pytest.mark.parametrize("slice_by", ["", 3, True])
 def test_a_bad_slice_by_is_refused(slice_by):
     with pytest.raises(ValueError):
         outcomes_from_rows(planted_rows(), slice_by=slice_by)
 
 
-@RED
 @pytest.mark.parametrize("value", ["", "a@b", 3, True, ["deep"]])
 def test_a_bad_slice_value_is_refused(value):
     rows = planted_rows()
@@ -164,7 +156,6 @@ def test_a_bad_slice_value_is_refused(value):
         outcomes_from_rows(rows, slice_by="slice")
 
 
-@RED
 def test_a_sliced_row_on_a_task_with_an_at_sign_is_refused():
     rows = planted_rows()
     rows[0]["task"] = "sup@port"
@@ -174,7 +165,6 @@ def test_a_sliced_row_on_a_task_with_an_at_sign_is_refused():
 
 # --- 12.3: the checks ---
 
-@RED
 def test_two_slices_for_one_item_are_refused():
     rows = planted_rows()
     rows[1]["slice"] = "deep"  # q000 on fiction/best; fiction/cheap's q000 row says quick
@@ -183,7 +173,6 @@ def test_two_slices_for_one_item_are_refused():
     assert "'support'" in str(exc.value) and "'q000'" in str(exc.value)
 
 
-@RED
 def test_a_task_with_sliced_and_unsliced_items_is_refused():
     rows = planted_rows()
     for row in rows[-2:]:
@@ -193,7 +182,6 @@ def test_a_task_with_sliced_and_unsliced_items_is_refused():
     assert "'support'" in str(exc.value) and "'d099'" in str(exc.value)
 
 
-@RED
 def test_a_slice_with_an_empty_side_is_refused():
     rows = planted_rows() + sliced_rows("support", [("lone", ["z000"], True)])
     with pytest.raises(ValueError) as exc:
@@ -202,7 +190,6 @@ def test_a_slice_with_an_empty_side_is_refused():
                               "split is empty")
 
 
-@RED
 def test_null_slices_everywhere_give_the_unsliced_result():
     rows = strip(planted_rows())
     for row in rows:
@@ -212,7 +199,6 @@ def test_null_slices_everywhere_give_the_unsliced_result():
 
 # --- 12.3: the sliced result ---
 
-@RED
 def test_the_pooled_numbers_are_the_unsliced_runs():
     flavors = ("cost_effective", "cost_blind")
     sliced = run(planted_rows(), flavors=flavors)
@@ -223,13 +209,11 @@ def test_the_pooled_numbers_are_the_unsliced_runs():
     assert [{k: v for k, v in c.items() if k != "slices"} for c in sliced["cells"]] == plain["cells"]
 
 
-@RED
 def test_tasks_names_each_slices_item_count():
     assert run(planted_rows())["tasks"] == {
         "support": {"items": 500, "models": [BEST, CHEAP], "slices": {"deep": 100, "quick": 400}}}
 
 
-@RED
 def test_each_cell_scores_both_routes_on_each_slice():
     cells = run(planted_rows())["cells"]
     assert [c["seed"] for c in cells] == SEEDS
@@ -252,7 +236,6 @@ def test_each_cell_scores_both_routes_on_each_slice():
             "cost_usd": {"pooled": float(hq), "sliced": float(hq)}}
 
 
-@RED
 def test_per_slice_rows_on_the_planted_hard_slice():
     rows = run(planted_rows())["per_slice"]
     assert [(r["slice"], r["strategy"]) for r in rows] == [
@@ -273,7 +256,6 @@ def test_per_slice_rows_on_the_planted_hard_slice():
                        "bar_violation_rate": 0.0, "routed_models": {CHEAP: 3}}
 
 
-@RED
 def test_slice_summary_gives_the_headline():
     rows = run(planted_rows())["slice_summary"]
     assert [r["strategy"] for r in rows] == ["pooled", "sliced"]
@@ -292,7 +274,6 @@ def test_slice_summary_gives_the_headline():
                        "slice_miss_rate": 0.0}
 
 
-@RED
 def test_cost_blind_routes_best_everywhere_and_misses_no_slice():
     result = run(planted_rows(), flavors=("cost_blind",))
     for cell in result["cells"]:
@@ -301,7 +282,6 @@ def test_cost_blind_routes_best_everywhere_and_misses_no_slice():
     assert [r["slice_miss_rate"] for r in result["slice_summary"]] == [0.0, 0.0]
 
 
-@RED
 def test_a_small_slice_clears_nothing_until_it_has_min_samples():
     rows = sliced_rows("triage", [("common", COMMON, True), ("rare", RARE, False)])
     result = run(rows)
@@ -329,7 +309,6 @@ def test_a_small_slice_clears_nothing_until_it_has_min_samples():
     assert all(c["slices"]["rare"]["cleared"] for c in loose["cells"])
 
 
-@RED
 def test_an_unsliced_task_beside_a_sliced_one_gets_no_slice_rows():
     plain = [{**r, "task": "other"} for r in strip(planted_rows())]
     result = run(planted_rows() + plain)
@@ -339,7 +318,6 @@ def test_an_unsliced_task_beside_a_sliced_one_gets_no_slice_rows():
     assert result["slice_summary"] == run(planted_rows())["slice_summary"]
 
 
-@RED
 def test_a_sliced_run_is_deterministic():
     rows = planted_rows()
     a = json.dumps(run(rows), sort_keys=True)
@@ -357,7 +335,6 @@ def _matrix(tmp_path, rows):
 ARGS = ["--bar", "0.6", "--seeds", "3", "--flavor", "cost_effective"]
 
 
-@RED
 def test_cli_json_keeps_per_slice_and_slice_summary(tmp_path, capsys):
     path = _matrix(tmp_path, planted_rows(key="difficulty"))
     argv = ["evaluate", "--outcomes", path, *ARGS, "--slice-by", "difficulty", "--json"]
@@ -369,7 +346,6 @@ def test_cli_json_keeps_per_slice_and_slice_summary(tmp_path, capsys):
     assert list(printed) == ["config", "tasks", "summary", "per_task", "per_slice", "slice_summary"]
 
 
-@RED
 def test_cli_text_adds_a_slices_table_after_each_table(tmp_path, capsys):
     path = _matrix(tmp_path, planted_rows())
     assert main(["evaluate", "--outcomes", path, *ARGS]) == 0
@@ -385,7 +361,6 @@ def test_cli_text_adds_a_slices_table_after_each_table(tmp_path, capsys):
     assert block[3].split()[3:6] == ["0.500", "1.000", "0.500"]
 
 
-@RED
 def test_cli_a_bad_slice_value_is_exit_2(tmp_path, capsys):
     rows = planted_rows()
     rows[0]["slice"] = 3
