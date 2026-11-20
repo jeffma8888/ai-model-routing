@@ -98,7 +98,8 @@ def test_the_signal_table_rows_are_the_datasets_in_order():
 
 def test_the_design_numbers_the_note_cites_are_design_headings():
     text = DESIGN.read_text(encoding="utf-8")
-    cited = set(re.findall(r"\b(1[23]\.\d+)\b", note()))
+    prose = re.sub(r"```text\n.*?\n```", "", note(), flags=re.S)  # a script's output block holds no citation
+    cited = set(re.findall(r"\b(1[23]\.\d+)\b", prose))
     assert {"12.14", "12.16", "12.25", "13.11"} <= cited
     for number in sorted(cited):
         assert f"\n### {number} " in text, number
