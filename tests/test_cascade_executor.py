@@ -5,7 +5,7 @@ cascade entry of the route has a callable signal, runs a cascade entry's cheap m
 call up to a fresh strong call when the signal is truthy or the cheap model raises
 `ProviderError`, applies `validate` to the entry's result, and records `cascade` and `escalated`
 right after `slice` on the cascade's attempts. Without `signals` every route and record is
-v1.536's. The contract tests were written under strict xfail and the implementing commit removes
+v1.536's. The contract tests were written under strict xfail and the implementing commit removed
 the marks; the unmarked guards pin what v1.537 keeps and pass before and after it.
 """
 
@@ -20,8 +20,6 @@ from model_routing import (
     ProviderError, Registry, Router, Stats, Task, run_demo,
 )
 
-
-CONTRACT = pytest.mark.xfail(strict=True, reason="row ESC2c: the executor and records are spec")
 
 CHEAP, MID, BEST = "fiction/cheap", "fiction/mid", "fiction/best"
 REGISTRY = Registry([
@@ -146,7 +144,6 @@ def test_guard_call_delegated_takes_no_signals():
 
 # --- the signals keyword and its checks ---------------------------------------------------
 
-@CONTRACT
 @pytest.mark.parametrize("value", [[], "sig", 1, ("sig",), {"sig"}])
 def test_signals_that_is_no_mapping_is_a_value_error_before_select(value):
     h = Harness({})
@@ -155,14 +152,12 @@ def test_signals_that_is_no_mapping_is_a_value_error_before_select(value):
     assert (h.provider.calls, h.monitor.records, h.ids) == ([], [], [])
 
 
-@CONTRACT
 def test_signals_is_a_keyword_after_slice():
     params = list(inspect.signature(Executor.call).parameters.values())
     assert [p.name for p in params[-3:]] == ["prompt_tokens", "slice", "signals"]
     assert params[-1].kind is inspect.Parameter.KEYWORD_ONLY and params[-1].default is None
 
 
-@CONTRACT
 def test_with_signals_the_route_holds_the_cascade():
     h = Harness({CHEAP: ok("cheap answer", 40, 9)})
     result = h.call(signals={"sig": lambda text: False})
@@ -170,7 +165,6 @@ def test_with_signals_the_route_holds_the_cascade():
     assert route(result.decision) == (CID, BEST)
 
 
-@CONTRACT
 @pytest.mark.parametrize("signals", [{}, {"other": lambda text: False}, {"sig": "no"},
                                      {"sig": None}])
 def test_a_missing_or_uncallable_signal_is_a_value_error_before_any_call_and_record(signals):
@@ -181,7 +175,6 @@ def test_a_missing_or_uncallable_signal_is_a_value_error_before_any_call_and_rec
     assert (h.provider.calls, h.monitor.records, h.ids) == ([], [], [])
 
 
-@CONTRACT
 def test_a_cascade_fallback_entry_needs_its_signal_too():
     h = Harness({CHEAP: ok("cheap answer", 40, 9), BEST: ok("strong answer", 55, 12)})
     with pytest.raises(ValueError, match=re.escape(CID)):
@@ -189,7 +182,6 @@ def test_a_cascade_fallback_entry_needs_its_signal_too():
     assert (h.provider.calls, h.monitor.records, h.ids) == ([], [], [])
 
 
-@CONTRACT
 def test_a_mapping_with_no_routed_cascade_runs_as_without_signals():
     plain = Task("t", bar=0.8, min_samples=10)
     stats = Stats()
@@ -203,7 +195,6 @@ def test_a_mapping_with_no_routed_cascade_runs_as_without_signals():
 
 # --- running a cascade entry ----------------------------------------------------------------
 
-@CONTRACT
 def test_the_cheap_text_is_kept_when_the_signal_is_falsy():
     seen = []
     h = Harness({CHEAP: ok("cheap answer", 40, 9), BEST: ok("strong answer", 55, 12)})
@@ -219,7 +210,6 @@ def test_the_cheap_text_is_kept_when_the_signal_is_falsy():
     assert list(h.monitor.records[0]) == CASCADE_KEYS
 
 
-@CONTRACT
 def test_a_truthy_signal_hands_up_to_a_fresh_strong_call():
     validated = []
     h = Harness({CHEAP: ok("cheap answer", 40, 9), BEST: ok("strong answer", 55, 12)})
@@ -243,7 +233,6 @@ def test_a_truthy_signal_hands_up_to_a_fresh_strong_call():
     assert [list(r) for r in h.monitor.records] == [CASCADE_KEYS, CASCADE_KEYS]
 
 
-@CONTRACT
 def test_a_cheap_provider_error_hands_up_without_calling_the_signal():
     def signal(text):
         raise AssertionError("the signal must not run on a provider error")
@@ -256,7 +245,6 @@ def test_a_cheap_provider_error_hands_up_without_calling_the_signal():
         record(BEST, 1, True, "ok", (55, 12), cascade=CID, escalated=True)]
 
 
-@CONTRACT
 def test_validate_rejecting_the_kept_cheap_text_moves_on_without_escalating():
     h = Harness({CHEAP: ok("cheap answer", 40, 9), BEST: ok("strong answer", 55, 12)})
     result = h.call(signals={"sig": lambda text: False},
@@ -270,7 +258,6 @@ def test_validate_rejecting_the_kept_cheap_text_moves_on_without_escalating():
     assert [list(r) for r in h.monitor.records] == [CASCADE_KEYS, V1_536_KEYS]
 
 
-@CONTRACT
 def test_validate_applies_to_the_strong_result():
     h = Harness({CHEAP: ok("cheap answer", 40, 9), BEST: ok("strong answer", 55, 12)})
     with pytest.raises(AllModelsFailed) as caught:
@@ -285,7 +272,6 @@ def test_validate_applies_to_the_strong_result():
         record(BEST, 2, True, "invalid", (55, 12), error="validation failed")]
 
 
-@CONTRACT
 def test_a_cascade_as_the_last_entry_ends_the_call_on_its_strong_attempt():
     h = Harness({CHEAP: fail(), BEST: fail("down")})
     with pytest.raises(AllModelsFailed) as caught:
@@ -301,7 +287,6 @@ def test_a_cascade_as_the_last_entry_ends_the_call_on_its_strong_attempt():
                cascade=CID, escalated=True, **blind)]
 
 
-@CONTRACT
 def test_a_signal_exception_propagates_with_no_record_of_its_attempt():
     def signal(text):
         raise RuntimeError("boom")
@@ -315,7 +300,6 @@ def test_a_signal_exception_propagates_with_no_record_of_its_attempt():
 
 # --- records: below_bar_fallback follows the route entry, slices ----------------------------
 
-@CONTRACT
 def test_below_bar_fallback_follows_the_route_entry_not_the_model_called():
     calls = []
     def best(messages):
@@ -343,7 +327,6 @@ def test_below_bar_fallback_follows_the_route_entry_not_the_model_called():
         V1_536_KEYS, with_bbf(V1_536_KEYS), with_bbf(CASCADE_KEYS), with_bbf(CASCADE_KEYS)]
 
 
-@CONTRACT
 def test_a_sliced_call_runs_the_tasks_cascades_on_the_slice_key():
     t = Task("t", bar=0.8, min_samples=10, cascades=(C,), slices={"s": {}})
     h = Harness({CHEAP: ok("cheap answer", 40, 9)}, task=t, stats=planted_stats(key="t@s"))

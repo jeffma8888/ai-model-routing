@@ -6,7 +6,8 @@ import json
 import math
 import time
 import uuid
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from typing import Callable, Dict, Iterable, List, Optional, Tuple
 
@@ -109,7 +110,8 @@ class Executor:
              tags: Optional[Dict[str, str]] = None,
              validate: Optional[Callable[[str], object]] = None, *,
              prompt_tokens: Optional[int] = None,
-             slice: Optional[str] = None) -> CallResult:
+             slice: Optional[str] = None,
+             signals: Optional[Mapping] = None) -> CallResult:
         """Route and execute one call; raise :class:`AllModelsFailed` if none succeeds.
 
         ``prompt_tokens`` is the request's size in tokens; when None it is estimated with
@@ -119,16 +121,36 @@ class Executor:
         ``prompt_tokens`` that is not an integer >= 0 raises ``ValueError`` before any call.
         ``slice`` names a slice of the task, routed on that slice's own counts, and every
         record carries it (DESIGN 7 and 8.1 v1.511); ``select`` checks it before any call.
+        ``signals`` maps signal names to callables and routes the task's cascades too: a
+        cascade entry runs its cheap model and hands the call up to a fresh call of its strong
+        model when ``signals[signal](text)`` is truthy or the cheap model raises
+        ``ProviderError``, and its records carry ``cascade`` and ``escalated`` (DESIGN 7 and
+        8.1 v1.537). A ``signals`` that is not a mapping, or a routed cascade whose signal is
+        no callable in it, raises ``ValueError`` before any call.
         """
         _check_prompt_tokens(prompt_tokens)
+        if signals is not None and not isinstance(signals, Mapping):
+            raise ValueError(f"signals must be None or a mapping of signal names to "
+                             f"callables, got {type(signals).__name__}")
         estimated = prompt_tokens is None
         size = estimate_prompt_tokens(messages) if estimated else prompt_tokens
         decision = self.router.select(task_name, flavor=flavor,
                                       generator_model=generator_model,
                                       exclude_models=exclude_models, prompt_tokens=size,
-                                      slice=slice)
+                                      slice=slice, cascades=signals is not None)
+        cascades = {}
+        if signals is not None:
+            by_id = {cascade.id: cascade for cascade in self.router.tasks[task_name].cascades}
+            for entry in (decision.primary, *decision.fallbacks):
+                cascade = by_id.get(entry)
+                if cascade is None:
+                    continue
+                if cascade.signal not in signals or not callable(signals[cascade.signal]):
+                    raise ValueError(f"routed cascade {entry!r} needs a callable for its "
+                                     f"signal {cascade.signal!r} in signals")
+                cascades[entry] = cascade
         return self._execute(task_name, decision, messages, dict(tags or {}), validate,
-                             (size, estimated))
+                             (size, estimated), cascades, signals)
 
     def call_delegated(self, decision, messages: List[dict],
                        tags: Optional[Dict[str, str]] = None,
@@ -157,46 +179,79 @@ class Executor:
     def _execute(self, task_name: str, decision: RouteDecision, messages: List[dict],
                  call_tags: Dict[str, str],
                  validate: Optional[Callable[[str], object]],
-                 size: Optional[Tuple[int, bool]] = None) -> CallResult:
+                 size: Optional[Tuple[int, bool]] = None,
+                 cascades: Optional[Dict[str, object]] = None,
+                 signals: Optional[Mapping] = None) -> CallResult:
         task = self.router.tasks[task_name]
         registry = self.router.registry
         call_id = self.id_factory()
         order = (decision.primary, *decision.fallbacks)
         attempts: List[Attempt] = []
-        for index, model_id in enumerate(order):
-            start = self.clock()
-            text = None
-            try:
-                completion = self.provider.complete(model_id, messages, task.timeout_s)
-            except ProviderError as exc:
-                latency_ms = float((self.clock() - start) * 1000.0)
-                attempt = Attempt(model_id, "error", f"{type(exc).__name__}: {exc}",
-                                  latency_ms, 0, 0, 0.0)
-            else:
-                latency_ms = float((self.clock() - start) * 1000.0)
-                cost = float(registry.get(model_id).cost(completion.input_tokens,
-                                                          completion.output_tokens))
-                if validate is not None and not validate(completion.text):
-                    attempt = Attempt(model_id, "invalid", "validation failed", latency_ms,
-                                      completion.input_tokens, completion.output_tokens, cost)
-                else:
-                    attempt = Attempt(model_id, "ok", None, latency_ms,
-                                      completion.input_tokens, completion.output_tokens, cost)
-                    text = completion.text
+
+        def log(attempt: Attempt, final: bool, entry: str, cascade=None, escalated=None):
             attempts.append(attempt)
-            final = attempt.outcome == "ok" or index == len(order) - 1
             if self.monitor is not None:
-                self.monitor.record(self._record(call_id, decision, registry, index, final,
-                                                 attempt, call_tags, size))
+                self.monitor.record(self._record(call_id, decision, registry, len(attempts) - 1,
+                                                 final, attempt, call_tags, size, entry,
+                                                 cascade, escalated))
+
+        for position, entry in enumerate(order):
+            last = position == len(order) - 1
+            cascade = (cascades or {}).get(entry)
+            if cascade is None:
+                attempt, text = self._checked(*self._run(entry, messages, task, registry),
+                                              validate)
+                log(attempt, text is not None or last, entry)
+                if text is not None:
+                    return CallResult(call_id, text, entry, tuple(attempts), decision)
+                continue
+            # DESIGN 7 v1.537: the cheap model first; a ProviderError or a truthy signal
+            # hands the call up to a fresh call of the strong model on the same messages
+            attempt, completion = self._run(cascade.cheap, messages, task, registry)
+            if completion is not None and not signals[cascade.signal](completion.text):
+                attempt, text = self._checked(attempt, completion, validate)
+                log(attempt, text is not None or last, entry, cascade, False)
+                if text is not None:
+                    return CallResult(call_id, text, cascade.cheap, tuple(attempts), decision)
+                continue
+            log(attempt, False, entry, cascade, True)
+            attempt, text = self._checked(*self._run(cascade.strong, messages, task, registry),
+                                          validate)
+            log(attempt, text is not None or last, entry, cascade, True)
             if text is not None:
-                return CallResult(call_id, text, model_id, tuple(attempts), decision)
+                return CallResult(call_id, text, cascade.strong, tuple(attempts), decision)
         raise AllModelsFailed(
             f"all {len(attempts)} routed models failed for task {task_name!r}",
             tuple(attempts), decision)
 
+    def _run(self, model_id: str, messages: List[dict], task, registry):
+        """One timed provider call: its attempt, ``ok`` or ``error``, and the completion or None."""
+        start = self.clock()
+        try:
+            completion = self.provider.complete(model_id, messages, task.timeout_s)
+        except ProviderError as exc:
+            latency_ms = float((self.clock() - start) * 1000.0)
+            return Attempt(model_id, "error", f"{type(exc).__name__}: {exc}",
+                           latency_ms, 0, 0, 0.0), None
+        latency_ms = float((self.clock() - start) * 1000.0)
+        cost = float(registry.get(model_id).cost(completion.input_tokens,
+                                                  completion.output_tokens))
+        return Attempt(model_id, "ok", None, latency_ms, completion.input_tokens,
+                       completion.output_tokens, cost), completion
+
+    @staticmethod
+    def _checked(attempt: Attempt, completion, validate):
+        """The attempt as ``validate`` leaves it, and the accepted text or None."""
+        if completion is None:
+            return attempt, None
+        if validate is not None and not validate(completion.text):
+            return replace(attempt, outcome="invalid", error="validation failed"), None
+        return attempt, completion.text
+
     def _record(self, call_id: str, decision: RouteDecision, registry, index: int,
                 final: bool, attempt: Attempt, tags: Dict[str, str],
-                size: Optional[Tuple[int, bool]] = None) -> dict:
+                size: Optional[Tuple[int, bool]] = None, entry: Optional[str] = None,
+                cascade=None, escalated: Optional[bool] = None) -> dict:
         record = {
             "ts": self.now(),
             "call_id": call_id,
@@ -215,11 +270,15 @@ class Executor:
             "routing_cost_usd": attempt.cost_usd if decision.flavor == "cost_effective" else 0.0,
             "below_bar": decision.below_bar,
         }
-        if attempt.model in decision.below_bar_fallbacks:
+        # v1.537: by the route entry, so both attempts of a cascade entry share it
+        if (attempt.model if entry is None else entry) in decision.below_bar_fallbacks:
             record["below_bar_fallback"] = True
         record["basis"] = decision.basis
         record["tags"] = dict(tags)
         record["slice"] = decision.slice
+        if cascade is not None:
+            record["cascade"] = cascade.id
+            record["escalated"] = escalated
         if size is not None:
             record["prompt_tokens"], record["prompt_tokens_estimated"] = size
         return record

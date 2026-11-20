@@ -379,7 +379,7 @@ def test_decide_delegation_passes_no_cascades_and_keeps_a_cascade_key():
     assert [c.model_id for c in decision.route.candidates] == [CHEAP, MID, BEST, TWIN, PEER]
 
 
-def test_guard_the_executor_passes_no_cascades_until_row_esc2c():
+def test_guard_the_executor_without_signals_passes_no_cascades():
     script = {m.id: (lambda messages: Completion("done", 10, 5)) for m in REGISTRY.models}
     executor = Executor(router(), FakeProvider(script), now=lambda: "2026-11-20T00:00:00Z",
                         id_factory=lambda: "call-1")
