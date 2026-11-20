@@ -2,7 +2,7 @@
 
 Question: how can a call start on a cheap model and hand the work up to a stronger one when a signal appears during the work, without weakening the library's guarantee that a route clears its task's bar on measured data, and which public data, with no API key, can test it?
 
-Short answer: treat a cascade (a cheap model, a named signal the caller computes, and a strong model) as one routing candidate with calibration rows of its own. It clears a bar only when the Wilson lower bound of its own measured successes does, so it never inherits the strong model's pass. Its expected cost is the cheap model's cost plus the measured escalation share times the strong model's cost of re-reading the context so far, uncached, and answering. `DESIGN.md` 7 v1.532 specifies it for row ESC2. Of the converted public datasets, tau2-bench is the one that records both a signal a harness can count during the work (the agent calls made so far) and the tokens of each call, so row ESC3 runs there first with the signal "more than N agent calls". Measured by row ESC1b, the call count tells in telecom and, at 10 calls, in airline, not in retail, and many runs write to the domain's state before the hand-up, so ESC3 escalates only a run with no write call yet (`calls-over-N-no-write`, N of 10, 15 and 20), and tries the agent's own transfer to a human as a third signal. LiveCodeBench may give the failed-check signal (a failed public test case), success only, since it records no cost; row ESC1c checks that.
+Short answer: treat a cascade (a cheap model, a named signal the caller computes, and a strong model) as one routing candidate with calibration rows of its own. It clears a bar only when the Wilson lower bound of its own measured successes does, so it never inherits the strong model's pass. Its expected cost is the cheap model's cost plus the measured escalation share times the strong model's cost of re-reading the context so far, uncached, and answering. `DESIGN.md` 7 v1.532 specifies it for row ESC2. Of the converted public datasets, tau2-bench is the one that records both a signal a harness can count during the work (the agent calls made so far) and the tokens of each call, so row ESC3 runs there first with the signal "more than N agent calls". Measured by row ESC1b, the call count tells in telecom and, at 10 calls, in airline, not in retail, and many runs write to the domain's state before the hand-up, so ESC3 escalates only a run with no write call yet (`calls-over-N-no-write`, N of 10, 15 and 20), and tries the agent's own transfer to a human as a third signal. LiveCodeBench gives the failed-check signal, a failed public test case, success only, since it records no cost: row ESC1c matched the failing tests its runner recorded against the public cases of the pinned problem release, and the signal `public-test-failed` is never wrong when it fires but finds about a third of the failures.
 
 ## Facts
 
@@ -12,6 +12,7 @@ Short answer: treat a cascade (a cheap model, a named signal the caller computes
 - The signal is the caller's: only the caller's harness sees its tests, tool calls or services, so the library names a signal and calls the caller's function on the cheap model's result
 - The spec is `DESIGN.md` 7 v1.532; no code reads it until row ESC2
 - `## Measured signals (row ESC1b)` holds the output of `research/escalation_signals.py` (`DESIGN.md` 7 v1.533) on the pinned tau2-bench files
+- `## Public tests matched (row ESC1c)` holds the output of `research/escalation_public_tests.py` (`DESIGN.md` 7 v1.534) on one pinned LiveCodeBench problem release file
 - No results file, package, README or workflow change in this note
 
 ## Why a cascade is one candidate
@@ -27,7 +28,7 @@ Short answer: treat a cascade (a cheap model, a named signal the caller computes
 |---|---|---|---|---|
 | tau2-bench (12.14) | per (task, agent, trial) a conversation: each agent message with its `tool_calls` and, on most, a `usage` of prompt and completion tokens (12.14 sums those that are not null), and a program-checked reward; four 2025 agents in three domains | more than N agent calls, counted as the run goes, and whether a write call came first; the agent's own `transfer_to_human_agents` call, offered in all three domains, which some tasks' policies require, so it can end a correct run as well as a stuck one | each call priced from its own `usage` at list price | ESC3 first |
 | Longtail-SWE (12.25) | per (task, model, run) token totals and a test-checked label; a run sums a median 38 model calls ([longtail-delegation.md](longtail-delegation.md)) and the release records no per-call tokens | more than N model calls | needs the stated split of [longtail-per-call.md](longtail-per-call.md), an assumption the release cannot check | second for the call-count signal |
-| LiveCodeBench (12.16) | per (problem, model) a graded list of samples; in the smallest kept file, `O1-Mini-2024-09-12` (3,636,170 bytes, 880 problems), read on 2026-11-20, 236 of the 278 failed first samples hold in `metadata` the failing test's `inputs`, `expected` and `output` and an `error_code`, 35 an `error` in place of `output`, and 7 no test at all (only an error code and message), while each of the 602 passed ones holds only its `execution time`; whether the failing test is one of the problem's public test cases is not recorded | a failed public test, a check the caller can run, only if the failing test can be matched against the public test cases of the problem release, which this repo does not pin | none: the files record no cost (12.16, [livecodebench-cost.md](livecodebench-cost.md)), so `cost_blind` only | ESC3 second, success only, if ESC1c finds the match |
+| LiveCodeBench (12.16) | per (problem, model) a graded list of samples; in the smallest kept file, `O1-Mini-2024-09-12` (3,636,170 bytes, 880 problems), read on 2026-11-20, 236 of the 278 failed first samples hold in `metadata` the failing test's `inputs`, `expected` and `output` and an `error_code`, 35 an `error` in place of `output`, and 7 no test at all (only an error code and message), while each of the 602 passed ones holds only its `execution time`; whether the failing test is one of the problem's public test cases is not recorded | a failed public test, a check the caller can run: the recorded failing test matched against the public cases of the pinned problem release (row ESC1c) | none: the files record no cost (12.16, [livecodebench-cost.md](livecodebench-cost.md)), so `cost_blind` only | ESC3 second, success only, signal `public-test-failed` (row ESC1c) |
 | LLMRouterBench (12.18) | per (item, model) a score and a cost | on `livecodebench` a caller holds the public test cases, but the records keep no test-level result ([check-fallback.md](check-fallback.md)) | recorded | no: only the record's own score, the upper bound check-fallback.md measures |
 | RouterBench, AutoBench 2026, the response bank, the registry pair (12.6, 12.9, 12.20, 12.23) | one answer per (item, model) and no run-time trace | only a check on the answer, which their labels make with an answer key a caller lacks | recorded | no |
 | TRAIL (13.11) | real hand-offs with per-call tokens | call counts | recorded | no: no success label |
@@ -41,7 +42,7 @@ Short answer: treat a cascade (a cheap model, a named signal the caller computes
 - Dataset: tau2-bench, the 12 pinned run files of 12.14, trial 0, one task per domain as in 12.15
 - Cascades: each pair of the four agents with the cheap one at the lower list price, and the signal `calls-over-N-no-write`, with the signal `calls-over-N` beside it, for N = 10, 15 and 20, and the signal `transfer` (`## Measured signals (row ESC1b)`)
 - A row of the replay: escalated when the cheap run makes more than N agent calls (for `calls-over-N-no-write`, with no write call among its first N; for `transfer`, when it calls `transfer_to_human_agents`, its calls up to that one standing for the first N); correct is the strong run's reward when escalated and the cheap run's otherwise; cost is the list-price cost of the cheap run's first N calls (all of them when it does not escalate) plus, when escalated, the prompt and completion tokens of its Nth call as the strong model's uncached input and the strong run's list-price cost
-- Compared at the same bars, held-out: the best single model, the routed row of 12.15 and the best cascade, each with its success and cost, and the escalation share. The sliced route exists only where slices are committed (12.27, 12.28), so it is compared on LiveCodeBench, if ESC1c clears it there
+- Compared at the same bars, held-out: the best single model, the routed row of 12.15 and the best cascade, each with its success and cost, and the escalation share. The sliced route exists only where slices are committed (12.27, 12.28), so it is compared on LiveCodeBench, which ESC1c keeps as the second dataset, success only, with the signal `public-test-failed`
 - Limits the README part states: a signal measured on a benchmark may not exist in your product. The strong run in the data starts fresh, with its own simulated user, so the replay assumes a hand-up that restarts the conversation; a write the cheap agent made before the hand-up would stay in a real system's state, which the replay cannot see, so `calls-over-N-no-write` never hands such a run up and `calls-over-N` and `transfer` are labelled for it. In telecom the user's own device actions (`src/tau2/domains/telecom/user_tools.py` at the same commit), which the agent asks for, change state too, and no signal here counts them
 
 ## What row ESC2 implements
@@ -128,7 +129,94 @@ transfer_to_human_agents: airline GENERIC, retail GENERIC, telecom GENERIC
 - The grid: at N = 5 nearly every run is over (184 of 200 in airline, 455 and 456 of 456 in retail and telecom), so a cascade there is the strong model plus the cheap model's waste; at N = 30 only 3, 0 and 32 are over, so it almost never escalates
 - Decision for row ESC3: the dataset stays tau2-bench, one task per domain, so retail's result shows a signal that says little there. The signal becomes `calls-over-N-no-write`: escalate when the cheap run passes N agent calls with no write call among the first N, and leave a run that wrote first on the cheap model, as a harness that sees its own tool calls can; `calls-over-N` runs beside it, labelled as a replay that assumes the cheap agent's writes undone. The grid is N = 10, 15 and 20; under the no-write rule only telecom escalates a usable share at 15 and 20 (142 and 71 runs, against 11 and 4 in airline and 14 and 0 in retail), so in ESC3 an empty cell is no result. ESC3 adds a third signal, `transfer`: escalate when the cheap run calls `transfer_to_human_agents`, labelled as `calls-over-N` is, since a run may write before it transfers; the counts above say it may help in telecom and cost passes in airline and retail
 
-## Not settled here (row ESC1c)
+## Public tests matched (row ESC1c)
 
-- On LiveCodeBench, whether a failed sample's failing test can be matched against the release's public test cases at a pinned revision, and in what order the release's runner checks public and private cases
-- Then LiveCodeBench stands as row ESC3's second dataset, success only, or drops
+`research/escalation_public_tests.py` reads one release file of the problems, `test3.jsonl` of `livecodebench/code_generation_lite` at a pinned revision, the runner's `lcb_runner/benchmarks/code_generation.py` and `lcb_runner/evaluation/testing_util.py` at a pinned commit of LiveCodeBench/LiveCodeBench, and the 67 kept submission files of 12.16; its output on the cached files, 2026-11-20:
+
+```text
+$ python research/escalation_public_tests.py
+problem release livecodebench/code_generation_lite at 0fe84c3912ea0c4d4a78037083943e8f0c4dd505, read: test3.jsonl
+runner LiveCodeBench/LiveCodeBench at 28fef95ea8c9f7a547c8329f2cd3d32b92c1fa24: public cases before private ones (get_evaluation_sample), the failing case recorded by truncatefn at 300 characters
+submissions at 6ca212e9c2039373f6e5069d37ffa9db66e23736: 67 kept files, 713 problems in every one (the 12.16 kept problems)
+sample problems: 101, contest dates 2024-06-01 to 2024-08-10, public cases per problem 2 to 4 (median 3), among the 12.16 kept problems: 101
+
+model                                    problems  failed  public  other  input_only  no_test  unread  public_share  public_of_tested
+---------------------------------------  --------  ------  ------  -----  ----------  -------  ------  ------------  ----------------
+agentica/deepcoder-14b-preview                101      20       0      0           0        0      20         0.000               n/a
+anthropic/claude-3-haiku                      101      80      34     45           0        1       0         0.425             0.430
+anthropic/claude-3.5-sonnet-20240620          101      61      22     38           0        1       0         0.361             0.367
+anthropic/claude-3.5-sonnet-20241022          101      54      15     39           0        0       0         0.278             0.278
+anthropic/claude-3.7-sonnet                   101      36       9     27           0        0       0         0.250             0.250
+anthropic/claude-opus-4                       101      30       9     21           0        0       0         0.300             0.300
+anthropic/claude-opus-4-thinking              101      23       7     16           0        0       0         0.304             0.304
+anthropic/claude-sonnet-4                     101      31      10     21           0        0       0         0.323             0.323
+anthropic/claude-sonnet-4-thinking            101      26       5     21           0        0       0         0.192             0.192
+deepseek/deepseek-r1-0528                     101      13       0      0           0       13       0         0.000               n/a
+deepseek/deepseek-r1-lite-preview             101      30      10     14           0        6       0         0.333             0.417
+deepseek/deepseek-r1-preview                  101      20       4     16           0        0       0         0.200             0.200
+deepseek/deepseek-v3                          101      40      16     21           0        3       0         0.400             0.432
+deepseek/dscoder-1.3b-ins                     101      93      32     43           0       18       0         0.344             0.427
+deepseek/dscoder-33b-ins                      101      75      30     41           0        4       0         0.400             0.423
+deepseek/dscoder-6.7b-ins                     101      84      37     45           0        2       0         0.440             0.451
+google/gemini-2.5-flash-04-17                 101      21       5     14           0        2       0         0.238             0.263
+google/gemini-2.5-flash-05-20                 101      14       4      9           0        1       0         0.286             0.308
+google/gemini-2.5-pro-03-25                   101      15       3      9           0        3       0         0.200             0.250
+google/gemini-2.5-pro-05-06                   101      11       5      6           0        0       0         0.455             0.455
+google/gemini-2.5-pro-06-05                   101      11       3      7           0        1       0         0.273             0.300
+google/gemini-exp-1206                        101      52      12     34           0        6       0         0.231             0.261
+google/gemini-flash-1.5-002                   101      60      20     38           0        2       0         0.333             0.345
+google/gemini-flash-2.0-exp                   101      56      15     37           0        4       0         0.268             0.288
+google/gemini-flash-2.0-thinking              101      46      13     30           0        3       0         0.283             0.302
+google/gemini-flash-2.0-thinking-01-21        101      39       7     30           0        2       0         0.179             0.189
+google/gemini-flash-2.0-thinking-12-19        101      39       8     29           0        2       0         0.205             0.216
+google/gemini-pro-1.5-002                     101      61      20     40           0        1       0         0.328             0.333
+lgai/exaone-4.0-32b                           101      16       2     13           0        1       0         0.125             0.133
+meta-llama/llama3.3-70b-ins                   101      65      24     37           0        4       0         0.369             0.393
+metastone/metastone-l1-7b                     101      40      18     12           0       10       0         0.450             0.600
+mistralai/codestral-latest                    101      69      28     39           0        2       0         0.406             0.418
+mistralai/mistral-large                       101      61      26     34           0        1       0         0.426             0.433
+moonshotai/kimi-k1.6-ioi                      101      15       6      8           0        1       0         0.400             0.429
+moonshotai/kimi-k1.6-ioi-high                 101      13       4      8           0        1       0         0.308             0.333
+nvidia/llama-3_1-nemotron-nano-8b-v1          101      34      14      6           0       14       0         0.412             0.700
+nvidia/llama-3_1-nemotron-ultra-253b-v1       101      17       4     13           0        0       0         0.235             0.235
+nvidia/openreasoning-nemotron-32b             101      17       4     13           0        0       0         0.235             0.235
+openai/gpt-4-0613                             101      71      34     37           0        0       0         0.479             0.479
+openai/gpt-4-turbo-1106                       101      65      24     40           0        1       0         0.369             0.375
+openai/gpt-4-turbo-2024-04-09                 101      58      25     31           0        2       0         0.431             0.446
+openai/gpt-4o-2024-05-13                      101      56      20     35           0        1       0         0.357             0.364
+openai/gpt-4o-2024-08-06                      101      59      26     33           0        0       0         0.441             0.441
+openai/gpt-4o-mini-2024-07-18                 101      63      20     43           0        0       0         0.317             0.317
+openai/o1-2024-12-17-high                     101      12       5      7           0        0       0         0.417             0.417
+openai/o1-2024-12-17-low                      101      17       7      9           0        1       0         0.412             0.438
+openai/o1-2024-12-17-med                      101      19       8     11           0        0       0         0.421             0.421
+openai/o1-mini-2024-09-12                     101      32      13     18           0        1       0         0.406             0.419
+openai/o1-preview-2024-09-12                  101      47      13     33           0        1       0         0.277             0.283
+openai/o3-high                                101      12       3      5           0        4       0         0.250             0.375
+openai/o3-mini-2025-01-31-high                101      16       5      7           0        4       0         0.312             0.417
+openai/o3-mini-2025-01-31-low                 101      19       7      9           0        3       0         0.368             0.438
+openai/o3-mini-2025-01-31-med                 101      17       6      6           0        5       0         0.353             0.500
+openai/o4-mini-high                           101       9       3      6           0        0       0         0.333             0.333
+openai/o4-mini-low                            101      19       7     10           0        2       0         0.368             0.412
+openai/o4-mini-medium                         101      10       3      5           0        2       0         0.300             0.375
+qwen/qwen2-ins-72b                            101      76      34     42           0        0       0         0.447             0.447
+qwen/qwen2.5-coder-ins-32b                    101      61      23     32           0        6       0         0.377             0.418
+qwen/qwen2.5-coder-ins-7b                     101      80      35     43           0        2       0         0.438             0.449
+qwen/qwen2.5-ins-32b                          101      62      26     35           0        1       0         0.419             0.426
+qwen/qwen2.5-ins-72b                          101      59      20     37           0        2       0         0.339             0.351
+qwen/qwen2.5-ins-7b                           101      77      35     41           0        1       0         0.455             0.461
+qwen/qwen3-235b-a22b                          101      15       0      0           0        0      15         0.000               n/a
+qwen/qwq-32b-preview                          101      40      14     17           0        9       0         0.350             0.452
+qwen/qwq-32b_temp                             101      23       2     14           0        7       0         0.087             0.125
+qwen/qwq-max-preview                          101      15       0      0           0        0      15         0.000               n/a
+xai/grok-3-mini-high                          101      15       3     11           0        1       0         0.200             0.214
+all                                         6,767   2,612     906  1,491           0      165      50         0.347             0.378
+
+public matches by the 0-based index of the matched case: 0: 712, 1: 118, 2: 76
+```
+
+- Which release: the problems every kept file has are the 713 that 12.16 keeps, and the dataset card's `release_v4` is 713 problems, held in `test.jsonl` to `test4.jsonl`. Those four files are large (`DESIGN.md` 7 v1.534 pins their sizes), so the script reads the smallest, `test3.jsonl`, whose 101 problems are all among the 713: the counts are for that stated sample, 101 of the 713 problems in every kept file
+- The runner's order: at the pinned commit `get_evaluation_sample` lists a problem's public cases before its private ones, and the grader returns at the first failing case and records its input and expected output through `truncatefn` at 300 characters; the script checks both lines in the pinned files and compares through a copy of `truncatefn`. It never decodes the private cases, which the release stores as a pickle
+- The match: of the 2,612 failed first samples on the 101 problems, 906 (0.347) failed on a public case, their recorded input and expected output equal to one of the problem's public cases, 712 of them on its first; 1,491 hold a test that matches no public case, so by the runner's order they passed every public case and failed a private one. No failing test matched a public input with another expected output (`input_only` 0 in every file), so the recorded tests and the release's public cases agree. Over the failed samples that hold a test the public share is 0.378
+- What the match leaves out: 165 samples hold no test (an error before any case ran), among them all 13 of `deepseek/deepseek-r1-0528`; and three files hold no readable metadata, 50 samples: `agentica/deepcoder-14b-preview` (20, its metadata one string, not a list), `qwen/qwen3-235b-a22b` and `qwen/qwq-max-preview` (15 each, no metadata). The script does not confirm that each of the 1,491 is a private case, only that it is no public one
+- What a caller sees: a caller who runs a problem's public cases on the cheap answer runs the same cases in the same order, so it sees the failure the runner recorded for these 906, except where a time limit decides a case and the caller's machine is faster or slower
+- Decision for row ESC3: LiveCodeBench stays its second dataset, success only (`cost_blind`, since the files record no cost), with the signal `public-test-failed`: escalate when the cheap model's first sample fails a public case. The signal is never wrong when it fires, since a sample that fails a public case fails the problem, but it misses every failure only a private case finds, here 1,491 of 2,612, so a cascade keeps those wrong answers on the cheap model and its own success is measured, never assumed. ESC3 needs the public cases of all 713 kept problems, `test.jsonl` to `test4.jsonl`, or keeps to these 101; it counts a `no_test` sample both ways, escalated and kept, as a bound, and a file with no readable metadata is never a cheap model there
