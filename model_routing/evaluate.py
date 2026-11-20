@@ -252,7 +252,8 @@ def evaluate(outcomes, bars, seeds=range(10), flavors=("cost_effective", "cost_b
     }
     if groups:
         result["per_slice"] = _per_slice(cells, bars, flavors, groups)
-        result["slice_summary"] = _slice_summary(cells, slice_sums, bars, flavors, seeds)
+        result["slice_summary"] = _slice_summary(cells, table, splits, groups, slice_sums, bars,
+                                                 flavors, seeds)
     return result
 
 
@@ -396,7 +397,7 @@ def _per_task(cells, bars, flavors, seeds, tasks, strategies):
     return rows
 
 
-SLICE_STRATEGIES = ("pooled", "sliced")
+_SLICE_STRATEGIES = ("pooled", "sliced")
 
 
 def _slice_groups(table, tasks, task_items) -> Dict[str, Dict[str, frozenset]]:
@@ -471,7 +472,7 @@ def _per_slice(cells, bars, flavors, groups):
                          and c["task"] == task]
                 for name in groups[task]:
                     pairs = [(c, c["slices"][name]) for c in group]
-                    for st in SLICE_STRATEGIES:
+                    for st in _SLICE_STRATEGIES:
                         units = [(_slice_cleared(c, e, st), e["success"][st]) for c, e in pairs]
                         below, cleared, violation = _slice_rates(units, bar)
                         routed: Dict[str, int] = {}
@@ -489,13 +490,13 @@ def _per_slice(cells, bars, flavors, groups):
     return rows
 
 
-def _slice_summary(cells, slice_sums, bars, flavors, seeds):
+def _slice_summary(cells, table, splits, groups, slice_sums, bars, flavors, seeds):
     rows = []
     for bar in bars:
         for flavor in flavors:
             group = [c for c in cells if c["bar"] == bar and c["flavor"] == flavor
                      and "slices" in c]
-            for st in SLICE_STRATEGIES:
+            for st in _SLICE_STRATEGIES:
                 per_seed_success, per_seed_cost, units = [], [], []
                 met = missed = 0
                 for seed in seeds:
@@ -503,11 +504,15 @@ def _slice_summary(cells, slice_sums, bars, flavors, seeds):
                     spend = []
                     for c in (c for c in group if c["seed"] == seed):
                         split = slice_sums[c["task"], seed]
+                        held = splits[c["task"], seed][1]
                         right, every_cleared, some_below = 0, True, False
                         for name, e in c["slices"].items():
                             ok = _slice_cleared(c, e, st)
-                            right += split[name]["held_correct"][e["models"][st]]
-                            spend.append(e["cost_usd"][st])
+                            m = e["models"][st]
+                            right += split[name]["held_correct"][m]
+                            # v1.517: the items' costs, so the seed's total is one exact fsum
+                            spend.extend(table[c["task"], i][m].cost_usd for i in held
+                                         if i in groups[c["task"]][name])
                             units.append((ok, e["success"][st]))
                             every_cleared = every_cleared and ok
                             some_below = some_below or e["success"][st] < bar

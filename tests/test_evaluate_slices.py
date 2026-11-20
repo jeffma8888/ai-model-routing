@@ -274,6 +274,26 @@ def test_slice_summary_gives_the_headline():
                        "slice_miss_rate": 0.0}
 
 
+def test_slice_summary_cost_is_one_fsum_over_the_items_costs():
+    """v1.517 (review iter-366): with non-integer costs, a sum of the slices' rounded totals can
+    sit one ulp off; on this matrix it does (7.941000000000001), and one fsum gives 7.941."""
+    rows = []
+    for i in range(120):
+        name, item = ("a" if i % 3 else "b"), f"x{i:03d}"
+        rows.append({"task": "t", "item": item, "model": CHEAP, "correct": True,
+                     "cost_usd": ((i * 4) % 97) / 1000 + 0.1, "slice": name})
+        rows.append({"task": "t", "item": item, "model": BEST, "correct": True, "cost_usd": 1.0,
+                     "slice": name})
+    result = run(rows, bars=[0.5], seeds=[0])
+    cost = {r["item"]: r["cost_usd"] for r in rows if r["model"] == CHEAP}
+    exact = fsum(cost[i] for i in held(list(cost), 0))
+    routed = [r for r in result["summary"] if r["strategy"] == "routed"]
+    assert result["cells"][0]["models"]["routed"] == CHEAP
+    assert routed[0]["cost_usd"] == exact == 7.941
+    assert result["slice_summary"][0]["strategy"] == "pooled"
+    assert result["slice_summary"][0]["cost_usd"] == exact
+
+
 def test_cost_blind_routes_best_everywhere_and_misses_no_slice():
     result = run(planted_rows(), flavors=("cost_blind",))
     for cell in result["cells"]:
