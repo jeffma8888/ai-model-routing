@@ -234,8 +234,9 @@ def test_the_cascade_reads_its_slice_key_alone():
     ({"generator_model": BEST}, {}, C, "generator"),
     ({"generator_model": TWIN}, {}, C, "generator_family"),
     ({"generator_model": PEER}, {}, C, "generator_family"),
-    ({"prompt_tokens": 20_000}, {}, C, "context_too_small"),
-    ({"prompt_tokens": 20_000}, {}, Cascade(TWIN, MID, "sig"), "context_too_small"),
+    ({"prompt_tokens": 20_000}, {}, C, "context_too_small"),  # the cheap model's 10,000 window
+    ({"prompt_tokens": 20_000}, {}, Cascade(TWIN, MID, "sig"),
+     "context_too_small"),  # the strong model's 10,000 window
     # the cheap model's rule 5 comes before the strong model's rule 1
     ({"prompt_tokens": 20_000, "exclude_models": [BEST]}, {}, C, "context_too_small"),
     # the cheap model's rule 3 comes before the strong model's rule 2
@@ -253,8 +254,9 @@ def test_a_cascade_with_a_model_the_registry_lacks(cascade):
     stats = planted_stats()
     stats.add("t", cascade.id, 95, 100, escalated=20)
     r = router(task(cascades=(cascade,)), stats)
-    # before any other rule: the excluded cheap model and the generator do not name it
-    c = by_id(candidates_of(r, "t", cascades=True, exclude_models=[CHEAP],
+    # before any other rule: the excluded cascade id and cheap model and the generator do
+    # not name it (review iter-382 should-fix 1)
+    c = by_id(candidates_of(r, "t", cascades=True, exclude_models=[cascade.id, CHEAP],
                             generator_model=BEST))[cascade.id]
     assert (c.reason, c.family, c.list_cost, c.routing_cost) == ("cascade_unknown_model", "", 0.0, 0.0)
     assert (c.eligible, c.passes, c.successes, c.trials) == (False, False, 95, 100)
@@ -363,6 +365,19 @@ def test_guard_without_the_keyword_a_planted_cascade_is_no_candidate():
     assert [c.model_id for c in decision.candidates] == [CHEAP, MID, BEST, TWIN, PEER]
     assert decision == router(task(cascades=())).select("t")
     assert route(decision) == (BEST,)
+
+
+@pytest.mark.xfail(strict=True, reason="review iter-382: the briefed stats copy lands next commit")
+def test_decide_delegation_passes_no_cascades_and_keeps_a_cascade_key():
+    # the stats hold token counts on the task and a cascade key, and the brief is not empty,
+    # so decide_delegation briefs a copy of them (13.3); v1.535 dropped the escalation count
+    # from that copy and raised ValueError (review iter-382 nit 2)
+    kw = dict(context_tokens=1000, brief_tokens=100, result_tokens=50)
+    decision = router().decide_delegation("t", BEST, **kw)
+    plain = router(task(cascades=()), planted_stats(cascade=None)).decide_delegation("t", BEST, **kw)
+    assert decision == plain
+    assert decision.route is not None
+    assert [c.model_id for c in decision.route.candidates] == [CHEAP, MID, BEST, TWIN, PEER]
 
 
 def test_guard_the_executor_passes_no_cascades_until_row_esc2c():
