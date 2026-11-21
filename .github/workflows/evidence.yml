@@ -21,6 +21,7 @@ on:
     paths:
       - "evidence/**"
       - "model_routing/**"
+      - "research/escalation_signals.py"
       - "pyproject.toml"
       - ".github/workflows/evidence.yml"
 
