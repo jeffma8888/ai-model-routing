@@ -1398,9 +1398,10 @@ def test_the_workflow_reruns_the_tau2_cascades_block_last():
     signals = importlib.util.module_from_spec(spec_)
     spec_.loader.exec_module(signals)
     size = sum(entry[0] for entry in signals.TOOL_FILES.values())
-    assert len(signals.TOOL_FILES) == 3 and f"{size:,} bytes, one attempt each" in bullets[0]
-    # review iter-389 should-fix 1: fetch_tools has no ATTEMPTS loop, so the bullet says how a failed one is retried
-    assert "one attempt each, retried only by rerunning the job" in bullets[0] and "ATTEMPTS" not in signals.__dict__
+    assert len(signals.TOOL_FILES) == 3 and f"at the 12.14 revision, {size:,} bytes. " in bullets[0]
+    # v1.545 (row ESC3h): fetch_tools retries as the converters do (the time-limit bullet and
+    # tests/test_evidence_download_retries.py), so the bullet no longer says one attempt each
+    assert "one attempt" not in bullets[0] and "rerunning the job" not in bullets[0] and signals.ATTEMPTS == 3
     assert "does not count its file" in bullets[0] and "(7 v1.543)" in bullets[0]
     assert ("then (v1.530) that of `evidence/livecodebench/RESULTS.md` (12.28), then (v1.544) that of `## Cascades` "
             "of `evidence/tau2-bench/RESULTS.md` (12.29);") in section

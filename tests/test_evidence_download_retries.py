@@ -1,15 +1,22 @@
-"""DESIGN.md 12.13 v1.406 (row CI23): each of the six `fetch` functions the `evidence` job calls
-(12.9, 12.14, 12.16, 12.18, 12.20 and 13.15) tries a missing file up to `ATTEMPTS = 3` times, at
-once, each attempt rewriting `<name>.part` from its first byte. An attempt whose `urlopen` or read
-raises an `Exception` other than a `ValueError` (13.15: any `Exception`) is retried, and the last
-attempt's error is raised as each module raised it before; a download that fails `verify` and a
-`BaseException` are never retried. Each module's own fetch tests keep their cases: a failure on
-every attempt is the same error after three calls.
+"""DESIGN.md 12.13 v1.406 (row CI23): each of the download functions the `evidence` job calls tries a
+missing file up to `ATTEMPTS = 3` times, at once, each attempt rewriting `<name>.part` from its first
+byte. An attempt whose `urlopen` or read raises an `Exception` other than a `ValueError` (13.15 and
+`fetch_tools`: any `Exception`) is retried, and the last attempt's error is raised as each module
+raised it before; a download that fails `verify` and a `BaseException` are never retried. Each
+module's own fetch tests keep their cases: a failure on every attempt is the same error after three
+calls.
+
+v1.545 (row ESC3h): the functions are nine, the `fetch` of 12.9, 12.14, 12.16, 12.18, 12.20, 12.23,
+12.25 and 13.15 and `fetch_tools` in research/escalation_signals.py, which the job calls through
+evidence/tau2-bench/cascades.py for the three `tools.py` files; until v1.545 it tried each once, and
+12.23 and 12.25 retried from v1.443 and v1.489 but were not tested here.
 """
 
+import functools
 import hashlib
 import importlib.util
 import io
+import re
 import time
 import urllib.parse
 import urllib.request
@@ -26,9 +33,15 @@ SCRIPTS = {
     "llmrouterbench": "evidence/llmrouterbench/convert.py",
     "response_bank": "evidence/response-bank/convert.py",
     "ledger": "evidence/ledger-handoff/results.py",
+    "registry_pair": "evidence/registry-pair/convert.py",
+    "longtail_swe": "evidence/longtail-swe/convert.py",
+    "tools": "research/escalation_signals.py",  # fetch_tools, called through evidence/tau2-bench/cascades.py
 }
+SECTIONS = ("12.9", "12.14", "12.16", "12.18", "12.20", "12.23", "12.25", "13.15")  # each `fetch` of SCRIPTS
 WRAPS_NONE = {"autobench"}  # 12.9 raises a download error as it is, not as an OSError naming the file
-WRAPS_VALUE_ERROR = {"ledger"}  # 13.15 reports every download error, a ValueError included, as one
+# 13.15 and fetch_tools report every download error, a ValueError included, as one
+WRAPS_VALUE_ERROR = {"ledger", "tools"}
+WORKFLOW = ROOT / ".github" / "workflows" / "evidence.yml"
 BODY = b'{"a": 1}\n'
 OTHER = b'{"a": 2}\n'  # the same size, another sha256
 
@@ -61,6 +74,17 @@ def pin(key, mod, monkeypatch, cache):
     if key == "response_bank":
         monkeypatch.setattr(mod, "FILES", {"scores_cal.jsonl": entry})
         return {mod.url("scores_cal.jsonl"): BODY}, cache / "scores_cal.jsonl"
+    if key in ("registry_pair", "longtail_swe"):
+        monkeypatch.setattr(mod, "FILES", {"a.json": entry})
+        return {mod.url("a.json"): BODY}, cache / "a.json"
+    if key == "tools":
+        # fetch_tools(folder, convert) takes the 12.14 converter for its verify, REPO and REVISION
+        convert = load("tau2")
+        monkeypatch.setattr(mod, "TOOL_FILES", {"airline": entry})
+        monkeypatch.setattr(mod, "fetch", functools.partial(mod.fetch_tools, convert=convert), raising=False)
+        url = (f"https://raw.githubusercontent.com/{convert.REPO}/{convert.REVISION}/"
+               "src/tau2/domains/airline/tools.py")
+        return {url: BODY}, cache / "airline-tools.py"
     assert key == "ledger"
     monkeypatch.setattr(mod, "FILES", {"data/ledger/a.jsonl": entry})
     return {mod.BASE_URL + "data/ledger/a.jsonl": BODY}, cache / "a.jsonl"
@@ -126,6 +150,17 @@ FAILURES = {
 @pytest.mark.parametrize("key", list(SCRIPTS))
 def test_each_module_tries_three_times(key):
     assert load(key).ATTEMPTS == 3
+
+
+def test_each_script_the_job_runs_that_downloads_is_tested_here():
+    # v1.545 (row ESC3h): a downloader the workflow runs outside SCRIPTS would be outside the rule's tests,
+    # as fetch_tools was, through cascades.py, until v1.545 (cascades.py itself holds no urlopen).
+    run = sorted(set(re.findall(r"^\s+python (\S+\.py)\b", WORKFLOW.read_text(encoding="utf-8"), re.M)))
+    assert "evidence/tau2-bench/cascades.py" in run and len(run) > 10
+    downloading = {path for path in run if "urlopen" in (ROOT / path).read_text(encoding="utf-8")}
+    assert downloading == set(SCRIPTS.values()) - {SCRIPTS["tools"]}
+    cascades = (ROOT / "evidence" / "tau2-bench" / "cascades.py").read_text(encoding="utf-8")
+    assert '"research" / "escalation_signals.py"' in cascades and "signals.fetch_tools(" in cascades
 
 
 @pytest.mark.parametrize("kind", list(FAILURES))
@@ -206,8 +241,12 @@ def test_design_states_the_retry_rule():
     bullets = [line for line in DESIGN.read_text(encoding="utf-8").splitlines()
                if line.startswith("- Time limit and retries (")]
     assert len(bullets) == 1
-    for phrase in ("Retries (v1.406, row CI23): each of the six `fetch` functions tries a missing file up to "
+    for phrase in ("Retries (v1.406, row CI23; `fetch_tools` v1.545): each of them tries a missing file up to "
                    "`ATTEMPTS = 3` times, at once",
+                   # v1.545 (row ESC3h): the list names every function SCRIPTS tests
+                   "the nine download functions the job calls (the `fetch` of " + ", ".join(SECTIONS[:-1])
+                   + f" and {SECTIONS[-1]}, and `fetch_tools`) each open a file with `urlopen(..., timeout=60)`",
+                   "(in 13.15 and `fetch_tools` any `Exception`, since they report each as a failed download)",
                    "each attempt rewriting `<name>.part` from its first byte",
                    "a download that fails `verify` (bytes unlike the pin mean the source moved, while a short read "
                    "raises and is retried) or a `BaseException` is never retried",
@@ -216,6 +255,7 @@ def test_design_states_the_retry_rule():
                    "Why: the run on `937399a` (2026-11-15), the first of the "):
         assert phrase in bullets[0], phrase
     assert "Retries: none in the converters" not in bullets[0]
+    assert "six `fetch` functions" not in bullets[0] and len(SECTIONS) + 1 == len(SCRIPTS) == 9
     assert "43751236072" not in bullets[0]
     # Review iter-266 must-fix 1: 12.18 and 12.20 said their fetch had no retry.
     assert "with no retry" not in DESIGN.read_text(encoding="utf-8")
