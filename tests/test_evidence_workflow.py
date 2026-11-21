@@ -32,6 +32,7 @@ CI); the run itself is checked on GitHub, not here."""
 import ast
 import datetime
 import math
+import os
 import re
 from pathlib import Path
 
@@ -1425,8 +1426,10 @@ def test_the_workflow_reruns_the_tau2_cascades_block_last():
 INSIDE = ("evidence/", "model_routing/")
 LOADED_OUTSIDE = ["research/escalation_signals.py"]
 PATHS = ["evidence/**", "model_routing/**", *LOADED_OUTSIDE, "pyproject.toml", ".github/workflows/evidence.yml"]
-DYNAMIC = {"run_path", "import_module", "__import__", "exec", "eval"}
-PATH_CALLS = {"join", "joinpath", "with_name", "Path", "spec_from_file_location", "run_path"}
+# review iter-393 should-fix 2b: the loader styles that take no `spec_from_file_location`
+DYNAMIC = {"run_path", "import_module", "__import__", "exec", "eval", "SourceFileLoader", "spec_from_loader",
+           "load_module", "load_source"}
+PATH_CALLS = {"join", "joinpath", "with_name", "Path", "spec_from_file_location"}
 
 
 def path_of(node, names, here):
@@ -1468,13 +1471,22 @@ def built_paths(source, here):
     used as a path part (a `/` operand or an argument of a PATH_CALLS call; a downloaded file's name, as
     research/escalation_signals.py builds for each `tools.py` it parses, is neither), a `spec_from_file_location`
     whose path is neither resolved nor the parameter of the helper it sits in, a call of such a helper whose
-    path is not resolved, a `run_path`, `import_module`, `__import__`, `exec` or `eval` call, or an `import`
-    of a top-level repo folder other than the package."""
+    path is not resolved (called by name, or through an attribute of anything but an imported name), a DYNAMIC
+    call, a `sys.path` entry other than the repo root, or an `import` of a top-level repo folder other than the
+    package. A name resolves only when the file binds it once, and a path is normalized before it is placed
+    (review iter-393 should-fix 1 and 2, nits 2 and 3)."""
     tree = ast.parse(source)
+    bound = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
+            bound[node.id] = bound.get(node.id, 0) + 1
+        if isinstance(node, ast.arg):
+            bound[node.arg] = bound.get(node.arg, 0) + 1
     names = {}
     for _ in range(3):  # a name bound from a name bound later in the file resolves on a later pass
         for node in ast.walk(tree):
-            if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
+            if (isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name)
+                    and bound[node.targets[0].id] == 1):
                 value = path_of(node.value, names, here)
                 if value is not None:
                     names[node.targets[0].id] = value
@@ -1483,10 +1495,13 @@ def built_paths(source, here):
         value = path_of(node, names, here)
         if value is not None:
             used.update(id(n) for n in ast.walk(node))
+            value = Path(os.path.normpath(value))
             if value != here and ROOT in value.parents and value.is_file():
                 files.add(value.relative_to(ROOT).as_posix())
     parents = {id(child): node for node in ast.walk(tree) for child in ast.iter_child_nodes(node)}
     folders = {p.name for p in ROOT.iterdir() if p.is_dir() and p.name != "model_routing"}
+    imported = {(a.asname or a.name).split(".")[0] for n in ast.walk(tree)
+                if isinstance(n, (ast.Import, ast.ImportFrom)) for a in n.names}
     helpers, inside = {}, set()
     for fn in ast.walk(tree):
         if isinstance(fn, ast.FunctionDef):
@@ -1512,12 +1527,23 @@ def built_paths(source, here):
                 arg = node.args[1] if len(node.args) > 1 else None
                 if path_of(arg, names, here) is None and id(node) not in inside:
                     unresolved.append(f"a load it cannot resolve: {ast.unparse(node)}")
-            if isinstance(node.func, ast.Name) and name in helpers:
+            via = node.func.value if isinstance(node.func, ast.Attribute) else None
+            if name in helpers and not (isinstance(via, ast.Name) and via.id in imported):
                 index, param = helpers[name]
                 given = [k.value for k in node.keywords if k.arg == param]
                 given += node.args[index:index + 1]
                 if len(given) != 1 or path_of(given[0], names, here) is None:
                     unresolved.append(f"a {name} call it cannot resolve: {ast.unparse(node)}")
+            func = node.func
+            if (isinstance(func, ast.Attribute) and func.attr in ("insert", "append", "extend")
+                    and isinstance(func.value, ast.Attribute) and func.value.attr == "path"
+                    and isinstance(func.value.value, ast.Name) and func.value.value.id == "sys"):
+                entry = node.args[-1] if node.args else None
+                if isinstance(entry, ast.Call) and _name(entry.func) == "str" and len(entry.args) == 1:
+                    entry = entry.args[0]
+                value = path_of(entry, names, here)
+                if value is None or Path(os.path.normpath(value)) != ROOT:
+                    unresolved.append(f"a sys.path entry other than the repo root: {ast.unparse(node)}")
         if isinstance(node, (ast.Import, ast.ImportFrom)) and not getattr(node, "level", 0):
             modules = [a.name for a in node.names] if isinstance(node, ast.Import) else [node.module or ""]
             unresolved += [f"an import of {m}" for m in modules if m.split(".")[0] in folders]
@@ -1573,6 +1599,8 @@ def test_the_load_read_follows_loads_at_depth_two_and_fails_closed():
     assert sorted(f for f in files if not f.startswith(INSIDE)) == [
         "research/longtail_delegation.py", "research/longtail_per_call.py"]
     here = ROOT / "evidence" / "fake" / "script.py"
+    root = "import sys\nfrom pathlib import Path\nROOT = Path(__file__).resolve().parents[2]\n"
+    target = 'Path(__file__).resolve().parents[2] / "research" / "escalation_signals.py"'
     helper = ("import importlib.util\nfrom pathlib import Path\n"
               "def _load(name, path):\n    spec = importlib.util.spec_from_file_location(name, path)\n    return spec\n")
     found, missed = built_paths(helper + 'm = _load("m", Path(__file__).resolve().parents[2] / "research" / '
@@ -1588,6 +1616,24 @@ def test_the_load_read_follows_loads_at_depth_two_and_fails_closed():
             "a load it cannot resolve: importlib.util.spec_from_file_location('m', where)"),
         "an import of research": ("import research.escalation_signals\n", "an import of research.escalation_signals"),
         "an import_module": ('import importlib\nm = importlib.import_module("research")\n', "a import_module call"),
+        # review iter-393 should-fix 1 and 2a, nit 2: a subfolder on sys.path, a helper called through an
+        # attribute, a name bound twice
+        "a subfolder on sys.path": (
+            root + 'sys.path.insert(0, str(ROOT / "research"))\nimport escalation_signals\n',
+            "a sys.path entry other than the repo root: sys.path.insert(0, str(ROOT / 'research'))"),
+        "a helper through an attribute": (helper + 'm = obj._load("m", where)\n',
+                                          "a _load call it cannot resolve: obj._load('m', where)"),
+        "a name bound twice": (
+            helper + f"path = {target}\nfor path in where:\n    s = importlib.util.spec_from_file_location('m', path)\n",
+            "a load it cannot resolve: importlib.util.spec_from_file_location('m', path)"),
     }
     for source, problem in mutants.values():
         assert built_paths(source, here)[1] == [problem]
+    # should-fix 2b: a loader that takes no spec_from_file_location fails on each of its calls
+    assert built_paths('from importlib.machinery import SourceFileLoader\nm = SourceFileLoader("m", where).load_module()\n',
+                       here)[1] == ["a load_module call", "a SourceFileLoader call"]
+    # the repo root on sys.path is the one entry allowed (the Longtail-SWE scripts add it)
+    assert built_paths(root + "sys.path.insert(0, str(ROOT))\n", here) == (set(), [])
+    # nit 3: a path with `..` parts is placed by where it points, here outside evidence/
+    dotdot = 'from pathlib import Path\nP = Path(__file__).resolve().parent / ".." / ".." / "research" / "escalation_signals.py"\n'
+    assert built_paths(dotdot, here) == ({"research/escalation_signals.py"}, [])
