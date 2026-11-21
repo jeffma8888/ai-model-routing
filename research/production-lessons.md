@@ -100,7 +100,7 @@ Each lesson gives the mechanism, the result with its source, and what this libra
 
 - Mechanism: "Because subagents perform well-defined tasks with specified inputs that often do not require frontier-level reasoning, we default them to a weaker, more cost-effective model while still allowing manual overrides." ([software factory](https://www.uber.com/us/en/blog/efficient-software-factory/)) The main model "handles task decomposition and evaluation while subagents execute the work." ([software factory](https://www.uber.com/us/en/blog/efficient-software-factory/))
 - Result: "The subagent default setting has proven to be the most impactful lever, and its significance continues to grow." ([software factory](https://www.uber.com/us/en/blog/efficient-software-factory/)) The post gives no number for it.
-- In this library: the delegation decision does this for each piece of work today. The sub-agent's model is the router's pick for the task with the brief added to its input, held to the task's bar, so a cheaper model takes the work where it clears the bar and the parent keeps its own model. A manual override is the pinned call planned in the Harvey lesson on tenant policy.
+- In this library: the delegation decision does this for each piece of work today. The sub-agent's model is the router's pick for the task with the brief added to its input, held to the task's bar, so a cheaper model takes the work where it clears the bar and the parent keeps its own model; only a task set to take the best available model when none clears may get one below the bar, and the decision then says it is below the bar. A manual override is the pinned call planned in the Harvey lesson on tenant policy.
 
 ### Reasoning effort and context size are settings to measure
 

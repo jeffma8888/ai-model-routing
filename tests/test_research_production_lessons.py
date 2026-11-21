@@ -28,6 +28,8 @@ URL = re.compile(r"https?://[^\s)\]>\"'`]+")
 QUOTE = re.compile(r'"([^"]+)"( \(\[[^\]]+\]\((https://[^)]+)\)\))?')
 LOCAL_PATH = re.compile(r"(?:^|[\s(\[`'\"])(?:~[/\\]|/(?!/)|[A-Za-z]:[\\/])|file:|\\Users\\|\$HOME\b|%USERPROFILE%")  # review iter-407 nit 1: $HOME
 FETCHED = re.compile(r"^Each page was fetched on \d{4}-\d{2}-\d{2}\.$", re.M)
+PAYWALLED = re.compile(r"paywall", re.I)
+QUOTED_FROM = re.compile(r"\bquoted only from (?:the |its )?(?!(?:the|its)\b)[A-Za-z]{3,}", re.I)  # review iter-408 should-fix 1
 SOURCES = "\n## Sources\n"
 
 
@@ -49,7 +51,7 @@ def problems(text):
     if not FETCHED.search(sources):
         found.append("Sources does not say the date the pages were fetched")
     for line in items:
-        if "paywalled" in line and "quoted only from" not in line:
+        if PAYWALLED.search(line) and not QUOTED_FROM.search(line):
             found.append(f"the paywalled item {line[2:42]!r} does not say which part it is quoted from")
     cited = URL.findall(body)
     for url in sorted(set(cited) - set(listed)):
@@ -119,6 +121,12 @@ Each page was fetched on 2026-11-21.
      "a Sources item does not start with its URL"),
     ("\n## Sources\n", "\n## Sources\n\n## Sources\n", "2 `## Sources` headings"),
     ("- https://example.com/a (what it is)\n", "- https://example.com/a (a news report, paywalled past its opening)\n",
+     "does not say which part it is quoted from"),
+    ("- https://example.com/a (what it is)\n", "- https://example.com/a (Paywalled past its opening)\n",
+     "does not say which part it is quoted from"),
+    ("- https://example.com/a (what it is)\n", "- https://example.com/a (paywalled; quoted only from)\n",
+     "does not say which part it is quoted from"),
+    ("- https://example.com/a (what it is)\n", "- https://example.com/a (behind a paywall, quoted only from the)\n",
      "does not say which part it is quoted from"),
 ])
 def test_a_broken_note_is_named(old, new, message):
