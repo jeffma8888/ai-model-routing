@@ -136,7 +136,7 @@ python evidence/routerbench/results.py --evaluate tau2-cascades-evaluate.json --
 
 ## Cascades by domain
 
-[cascades.json](cascades.json) keeps a domain's row for `routed` alone. [cascades-domains.json](cascades-domains.json) keeps each domain's row of every agent and cascade, 138 rows (3 domains of 46 candidates), from the same evaluator run reduced by `domains.py` (DESIGN 12.29 v1.555): the rows at bar 0.3 and `cost_effective`, since a candidate's held-out success, cost and `escalation_share` in a domain are the same at every bar and flavor (`domains.py` checks it). The table of `python evidence/tau2-bench/domains.py --table evidence/tau2-bench/cascades-domains.json` gives, for each domain, the best single agent by the 12.15 rule (highest held-out success, then lower cost, then name), then every cascade whose row beats it on both counts (held-out success at least as high and cost at most as high, one of them strictly), by success; `vs_agent` divides each cost by the agent's:
+[cascades.json](cascades.json) keeps a domain's row for `routed` alone. [cascades-domains.json](cascades-domains.json) keeps each domain's row of every agent and cascade, 138 rows (3 domains of 46 candidates), from the same evaluator run reduced by `domains.py` (DESIGN 12.29 v1.555): the rows at bar 0.3 and `cost_effective`, since a candidate's held-out success, cost and `escalation_share` in a domain are the same at every bar and flavor (`domains.py` checks it). The table of `python evidence/tau2-bench/domains.py --table evidence/tau2-bench/cascades-domains.json` gives, for each domain, the best single agent by the 12.15 rule (highest held-out success, then lower cost, then name), then every cascade whose row beats it on both counts (held-out success at least as high and cost at most as high, one of them strictly), by success, then lower cost, then name; `vs_agent` divides each cost by the agent's:
 
 ```text
 task     candidate                                                                                   success  cost_usd  vs_agent  escalation_share
@@ -172,7 +172,7 @@ Reading it:
 - `airline`: the best single agent, `openai/gpt-4.1-2025-04-14`, holds 0.577 at 1.3822 USD, and none of the 42 cascades beats it on both counts.
 - `retail`: the best single agent, `anthropic/claude-3-7-sonnet-20250219`, holds 0.804 at 19.0640 USD, and none of the 42 cascades beats it on both counts.
 - `telecom`: the best single agent, `anthropic/claude-3-7-sonnet-20250219`, holds 0.448 at 34.4732 USD, and 21 of the 42 cascades beat it on both counts: the highest, `openai/o4-mini-2025-04-16>anthropic/claude-3-7-sonnet-20250219@transfer`, 0.501 at 33.2082 USD, 0.963 of the agent's cost, `escalation_share` 0.728; the cheapest, `openai/gpt-4.1-mini-2025-04-14>openai/o4-mini-2025-04-16@calls-over-20`, 0.451 at 5.2963 USD, 0.154 of the agent's cost, `escalation_share` 0.628.
-- A cascade fixed for a domain beats its best single agent on both counts in `telecom` only: in the other two no cascade, fixed for the domain, pays against the domain's own best agent.
+- A cascade fixed for a domain beats its best single agent on both counts in `telecom` only; in `airline` and `retail` none of the 42 does.
 - Each candidate's three domain costs add up to its `model:` row's cost in [cascades.json](cascades.json), which pools the three domains, so the two files price each candidate alike.
 
 The command, after the first two of `## Cascades`, which write `tau2-cascades-evaluate.json`; the `evidence` workflow does not rerun it yet:

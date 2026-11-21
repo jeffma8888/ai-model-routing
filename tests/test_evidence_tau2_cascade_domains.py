@@ -33,6 +33,7 @@ HEADING = "Cascades by domain"
 TABLE = "python evidence/tau2-bench/domains.py --table evidence/tau2-bench/cascades-domains.json"
 COMMAND = ("python evidence/tau2-bench/domains.py --evaluate tau2-cascades-evaluate.json"
            " --out evidence/tau2-bench/cascades-domains.json")
+NUMBERS = {1: "one", 2: "two", 3: "three"}
 _loaded = []
 
 
@@ -82,9 +83,15 @@ def phrases(results):
     sizes = {len(t["models"]) for t in tasks.values()}
     assert len(sizes) == 1
     out = [f"{len(rows)} rows ({len(tasks)} domains of {sizes.pop()} candidates)"]
-    paying = []
+    blocks = {(r["bar"], r["flavor"]) for r in rows}
+    assert len(blocks) == 1
+    bar, flavor = blocks.pop()
+    out.append(f"the rows at bar {bar} and `{flavor}`")  # review iter-401 nit 3
+    out.append(f"Each candidate's {NUMBERS[len(tasks)]} domain costs add up to its `model:` row's cost")
+    paying, counts = [], set()
     for task, info in tasks.items():
         k = sum(">" in m for m in info["models"])
+        counts.add(k)
         best, winners = best_and_winners(rows, task)
         head = f"`{task}`: the best single agent, `{name(best)}`, holds {r3(best['success'])} at {usd(best['cost_usd'])}"
         if not winners:
@@ -97,15 +104,21 @@ def phrases(results):
             f"{label}, `{name(r)}`, {r3(r['success'])} at {usd(r['cost_usd'])}, "
             f"{r3(r['cost_usd'] / best['cost_usd'])} of the agent's cost, `escalation_share` {r3(r['escalation_share'])}"
             for label, r in (("the highest", top), ("the cheapest", cheap))))
-    out.append(f"A cascade fixed for a domain beats its best single agent on both counts in {words(paying)}")
-    return out
+    assert len(counts) == 1
+    rest = [task for task in tasks if task not in paying]
+    out.append(f"A cascade fixed for a domain beats its best single agent on both counts in {words(paying)}"
+               + (f"; in {words(rest).replace(' only', '')} none of the {counts.pop()} does" if rest else ""))
+    return out  # review iter-401 nit 2: the second half built from the domains where none pays
 
 
 def hand_built():
     """Two bars, both flavors, two domains; `b` ties `a` on success at a lower cost, so it is the best agent."""
     config = {"bars": [0.3, 0.4], "flavors": ["cost_effective", "cost_blind"]}
     values = {"a": (0.5, 10.0, None), "b": (0.5, 8.0, None), "a>b@x": (0.6, 9.0, 0.2), "b>a@y": (0.6, 7.0, 0.4),
-              "a>b@z": (0.5, 8.0, 0.1), "b>a@w": (0.4, 1.0, 0.9)}
+              "a>b@z": (0.5, 8.0, 0.1), "b>a@w": (0.4, 1.0, 0.9),
+              # review iter-401 should-fix 1: two more winners, one tying `b>a@y` on both counts (sorted first by
+              # name) and one on success at a higher cost (sorted after it), so the winners' order is exercised
+              "a>b@u": (0.6, 7.0, 0.3), "b>a@v": (0.6, 7.6, 0.3)}
     per_task = []
     for bar in config["bars"]:
         for flavor in config["flavors"]:
@@ -137,7 +150,8 @@ def test_design_12_29_specifies_the_domain_rows():
 def test_reduce_keeps_the_first_blocks_model_rows():
     out = script().reduce(hand_built())
     assert list(out) == ["config", "tasks", "per_task"]
-    assert len(out["per_task"]) == 12
+    assert len(out["per_task"]) == 16
+    assert out["config"] == hand_built()["config"] and out["tasks"] == hand_built()["tasks"]  # review iter-401 nit 4
     assert all((r["bar"], r["flavor"]) == (0.3, "cost_effective") for r in out["per_task"])
     assert all(r["strategy"].startswith("model:") for r in out["per_task"])
     assert script().reduce(out) == out
@@ -166,8 +180,9 @@ def test_table_gives_the_best_agent_then_the_cascades_that_beat_it():
     lines = script().table(script().reduce(hand_built())).split("\n")
     assert lines[0].split() == ["task", "candidate", "success", "cost_usd", "vs_agent", "escalation_share"]
     rows = [line.split() for line in lines[2:]]
-    assert rows == [["t1", "b", "0.500", "8.0000", "1.000", "-"], ["t1", "b>a@y", "0.600", "7.0000", "0.875", "0.400"],
-                    ["t2", "b", "0.500", "8.0000", "1.000", "-"], ["t2", "b>a@y", "0.600", "7.0000", "0.875", "0.400"]]
+    assert rows == [[task, *row] for task in ("t1", "t2") for row in (
+        ["b", "0.500", "8.0000", "1.000", "-"], ["a>b@u", "0.600", "7.0000", "0.875", "0.300"],
+        ["b>a@y", "0.600", "7.0000", "0.875", "0.400"], ["b>a@v", "0.600", "7.6000", "0.950", "0.300"])]
 
 
 def test_the_cli_writes_the_file_and_refuses_bad_use(tmp_path, capsys):
@@ -222,6 +237,11 @@ def test_results_md_holds_the_section_with_its_table_and_command():
     body = section()
     assert "[cascades-domains.json](cascades-domains.json)" in body and f"`{TABLE}`" in body
     assert "```text\n" + script().table(results) + "\n```" in body
+    # review iter-401 should-fix 1: the block's rows, in order, are the tests' own rule, not only the script's
+    block = body.split("```text\n", 1)[1].split("\n```", 1)[0].split("\n")[2:]
+    want = [[task, name(r)] for task in results["tasks"]
+            for best, winners in [best_and_winners(results["per_task"], task)] for r in [best] + winners]
+    assert [line.split()[:2] for line in block] == want
     assert body.count("```bash") == 1 and f"```bash\n{COMMAND}\n```" in body
     before = body.split("```bash", 1)[0].rstrip("\n").split("\n")[-1]
     assert "the `evidence` workflow does not rerun it yet" in before
@@ -235,6 +255,7 @@ def test_each_number_of_the_section_is_the_file():
     for words_ in phrases(results):
         assert words_ in body, words_
     assert "add up to its `model:` row's cost in [cascades.json](cascades.json)" in body
+    assert "by success, then lower cost, then name; `vs_agent` divides each cost by the agent's" in body  # nit 1
 
 
 # --- the pinned files, only when already cached
