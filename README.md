@@ -1105,7 +1105,7 @@ Routing on cost and quality, fallbacks and spend attribution are standard. Fruga
 
 Full survey with sources and dates: [research/prior-art.md](research/prior-art.md).
 
-What public write-ups from teams that run language models in production found about cutting model cost at equal or better quality, Harvey's, Uber's and four other teams' on prompt caching so far, and what this library does or plans for each lesson: [research/production-lessons.md](research/production-lessons.md).
+What public write-ups from teams that run language models in production found about cutting model cost at equal or better quality, Harvey's, Uber's, four other teams' on prompt caching and three on routing, panels and a distilled model so far, and what this library does or plans for each lesson: [research/production-lessons.md](research/production-lessons.md).
 
 ## Limitations and non-goals (v1)
 

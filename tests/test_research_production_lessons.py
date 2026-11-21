@@ -14,7 +14,12 @@ its fetch returned, so a reader knows which part of the page the quotes were che
 
 v1.564 (row PL1c) adds `## Other teams` after `## Uber`, four write-ups on prompt caching, with
 their items on what the sources do not say, and says in the frame that a number the note computes
-from a source's own numbers says it is computed here."""
+from a source's own numbers says it is computed here.
+
+v1.565 (row PL1d) adds three lessons to `## Other teams` (LMSYS RouteLLM, OpenRouter Fusion and
+Replit code repair), with their items on what the sources do not say, and says in the frame that
+a result measured on a benchmark rather than on production traffic says so, and that a model name
+in the text, as in a quote, is its author's product name."""
 
 import re
 from pathlib import Path
@@ -80,8 +85,8 @@ def test_the_note_keeps_its_rules():
 def test_the_note_quotes_and_cites_its_sources():
     text = NOTE.read_text(encoding="utf-8")
     body = text.split(SOURCES)[0]
-    assert len(QUOTE.findall(body)) >= 105  # v1.564 (row PL1c): 111
-    assert len(set(URL.findall(body))) >= 15
+    assert len(QUOTE.findall(body)) >= 130  # v1.565 (row PL1d): 138
+    assert len(set(URL.findall(body))) >= 18
     assert "## What the sources do not say" in body
     assert "first sent everything to frontier models" in body
     # v1.563 (row PL1b): the Uber section sits after Harvey's, and its do-not-say items before both
@@ -95,6 +100,18 @@ def test_the_note_quotes_and_cites_its_sources():
     assert "not a company write-up, and it gives no cache hit rate" in unsaid
     frame = body[:body.index("## What the sources do not say")]
     assert "A number this note computes from a source's own numbers says it is computed here." in frame
+    # v1.565 (row PL1d): three lessons on routing, panels and a distilled model, each said to be a benchmark result
+    assert "A result measured on a benchmark rather than on production traffic says so, and says who ran it." in frame
+    assert "A model name, in a quote or in the text, is its author's product name" in frame
+    assert "Model names inside quotes" not in frame
+    assert "RouteLLM's numbers are a research lab's results on three public benchmarks" in unsaid
+    assert "Fusion's numbers are a vendor's benchmark of its own product" in unsaid
+    assert "Replit's per-model scores are in chart images only" in unsaid
+    other = body[body.index("\n## Other teams\n"):]
+    for url in ("https://lmsys.org/blog/2024-07-01-routellm/", "https://openrouter.ai/blog/announcements/fusion-beats-frontier/",
+                "https://blog.replit.com/code-repair"):
+        assert url in other
+    assert "All three give results on benchmarks, not on production traffic" in other
 
 
 SMALL = """# Note
@@ -156,7 +173,8 @@ def test_the_readmes_link_the_note_once():
     readme = README.read_text(encoding="utf-8")
     assert readme.count("(research/production-lessons.md)") == 1
     mine = [line for line in readme.splitlines() if "(research/production-lessons.md)" in line]
-    assert "Harvey's, Uber's and four other teams' on prompt caching so far" in mine[0]  # v1.564, row PL1c
+    assert ("Harvey's, Uber's, four other teams' on prompt caching and three on routing, panels and a distilled model "
+            "so far") in mine[0]  # v1.565, row PL1d
     prior = readme.index("Full survey with sources and dates: [research/prior-art.md](research/prior-art.md).")
     assert prior < readme.index("(research/production-lessons.md)") < readme.index("## Limitations and non-goals")
     text = RESEARCH_README.read_text(encoding="utf-8")
@@ -165,8 +183,8 @@ def test_the_readmes_link_the_note_once():
             < text.index("| [prior-art.md](prior-art.md) |"))
     assert "The production-lessons note was gathered on 2026-11-21." in text
     row = [line for line in text.splitlines() if line.startswith("| [production-lessons.md](production-lessons.md) |")]
-    assert ("(Short answer, from Harvey's and Uber's engineering blogs and four other teams' write-ups on prompt "
-            "caching so far:") in row[0]
+    assert ("(Short answer, from Harvey's and Uber's engineering blogs, four other teams' write-ups on prompt "
+            "caching and three on routing, panels and a distilled model so far:") in row[0]
 
 
 def test_the_changelog_line_names_the_row():
@@ -179,6 +197,9 @@ def test_the_changelog_line_names_the_row():
     other = [line for line in CHANGELOG.read_text(encoding="utf-8").splitlines() if line.startswith("- v1.564 (")]
     assert len(other) == 1
     assert ": docs and tests (14, row PL1c). `research/production-lessons.md` gains `## Other teams`" in other[0]
+    more = [line for line in CHANGELOG.read_text(encoding="utf-8").splitlines() if line.startswith("- v1.565 (")]
+    assert len(more) == 1
+    assert ": docs and tests (14, row PL1d). `research/production-lessons.md` gains three lessons in `## Other teams`" in more[0]
 
 
 def test_design_14_says_a_named_change_is_a_plan():
@@ -192,3 +213,5 @@ def test_design_14_says_a_named_change_is_a_plan():
                          "opening its fetch returned and its Sources item says so") == 1
     assert mine[0].count("From v1.564 (row PL1c), a number the note computes from a source's own numbers says "
                          "it is computed here") == 1
+    assert mine[0].count("From v1.565 (row PL1d), a result measured on a benchmark rather than on production traffic "
+                         "says so") == 1
