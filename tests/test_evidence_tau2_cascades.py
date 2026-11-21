@@ -285,6 +285,8 @@ def _bad(kind):
         cascades = cascades * 2
     elif kind == "unknown signal":
         cascades = [Cascade(C, S, "calls-over-0")]
+    elif kind == "row of the cascade's id":  # its own output passed in again (v1.549, review iter-394)
+        rows.append({"task": "t", "item": "t|a", "model": CID, "correct": True, "cost_usd": 0.02})
     elif kind == "cheap with no row":
         cascades = [Cascade("z/none", S, "calls-over-10")]
     elif kind == "strong with no row":
@@ -303,14 +305,44 @@ def _bad(kind):
 
 
 @pytest.mark.parametrize("kind", ["repeated row", "not a Cascade", "repeated cascade", "unknown signal",
-                                  "cheap with no row", "strong with no row", "item only the cheap has",
-                                  "item only the strong has", "no price", "bad price", "no calls"])
+                                  "row of the cascade's id", "cheap with no row", "strong with no row",
+                                  "item only the cheap has", "item only the strong has", "no price", "bad price",
+                                  "no calls"])
 def test_cascade_rows_refuse_before_any_output(kind):
     rows, calls, cascades, prices = _bad(kind)
     with pytest.raises(ValueError) as info:
         m().cascade_rows(rows, calls, cascades, prices)
     if kind not in ("repeated row", "not a Cascade"):
         assert cascades[0].id in str(info.value)
+
+
+OWN_ID = "the rows already hold a row of its id"
+
+
+def test_a_row_of_a_cascade_id_is_refused_with_its_own_message():
+    rows, calls, cascades, prices = _bad("row of the cascade's id")
+    with pytest.raises(ValueError, match=f"^cascade {CID}: {OWN_ID}"):
+        m().cascade_rows(rows, calls, cascades, prices)
+
+
+def _own_row(cascade):
+    return {"task": "t", "item": "t|a", "model": cascade.id, "correct": True, "cost_usd": 0.02}
+
+
+def test_a_row_of_a_cascade_id_is_checked_after_the_signal_and_before_the_models():
+    late = Cascade(C, S, "calls-over-0")
+    with pytest.raises(ValueError, match="unknown signal"):
+        m().cascade_rows(matrix() + [_own_row(late)], matrix_calls(), [late], {S: 2.0})
+    for cascade in (Cascade("z/none", S, "calls-over-10"), Cascade(C, "z/none", "calls-over-10")):
+        with pytest.raises(ValueError, match=OWN_ID):
+            m().cascade_rows(matrix() + [_own_row(cascade)], matrix_calls(), [cascade], {S: 2.0})
+
+
+def test_a_row_of_an_id_no_listed_cascade_takes_is_kept_as_a_row():
+    other = {"task": "t", "item": "t|a", "model": f"{C}>{S}@transfer", "correct": True, "cost_usd": 0.02}
+    rows = matrix() + [other]
+    got = m().cascade_rows(rows, matrix_calls(), [Cascade(C, S, "calls-over-10")], {S: 2.0})
+    assert other in got and len(got) == len(rows) + 2
 
 
 def test_the_rows_run_through_the_offline_evaluator():
