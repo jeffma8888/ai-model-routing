@@ -1233,15 +1233,19 @@ def test_12_31_holds_the_two_bullets_that_bind_both_workflows_and_12_13_neither(
     job = [line for line in workflow_body if line.startswith("- One job, `regenerate`, ")]
     assert len(job) == 1 and job[0].endswith("setup-python installs one Python version, one of those in the `ci.yml` "
                                              "matrix (12.31)")
-    # A reference to one of them names 12.31: the two test modules that check them open with it, and no test
-    # or script under the repo names either bullet's version as 12.13.
+    # A reference to one of them names 12.31: the two test modules that check them open with it, and no
+    # script, test, note, workflow, README or DESIGN.md line names either bullet's version as 12.13, in the
+    # `12.13 vX.Y` or `12.13, vX.Y` form (review iter-403 nit 1; CHANGELOG.md lines are history and stay).
+    files = [ROOT / "DESIGN.md", ROOT / "README.md"] + sorted((ROOT / ".github" / "workflows").glob("*.yml"))
+    for folder in ("evidence", "model_routing", "research", "tests"):
+        files += sorted(path for path in (ROOT / folder).rglob("*") if path.suffix in (".py", ".md"))
+    texts = {path.relative_to(ROOT).as_posix(): path.read_text(encoding="utf-8") for path in files}
+    assert "DESIGN.md" in texts and "tests/test_ci_pythons.py" in texts and len(texts) > 100
     for (opening, module), version in zip(SHARED_CI, ("v1.137", "v1.118")):
         assert opening.endswith(f"({version}): ")
         first = (ROOT / "tests" / module).read_text(encoding="utf-8").splitlines()[0]
         assert first.startswith(f'"""DESIGN 12.31 {version}: '), module
-        stale = "12.13 " + version
-        for folder in ("evidence", "model_routing", "research", "tests"):
-            for path in sorted((ROOT / folder).rglob("*.py")):
-                assert stale not in path.read_text(encoding="utf-8"), (path.name, stale)
+        for stale in ("12.13 " + version, "12.13, " + version):
+            assert not [name for name, text in texts.items() if stale in text], stale
     sizes = dict(measure(text)[1])
     assert CLASS["12.31"] == CLASS["12.13"] == "workflow" and sizes["12.31"] <= CAPS["workflow"]
