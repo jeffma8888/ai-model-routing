@@ -203,22 +203,91 @@ def _bad(kind):
         kinds[(C, "b")] = "private"
     elif kind == "unread kind":
         kinds[(C, "b")] = "unread"
+    elif kind == "a row of the cascade's id":
+        rows = m().cascade_rows(rows, kinds, cascades)
+    elif kind == "a cheap label not a bool":
+        rows[2]["correct"] = 0
+    elif kind == "a strong label not a bool":
+        rows[3]["correct"] = 1
     return rows, kinds, cascades
 
 
 KINDS_BAD = ["repeated row", "not a Cascade", "repeated cascade", "unknown signal", "cheap with no row",
              "strong with no row", "item only the cheap has", "item only the strong has",
              "difficulty on one row only", "two difficulties", "kind for a correct row",
-             "None kind for a correct row", "no kind for a failed row", "unknown kind", "unread kind"]
+             "None kind for a correct row", "no kind for a failed row", "unknown kind", "unread kind",
+             "a row of the cascade's id", "a cheap label not a bool", "a strong label not a bool"]
 
 
 @pytest.mark.parametrize("kind", KINDS_BAD)
-def test_cascade_rows_refuse_before_any_output(kind):
+def test_cascade_rows_refuse_a_bad_input_naming_the_cascade(kind):
     rows, kinds, cascades = _bad(kind)
     with pytest.raises(ValueError) as info:
         m().cascade_rows(rows, kinds, cascades)
     if kind not in ("repeated row", "not a Cascade"):
         assert cascades[0].id in str(info.value)
+
+
+@pytest.mark.parametrize("correct", [1, 0, "true", None])
+def test_cascade_cell_refuses_a_label_that_is_not_a_bool(correct):
+    with pytest.raises(ValueError, match="not a bool"):
+        m().cascade_cell(cell(correct), cell(True), None, P)
+    with pytest.raises(ValueError, match="not a bool"):
+        m().cascade_cell(cell(False), cell(correct), "public", P)
+
+
+def _order(case):
+    """Two faults at once; the spec's order says which one the call names (review iter-394 should-fix 1)."""
+    rows, kinds, cascades = matrix(), dict(KINDS_OF), [Cascade(C, S, P)]
+    if case == "repeated row before a bad cascade":
+        rows.append(dict(rows[0]))
+        cascades = [Cascade(C, S, "calls-over-10")]
+    elif case == "signal before a row of the id":
+        cascades = [Cascade(C, S, "transfer")]
+        rows += [dict(r, model=cascades[0].id, escalated=False) for r in matrix() if r["model"] == C]
+    elif case == "a row of the id before no row":
+        rows = m().cascade_rows(rows, kinds, [Cascade(C, S, P)])
+        rows = [r for r in rows if r["model"] != S]
+    elif case == "signal before no row":
+        cascades = [Cascade(W, S, "calls-over-10")]
+    elif case == "cheap before strong":
+        cascades = [Cascade(W, "v/none", P)]
+    elif case == "no row before one-sided item":
+        rows = [r for r in rows if (r["model"], r["item"]) != (C, "b")]
+        cascades = [Cascade(C, W, P)]
+    elif case == "difficulty before a kind for a correct row":
+        rows[1]["difficulty"] = "3-hard"
+        kinds[(C, "a")] = "other"
+    elif case == "a kind for a correct row before an unknown kind":
+        kinds[(C, "a")] = "private"
+    elif case == "items sorted as strings":
+        rows = [row(i, mdl, False) for i in ("9", "10") for mdl in (C, S)]
+        kinds = {}
+    return rows, kinds, cascades
+
+
+ORDER = [("repeated row before a bad cascade", "is repeated", "unknown signal"),
+         ("signal before a row of the id", "unknown signal", "already hold"),
+         ("a row of the id before no row", "already hold", "has no row"),
+         ("signal before no row", "unknown signal", "has no row"),
+         ("cheap before strong", "cheap model", "strong model"),
+         ("no row before one-sided item", "has no row", "only one of"),
+         ("difficulty before a kind for a correct row", "disagree", "a kind is given"),
+         ("a kind for a correct row before an unknown kind", "a kind is given", "unknown kind"),
+         ("items sorted as strings", "'10'", "'9'")]
+
+
+@pytest.mark.parametrize("case,named,not_named", ORDER)
+def test_cascade_rows_name_the_first_fault_in_the_spec_order(case, named, not_named):
+    rows, kinds, cascades = _order(case)
+    with pytest.raises(ValueError) as info:
+        m().cascade_rows(rows, kinds, cascades)
+    assert named in str(info.value) and not_named not in str(info.value)
+
+
+def test_escalates_checks_the_signal_before_an_unread_kind():
+    with pytest.raises(ValueError, match="unknown signal"):
+        m().escalates("unread", "transfer")
 
 
 def test_a_later_cascade_with_a_bad_kind_refuses_the_whole_call():
@@ -248,10 +317,11 @@ def test_the_rows_run_through_the_offline_evaluator_by_difficulty():
     assert {o.slice for o in cas} == {"1-easy", "2-medium"}
     by = {(o.item, o.model): o for o in outcomes}
     assert all(by[(o.item, C)].correct <= o.correct for o in cas)
-    assert sum(o.correct for o in cas) == 120 - 15 - 0 and sum(by[(o.item, C)].correct for o in cas) == 90
+    # the 15 handed-up items are the public failures, on each of which the strong row is right
+    assert sum(o.correct for o in cas) == 105 and sum(by[(o.item, C)].correct for o in cas) == 90
     result = evaluate(outcomes, bars=[0.8], seeds=range(3), flavors=("cost_blind",), min_samples=10)
     model_rows = {r["strategy"]: r for r in result["summary"]}
     assert model_rows[f"model:{CID}"]["escalation_share"] is not None
     assert 0 < model_rows[f"model:{CID}"]["escalation_share"] < 1
-    assert model_rows[f"model:{CID}"]["success"] >= model_rows[f"model:{C}"]["success"]
+    assert model_rows[f"model:{CID}"]["success"] > model_rows[f"model:{C}"]["success"]
     assert all(r["cost_usd"] == 0 for r in result["summary"])

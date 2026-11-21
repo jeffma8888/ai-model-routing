@@ -9,9 +9,9 @@ counted both ways, kept and handed up, as a bound (research/escalation.md, ``## 
 sample: ``public``, ``other``, ``input_only``, ``no_test`` or ``unread``; a passed one has none. A row
 replays the cascade from the two models' rows of the problem: kept, the cheap row's label and cost; handed
 up, the strong row's label and the sum of both costs. The submission files record no cost, so every cost
-is 0.0 and the rows feed ``cost_blind`` only. A sample that fails a public case fails the problem, so a
-hand-up never turns a right answer wrong; a wrong answer only a private case finds stays on the cheap
-model. This version holds the replay rule only: it downloads, reads and writes nothing (rows ESC3l, ESC3m).
+is 0.0 and the rows feed ``cost_blind`` only. A sample that fails a public case fails the problem, and
+``cascade_cell`` refuses a kind on a passed sample, so a hand-up never turns a right answer wrong; a wrong
+answer only a private case finds stays on the cheap model. This version holds the replay rule only: it downloads, reads and writes nothing (rows ESC3l, ESC3m).
 """
 
 import math
@@ -39,7 +39,10 @@ def escalates(kind, signal) -> bool:
 def cascade_cell(cheap, strong, kind, signal) -> dict:
     """``{"correct", "cost_usd", "escalated"}`` of one problem run through the cascade (DESIGN 7 v1.548)."""
     up = escalates(kind, signal)
-    if kind is None and cheap["correct"] is not True:
+    for role, given in (("cheap", cheap), ("strong", strong)):
+        if type(given["correct"]) is not bool:
+            raise ValueError(f"the {role} cell's correct {given['correct']!r} is not a bool")
+    if kind is None and cheap["correct"] is False:
         raise ValueError("a failed first sample needs a kind")
     if kind is not None and cheap["correct"] is True:
         raise ValueError(f"a passed first sample has no kind, got {kind!r}")
@@ -47,6 +50,10 @@ def cascade_cell(cheap, strong, kind, signal) -> dict:
         return {"correct": cheap["correct"], "cost_usd": cheap["cost_usd"], "escalated": False}
     return {"correct": strong["correct"], "cost_usd": math.fsum([cheap["cost_usd"], strong["cost_usd"]]),
             "escalated": True}
+
+
+def _pair(pair) -> tuple:
+    return (str(pair[0]), str(pair[1]))
 
 
 def _key(row) -> tuple:
@@ -78,13 +85,15 @@ def cascade_rows(rows, kinds, cascades) -> list:
         cid = cascade.id
         if not isinstance(cascade.signal, str) or cascade.signal not in SIGNALS:
             raise ValueError(f"cascade {cid}: unknown signal {cascade.signal!r}")
+        if cid in items:
+            raise ValueError(f"cascade {cid}: the rows already hold a row of its id, which the call would repeat")
         for role, model in (("cheap", cascade.cheap), ("strong", cascade.strong)):
             if model not in items:
                 raise ValueError(f"cascade {cid}: its {role} model {model} has no row")
         if items[cascade.cheap] != items[cascade.strong]:
-            odd = sorted(items[cascade.cheap] ^ items[cascade.strong], key=str)[0]
+            odd = sorted(items[cascade.cheap] ^ items[cascade.strong], key=_pair)[0]
             raise ValueError(f"cascade {cid}: {odd!r} has a row of only one of its two models")
-        for task, item in sorted(items[cascade.cheap], key=str):
+        for task, item in sorted(items[cascade.cheap], key=_pair):
             cheap = cells[(task, item, cascade.cheap)]
             strong = cells[(task, item, cascade.strong)]
             label = cheap.get(LABEL, _MISSING)
