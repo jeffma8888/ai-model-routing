@@ -181,6 +181,8 @@ def cascade_rows(rows, calls, cascades, prices) -> list:
             parse_signal(cascade.signal)
         except ValueError as exc:
             raise ValueError(f"cascade {cid}: {exc}") from None
+        if cid in items:  # v1.549, review iter-394: a row of its own output passed in again
+            raise ValueError(f"cascade {cid}: the rows already hold a row of its id, which the call would repeat")
         for role, model in (("cheap", cascade.cheap), ("strong", cascade.strong)):
             if model not in items:
                 raise ValueError(f"cascade {cid}: its {role} model {model} has no row")
