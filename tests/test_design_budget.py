@@ -90,7 +90,7 @@ registry-pair delegation lines of 12.13 drop asides, the growth history of their
 states, so 12.13 has room for the LiveCodeBench block in the slices bullet and grows by 9 bytes.
 The tau2-bench cascades in the workflow (v1.544, row ESC3e): the runner line drops the reason the workflow's
 runner comment gives, the repeated-line, RouterBench and Python-versions lines an aside each and the no-cache
-line restates the caching reference in fewer words, so 12.13 has room for the cascades bullet and grows by 152
+line restates the caching reference in fewer words, so 12.13 has room for the cascades bullet and grows by 198
 bytes.
 
 The section totals (v1.456, row DOC37): each total is the one last set with the subsections it counted,
