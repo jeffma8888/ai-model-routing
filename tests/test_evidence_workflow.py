@@ -1502,10 +1502,17 @@ def test_the_workflow_reruns_the_livecodebench_cascades_block_last():
     assert "run 44903881279 took 256 seconds" in bullets[0] and "the 1,283,503,080-byte 12.18 file" in bullets[0]
     assert round(size / (1_283_503_080 / 42.3)) == 125 and "the release files add about 125 seconds" in bullets[0]
     limit = int(re.search(r"^    timeout-minutes: (\d+)$", text, re.M).group(1))  # 105: 630 restates it (v1.225)
-    assert f"under the {limit * 6} that restate the limit and far under its {limit * 60:,}" in bullets[0]
+    # review iter-404 should-fix 1: the whole run, not the added seconds, is what the 630 s threshold reads
+    added = 125 + 15
+    assert round(256 + added, -2) == 400 and "a run of about 400 seconds, " in bullets[0]
+    assert f"under the {limit * 6} that restate the limit and far under its {limit * 60:,}, " in bullets[0]
+    assert SLOWEST_RUN_SECONDS + added > limit * 6 and (
+        f"while one as slow as the {SLOWEST_RUN_SECONDS}-second basis would pass {limit * 6} and restate it "
+        "by the rule; ") in bullets[0]
     nocache = [line for line in section.split("\n") if line.startswith("- No cache between runs (v1.251, row CI9): ")]
     total = re.search(r"(\d[\d,]+) bytes in all", nocache[0]).group(1)
-    assert f"the job then downloads {total} bytes" in bullets[0] and total == "7,883,018,161"
+    # review iter-404 nit 1: the total is the v1.544 one plus the release files
+    assert f"the job then downloads {total} bytes" in bullets[0] and total == f"{4_089_025_877 + size:,}"
     assert "does not count its file" in bullets[0] and "(7 v1.543)" in bullets[0]
     assert ("then (v1.544) that of `## Cascades` of `evidence/tau2-bench/RESULTS.md` (12.29), then (v1.559) that of "
             "`evidence/livecodebench/RESULTS.md` (12.30);") in section
