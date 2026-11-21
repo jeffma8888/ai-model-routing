@@ -1,5 +1,8 @@
 """research/check-fallback.md and research/check_fallback.py (DESIGN 12.8 v1.181; README Limitations v1.185).
 
+v1.546 (row ESC3j): the README bullet's opening also names a slice a call names and, given `signals`,
+a cascade's hand-up, each linking its README part, and the test checks that both links resolve.
+
 The note's numbers are the script's lines on the LLMRouterBench matrix, compared byte for byte when
 the pinned file is cached (the session fixture `llmrouterbench_pinned` of tests/conftest.py, which
 CI never fills). The routes, the replay and the recovered share are checked by hand on a matrix of
@@ -24,6 +27,9 @@ SCRIPT = ROOT / "research" / "check_fallback.py"
 NOTE = ROOT / "research" / "check-fallback.md"
 INDEX = ROOT / "research" / "README.md"
 README = ROOT / "README.md"
+# v1.546 (row ESC3j): the README parts the Limitations first bullet links, by their GitHub anchors
+SLICES = "#split-a-task-into-slices"
+CASCADES = "#start-cheap-escalate-on-a-signal"
 RESULTS = "evidence/llmrouterbench/results.json"
 COMMAND = "$ python research/check_fallback.py --matrix llmrouterbench-matrix.jsonl"
 REGENERATE = [
@@ -395,7 +401,7 @@ def test_the_research_index_lists_the_note():
 
 
 def limitations_first_bullet():
-    """README Limitations bullet 1 (v1.185), its ranges built from the note's Results block."""
+    """README Limitations bullet 1 (v1.185, v1.546), its ranges built from the note's Results block."""
     [text] = _blocks(NOTE.read_text(encoding="utf-8"), "text")
     lines = text.split("\n")
     models = int(re.search(r", (\d+) models, ", lines[1]).group(1))
@@ -411,9 +417,13 @@ def limitations_first_bullet():
         values = sorted((v[i] for v in got[k]), key=float)
         return f"{values[0]} to {values[-1]}"
 
-    return ("- Routes per task, not per prompt: the router picks each task's first model, with no difficulty "
-            "prediction or confidence-based cascade. What reacts per call is the executor's fallback, which moves "
-            "to the next model of the route when the caller's `validate` check fails (`DESIGN.md` 7). Replayed on "
+    return ("- Routes per task, or per slice a call names, not per prompt: the router picks each task's first "
+            "model, on a slice's own counts when the call names one "
+            f"([Split a task into slices]({SLICES})), with no difficulty prediction. What reacts per call is the "
+            "executor's fallback, which moves to the next model of the route when the caller's `validate` check "
+            "fails (`DESIGN.md` 7), and, when the caller passes `signals` and the route names a cascade, the "
+            "cascade's hand-up from its cheap model to its strong one when the caller's signal fires on the cheap "
+            f"model's answer or its call fails ([Start cheap, escalate on a signal]({CASCADES})). Replayed on "
             "LLMRouterBench with a check as good as the record's own score, so as upper bounds, two fallbacks "
             f"recover {span(2, 1)} of the gap between routed and per-item oracle success, at {span(2, 0)} times "
             "the cost, and the router's whole sorted list, which at a high bar holds only the models that clear "
@@ -423,11 +433,23 @@ def limitations_first_bullet():
             "public test cases a caller may hold ([research/check-fallback.md](research/check-fallback.md))")
 
 
+def _anchor(heading):
+    """GitHub's anchor for a heading, as tests/test_evidence_at_a_glance.py builds it (DESIGN 12.8, v1.23)."""
+    return "#" + re.sub(r"[^\w\- ]", "", heading.lower()).replace(" ", "-")
+
+
 def test_readme_limitations_first_bullet_names_the_fallback_on_a_failed_check():
     readme = README.read_text(encoding="utf-8")
     limits = readme.split("\n## Limitations and non-goals (v1)\n", 1)[1].split("\n## ", 1)[0]
     bullets = [line for line in limits.splitlines() if line.startswith("- ")]
     assert bullets[0] == limitations_first_bullet()
+    # v1.546 (row ESC3j): each in-page link of the bullet is the anchor of one `## ` heading of the README
+    headings = [line[3:] for line in readme.split("\n") if line.startswith("## ")]
+    links = re.findall(r"\]\((#[^)]*)\)", bullets[0])
+    assert links == [SLICES, CASCADES]
+    for link in links:
+        assert [h for h in headings if _anchor(h) == link] == [{SLICES: "Split a task into slices",
+                                                                  CASCADES: "Start cheap, escalate on a signal"}[link]]
     assert sum("(research/check-fallback.md)" in b for b in bullets) == 1
     design = (ROOT / "DESIGN.md").read_text(encoding="utf-8")
     section = design.split("\n## 7. Execution with fallback (`executor.py`)\n", 1)[1].split("\n## ", 1)[0]
