@@ -269,15 +269,22 @@ def lcb_phrases(results, before):
     assert sorted({name.split("@")[1] for name in cascades}) == sorted(signals)
     assert len(cascades) == len(pairs) * len(signals)
     assert sorted(cascades) == sorted(lcb.cascade_ids())  # one model at two settings, the lower cheap (7 v1.550)
-    out = [f"the replay makes {len(cascades)} cascades, {len(pairs)} pairs of one model at two reasoning settings, "
-           f"the lower setting the cheap model, each on {len(signals)} signals: the cheap model's first sample fails "
-           f"one of the problem's public test cases, or it does or its record holds no test at all"]
+    first, second = signals
+    assert [lcb.replay().escalates(kind, s) for s in signals for kind in ("public", "no_test")] == [
+        True, False, True, True]  # the two signals as the bullet words them (DESIGN 7 v1.548)
+    out = [f"- **On code, a failed public test can be the signal.** In the {LCB_LINK}, which record no cost, the replay "
+           f"makes {len(cascades)} cascades, {len(pairs)} pairs of one model at two reasoning settings, the lower setting "
+           f"the cheap model, each on {len(signals)} signals: hand up when the cheap model's first sample fails a public "
+           f"test case (`{first}`), and also when a failed sample's record holds no test (`{second}`)."]
     now = lcb.one(r3(lcb.row(results, bar, "routed")["success"]) for bar in bars)
     then = lcb.one(r3(lcb.row(before, bar, "routed")["success"]) for bar in bars)
     best_name, best = min(singles.items(), key=lambda kv: (-kv[1]["success"], kv[0]))
     assert now == r3(best["success"])  # "the same ... as the best single model"
+    top_bar = bars[-1]
     out.append(f"With them as candidates the route holds {now} held-out success at every bar, against {then} without "
-               f"them, the same {r3(best['success'])} as the best single model, `{best_name}`")
+               f"them, the same {r3(best['success'])} as the best single model, `{best_name}`, though at bar {top_bar} it "
+               f"clears the bar on calibration on only {r3(lcb.row(results, top_bar, 'routed')['cleared_rate'])} of the "
+               f"seeds.")
     above = sorted(((n, r) for n, r in cascades.items() if r["success"] > best["success"]),
                    key=lambda kv: (-kv[1]["success"], kv[0]))
     assert len(above) == 1  # "holds", one cascade
@@ -286,9 +293,11 @@ def lcb_phrases(results, before):
     other = next(s for s in signals if s != signal)
     twin = cascades[pair + "@" + other]
     assert twin["success"] <= best["success"]  # its pair on the other signal is not above the best model
+    assert signal == second  # so it stands on the no_test bound's upper end (review iter-402 should-fix 2)
     out.append(f"{len(above)} of the {len(cascades)} cascades holds more: `{name}`, {r3(top['success'])}, handing up "
-               f"{r3(top['escalation_share'])} of the problems, while on `{other}` the same pair holds "
-               f"{r3(twin['success'])}")
+               f"{r3(top['escalation_share'])} of the held-out problems, but only because a failed sample whose record "
+               f"holds no test counts as handed up, the upper end of what the data can tell; on `{other}`, which keeps "
+               f"such a sample, the same pair holds {r3(twin['success'])}")
     return out
 
 
@@ -307,19 +316,19 @@ def test_the_livecodebench_bullet_is_last_and_links_the_cascades_heading():
             "(evidence/tau2-bench/RESULTS.md#cascades), which hold the commands that rebuild them") in flat()
 
 
-def test_the_livecodebench_numbers_are_the_committed_ones():
+def test_the_livecodebench_bullet_is_built_whole_from_the_committed_files():
+    """Each sentence of the bullet is built from the files, and the bullet holds nothing else (review iter-402
+    should-fix 6)."""
     results, before = lcb.committed(), lcb.old()
-    last = " ".join(evidence_bullets()[-1].split())
-    for words in lcb_phrases(results, before):
-        assert words in last, words
+    assert evidence_bullets()[-1] == " ".join(lcb_phrases(results, before))
 
 
 def test_the_livecodebench_bullet_is_success_only():
     results = lcb.committed()
     assert {r["cost_usd"] for r in results["summary"] + results["per_task"]} == {0.0}
     last = evidence_bullets()[-1]
-    assert "which record no cost" in last
-    assert "USD" not in last and "cheaper" not in last and "saving" not in last
+    assert "which record no cost" in last and last.count("cost") == 1  # no cost claim (review iter-402 should-fix 4)
+    assert "USD" not in last and "cheap" not in last.replace("the cheap model", "") and "saving" not in last
 
 
 def test_the_limits_paragraph_states_the_livecodebench_limits():
@@ -335,7 +344,9 @@ def test_design_names_the_livecodebench_bullet():
                 if x.startswith("- v1.543 README (row ESC3d): `## Start cheap, escalate on a signal`"))
     for words in ("From v1.557 (row ESC3r)", "`first from`", "success only",
                   "linking `evidence/livecodebench/RESULTS.md#cascades`", "(the 12.17 results.json)",
-                  "each number built by `tests/test_readme_cascades.py` from the 12.30 file or the 12.17 results.json",
+                  "still counts 14 files. From v1.557", "the 2 signals by name", "`cleared_rate` at the top bar",
+                  "the `no_test` bound's upper end it stands on", "its pair's success on the other signal",
+                  "`tests/test_readme_cascades.py` builds the whole bullet from the 12.30 file and the 12.17 results.json",
                   "no cost is recorded, so the bullet makes no cost claim", "the strong row restarts the problem",
                   "a wrong answer only a private case finds stays on the cheap model"):
         assert words in line, words
