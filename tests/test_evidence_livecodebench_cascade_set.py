@@ -5,7 +5,8 @@ sample's kind with file_kinds; and builds the cascade set with setting_cascades,
 reasoning setting before a higher one. These tests were committed before the code under a module-level
 strict xfail whose error, AttributeError, is the one a missing attribute of the loaded script raises,
 and the implementing commit removed the mark. They use stub records and folder names; one, skipped
-unless test3.jsonl and a kept file are cached, counts test3.jsonl's problems by difficulty."""
+unless test3.jsonl and a kept file are cached, counts test3.jsonl's problems by difficulty and each
+level's calibration problems on the 50 seeds of 12.28 (review iter-396 should-fix 2)."""
 
 import ast
 import collections
@@ -17,6 +18,7 @@ from pathlib import Path
 import pytest
 
 from model_routing import Cascade
+from model_routing.evaluate import split_items
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "evidence" / "livecodebench" / "cascades.py"
@@ -238,7 +240,8 @@ def test_design_and_changelog_state_the_two_choices():
     for phrase in ("`RELEASE = (\"test.jsonl\", \"test2.jsonl\", \"test3.jsonl\", \"test4.jsonl\")`",
                    "34 `1-easy`, 39 `2-medium` and 28 `3-hard`", "`file_kinds(records, folder, release) -> dict`",
                    "`setting_cascades(folders) -> list[Cascade]`", "11 pairs and 22 cascades",
-                   "4,224 pairs and 8,448 cascades", "a rule that reads no label"):
+                   "64 x 66 = 4,224 pairs and 8,448 cascades", "a rule that reads no label",
+                   "10 to 22, 13 to 25 and 7 to 19", "no dataset, cache or output file"):
         assert phrase in text, phrase
     log = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").splitlines()
     assert [line for line in log if line.startswith("- v1.550 (")][0].count("(7, row ESC3l)") == 1
@@ -259,4 +262,33 @@ def test_test3_alone_leaves_every_level_under_thirty_calibration_problems():
     cells = mod.convert.extract(mod.convert.read_file(root / name), name.split("/")[0], labels=True)["cells"]
     counts = collections.Counter(cells[q]["difficulty"] for q in qids)
     assert len(qids) == 101 and dict(counts) == {"1-easy": 34, "2-medium": 39, "3-hard": 28}
-    assert all(n * 0.5 < 30 for n in counts.values())
+    spread = {}
+    for level in counts:
+        items = [q for q in qids if cells[q]["difficulty"] == level]
+        sizes = [len(split_items(items, seed, 0.5)[0]) for seed in range(50)]
+        spread[level] = (min(sizes), max(sizes))
+    assert spread == {"1-easy": (10, 22), "2-medium": (13, 25), "3-hard": (7, 19)}
+    assert all(high < 30 for _, high in spread.values())
+
+
+def test_file_kinds_calls_the_loaded_functions(monkeypatch):
+    mod = m()
+    seen = []
+    real_meta, real_classify = mod.public_tests.first_metadata, mod.public_tests.classify
+    monkeypatch.setattr(mod.public_tests, "first_metadata", lambda rec, at: seen.append(("meta", at)) or real_meta(rec, at))
+    monkeypatch.setattr(mod.public_tests, "classify", lambda meta, cases, at: seen.append(("classify", at)) or ("other", None))
+    got = mod.file_kinds(_records(), "GPT-4-0613", _release())
+    assert set(got.values()) == {"other"} and len(got) == 5
+    assert [k for k, _ in seen] == ["meta", "classify"] * 5
+    assert real_classify is not mod.public_tests.classify
+
+
+def test_setting_cascades_reads_the_loaded_rule_and_model_ids(monkeypatch):
+    mod = m()
+    import re
+    monkeypatch.setattr(mod.cost_research, "SETTING", re.compile(r"(?P<base>x)(?P<setting>y)"))
+    assert mod.setting_cascades(_folders()) == []
+    monkeypatch.undo()
+    monkeypatch.setattr(mod.convert, "model_id", lambda folder: "stub/" + folder.lower().replace(" ", "_"))
+    got = mod.setting_cascades(["O4-Mini (Low)", "O4-Mini (High)"])
+    assert {(c.cheap, c.strong) for c in got} == {("stub/o4-mini_(low)", "stub/o4-mini_(high)")}

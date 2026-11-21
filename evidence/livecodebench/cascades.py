@@ -15,7 +15,8 @@ answer only a private case finds stays on the cheap model. Beside the replay rul
 items, RELEASE, the four release_v4 files that hold the 713 kept problems; gives each failed first
 sample's kind with file_kinds; and builds the cascade set by a rule that reads no label, one model's
 lower reasoning setting before a higher one (DESIGN 7 v1.550). It loads the 12.16 converter and two
-research scripts by path and calls them; it downloads, reads and writes nothing (rows ESC3o, ESC3m).
+research scripts by path and calls them; it downloads, reads and writes no dataset, cache or output
+file (rows ESC3o, ESC3m).
 """
 
 import importlib.util
