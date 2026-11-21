@@ -1105,6 +1105,8 @@ Routing on cost and quality, fallbacks and spend attribution are standard. Fruga
 
 Full survey with sources and dates: [research/prior-art.md](research/prior-art.md).
 
+What public write-ups from teams that run language models in production found about cutting model cost at equal or better quality, Harvey's so far, and what this library does or plans for each lesson: [research/production-lessons.md](research/production-lessons.md).
+
 ## Limitations and non-goals (v1)
 
 - Routes per task, or per slice a call names, not per prompt: the router picks each task's first model, on a slice's own counts when the call names one ([Split a task into slices](#split-a-task-into-slices)), with no difficulty prediction. What reacts per call is the executor's fallback, which moves to the next model of the route when the caller's `validate` check fails (`DESIGN.md` 7), and, when the caller passes `signals` and the route names a cascade, the cascade's hand-up from its cheap model to its strong one when the caller's signal fires on the cheap model's answer or its call fails ([Start cheap, escalate on a signal](#start-cheap-escalate-on-a-signal)). Replayed on LLMRouterBench with a check as good as the record's own score, so as upper bounds, two fallbacks recover 0.476 to 0.678 of the gap between routed and per-item oracle success, at 2.009 to 3.522 times the cost, and the router's whole sorted list, which at a high bar holds only the models that clear it, 0.927 to 0.960, at 2.454 to 8.772 times. A check at call time can only do worse, and on every task but `arenahard` the score is made against an answer key a caller does not hold, in part on `livecodebench`, whose public test cases a caller may hold ([research/check-fallback.md](research/check-fallback.md))

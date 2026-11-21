@@ -1,0 +1,139 @@
+"""research/production-lessons.md (v1.562, row PL1a): what public production write-ups found about
+cutting model cost at equal or better quality, and what this library does with each lesson.
+
+Run offline. The note's quotes were checked word for word against their pages when it was written;
+this file checks what a reader can check without fetching them: every URL in the note is in its
+`## Sources` list and every listed URL is cited above it, the list states the date the pages were
+fetched, each quote is under 40 words and names its URL, and the note names no local path. It also
+checks that README.md and research/README.md link the note once, that DESIGN 14 says a change the
+note names is a plan, and that the changelog line names its section and the row."""
+
+import re
+from pathlib import Path
+
+import pytest
+
+ROOT = Path(__file__).resolve().parents[1]
+NOTE = ROOT / "research" / "production-lessons.md"
+README = ROOT / "README.md"
+RESEARCH_README = ROOT / "research" / "README.md"
+CHANGELOG = ROOT / "CHANGELOG.md"
+DESIGN = ROOT / "DESIGN.md"
+
+URL = re.compile(r"https?://[^\s)\]>\"'`]+")
+QUOTE = re.compile(r'"([^"]+)"( \(\[[^\]]+\]\((https://[^)]+)\)\))?')
+LOCAL_PATH = re.compile(r"(?:^|[\s(\[`'\"])(?:~[/\\]|/(?!/)|[A-Za-z]:[\\/])|file:|\\Users\\")
+FETCHED = re.compile(r"^Each page was fetched on \d{4}-\d{2}-\d{2}\.$", re.M)
+SOURCES = "\n## Sources\n"
+
+
+def problems(text):
+    """Every way the note breaks its rules, one line each; [] when none."""
+    found = []
+    if text.count(SOURCES) != 1:
+        return [f"the note has {text.count(SOURCES)} `## Sources` headings, not one"]
+    body, sources = text.split(SOURCES)
+    if "\n## " in sources:
+        found.append("`## Sources` is not the last section")
+    listed = [m.group(0) for line in sources.splitlines() if line.startswith("- ")
+              for m in [URL.match(line[2:])] if m]
+    items = [line for line in sources.splitlines() if line.startswith("- ")]
+    if len(listed) != len(items):
+        found.append("a Sources item does not start with its URL")
+    if len(set(listed)) != len(listed):
+        found.append("a URL is listed twice in Sources")
+    if not FETCHED.search(sources):
+        found.append("Sources does not say the date the pages were fetched")
+    cited = URL.findall(body)
+    for url in sorted(set(cited) - set(listed)):
+        found.append(f"{url} is cited but not in Sources")
+    for url in sorted(set(listed) - set(cited)):
+        found.append(f"{url} is in Sources but cited nowhere")
+    for quote, link, url in QUOTE.findall(body):
+        if not link:
+            found.append(f"the quote {quote[:40]!r} names no URL")
+        if len(quote.split()) >= 40:
+            found.append(f"the quote {quote[:40]!r} has {len(quote.split())} words, not under 40")
+    for number, line in enumerate(text.splitlines(), 1):
+        if LOCAL_PATH.search(line):
+            found.append(f"line {number} names a local path")
+    return found
+
+
+def test_the_note_keeps_its_rules():
+    assert problems(NOTE.read_text(encoding="utf-8")) == []
+
+
+def test_the_note_quotes_and_cites_its_sources():
+    text = NOTE.read_text(encoding="utf-8")
+    body = text.split(SOURCES)[0]
+    assert len(QUOTE.findall(body)) >= 30
+    assert len(set(URL.findall(body))) >= 8
+    assert "## What the sources do not say" in body
+    assert "first sent everything to frontier models" in body
+
+
+SMALL = """# Note
+
+## Lesson
+
+- Result: "a short quote" ([page](https://example.com/a))
+
+## Sources
+
+Each page was fetched on 2026-11-21.
+
+- https://example.com/a (what it is)
+"""
+
+
+@pytest.mark.parametrize("old, new, message", [
+    ("https://example.com/a))", "https://example.com/b))", "https://example.com/b is cited but not in Sources"),
+    ("- https://example.com/a (what it is)\n", "- https://example.com/a (what it is)\n- https://example.com/c (more)\n",
+     "https://example.com/c is in Sources but cited nowhere"),
+    ("Each page was fetched on 2026-11-21.\n", "", "Sources does not say the date the pages were fetched"),
+    ('"a short quote"', '"' + " ".join(["word"] * 40) + '"', "has 40 words, not under 40"),
+    (' ([page](https://example.com/a))', ' (https://example.com/a)', "names no URL"),
+    ("## Lesson\n", "## Lesson\n\nCopied from /opt/notes/lessons.md.\n", "line 5 names a local path"),
+    ("## Lesson\n", "## Lesson\n\nSee ~/notes for more.\n", "line 5 names a local path"),
+    ("## Lesson\n", "## Lesson\n\nSee C:\\notes for more.\n", "line 5 names a local path"),
+    ("## Lesson\n", "## Lesson\n\nSee file:notes.md.\n", "line 5 names a local path"),
+    ("## Sources\n", "## Sources\n\n## More\n", "`## Sources` is not the last section"),
+    ("- https://example.com/a (what it is)\n", "- https://example.com/a (what it is)\n- https://example.com/a (again)\n",
+     "a URL is listed twice in Sources"),
+    ("- https://example.com/a (what it is)\n", "- https://example.com/a (what it is)\n- see above\n",
+     "a Sources item does not start with its URL"),
+    ("\n## Sources\n", "\n## Sources\n\n## Sources\n", "2 `## Sources` headings"),
+])
+def test_a_broken_note_is_named(old, new, message):
+    assert problems(SMALL) == []
+    assert SMALL.count(old) == 1
+    found = problems(SMALL.replace(old, new))
+    assert any(message in line for line in found), found
+
+
+def test_the_readmes_link_the_note_once():
+    readme = README.read_text(encoding="utf-8")
+    assert readme.count("(research/production-lessons.md)") == 1
+    prior = readme.index("Full survey with sources and dates: [research/prior-art.md](research/prior-art.md).")
+    assert prior < readme.index("(research/production-lessons.md)") < readme.index("## Limitations and non-goals")
+    text = RESEARCH_README.read_text(encoding="utf-8")
+    assert text.count("| [production-lessons.md](production-lessons.md) |") == 1
+    assert (text.index("| [production-lessons.md](production-lessons.md) |")
+            < text.index("| [prior-art.md](prior-art.md) |"))
+    assert "The production-lessons note was gathered on 2026-11-21." in text
+
+
+def test_the_changelog_line_names_the_row():
+    mine = [line for line in CHANGELOG.read_text(encoding="utf-8").splitlines() if line.startswith("- v1.562 (")]
+    assert len(mine) == 1
+    assert ": docs and tests (14, row PL1a). `research/production-lessons.md` reads" in mine[0]
+
+
+def test_design_14_says_a_named_change_is_a_plan():
+    text = DESIGN.read_text(encoding="utf-8")
+    fourteen = text[text.index("## 14. "):text.index("## 15. ")]
+    mine = [line for line in fourteen.splitlines() if line.startswith("- Production lessons (v1.562, row PL1a): ")]
+    assert len(mine) == 1
+    assert "`research/production-lessons.md`" in mine[0]
+    assert "A change it names is a plan, not part of v1: it is specified in its own section" in mine[0]
