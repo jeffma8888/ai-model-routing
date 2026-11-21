@@ -1484,7 +1484,7 @@ def test_the_workflow_reruns_the_livecodebench_cascades_block_last():
                if line.startswith("- LiveCodeBench cascades are rerun (v1.559, row ESC3i): ")]
     assert len(bullets) == 1 and "runs the three lines of the 12.30 block last, none a repeat" in bullets[0]
     # the replay reads the kept files the 12.16 converter line downloaded and downloads the four release files,
-    # each tried once (row ESC3t gives them the retry rule)
+    # each tried up to three times by the retry rule from v1.560 (row ESC3t)
     import importlib.util
     spec_ = importlib.util.spec_from_file_location("wf_public_tests", ROOT / "research" / "escalation_public_tests.py")
     public_tests = importlib.util.module_from_spec(spec_)
@@ -1495,9 +1495,9 @@ def test_the_workflow_reruns_the_livecodebench_cascades_block_last():
     size = sum(public_tests.RELEASE_FILES[name][0] for name in names)
     assert size == 3_793_992_284
     assert f"downloads the four `release_v4` files of the problem release (7 v1.551), {size:,} bytes, " in bullets[0]
-    assert not hasattr(public_tests, "ATTEMPTS")
-    assert ("`fetch_release` tries each file once, outside the retry rule above, so a failed one is retried only by "
-            "rerunning the job (row ESC3t). ") in bullets[0]
+    assert public_tests.ATTEMPTS == 3
+    assert ("`fetch_release` tries each missing file up to three times by the retry rule above (v1.560, "
+            "row ESC3t). ") in bullets[0]
     # the seconds against the limit: the release bytes at the LLMRouterBench line's rate in the stated run
     assert "run 44903881279 took 256 seconds" in bullets[0] and "the 1,283,503,080-byte 12.18 file" in bullets[0]
     assert round(size / (1_283_503_080 / 42.3)) == 125 and "the release files add about 125 seconds" in bullets[0]
