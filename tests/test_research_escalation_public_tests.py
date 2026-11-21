@@ -105,6 +105,7 @@ def test_recorded_truncates_a_call_based_case_after_parsing(pt):
     [line("q1", "June", [case("1", "2")])],
     [line("q1", "2024-06-01", case("1", "2"))],
     [line("q1", "2024-06-01", [{"input": "1"}])],
+    [line("q1", "2024-06-01", [case("1", "2"), {"input": "1"}])],  # review iter-398 nit 4
     [json.dumps({"question_id": "q1", "contest_date": "2024-06-01", "public_test_cases": "nope"})],
     [json.dumps({"question_id": "q1", "contest_date": "2024-06-01"})],
     [json.dumps({"question_id": "q1", "contest_date": "2024-06-01", "public_test_cases": json.dumps([case("1", "2")])})],
@@ -117,6 +118,16 @@ def test_recorded_truncates_a_call_based_case_after_parsing(pt):
 def test_read_release_rejects_what_it_cannot_read(pt, lines):
     with pytest.raises(ValueError, match="^t.jsonl"):
         pt.read_release(lines, "t.jsonl")
+
+
+@pytest.mark.parametrize("cases", [case("1", "2"), [case("1", "2"), {"input": "1"}], [3]])
+def test_a_bad_public_list_names_the_problem_and_the_field(pt, cases):
+    # v1.552 dropped `non-empty` from the message, and every case is checked, not any (review iter-398 nit 4:
+    # with any, the mixed list fails later on its testtype, a different message)
+    want = "t.jsonl line 1: question_id q1: public_test_cases is not a JSON list of input and output strings"
+    with pytest.raises(ValueError) as got:
+        pt.read_release([line("q1", "2024-06-01", cases)], "t.jsonl")
+    assert str(got.value) == want
 
 
 def test_read_release_reads_a_problem_with_no_public_case(pt):

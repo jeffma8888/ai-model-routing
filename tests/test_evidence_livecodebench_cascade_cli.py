@@ -147,9 +147,10 @@ def test_a_run_writes_the_matrix_with_the_cascade_rows(tmp_path, monkeypatch):
 
 
 def test_a_problem_with_no_public_case_is_read_and_never_handed_up_on_a_public_test(tmp_path, monkeypatch):
-    # v1.552 (row ESC3p): q2's release line has public_test_cases "[]"; the low run's failed q2 sample
-    # recorded the inputs and expected of the other problems' first public case, so it is now `other`
-    cache = stub(tmp_path, monkeypatch, empty=("q2",))
+    # v1.552 (row ESC3p): the release lines of q2 and q4 have public_test_cases "[]"; the low run's failed
+    # q2 sample recorded the inputs and expected of the other problems' first public case, so it is now
+    # `other`, and its q4 sample, which recorded no test, is still `no_test` (review iter-398 nit 3)
+    cache = stub(tmp_path, monkeypatch, empty=("q2", "q4"))
     code, out, err = run(["--out", str(tmp_path / "m.jsonl"), "--cache", str(cache)])
     assert (code, err) == (0, "")
     report = json.loads(out)
@@ -161,6 +162,9 @@ def test_a_problem_with_no_public_case_is_read_and_never_handed_up_on_a_public_t
     for signal in (P, PN):
         assert {k: rows[(f"{LOW}>{HIGH}@{signal}", "q2")][k] for k in ("correct", "escalated")} == {
             "correct": False, "escalated": False}
+    assert (rows[(f"{LOW}>{HIGH}@{P}", "q4")]["escalated"], rows[(f"{LOW}>{HIGH}@{PN}", "q4")]["escalated"]) == (
+        False, True)
+    assert rows[(f"{LOW}>{HIGH}@{PN}", "q4")]["correct"] is True  # the high run passed q4
 
 
 def test_the_report_states_the_revisions_items_kinds_and_hand_ups(tmp_path, monkeypatch):
