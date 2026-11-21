@@ -97,14 +97,22 @@ def _download(url: str, target: Path, size: int, sha256: str, convert) -> Path:
     return target
 
 
-def fetch(folder, convert) -> dict:
-    """{name: path} for each SAMPLE release file and each RUNNER_FILES file, under `folder`, verified."""
+def fetch_release(folder, names, convert) -> dict:
+    """{name: path} for each named RELEASE_FILES file, under `folder`/release, verified; the release half
+    of fetch, which the LiveCodeBench cascade replay calls for its four files (DESIGN 7 v1.551)."""
     folder = Path(folder)
     paths = {}
-    for name in SAMPLE:
+    for name in names:
         size, sha256 = RELEASE_FILES[name]
         url = f"https://huggingface.co/datasets/{RELEASE_REPO}/resolve/{RELEASE_REVISION}/{name}"
         paths[name] = _download(url, folder / "release" / name, size, sha256, convert)
+    return paths
+
+
+def fetch(folder, convert) -> dict:
+    """{name: path} for each SAMPLE release file and each RUNNER_FILES file, under `folder`, verified."""
+    folder = Path(folder)
+    paths = fetch_release(folder, SAMPLE, convert)
     for name, (size, sha256) in RUNNER_FILES.items():
         url = f"https://raw.githubusercontent.com/{RUNNER_REPO}/{RUNNER_REVISION}/{name}"
         paths[name] = _download(url, folder / "runner" / name.rsplit("/", 1)[1], size, sha256, convert)

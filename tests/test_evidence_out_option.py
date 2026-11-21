@@ -1,7 +1,8 @@
 """The `--out` check of the evidence CLIs that download (DESIGN 12.14 v1.171 and v1.174, rows H4 and H4b;
-13.15 v1.418, row E23d; 12.20, 12.23 and 12.25 v1.486, rows T13 and E26f; 7 v1.540, row ESC3b).
+13.15 v1.418, row E23d; 12.20, 12.23 and 12.25 v1.486, rows T13 and E26f; 7 v1.540, row ESC3b; 7 v1.551,
+row ESC3o).
 
-Twelve CLIs check `--out` before they fetch anything: the tau2-bench converter (12.14), the
+Thirteen CLIs check `--out` before they fetch anything: the tau2-bench converter (12.14), the
 LiveCodeBench converter (12.16), the LLMRouterBench converter (12.18), the TRAIL summary
 (13.11), from v1.174 the RouterBench converter (12.6), the AutoBench converter (12.9) and
 the AutoBench judges script (12.11), the last two also on `--registry` when it is given, after
@@ -9,7 +10,8 @@ the AutoBench judges script (12.11), the last two also on `--registry` when it i
 converter (13.15), which has taken the check since it was written (v1.394), and from v1.486 the
 response-bank (12.20), registry-pair (12.23) and Longtail-SWE (12.25) converters, each written
 with it, and from v1.540 the tau2-bench cascade replay (7), written with it and, as judges.py does,
-calling the check and `fetch` of the `convert` module it loads. Every `evidence/*/*.py` that defines
+calling the check and `fetch` of the `convert` module it loads, and from v1.551 the LiveCodeBench
+cascade replay (7), the same way. Every `evidence/*/*.py` that defines
 `_check_out` is one of them (v1.486). A value whose last
 `/`-separated part is empty, `.` or `..`, a path or `<path>.part` that is an existing folder (a
 link to one counts), or a path whose parent is not an existing folder is a bad option: `main`
@@ -45,8 +47,9 @@ CLIS = {
     "registry-pair": ROOT / "evidence" / "registry-pair" / "convert.py",
     "longtail-swe": ROOT / "evidence" / "longtail-swe" / "convert.py",
     "tau2-cascades": ROOT / "evidence" / "tau2-bench" / "cascades.py",
+    "livecodebench-cascades": ROOT / "evidence" / "livecodebench" / "cascades.py",
 }
-LOADS_CONVERT = ("autobench-judges", "tau2-cascades")  # each calls the check and fetch of its loaded convert
+LOADS_CONVERT = ("autobench-judges", "tau2-cascades", "livecodebench-cascades")  # each calls the check and fetch of its loaded convert
 REGISTRY_CLIS = ("autobench", "autobench-judges")
 _LOADED = {}
 
@@ -131,8 +134,10 @@ PASSED_BEFORE = {
     "registry-pair": set(),
     "longtail-swe": set(),
     "tau2-cascades": set(),  # v1.540: written with the check
+    "livecodebench-cascades": set(),  # v1.551: written with the check
 }
-WRITTEN_WITH = {"ledger-handoff", "response-bank", "registry-pair", "longtail-swe", "tau2-cascades"}
+WRITTEN_WITH = {"ledger-handoff", "response-bank", "registry-pair", "longtail-swe", "tau2-cascades",
+                "livecodebench-cascades"}
 REGISTRY_PASSED_BEFORE = {cli: set(BAD) for cli in REGISTRY_CLIS}
 LATE = {"routerbench", "autobench", "autobench-judges"}  # the three that took the check in v1.175
 
@@ -169,10 +174,10 @@ def test_the_red_cases_are_bad_cases():
     assert sum(len(PASSED_BEFORE[cli]) for cli in LATE) == 36
     assert sum(len(cases) for cases in REGISTRY_PASSED_BEFORE.values()) == 24
     assert all(PASSED_BEFORE[cli] == set() for cli in WRITTEN_WITH) and WRITTEN_WITH <= set(CLIS)
-    assert len(CLIS) == 12
+    assert len(CLIS) == 13
 
 
-def test_the_checks_are_one_check():  # the twelve CLIS; ledger copy matches from v1.419, response-bank v1.487
+def test_the_checks_are_one_check():  # the thirteen CLIS; ledger copy matches from v1.419, response-bank v1.487
     sources = {cli: inspect.getsource(owner(cli)._check_out) for cli in CLIS}
     texts = {}
     for cli, text in sources.items():

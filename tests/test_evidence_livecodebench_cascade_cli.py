@@ -47,9 +47,6 @@ SAMPLES = {
                    "q5": (False, NO_TEST), "q6": (True, None)},
 }
 
-pytestmark = pytest.mark.xfail(strict=True, raises=AttributeError,
-                               reason="red until the CLI and fetch_release exist (row ESC3o)")
-
 _loaded = []
 
 
@@ -325,7 +322,7 @@ def test_design_and_changelog_state_the_cli():
 def _table():
     """{model: {failed, public, other, input_only, no_test, unread}} of research/escalation.md's ESC1c block."""
     text = NOTE.read_text(encoding="utf-8")
-    block = text.split("## Public tests matched (row ESC1c)", 1)[1].split("```text\n", 1)[1].split("```", 1)[0]
+    block = text.split("\n## Public tests matched (row ESC1c)\n", 1)[1].split("```text\n", 1)[1].split("```", 1)[0]
     lines = block.splitlines()
     head = next(k for k, line in enumerate(lines) if line.startswith("model ") and "public_share" in line)
     table = {}

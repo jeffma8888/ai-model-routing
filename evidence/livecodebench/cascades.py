@@ -15,12 +15,24 @@ answer only a private case finds stays on the cheap model. Beside the replay rul
 items, RELEASE, the four release_v4 files that hold the 713 kept problems; gives each failed first
 sample's kind with file_kinds; and builds the cascade set by a rule that reads no label, one model's
 lower reasoning setting before a higher one (DESIGN 7 v1.550). It loads the 12.16 converter and two
-research scripts by path and calls them; it downloads, reads and writes no dataset, cache or output
-file (rows ESC3o, ESC3m).
+research scripts by path and calls them.
+
+Usage: python evidence/livecodebench/cascades.py --out PATH [--cache DIR] [--release NAME]
+
+From v1.551 the CLI downloads the 67 kept files with the converter's fetch and the release files with
+fetch_release of research/escalation_public_tests.py, each checked by size and sha256, reads them
+through the same code (one open reads a release file), and writes the 12.16 --labels matrix of the
+kept problems the release files read hold, with the rows of the 22 cascades, and a report: the
+revisions, the items per difficulty, each model's kinds and each cascade's hand-ups. --release names
+the files to read, all of RELEASE when it is not given; every option is checked before any download
+(the results are row ESC3m).
 """
 
+import collections
 import importlib.util
+import json
 import math
+import sys
 from pathlib import Path
 
 from model_routing import Cascade
@@ -191,3 +203,113 @@ def setting_cascades(folders) -> list:
                 cheap, strong = convert.model_id(runs[low]), convert.model_id(runs[high])
                 out += [Cascade(cheap, strong, signal) for signal in SIGNALS]
     return sorted(out, key=lambda c: c.id)
+
+
+def check_release(names) -> list:
+    """The release files a ``--release`` list names, in RELEASE order, or all of RELEASE for None (v1.551)."""
+    if names is None:
+        return list(RELEASE)
+    seen = set()
+    for name in names:
+        if name not in RELEASE:
+            raise ValueError(f"--release {name!r} is not one of {', '.join(RELEASE)}")
+        if name in seen:
+            raise ValueError(f"--release {name!r} is given twice")
+        seen.add(name)
+    return [name for name in RELEASE if name in seen]
+
+
+def read_releases(paths) -> dict:
+    """One ``public_tests.read_release`` dict, sorted, over ``{name: path}``; a question id in two of the
+    files is a ValueError naming it."""
+    release = {}
+    for name, path in paths.items():
+        with open(path, "rb") as f:
+            part = public_tests.read_release(f, name)
+        both = sorted(set(part) & set(release))
+        if both:
+            raise ValueError(f"{name}: question_id {both[0]} is in two release files")
+        release.update(part)
+    return dict(sorted(release.items()))
+
+
+def matrix(root, release, every) -> tuple:
+    """(rows, kinds): the 12.16 ``--labels`` rows of the kept problems ``release`` holds and the kinds of
+    their failed first samples, each kept file read once; ``every`` when all of RELEASE was read."""
+    extracts, kinds = [], {}
+    for name in convert.FILES:
+        records = convert.read_file(Path(root) / name)
+        folder = name.split("/")[0]
+        extracts.append(convert.extract(records, folder, labels=True))
+        kinds.update(file_kinds(records, folder, release))
+    rows, _ = convert.convert(extracts, labels=True)
+    missing = sorted({row["item"] for row in rows} - set(release))
+    if every and missing:
+        raise ValueError(f"{len(missing)} kept problems are in no release file, the first {missing[0]}")
+    rows = [row for row in rows if row["item"] in release]
+    if not rows:
+        raise ValueError("no kept problem is in the release files read")
+    items = {row["item"] for row in rows}
+    return rows, {key: kind for key, kind in kinds.items() if key[1] in items}
+
+
+def report(rows, kinds, cascades, out_rows, names) -> dict:
+    """The report of one run, its keys in the v1.551 order."""
+    levels = {row["item"]: row[LABEL] for row in rows}
+    models = sorted({row["model"] for row in rows})
+    per_model = {model: dict.fromkeys(("failed",) + KINDS, 0) for model in models}
+    for (model, _), kind in kinds.items():
+        per_model[model]["failed"] += 1
+        per_model[model][kind] += 1
+    escalated = dict.fromkeys(sorted(c.id for c in cascades), 0)
+    for row in out_rows:
+        if row.get("escalated") is True:
+            escalated[row["model"]] += 1
+    return {
+        "submissions": convert.REVISION,
+        "release": {"revision": public_tests.RELEASE_REVISION, "files": list(names)},
+        "task": convert.TASK,
+        "items": len(levels),
+        "difficulty": dict(sorted(collections.Counter(levels.values()).items())),
+        "models": len(models),
+        "cascades": len(cascades),
+        "rows": len(out_rows),
+        "kinds": per_model,
+        "escalated": escalated,
+    }
+
+
+def main(argv=None) -> int:
+    """The v1.551 CLI: options checked before any download, the matrix to ``<out>.part``, the report
+    printed, then ``<out>.part`` replaces ``--out``; an error is one ``error:`` line and status 2."""
+    parser = convert._Parser(prog="cascades.py", description="LiveCodeBench cascade rows on the pinned files")
+    parser.add_argument("--out", required=True, help="output JSONL path")
+    parser.add_argument("--cache", default=None, help=f"download folder (default: {convert.default_cache_dir()})")
+    parser.add_argument("--release", action="append", default=None, metavar="NAME",
+                        help=f"a release file to read, one of {', '.join(RELEASE)} (default: all)")
+    try:
+        args = parser.parse_args(argv)
+        out = convert._check_out(args.out)
+        names = check_release(args.release)
+        part = out.with_name(out.name + ".part")
+        try:  # on any failure from here on, <out>.part goes, a stale one from an earlier run included
+            root = convert.fetch(args.cache)
+            release = read_releases(public_tests.fetch_release(root, names, convert))
+            rows, kinds = matrix(root, release, names == list(RELEASE))
+            cascades = setting_cascades(name.split("/")[0] for name in convert.FILES)
+            out_rows = cascade_rows(rows, kinds, cascades)
+            convert.write_jsonl(out_rows, part)
+            # print before the rename, so a write to stdout that fails leaves --out as it was (v1.94)
+            convert.print_report(json.dumps(report(rows, kinds, cascades, out_rows, names), indent=2))
+            part.replace(out)
+        finally:
+            part.unlink(missing_ok=True)
+    except (ValueError, OSError) as exc:
+        msg = str(exc).replace("\r", "\\r").replace("\n", "\\n")
+        print(f"error: {msg}", file=sys.stderr)
+        return 2
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

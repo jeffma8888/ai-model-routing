@@ -83,9 +83,11 @@ def test_the_three_files_are_loaded_by_path_and_nothing_of_theirs_is_copied():
     for name in ("classify", "first_metadata", "reduce_file", "read_release", "model_id", "extract"):
         assert name not in defined
     assert "SETTING" not in assigned and "RELEASE_FILES" not in assigned
-    assert {"urlopen", "open", "write_text", "read_text"}.isdisjoint(
-        {n.attr if isinstance(n, ast.Attribute) else n.id for n in ast.walk(tree)
-         if isinstance(n, (ast.Attribute, ast.Name))})
+    names = [n.attr if isinstance(n, ast.Attribute) else n.id for n in ast.walk(tree)
+             if isinstance(n, (ast.Attribute, ast.Name))]
+    # v1.551 (row ESC3o): the CLI downloads, reads and writes through the loaded code, but for one open
+    # that reads a release file
+    assert {"urlopen", "write_text", "read_text"}.isdisjoint(names) and names.count("open") == 1
 
 
 # --- file_kinds ----------------------------------------------------------------------------------------
