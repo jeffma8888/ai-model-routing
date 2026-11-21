@@ -10,7 +10,11 @@ note names is a plan, and that the changelog line names its section and the row.
 
 v1.563 (row PL1b) adds `## Uber` after `## Harvey`, with its items on what the sources do not say,
 and one rule: a Sources item that says its page is paywalled says it is quoted only from the part
-its fetch returned, so a reader knows which part of the page the quotes were checked against."""
+its fetch returned, so a reader knows which part of the page the quotes were checked against.
+
+v1.564 (row PL1c) adds `## Other teams` after `## Uber`, four write-ups on prompt caching, with
+their items on what the sources do not say, and says in the frame that a number the note computes
+from a source's own numbers says it is computed here."""
 
 import re
 from pathlib import Path
@@ -76,8 +80,8 @@ def test_the_note_keeps_its_rules():
 def test_the_note_quotes_and_cites_its_sources():
     text = NOTE.read_text(encoding="utf-8")
     body = text.split(SOURCES)[0]
-    assert len(QUOTE.findall(body)) >= 75
-    assert len(set(URL.findall(body))) >= 11
+    assert len(QUOTE.findall(body)) >= 105  # v1.564 (row PL1c): 111
+    assert len(set(URL.findall(body))) >= 15
     assert "## What the sources do not say" in body
     assert "first sent everything to frontier models" in body
     # v1.563 (row PL1b): the Uber section sits after Harvey's, and its do-not-say items before both
@@ -85,6 +89,12 @@ def test_the_note_quotes_and_cites_its_sources():
     unsaid = body[body.index("## What the sources do not say"):body.index("\n## Harvey\n")]
     assert "$1,500 a month" in unsaid and "These are two policies at two dates" in unsaid
     assert "The two have different baselines, so no saving per request is derived from them" in unsaid
+    # v1.564 (row PL1c): `## Other teams` after Uber's, its do-not-say items, and the computed-number rule
+    assert body.count("\n## Other teams\n") == 1 and body.index("\n## Uber\n") < body.index("\n## Other teams\n")
+    assert "so none of them is a saving from routing" in unsaid and "the cut computed here is about 8.7x on input" in unsaid
+    assert "not a company write-up, and it gives no cache hit rate" in unsaid
+    frame = body[:body.index("## What the sources do not say")]
+    assert "A number this note computes from a source's own numbers says it is computed here." in frame
 
 
 SMALL = """# Note
@@ -146,7 +156,7 @@ def test_the_readmes_link_the_note_once():
     readme = README.read_text(encoding="utf-8")
     assert readme.count("(research/production-lessons.md)") == 1
     mine = [line for line in readme.splitlines() if "(research/production-lessons.md)" in line]
-    assert "Harvey's and Uber's so far" in mine[0]  # v1.563, row PL1b
+    assert "Harvey's, Uber's and four other teams' on prompt caching so far" in mine[0]  # v1.564, row PL1c
     prior = readme.index("Full survey with sources and dates: [research/prior-art.md](research/prior-art.md).")
     assert prior < readme.index("(research/production-lessons.md)") < readme.index("## Limitations and non-goals")
     text = RESEARCH_README.read_text(encoding="utf-8")
@@ -155,7 +165,8 @@ def test_the_readmes_link_the_note_once():
             < text.index("| [prior-art.md](prior-art.md) |"))
     assert "The production-lessons note was gathered on 2026-11-21." in text
     row = [line for line in text.splitlines() if line.startswith("| [production-lessons.md](production-lessons.md) |")]
-    assert "(Short answer, from Harvey's and Uber's engineering blogs so far:" in row[0]
+    assert ("(Short answer, from Harvey's and Uber's engineering blogs and four other teams' write-ups on prompt "
+            "caching so far:") in row[0]
 
 
 def test_the_changelog_line_names_the_row():
@@ -165,6 +176,9 @@ def test_the_changelog_line_names_the_row():
     uber = [line for line in CHANGELOG.read_text(encoding="utf-8").splitlines() if line.startswith("- v1.563 (")]
     assert len(uber) == 1
     assert ": docs and tests (14, row PL1b). `research/production-lessons.md` gains `## Uber`" in uber[0]
+    other = [line for line in CHANGELOG.read_text(encoding="utf-8").splitlines() if line.startswith("- v1.564 (")]
+    assert len(other) == 1
+    assert ": docs and tests (14, row PL1c). `research/production-lessons.md` gains `## Other teams`" in other[0]
 
 
 def test_design_14_says_a_named_change_is_a_plan():
@@ -176,3 +190,5 @@ def test_design_14_says_a_named_change_is_a_plan():
     assert "A change it names is a plan, not part of v1: it is specified in its own section" in mine[0]
     assert mine[0].count("From v1.563 (row PL1b), a page paywalled past its opening is quoted only from the "
                          "opening its fetch returned and its Sources item says so") == 1
+    assert mine[0].count("From v1.564 (row PL1c), a number the note computes from a source's own numbers says "
+                         "it is computed here") == 1
