@@ -1,4 +1,5 @@
-"""Replay a cascade of two LiveCodeBench models on a failed public test of the cheap sample (DESIGN 7 v1.548).
+"""Replay a cascade of two LiveCodeBench models on a failed public test of the cheap sample (DESIGN 7 v1.548,
+v1.550 and v1.551).
 
 Standard library and ``model_routing``. A cascade starts a problem on the cheap model and hands it up to
 the strong one when its signal fires on the cheap model's first sample: ``public-test-failed`` when the
@@ -235,7 +236,9 @@ def read_releases(paths) -> dict:
 
 def matrix(root, release, every) -> tuple:
     """(rows, kinds): the 12.16 ``--labels`` rows of the kept problems ``release`` holds and the kinds of
-    their failed first samples, each kept file read once; ``every`` when all of RELEASE was read."""
+    their failed first samples; ``every`` when all of RELEASE was read. Each kept file is read once and
+    extracted twice, here with labels and inside file_kinds, which keeps its v1.550 signature (review
+    iter-397 nit 1)."""
     extracts, kinds = [], {}
     for name in convert.FILES:
         records = convert.read_file(Path(root) / name)

@@ -337,9 +337,7 @@ def _table():
 
 
 def _cached():
-    convert = m().convert if SCRIPT.exists() else None
-    if convert is None:
-        return False
+    convert = m().convert
     root = convert.default_cache_dir()
     return (root / "release" / "test3.jsonl").exists() and all((root / name).exists() for name in convert.FILES)
 
