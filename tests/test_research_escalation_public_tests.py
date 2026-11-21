@@ -103,7 +103,7 @@ def test_recorded_truncates_a_call_based_case_after_parsing(pt):
     [json.dumps({"contest_date": "2024-06-01", "public_test_cases": "[]"})],
     [LINES[0], LINES[0]],
     [line("q1", "June", [case("1", "2")])],
-    [line("q1", "2024-06-01", [])],
+    [line("q1", "2024-06-01", case("1", "2"))],
     [line("q1", "2024-06-01", [{"input": "1"}])],
     [json.dumps({"question_id": "q1", "contest_date": "2024-06-01", "public_test_cases": "nope"})],
     [json.dumps({"question_id": "q1", "contest_date": "2024-06-01"})],
@@ -117,6 +117,22 @@ def test_recorded_truncates_a_call_based_case_after_parsing(pt):
 def test_read_release_rejects_what_it_cannot_read(pt, lines):
     with pytest.raises(ValueError, match="^t.jsonl"):
         pt.read_release(lines, "t.jsonl")
+
+
+def test_read_release_reads_a_problem_with_no_public_case(pt):
+    # v1.552 (row ESC3p): abc350_c of test2.jsonl, alone of the 713 kept problems, has public_test_cases "[]"
+    got = pt.read_release([line("q2", "2024-06-02", [], CALL), line("q1", "2024-06-01T00:00:00", [])], "t.jsonl")
+    assert got == {"q1": {"date": "2024-06-01", "call_based": False, "cases": []},
+                   "q2": {"date": "2024-06-02", "call_based": True, "cases": []}}
+
+
+@pytest.mark.parametrize("meta, want", [
+    ({"inputs": "1\n", "expected": "2\n"}, ("other", None)),
+    ({"error_code": -4}, ("no_test", None)),
+    (None, ("unread", None)),
+])
+def test_a_failed_sample_of_a_problem_with_no_public_case_is_never_public(pt, meta, want):
+    assert pt.classify(meta, [], "at") == want
 
 
 @pytest.mark.parametrize("record, want", [
@@ -344,6 +360,21 @@ def test_the_spec_bullet_follows_the_signals_bullet_in_design_7():
 def test_the_changelog_line_names_the_row():
     mine = [line for line in CHANGELOG.read_text(encoding="utf-8").splitlines() if line.startswith("- v1.534 (")]
     assert len(mine) == 1 and "(7, row ESC1c)" in mine[0] and "`research/escalation_public_tests.py`" in mine[0]
+
+
+def test_the_spec_reads_an_empty_public_list_from_v1_552(pt):
+    text = DESIGN.read_text(encoding="utf-8")
+    start = text.index("- v1.534 public tests matched (row ESC1c;")
+    spec = text[start:text.index("\n- v1.539 ", start)]
+    for phrase in ("public cases that are not a list of such objects",
+                   "An empty list is a problem with no public case, read with `cases` `[]` (v1.552, row ESC3p)",
+                   "never `public` or `input_only`", "`abc350_c` of `test2.jsonl`", "not the v1.551 CLI",
+                   "the output on `SAMPLE` is unchanged"):
+        assert phrase in spec, phrase
+    assert "non-empty list of such objects" not in spec
+    assert "v1.552" in pt.read_release.__doc__
+    mine = [line for line in CHANGELOG.read_text(encoding="utf-8").splitlines() if line.startswith("- v1.552 (")]
+    assert len(mine) == 1 and "(7, row ESC3p)" in mine[0] and "`read_release`" in mine[0]
 
 
 def _cached():

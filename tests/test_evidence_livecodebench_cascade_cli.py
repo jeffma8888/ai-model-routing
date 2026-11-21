@@ -70,9 +70,10 @@ def _record(qid, passed, meta):
     return rec
 
 
-def _line(qid):
+def _line(qid, empty=False):
     cases = [{"input": "1\n", "output": "2\n", "testtype": "stdin"}, {"input": "4\n", "output": "5\n",
                                                                       "testtype": "stdin"}]
+    cases = [] if empty else cases  # v1.552: a problem with no public case, as abc350_c of test2.jsonl
     return json.dumps({"question_id": qid, "contest_date": "2024-06-01T00:00:00",
                        "public_test_cases": json.dumps(cases), "metadata": "{}",
                        "private_test_cases": "never read"})
@@ -86,7 +87,7 @@ def _no_network(*args, **kwargs):
     raise NoNetwork("a stub run opened a URL")
 
 
-def stub(tmp_path, monkeypatch, where=None, samples=None):
+def stub(tmp_path, monkeypatch, where=None, samples=None, empty=()):
     """A temporary cache of stub kept files and release files, pinned by their own size and sha256."""
     mod = m()
     cache = tmp_path / "cache"
@@ -100,7 +101,7 @@ def stub(tmp_path, monkeypatch, where=None, samples=None):
     (cache / "release").mkdir()
     for name, qids in (where or WHERE).items():
         path = cache / "release" / name
-        path.write_text("".join(_line(q) + "\n" for q in qids), encoding="utf-8")
+        path.write_text("".join(_line(q, q in empty) + "\n" for q in qids), encoding="utf-8")
         pins[name] = _pin(path)
     monkeypatch.setattr(mod.convert, "FILES", dict(sorted(files.items())))
     monkeypatch.setattr(mod.public_tests, "RELEASE_FILES", pins)
@@ -143,6 +144,23 @@ def test_a_run_writes_the_matrix_with_the_cascade_rows(tmp_path, monkeypatch):
         (cid[PN], "q1"): (True, False), (cid[PN], "q2"): (True, True), (cid[PN], "q3"): (False, False),
         (cid[PN], "q4"): (True, True), (cid[PN], "q5"): (True, False), (cid[PN], "q6"): (False, True)}
     assert not (tmp_path / "m.jsonl.part").exists()
+
+
+def test_a_problem_with_no_public_case_is_read_and_never_handed_up_on_a_public_test(tmp_path, monkeypatch):
+    # v1.552 (row ESC3p): q2's release line has public_test_cases "[]"; the low run's failed q2 sample
+    # recorded the inputs and expected of the other problems' first public case, so it is now `other`
+    cache = stub(tmp_path, monkeypatch, empty=("q2",))
+    code, out, err = run(["--out", str(tmp_path / "m.jsonl"), "--cache", str(cache)])
+    assert (code, err) == (0, "")
+    report = json.loads(out)
+    zero = dict.fromkeys(("failed",) + m().KINDS, 0)
+    assert report["items"] == 6
+    assert report["kinds"][LOW] == {**zero, "failed": 4, "public": 1, "other": 2, "no_test": 1}
+    assert report["escalated"] == {f"{LOW}>{HIGH}@{P}": 1, f"{LOW}>{HIGH}@{PN}": 2}
+    rows = {(r["model"], r["item"]): r for r in _rows(tmp_path / "m.jsonl")}
+    for signal in (P, PN):
+        assert {k: rows[(f"{LOW}>{HIGH}@{signal}", "q2")][k] for k in ("correct", "escalated")} == {
+            "correct": False, "escalated": False}
 
 
 def test_the_report_states_the_revisions_items_kinds_and_hand_ups(tmp_path, monkeypatch):
