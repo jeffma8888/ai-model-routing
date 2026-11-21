@@ -32,6 +32,7 @@ GRID = (5, 10, 15, 20, 30)
 TRANSFER = "transfer_to_human_agents"
 TOOLS_PATH = "src/tau2/domains/{domain}/tools.py"
 TIMEOUT = 60
+ATTEMPTS = 3  # tries per missing tools.py, at once (DESIGN.md 12.13 v1.406; fetch_tools v1.545)
 # domain: (bytes, sha256) of its tools.py at the converter's pinned REVISION, read 2026-11-20
 TOOL_FILES = {
     "airline": (31167, "6ec01c8c362ab0242eff658fc79547cf9519b93422ab113b6930cb627d202779"),
@@ -81,7 +82,11 @@ def tool_types(source: str, label: str) -> dict:
 
 
 def fetch_tools(folder, convert) -> dict:
-    """{domain: tools.py text} for each domain of TOOL_FILES, downloaded into `folder` once and verified."""
+    """{domain: tools.py text} for each domain of TOOL_FILES, downloaded into `folder` once and verified.
+
+    A missing file is tried up to ATTEMPTS times, at once, each attempt rewriting `<name>.part` from its
+    first byte; any `Exception` of an attempt is a failed download, and the last one is raised as an
+    OSError naming the file. A `verify` failure or a `BaseException` is never retried (12.13 v1.545)."""
     folder = Path(folder)
     folder.mkdir(parents=True, exist_ok=True)
     sources = {}
@@ -94,12 +99,15 @@ def fetch_tools(folder, convert) -> dict:
             url = (f"https://raw.githubusercontent.com/{convert.REPO}/{convert.REVISION}/"
                    + TOOLS_PATH.format(domain=domain))
             try:
-                with urllib.request.urlopen(url, timeout=TIMEOUT) as response:
-                    part.write_bytes(response.read())
-            except Exception as exc:
-                part.unlink(missing_ok=True)
-                raise OSError(f"{target.name}: download failed: {exc}") from exc
-            try:
+                for attempt in range(1, ATTEMPTS + 1):
+                    try:
+                        with urllib.request.urlopen(url, timeout=TIMEOUT) as response, part.open("wb") as out:
+                            for chunk in iter(lambda: response.read(1 << 20), b""):
+                                out.write(chunk)
+                        break
+                    except Exception as exc:
+                        if attempt == ATTEMPTS:
+                            raise OSError(f"{target.name}: download failed: {exc}") from exc
                 convert.verify(part, size, sha256)
             except BaseException:
                 part.unlink(missing_ok=True)
