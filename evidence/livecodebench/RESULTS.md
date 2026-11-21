@@ -1,6 +1,6 @@
 # LiveCodeBench results
 
-What `model-routing evaluate` measures on the public LiveCodeBench submissions: 67 models from 2023 to 2025 on 713 dated contest problems (2023-05-07 to 2024-10-05), one routing task, `code_generation`, with a success label from each problem's own test cases (`graded_list[0]`, the model's first sample passing them) and no cost. See [README.md](README.md) for what the converter reads and keeps, and DESIGN 12.17 for this file's contract. For each of 50 seeds the 713 problems are split in half by a seeded hash; the router calibrates on one half at a bar and is scored on the other half, next to the oracle, the best model on the calibration half, the `cheapest` baseline and each of the 67 models alone. The committed numbers but those of `## Slices` are in [results.json](results.json).
+What `model-routing evaluate` measures on the public LiveCodeBench submissions: 67 models from 2023 to 2025 on 713 dated contest problems (2023-05-07 to 2024-10-05), one routing task, `code_generation`, with a success label from each problem's own test cases (`graded_list[0]`, the model's first sample passing them) and no cost. See [README.md](README.md) for what the converter reads and keeps, and DESIGN 12.17 for this file's contract. For each of 50 seeds the 713 problems are split in half by a seeded hash; the router calibrates on one half at a bar and is scored on the other half, next to the oracle, the best model on the calibration half, the `cheapest` baseline and each of the 67 models alone. The committed numbers but those of `## Slices` and `## Cascades` are in [results.json](results.json).
 
 This is `cost_blind` evidence only. The submissions record no cost, no token counts and no list price, so every row of the matrix has `cost_usd` 0.0, which is what `cost_blind` assumes of every model's token cost (DESIGN 12.16). `cost_effective` is not run: with every cost 0 its routing sorts reduce to `cost_blind`'s (DESIGN 5.3), so its rows would only repeat the `cost_blind` rows.
 
@@ -169,6 +169,42 @@ The file comes from these commands, after `python -m pip install -e .`; two runs
 python evidence/livecodebench/convert.py --out livecodebench-labels.jsonl --labels
 model-routing evaluate --outcomes livecodebench-labels.jsonl --bar 0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 --seeds 50 --flavor cost_blind --slice-by difficulty --json > livecodebench-slices-difficulty.json
 python evidence/routerbench/results.py --evaluate livecodebench-slices-difficulty.json --out evidence/livecodebench/slices-difficulty.json
+```
+
+## Cascades
+
+A cascade starts a problem on a cheap model and hands it up to a strong one when a signal fires on the cheap model's first sample (DESIGN 7). The numbers of this section come from [cascades.json](cascades.json): the evaluator run above, at the same bars and seeds, on the matrix with cascade rows added by `cascades.py`, the replay of DESIGN 7 v1.548 to v1.552, which reads each failed first sample's failing case from the submission files and each problem's public test cases from the four `release_v4` files of the problem release. `public-test-failed` fires when the sample fails one of the problem's public test cases, the check a caller can run, and `public-test-failed-or-no-test` when it does or its record holds no test at all, so a sample with no recorded test is counted both ways, kept and handed up, as a bound. The 22 cascades are the 11 pairs of one model at two reasoning settings, the lower setting the cheap model (DESIGN 7 v1.550), each on the 2 signals, so the router has 89 candidates, the 67 models and the cascades, and the matrix gains 15,686 rows, one per problem and cascade. A row whose signal does not fire is the cheap model's first sample and its label; a row handed up takes the strong model's. A sample that fails a public case fails the problem, so a hand-up never turns a right answer wrong. The submissions record no cost, so every cost is 0.0 and this is `cost_blind` evidence only, as above. The router takes each cascade as a candidate beside the models, judged by its own calibration successes (DESIGN 12.3). A row's `escalation_share` counts, over its seeds whose strategy names a cascade, the held-out problems handed up over those seeds' held-out problems, so for `routed` it is how often the cheap model handed up a problem routed to a cascade, and `-` means that no seed named one.
+
+The first block of `python evidence/routerbench/results.py --table evidence/livecodebench/cascades.json`, the routed rows:
+
+```text
+bar  flavor      success  cost_usd  vs_best_model  cleared_rate  bar_violation_rate
+---  ----------  -------  --------  -------------  ------------  ------------------
+0.1  cost_blind  0.909    0.0000    -              1.000         0.000
+0.2  cost_blind  0.909    0.0000    -              1.000         0.000
+0.3  cost_blind  0.909    0.0000    -              1.000         0.000
+0.4  cost_blind  0.909    0.0000    -              1.000         0.000
+0.5  cost_blind  0.909    0.0000    -              1.000         0.000
+0.6  cost_blind  0.909    0.0000    -              1.000         0.000
+0.7  cost_blind  0.909    0.0000    -              1.000         0.000
+0.8  cost_blind  0.909    0.0000    -              1.000         0.000
+0.9  cost_blind  0.909    0.0000    -              0.280         0.643
+```
+
+Reading it:
+
+- With cascades the route holds 0.909 held-out success at every bar, against 0.902 for 12.17's routed row and 0.900 for 12.28's `sliced` row, each the same at every bar. A cascade takes 34 of the 50 seeds at every bar, each time `openai/o4-mini-medium>openai/o4-mini-high@public-test-failed-or-no-test`, and the routed `escalation_share` is 0.078. At bar 0.9 the route clears on 0.280 of the seeds and 0.643 of those fall below it on held-out, against 0.180 and 1.000 for 12.17's
+- The best single model, `openai/o4-mini-high`, holds 0.909. 1 of the 22 cascades holds more: `openai/o4-mini-medium>openai/o4-mini-high@public-test-failed-or-no-test` 0.915, `escalation_share` 0.077, against 0.908 and 0.067 for its pair on `public-test-failed`. So the one cascade that beats the best model does so only when a sample with no recorded test is handed up too, the bound's upper end
+- On 10 of the 11 pairs the `public-test-failed-or-no-test` row holds a higher held-out success than the `public-test-failed` row, by at most 0.017 (`openai/o3-mini-2025-01-31-low>openai/o3-mini-2025-01-31-med`). 22 of the 22 cascades hold a higher held-out success than their cheap model, and 9 a higher one than their strong model
+- The `cheapest`, `best_on_calibration` and `oracle` rows and the 67 single-model rows are those of [results.json](results.json) at every bar: the cascades change the `routed` rows and add one `model:` row each
+- Limits: a signal measured on a benchmark may not exist in your product; the strong row is the strong model's own first sample, a run that never saw the cheap sample or the failed case, so the replay assumes a hand-up that starts the problem over; a wrong answer that only a private case finds stays on the cheap model; and no cost is recorded, so neither the strong model's run after a hand-up nor the public tests are priced. The sliced route with cascades is not here: with `--slice-by difficulty` the file would be over the 300,000-byte limit of a committed results file (DESIGN 12.30)
+
+The commands, with the replay downloading the 67 kept submission files and the four release files, each checked by size and sha256:
+
+```bash
+python evidence/livecodebench/cascades.py --out livecodebench-cascades.jsonl
+model-routing evaluate --outcomes livecodebench-cascades.jsonl --bar 0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 --seeds 50 --flavor cost_blind --json > livecodebench-cascades-evaluate.json
+python evidence/routerbench/results.py --evaluate livecodebench-cascades-evaluate.json --out evidence/livecodebench/cascades.json
 ```
 
 ## Regenerate

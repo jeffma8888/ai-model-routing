@@ -27,7 +27,7 @@ RESULTS = FOLDER / "results.json"
 RESULTS_MD = FOLDER / "RESULTS.md"
 DESIGN = ROOT / "DESIGN.md"
 SLICES = {"1-easy": 238, "2-medium": 279, "3-hard": 196}
-HEADINGS = ["Source and licence", "Results", "Reading it", "Slices", "Regenerate"]
+HEADINGS = ["Source and licence", "Results", "Reading it", "Slices", "Cascades", "Regenerate"]  # Cascades v1.554
 TABLE = "python evidence/routerbench/results.py --table evidence/livecodebench/slices-difficulty.json"
 COMMANDS = [
     "python evidence/livecodebench/convert.py --out livecodebench-labels.jsonl --labels",
@@ -36,7 +36,7 @@ COMMANDS = [
     "python evidence/routerbench/results.py --evaluate livecodebench-slices-difficulty.json"
     " --out evidence/livecodebench/slices-difficulty.json",
 ]
-OPENING = "The committed numbers but those of `## Slices` are in [results.json](results.json)."
+OPENING = "The committed numbers but those of `## Slices` and `## Cascades` are in [results.json](results.json)."  # v1.554
 
 
 @pytest.fixture()

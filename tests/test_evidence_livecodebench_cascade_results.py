@@ -8,7 +8,7 @@ plus one row per problem and cascade for 22 cascades), reduced by the RouterBenc
 RESULTS.md gains a ``## Cascades`` section whose every number these tests build from the file, or
 from ``results.json`` where it says 12.17 and ``slices-difficulty.json`` where it says 12.28. The
 tests that read the file were committed before it under strict xfail (v1.553); the commit that adds
-it (v1.554) removes the marks. The pinned-file test runs the replay once when the 67 kept files and
+it (v1.554) removed the marks. The pinned-file test runs the replay once when the 67 kept files and
 the four release files are in the default cache and skips otherwise, as CI never downloads them.
 """
 
@@ -173,9 +173,10 @@ def phrases(results, before):
     out.append(f"With cascades the route holds {now} held-out success at every bar, against {then} for 12.17's routed "
                f"row and {cut} for 12.28's `sliced` row, each the same at every bar. A cascade takes {taken} of the "
                f"{seeds} seeds at every bar, each time `{names[0]}`, and the routed `escalation_share` is {share}. At bar "
-               f"{top} the route clears on {r3(row(results, top, 'routed')['cleared_rate'])} of the seeds, against "
-               f"{r3(row(before, top, 'routed')['cleared_rate'])} for 12.17's and {r3(sliced_row(top)['cleared_rate'])} "
-               f"for 12.28's `sliced` route")
+               f"{top} the route clears on {r3(row(results, top, 'routed')['cleared_rate'])} of the seeds and "
+               f"{r3(row(results, top, 'routed')['bar_violation_rate'])} of those fall below it on held-out, against "
+               f"{r3(row(before, top, 'routed')['cleared_rate'])} and {r3(row(before, top, 'routed')['bar_violation_rate'])} "
+               f"for 12.17's")
     # (2) the best single model and the cascades above it
     best_name, best = min(singles.items(), key=lambda kv: (-kv[1]["success"], kv[0]))
     above = sorted(((n, r) for n, r in cascades.items() if r["success"] > best["success"]),
@@ -215,9 +216,6 @@ def single_rows(results):
         assert r.pop("escalation_share") is None, r["strategy"]
         found[r["bar"], r["strategy"]] = r
     return found
-
-
-XFAIL = pytest.mark.xfail(strict=True, raises=FileNotFoundError, reason="the file lands with v1.554")
 
 
 # --- the spec, before the file
@@ -260,7 +258,6 @@ def test_the_rules_the_section_states_are_the_replays():
 
 # --- the committed file
 
-@XFAIL
 def test_the_file_is_small_reduced_and_holds_the_config_and_the_tasks(rs):
     text = FILE.read_text(encoding="utf-8")
     assert len(text.encode("utf-8")) < 300_000
@@ -273,7 +270,6 @@ def test_the_file_is_small_reduced_and_holds_the_config_and_the_tasks(rs):
     assert results["tasks"] == {TASK: {"items": ITEMS, "models": ids}}
 
 
-@XFAIL
 def test_the_rows_have_unique_keys_the_cascade_key_last_and_fifty_seeds():
     results = committed()
     summary = [(r["bar"], r["flavor"], r["strategy"]) for r in results["summary"]]
@@ -284,7 +280,6 @@ def test_the_rows_have_unique_keys_the_cascade_key_last_and_fifty_seeds():
     assert all(r["strategy"] == "routed" and sum(r["routed_models"].values()) == 50 for r in results["per_task"])
 
 
-@XFAIL
 def test_each_model_row_is_the_same_at_every_bar():
     results = committed()
     by = {}
@@ -294,7 +289,6 @@ def test_each_model_row_is_the_same_at_every_bar():
     assert len(by) == 89 and all(len(v) == 1 for v in by.values())
 
 
-@XFAIL
 def test_the_single_model_rows_are_those_of_results_json():
     found, before = single_rows(committed()), {}
     for r in old()["summary"]:
@@ -304,7 +298,6 @@ def test_the_single_model_rows_are_those_of_results_json():
     assert found == before
 
 
-@XFAIL
 def test_a_routed_escalation_share_is_none_exactly_when_no_seed_routes_to_a_cascade():
     for r in committed()["per_task"]:
         assert (r["escalation_share"] is None) == (to_cascade([r]) == 0), r["bar"]
@@ -312,7 +305,6 @@ def test_a_routed_escalation_share_is_none_exactly_when_no_seed_routes_to_a_casc
 
 # --- RESULTS.md
 
-@XFAIL
 def test_results_md_holds_the_section_in_place_with_the_opening():
     committed()
     text = RESULTS_MD.read_text(encoding="utf-8")
@@ -321,7 +313,6 @@ def test_results_md_holds_the_section_in_place_with_the_opening():
     assert text.isascii() and "\u2013" not in text and "\u2014" not in text
 
 
-@XFAIL
 def test_the_section_shows_the_first_table_block_and_the_commands(rs):
     results = committed()
     body = section()
@@ -331,7 +322,6 @@ def test_the_section_shows_the_first_table_block_and_the_commands(rs):
     assert "[cascades.json](cascades.json)" in body
 
 
-@XFAIL
 def test_each_number_of_the_section_is_the_file():
     results = committed()
     body = " ".join(section().split())
@@ -339,7 +329,6 @@ def test_each_number_of_the_section_is_the_file():
         assert words in body, words
 
 
-@XFAIL
 def test_the_section_states_the_rules_the_limits_and_that_the_baselines_are_unchanged():
     committed()
     body = " ".join(section().split())
@@ -366,7 +355,6 @@ def pinned_rows(tmp_path_factory):
     return [json.loads(line) for line in out.read_text(encoding="utf-8").splitlines()]
 
 
-@XFAIL
 def test_pinned_rows_rebuild_the_file_byte_for_byte(rs, pinned_rows):
     text = FILE.read_text(encoding="utf-8")
     result = evaluate(outcomes_from_rows(pinned_rows), bars=BARS, seeds=range(50), flavors=("cost_blind",))
