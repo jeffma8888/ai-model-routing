@@ -235,7 +235,8 @@ def test_design_12_30_specifies_the_cascade_results():
                   "reduces to 305,789 bytes, over 300,000", "row ESC3q",
                   "`evidence/livecodebench/RESULTS.md` gains `## Cascades`, after `## Slices` and before `## Regenerate`",
                   "`tests/test_evidence_livecodebench_cascade_results.py`",
-                  "`pytest.mark.xfail(strict=True, raises=FileNotFoundError)`", "(row ESC3i)"] + COMMANDS[:1]:
+                  "`pytest.mark.xfail(strict=True, raises=FileNotFoundError)`",
+                  "- Workflow (v1.559, row ESC3i): "] + COMMANDS[:1]:
         assert words in body, words
     for command in COMMANDS[1:]:
         assert f"`{command}`" in body, command

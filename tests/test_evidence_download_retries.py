@@ -161,6 +161,13 @@ def test_each_script_the_job_runs_that_downloads_is_tested_here():
     assert downloading == set(SCRIPTS.values()) - {SCRIPTS["tools"]}
     cascades = (ROOT / "evidence" / "tau2-bench" / "cascades.py").read_text(encoding="utf-8")
     assert '"research" / "escalation_signals.py"' in cascades and "signals.fetch_tools(" in cascades
+    # v1.559 (row ESC3i): the LiveCodeBench replay downloads the release files through fetch_release, which
+    # tries each once; DESIGN 12.13 says so until row ESC3t gives it ATTEMPTS and a SCRIPTS entry here
+    assert "evidence/livecodebench/cascades.py" in run
+    lcb = (ROOT / "evidence" / "livecodebench" / "cascades.py").read_text(encoding="utf-8")
+    assert '"research" / "escalation_public_tests.py"' in lcb and "public_tests.fetch_release(" in lcb
+    release = (ROOT / "research" / "escalation_public_tests.py").read_text(encoding="utf-8")
+    assert "urlopen" in release and "ATTEMPTS" not in release
 
 
 @pytest.mark.parametrize("kind", list(FAILURES))
@@ -263,11 +270,14 @@ def test_design_states_the_retry_rule():
     bullets = [line for line in DESIGN.read_text(encoding="utf-8").splitlines()
                if line.startswith("- Time limit and retries (")]
     assert len(bullets) == 1
-    for phrase in ("Retries (v1.406, row CI23; `fetch_tools` v1.545): each of them tries a missing file up to "
+    for phrase in ("Retries (v1.406, row CI23; `fetch_tools` v1.545): each of them but `fetch_release` (row ESC3t) "
+                   "tries a missing file up to "
                    "`ATTEMPTS = 3` times, at once",
                    # v1.545 (row ESC3h): the list names every function SCRIPTS tests
-                   "the nine download functions the job calls (the `fetch` of " + ", ".join(SECTIONS[:-1])
-                   + f" and {SECTIONS[-1]}, and `fetch_tools`) each open a file with `urlopen(..., timeout=60)`",
+                   # v1.559 (row ESC3i): and `fetch_release`, which the job calls once per file (row ESC3t)
+                   "the ten download functions the job calls (the `fetch` of " + ", ".join(SECTIONS[:-1])
+                   + f" and {SECTIONS[-1]}, `fetch_tools` and `fetch_release`) each open a file with "
+                   "`urlopen(..., timeout=60)`",
                    "(in 13.15 and `fetch_tools` any `Exception`, since they report each as a failed download)",
                    "each attempt rewriting `<name>.part` from its first byte",
                    "a download that fails `verify` (bytes unlike the pin mean the source moved, while a short read "

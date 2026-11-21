@@ -199,7 +199,7 @@ Reading it:
 - The `cheapest`, `best_on_calibration` and `oracle` rows and the 67 single-model rows are those of [results.json](results.json) at every bar: the cascades change the `routed` rows and add one `model:` row each
 - Limits: a signal measured on a benchmark may not exist in your product; the strong row is the strong model's own first sample, a run that never saw the cheap sample or the failed case, so the replay assumes a hand-up that starts the problem over; a wrong answer that only a private case finds stays on the cheap model; and no cost is recorded, so neither the strong model's run after a hand-up nor the public tests are priced. The sliced route with cascades is not here: with `--slice-by difficulty` the file would be over the 300,000-byte limit of a committed results file (DESIGN 12.30)
 
-The commands, with the replay downloading the 67 kept submission files and the four release files, each checked by size and sha256:
+The commands, with the replay downloading the 67 kept submission files and the four release files, each checked by size and sha256; the `evidence` workflow reruns them on GitHub and fails if the file changes by a byte (`DESIGN.md` 12.13, v1.559):
 
 ```bash
 python evidence/livecodebench/cascades.py --out livecodebench-cascades.jsonl

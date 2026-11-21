@@ -515,7 +515,7 @@ POINTERS = {
     "- Time limit and retries (v1.152, ": ("v1.152, v1.168, v1.170, v1.215, v1.217, v1.218, v1.225, v1.226, v1.268, "
                                            "v1.299, v1.301, v1.302, v1.317, v1.321, v1.374, v1.395, v1.398, "
                                            "v1.399, v1.401, v1.407, v1.442"),
-    "Purpose: a reader can see the twenty-two results files of the `Compare` step below ":
+    "Purpose: a reader can see the twenty-three results files of the `Compare` step below ":
         "v1.55, v1.65, v1.80, v1.84, v1.168, v1.200, v1.299",
     "- The workflow `.github/workflows/evidence.yml`, `name: evidence`, ":
         "v1.54, v1.55, v1.65, v1.80, v1.84, v1.168, v1.200, v1.299",
@@ -1123,9 +1123,9 @@ def test_12_13_states_its_contract_as_it_is_and_holds_no_growth_history():
     # The counts are the ones the workflow and its tests hold now.
     compare = [line for line in workflow.workflow_text().splitlines() if "git diff --exit-code --" in line]
     # ledger v1.397, registry pair v1.443, its delegation v1.472, Longtail-SWE v1.489, AutoBench slices v1.525,
-    # LiveCodeBench slices v1.530, tau2-bench cascades v1.544
-    assert len(compare) == 1 and compare[0].count(" evidence/") == 22
-    assert body[0].startswith("Purpose: a reader can see the twenty-two results files of the `Compare` step below ")
+    # LiveCodeBench slices v1.530, tau2-bench cascades v1.544, LiveCodeBench cascades v1.559
+    assert len(compare) == 1 and compare[0].count(" evidence/") == 23
+    assert body[0].startswith("Purpose: a reader can see the twenty-three results files of the `Compare` step below ")
     assert f"each of {len(workflow.MUTANTS)} broken workflows fails the check" in joined
     commands, run = workflow.expected_commands(workflow.readme()), workflow.regenerate_commands(workflow.readme())
     # v1.397 (row E23c): after the README commands it runs, the ledger RESULTS.md line, from v1.443
@@ -1139,9 +1139,9 @@ def test_12_13_states_its_contract_as_it_is_and_holds_no_growth_history():
     kept = [workflow.ledger_command()] + registry + delegation[1:] + longtail
     # v1.525 (row STRAT3g): the 12.27 `## Slices` block, no `## Regenerate` block, all nine lines, and from v1.530
     # (row STRAT3i) the three of the 12.28 one, then from v1.544 (row ESC3e) the three of the 12.29 `## Cascades`
-    # block, run last
+    # block and from v1.559 (row ESC3i) the three of the 12.30 one, run last
     slices = (workflow.slices_commands() + workflow.slices_commands(workflow.LCB_SLICES_NOTES)
-              + workflow.cascade_commands())
+              + workflow.cascade_commands() + workflow.lcb_cascade_commands())
     assert run[-len(kept) - len(slices):] == kept + slices and not set(taken + slices) & set(commands)
     readme_run = len(run) - len(kept) - len(slices)
     assert f"so the README holds {len(commands)} rerun commands and `Regenerate` runs {readme_run} of them, " \
@@ -1179,7 +1179,8 @@ def test_12_13_states_its_contract_as_it_is_and_holds_no_growth_history():
     # from v1.489 (row E26d) with Longtail-SWE
     assert len(heading) == 1 and heading[0].endswith(
         "; ledger hand-off v1.397; registry pair v1.443; registry-pair delegation v1.472; Longtail-SWE v1.489"
-        "; AutoBench slices v1.525; LiveCodeBench slices v1.530; tau2-bench cascades v1.544)")
+        "; AutoBench slices v1.525; LiveCodeBench slices v1.530; tau2-bench cascades v1.544"
+        "; LiveCodeBench cascades v1.559)")  # v1.559 (row ESC3i)
     # v1.544 (row ESC3e): the reason and the aside two lines dropped stay out
     for words in ("which GitHub moves to Ubuntu 26.04", "so leaving it out changes only the log",
                   "which a reflow keeps", "the same manifest lists 3.15.2", "would go unseen until a run missed"):
