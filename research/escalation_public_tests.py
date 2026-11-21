@@ -56,6 +56,7 @@ PARSE_LINES = ('[json.loads(line) for line in inputs.split("\\n")] for inputs in
                "all_outputs = [json.loads(output) for output in all_outputs]")
 LENGTH = 300
 TIMEOUT = 60
+ATTEMPTS = 3  # tries per missing file, at once (DESIGN.md 12.13 v1.406; fetch_release v1.560)
 KINDS = ("public", "other", "input_only", "no_test", "unread")
 COLUMNS = ("problems", "failed") + KINDS
 DATE = re.compile(r"(\d{4}-\d{2}-\d{2})(T.*)?")
@@ -78,18 +79,26 @@ def truncate(s, length: int = LENGTH) -> str:
 
 
 def _download(url: str, target: Path, size: int, sha256: str, convert) -> Path:
+    """`target`, checked by `size` and `sha256`; a cached file is never downloaded again.
+
+    A missing file is tried up to ATTEMPTS times, at once, each attempt rewriting `<name>.part` from its
+    first byte; any `Exception` of an attempt is a failed download, and the last one is raised as an
+    OSError naming the file. A `verify` failure or a `BaseException` is never retried (12.13 v1.560)."""
     if target.exists():
         convert.verify(target, size, sha256)
         return target
     target.parent.mkdir(parents=True, exist_ok=True)
     part = target.with_name(target.name + ".part")
     try:
-        try:
-            with urllib.request.urlopen(url, timeout=TIMEOUT) as response, open(part, "wb") as out:
-                for block in iter(lambda: response.read(1 << 20), b""):
-                    out.write(block)
-        except Exception as exc:
-            raise OSError(f"{target.name}: download failed: {exc}") from exc
+        for attempt in range(1, ATTEMPTS + 1):
+            try:
+                with urllib.request.urlopen(url, timeout=TIMEOUT) as response, open(part, "wb") as out:
+                    for block in iter(lambda: response.read(1 << 20), b""):
+                        out.write(block)
+                break
+            except Exception as exc:
+                if attempt == ATTEMPTS:
+                    raise OSError(f"{target.name}: download failed: {exc}") from exc
         convert.verify(part, size, sha256)  # a mismatch is the converter's ValueError, not a download failure
         part.replace(target)
     finally:
@@ -99,7 +108,8 @@ def _download(url: str, target: Path, size: int, sha256: str, convert) -> Path:
 
 def fetch_release(folder, names, convert) -> dict:
     """{name: path} for each named RELEASE_FILES file, under `folder`/release, verified; the release half
-    of fetch, which the LiveCodeBench cascade replay calls for its four files (DESIGN 7 v1.551)."""
+    of fetch, which the LiveCodeBench cascade replay calls for its four files (DESIGN 7 v1.551). Each
+    missing file has its own ATTEMPTS tries through _download (12.13 v1.560, row ESC3t)."""
     folder = Path(folder)
     paths = {}
     for name in names:
