@@ -15,7 +15,7 @@ Each lesson gives the mechanism, the result with its source, and what this libra
 - Axios wrote that Uber "caps interactive sessions at 400,000 tokens, even when using a model that can handle up to one million tokens." ([Axios](https://www.axios.com/2026/08/27/ai-uber-spending)) The post describes automatic compaction at 400k tokens, a threshold on the context, not a limit on a session's tokens or spend.
 - None of the four write-ups on prompt caching moves work to another model: each saving they give comes with the model held fixed, from serving the same prompt prefix from the cache, so none of them is a saving from routing. Neradot lists a cheaper model for the easy calls among the steps it takes by default, "Consider a cheaper model." ([Neradot](https://www.neradot.com/post/cutting-inference-cost-36-percent-with-prompt-caching)), and gives no number for it.
 - Kern AI's "Effective reduction: ~10x on input costs." ([Kern AI](https://kern-ai.com/blog/prompt-caching)) is on input tokens alone. By its own counts, about 10k of the 600k tokens at full price and 590k at 10%, the cut computed here is about 8.7x on input, before any cache-write premium, and the post gives no output cost or total bill.
-- The Hacker News post is one developer's account of the bill for that developer's own coding agent, not a company write-up, and it gives no cache hit rate.
+- The Hacker News post is one developer's account of the bill for that developer's own coding agent, not a company write-up, and it gives no cache hit rate. Kern AI's post is about kern, an open-source agent, measured on "a real agent running 100k+ token prompts on Anthropic (Claude Opus via OpenRouter)" ([Kern AI](https://kern-ai.com/blog/prompt-caching)), with no company or traffic named.
 
 ## Harvey
 
@@ -143,7 +143,7 @@ Each lesson gives the mechanism, the result with its source, and what this libra
 
 ## Other teams
 
-Write-ups by other teams that run language models in production. This version reads four on prompt caching, where a provider serves a repeated prompt prefix from its cache at a fraction of its input price.
+Write-ups by other teams and projects that run language models in production. This version reads four on prompt caching, where a provider serves a repeated prompt prefix from its cache at a fraction of its input price.
 
 ### The cache hit rate is a cost number
 
@@ -161,7 +161,7 @@ Write-ups by other teams that run language models in production. This version re
 
 - Mechanism: Neradot's support agent sent a fixed part of about 14,000 tokens (rules and tool schemas), a part of about 3,500 for each ticket and a growing part for each turn, and "Tier 1 is 76% of the input on the first request of a ticket." ([Neradot](https://www.neradot.com/post/cutting-inference-cost-36-percent-with-prompt-caching)) It first had a model cut the repetition out of the prompt, read the diff by hand, and then put cache breakpoints at the end of the fixed part and of the ticket part.
 - Result: the trim: "That got us 15% fewer tokens, on prompts we already thought were tight." ([Neradot](https://www.neradot.com/post/cutting-inference-cost-36-percent-with-prompt-caching)) The ticket part's cache entry was read only once or twice before the ticket ended, so its breakpoint saved, in Neradot's words, "call it 6% on a good day" ([Neradot](https://www.neradot.com/post/cutting-inference-cost-36-percent-with-prompt-caching)), and "We kept the tier 1 breakpoint and dropped the tier 2 one." ([Neradot](https://www.neradot.com/post/cutting-inference-cost-36-percent-with-prompt-caching)) "Pass two came out at 25% off what pass one left us." ([Neradot](https://www.neradot.com/post/cutting-inference-cost-36-percent-with-prompt-caching)) In all: "36% total, with the same outputs and the same eval scores." ([Neradot](https://www.neradot.com/post/cutting-inference-cost-36-percent-with-prompt-caching)) Its rule: "what matters is how often a block is read, not how big it is." ([Neradot](https://www.neradot.com/post/cutting-inference-cost-36-percent-with-prompt-caching))
-- In this library: a call's price uses the task's mean tokens per call, with no split between the prefix its calls share and the part each call adds, so the library cannot tell which tasks have a prefix worth caching. The change: the planned measured cached and written tokens per task and model give that split as the provider served it, and a cache write priced at its premium makes caching lose on a task whose prefix is read once, as Neradot's ticket part was.
+- In this library: a call's price uses the task's mean tokens per call, with no split between the prefix its calls share and the part each call adds, so the library cannot tell which tasks have a prefix worth caching. The change: the planned measured cached and written tokens per task and model give that split as the provider served it, and a cache write priced at its premium shows how little caching saves on a part read only once or twice before it expires, as Neradot's ticket part was, and that a part written and never read loses.
 
 ### Set the cache's life by the traffic rate
 
