@@ -4,7 +4,7 @@ evidence/livecodebench/cascades.py names RELEASE, the four release_v4 files; giv
 sample's kind with file_kinds; and builds the cascade set with setting_cascades, one model's lower
 reasoning setting before a higher one. These tests were committed before the code under a module-level
 strict xfail whose error, AttributeError, is the one a missing attribute of the loaded script raises,
-and the implementing commit removes the mark. They use stub records and folder names; one, skipped
+and the implementing commit removed the mark. They use stub records and folder names; one, skipped
 unless test3.jsonl and a kept file are cached, counts test3.jsonl's problems by difficulty."""
 
 import ast
@@ -17,8 +17,6 @@ from pathlib import Path
 import pytest
 
 from model_routing import Cascade
-
-pytestmark = pytest.mark.xfail(strict=True, raises=AttributeError)
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "evidence" / "livecodebench" / "cascades.py"
