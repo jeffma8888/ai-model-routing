@@ -22,7 +22,7 @@ DESIGN = ROOT / "DESIGN.md"
 
 URL = re.compile(r"https?://[^\s)\]>\"'`]+")
 QUOTE = re.compile(r'"([^"]+)"( \(\[[^\]]+\]\((https://[^)]+)\)\))?')
-LOCAL_PATH = re.compile(r"(?:^|[\s(\[`'\"])(?:~[/\\]|/(?!/)|[A-Za-z]:[\\/])|file:|\\Users\\")
+LOCAL_PATH = re.compile(r"(?:^|[\s(\[`'\"])(?:~[/\\]|/(?!/)|[A-Za-z]:[\\/])|file:|\\Users\\|\$HOME\b|%USERPROFILE%")  # review iter-407 nit 1: $HOME
 FETCHED = re.compile(r"^Each page was fetched on \d{4}-\d{2}-\d{2}\.$", re.M)
 SOURCES = "\n## Sources\n"
 
@@ -98,6 +98,8 @@ Each page was fetched on 2026-11-21.
     ("## Lesson\n", "## Lesson\n\nSee ~/notes for more.\n", "line 5 names a local path"),
     ("## Lesson\n", "## Lesson\n\nSee C:\\notes for more.\n", "line 5 names a local path"),
     ("## Lesson\n", "## Lesson\n\nSee file:notes.md.\n", "line 5 names a local path"),
+    ("## Lesson\n", "## Lesson\n\nSee $HOME/notes for more.\n", "line 5 names a local path"),
+    ("## Lesson\n", "## Lesson\n\nSee %USERPROFILE%\\notes for more.\n", "line 5 names a local path"),
     ("## Sources\n", "## Sources\n\n## More\n", "`## Sources` is not the last section"),
     ("- https://example.com/a (what it is)\n", "- https://example.com/a (what it is)\n- https://example.com/a (again)\n",
      "a URL is listed twice in Sources"),
