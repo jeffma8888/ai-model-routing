@@ -1555,6 +1555,7 @@ def test_the_workflow_reruns_the_livecodebench_cascades_block_last():
     assert before.endswith("the `evidence` workflow reruns them on GitHub and fails if the file changes by a byte "
                            "(`DESIGN.md` 12.13, v1.559):")
 
+
 def test_the_workflow_reruns_the_tau2_domain_line_between_the_cascades_blocks():
     # v1.561 (row ESC3s, DESIGN 12.13 per-domain bullet, 12.29 Workflow and Per domain bullets): the one line of the
     # tau2-bench `## Cascades by domain` block directly after the three of its `## Cascades` block, whose evaluate
@@ -1581,6 +1582,15 @@ def test_the_workflow_reruns_the_tau2_domain_line_between_the_cascades_blocks():
     assert problems(MUTANTS["the tau2-bench per-domain line dropped"](text), readme(), ci_text) == [
         "Regenerate is not the README commands in order"]
     assert problems(MUTANTS["the compare step without the tau2-bench per-domain file"](text), readme(), ci_text) == [
+        "Compare is not the diff of the committed results"]
+    # review iter-406 should-fix 1: the line moved after the LiveCodeBench cascade lines, or its file moved to the end
+    # of Compare, each fails on its one check
+    moved_line = with_lines(text, lambda ls: [line for line in ls if line.strip() != DOMAIN_LINES[0]]
+                            + [line for line in ls if line.strip() == DOMAIN_LINES[0]])
+    assert moved_line != text and problems(moved_line, readme(), ci_text) == [
+        "Regenerate is not the README commands in order"]
+    moved_file = text.replace(f" {DOMAIN_FILE} {LCB_CASCADE_FILE}\n", f" {LCB_CASCADE_FILE} {DOMAIN_FILE}\n", 1)
+    assert moved_file != text and problems(moved_file, readme(), ci_text) == [
         "Compare is not the diff of the committed results"]
     # The top comment names the section, on lines under 100 columns (the RouterBench bullet of 12.13).
     comment = " ".join(line[2:] for line in text.split("\non:\n", 1)[0].split("\n") if line.startswith("# "))
@@ -1610,8 +1620,8 @@ def test_the_workflow_reruns_the_tau2_domain_line_between_the_cascades_blocks():
     # The RESULTS.md line before the block says the workflow reruns it (12.13, 12.29).
     notes = (ROOT / CASCADE_NOTES).read_text(encoding="utf-8")
     before = notes.split(f"\n## {DOMAIN_HEADING}\n", 1)[1].split("```bash", 1)[0].rstrip("\n").split("\n")[-1]
-    assert before.endswith("the `evidence` workflow reruns it on GitHub after them and fails if the file changes by a "
-                           "byte (`DESIGN.md` 12.13, v1.561):")
+    assert before.endswith("the `evidence` workflow reruns it on GitHub after the three of `## Cascades` and fails if "
+                           "the file changes by a byte (`DESIGN.md` 12.13, v1.561):")  # review iter-406 nit 4
     assert "does not rerun it yet" not in notes
 
 

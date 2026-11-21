@@ -175,7 +175,7 @@ Reading it:
 - A cascade fixed for a domain beats its best single agent on both counts in `telecom` only; in `airline` and `retail` none of the 42 does.
 - Each candidate's three domain costs add up to its `model:` row's cost in [cascades.json](cascades.json), which pools the three domains, so the two files price each candidate alike.
 
-The command, after the first two of `## Cascades`, which write `tau2-cascades-evaluate.json`; the `evidence` workflow reruns it on GitHub after them and fails if the file changes by a byte (`DESIGN.md` 12.13, v1.561):
+The command, after the first two of `## Cascades`, which write `tau2-cascades-evaluate.json`; the `evidence` workflow reruns it on GitHub after the three of `## Cascades` and fails if the file changes by a byte (`DESIGN.md` 12.13, v1.561):
 
 ```bash
 python evidence/tau2-bench/domains.py --evaluate tau2-cascades-evaluate.json --out evidence/tau2-bench/cascades-domains.json

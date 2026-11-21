@@ -140,7 +140,7 @@ def test_design_12_29_specifies_the_domain_rows():
     body = text.split("\n### 12.29 ", 1)[1].split("\n### ", 1)[0]
     for words_ in ["- Per domain (v1.555, row ESC3g): `evidence/tau2-bench/domains.py`", f"`{COMMAND}`", f"`{TABLE}`",
                    f"`## {HEADING}`, after `## Cascades` and before `## Regenerate`",
-                   "`tests/test_evidence_tau2_cascade_domains.py`", "(row ESC3s)",
+                   "`tests/test_evidence_tau2_cascade_domains.py`", "from v1.561 (row ESC3s)",  # review iter-406 nit 3
                    "`pytest.mark.xfail(strict=True, raises=(FileNotFoundError, ModuleNotFoundError))`"]:
         assert words_ in body, words_
 
@@ -245,8 +245,8 @@ def test_results_md_holds_the_section_with_its_table_and_command():
     assert body.count("```bash") == 1 and f"```bash\n{COMMAND}\n```" in body
     before = body.split("```bash", 1)[0].rstrip("\n").split("\n")[-1]
     # v1.561 (row ESC3s): the workflow reruns it, by tests/test_evidence_workflow.py
-    assert before.endswith("the `evidence` workflow reruns it on GitHub after them and fails if the file changes by a "
-                           "byte (`DESIGN.md` 12.13, v1.561):") and "does not rerun it yet" not in body
+    assert before.endswith("the `evidence` workflow reruns it on GitHub after the three of `## Cascades` and fails if "
+                           "the file changes by a byte (`DESIGN.md` 12.13, v1.561):") and "does not rerun it yet" not in body
     cascades = text.split("\n## Cascades\n", 1)[1].split("\n## ", 1)[0]
     assert f"`## {HEADING}` gives each domain's" in " ".join(cascades.split())
 
