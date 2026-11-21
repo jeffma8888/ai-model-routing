@@ -225,7 +225,8 @@ def test_design_12_29_specifies_the_cascade_results():
                   "`per_task` rows", "12.15's, bars `0.3 0.4 0.5 0.6 0.7 0.8`, 50 seeds, both flavors",
                   "`evidence/tau2-bench/RESULTS.md` gains `## Cascades`, after `## Sensitivity` and before "
                   "`## Regenerate`", "`tests/test_evidence_tau2_cascade_results.py`",
-                  "`pytest.mark.xfail(strict=True, raises=FileNotFoundError)`", "(row ESC3g)"] + COMMANDS[:1]:
+                  "`pytest.mark.xfail(strict=True, raises=FileNotFoundError)`",
+                  "- Per domain (v1.555, row ESC3g): "] + COMMANDS[:1]:
         assert words in body, words
     for command in COMMANDS[1:]:
         assert f"`{command}`" in body, command
