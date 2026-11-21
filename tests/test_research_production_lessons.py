@@ -19,7 +19,13 @@ from a source's own numbers says it is computed here.
 v1.565 (row PL1d) adds three lessons to `## Other teams` (LMSYS RouteLLM, OpenRouter Fusion and
 Replit code repair), with their items on what the sources do not say, and says in the frame that
 a result measured on a benchmark rather than on production traffic says so, and that a model name
-in the text, as in a quote, is its author's product name."""
+in the text, as in a quote, is its author's product name.
+
+v1.566 (row PL1e) adds four lessons to `## Other teams` (Grab's AI Gateway, GitHub's Copilot
+evaluation, a16z's LLMflation and Epoch AI's price trends), with their items on what the sources do
+not say, restates the opening, the README line and the research/README.md row for the whole note,
+and says in the frame that a page whose text fetch left out the part quoted is quoted from its raw
+HTML, as Epoch AI's Sources item says."""
 
 import re
 from pathlib import Path
@@ -85,8 +91,8 @@ def test_the_note_keeps_its_rules():
 def test_the_note_quotes_and_cites_its_sources():
     text = NOTE.read_text(encoding="utf-8")
     body = text.split(SOURCES)[0]
-    assert len(QUOTE.findall(body)) >= 130  # v1.565 (row PL1d): 138
-    assert len(set(URL.findall(body))) >= 18
+    assert len(QUOTE.findall(body)) >= 165  # v1.566 (row PL1e): 173
+    assert len(set(URL.findall(body))) >= 22
     assert "## What the sources do not say" in body
     assert "first sent everything to frontier models" in body
     # v1.563 (row PL1b): the Uber section sits after Harvey's, and its do-not-say items before both
@@ -111,7 +117,26 @@ def test_the_note_quotes_and_cites_its_sources():
     for url in ("https://lmsys.org/blog/2024-07-01-routellm/", "https://openrouter.ai/blog/announcements/fusion-beats-frontier/",
                 "https://blog.replit.com/code-repair"):
         assert url in other
-    assert "All three give results on benchmarks, not on production traffic" in other
+    assert "The three on routing, panels and a distilled model give results on benchmarks, not on production traffic" in other
+    # v1.566 (row PL1e): gateways, evaluation and price drift; the opening covers the whole note
+    opening = frame.split("\n\n")[1]
+    assert "more write-ups of other teams follow" not in opening
+    assert "and eleven write-ups by others: four by teams on prompt caching;" in opening
+    assert "and two analyses of how fast the price of a given benchmark score has fallen" in opening
+    assert ("A page whose text fetch left out the part quoted is quoted from its raw HTML, and its Sources item says so."
+            in frame)
+    assert "Neither Grab's post nor GitHub's gives a number for what its gateway or its evaluation saved or caught." in unsaid
+    assert "a16z's and Epoch AI's rates are analyses of public list prices and benchmark scores" in unsaid
+    assert "So no rate from them is applied here to any model's price." in unsaid
+    for url in ("https://engineering.grab.com/grab-ai-gateway",
+                "https://github.blog/ai-and-ml/generative-ai/how-we-evaluate-models-for-github-copilot/",
+                "https://a16z.com/llmflation-llm-inference-cost/", "https://epoch.ai/data-insights/llm-inference-price-trends"):
+        assert url in other
+    assert "and four on gateways, evaluation and price drift:" in other
+    assert "The two on price drift read public list prices and benchmark scores, not any team's bill." in other
+    epoch = [line for line in text.split(SOURCES)[1].splitlines()
+             if line.startswith("- https://epoch.ai/data-insights/llm-inference-price-trends ")]
+    assert len(epoch) == 1 and "its quotes were checked against its raw HTML" in epoch[0]
 
 
 SMALL = """# Note
@@ -173,8 +198,9 @@ def test_the_readmes_link_the_note_once():
     readme = README.read_text(encoding="utf-8")
     assert readme.count("(research/production-lessons.md)") == 1
     mine = [line for line in readme.splitlines() if "(research/production-lessons.md)" in line]
-    assert ("Harvey's, Uber's, four other teams' on prompt caching and three on routing, panels and a distilled model "
-            "so far") in mine[0]  # v1.565, row PL1d
+    assert ("Harvey's, Uber's and eleven by others, on prompt caching, routing, panels, a distilled model, gateways, "
+            "model evaluation and price drift, and what this library does or plans") in mine[0]  # v1.566, row PL1e
+    assert "so far" not in mine[0]
     prior = readme.index("Full survey with sources and dates: [research/prior-art.md](research/prior-art.md).")
     assert prior < readme.index("(research/production-lessons.md)") < readme.index("## Limitations and non-goals")
     text = RESEARCH_README.read_text(encoding="utf-8")
@@ -183,8 +209,10 @@ def test_the_readmes_link_the_note_once():
             < text.index("| [prior-art.md](prior-art.md) |"))
     assert "The production-lessons note was gathered on 2026-11-21." in text
     row = [line for line in text.splitlines() if line.startswith("| [production-lessons.md](production-lessons.md) |")]
-    assert ("(Short answer, from Harvey's and Uber's engineering blogs, four other teams' write-ups on prompt "
-            "caching and three on routing, panels and a distilled model so far:") in row[0]
+    assert ("(Short answer, from Harvey's and Uber's engineering blogs and eleven write-ups by others on prompt "
+            "caching, routing, panels, a distilled model, gateways, model evaluation and price drift:") in row[0]  # v1.566
+    assert "so far" not in row[0]
+    assert "batch work kept off online work's limits" in row[0] and "prices dated" in row[0]
 
 
 def test_the_changelog_line_names_the_row():
@@ -200,6 +228,9 @@ def test_the_changelog_line_names_the_row():
     more = [line for line in CHANGELOG.read_text(encoding="utf-8").splitlines() if line.startswith("- v1.565 (")]
     assert len(more) == 1
     assert ": docs and tests (14, row PL1d). `research/production-lessons.md` gains three lessons in `## Other teams`" in more[0]
+    last = [line for line in CHANGELOG.read_text(encoding="utf-8").splitlines() if line.startswith("- v1.566 (")]
+    assert len(last) == 1
+    assert ": docs and tests (14, row PL1e). `research/production-lessons.md` gains four lessons in `## Other teams`" in last[0]
 
 
 def test_design_14_says_a_named_change_is_a_plan():
@@ -215,3 +246,5 @@ def test_design_14_says_a_named_change_is_a_plan():
                          "it is computed here") == 1
     assert mine[0].count("From v1.565 (row PL1d), a result measured on a benchmark rather than on production traffic "
                          "says so") == 1
+    assert mine[0].count("From v1.566 (row PL1e), a page whose text fetch left out the part quoted is quoted from its "
+                         "raw HTML, and its Sources item says so") == 1
