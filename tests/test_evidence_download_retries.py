@@ -186,6 +186,28 @@ def test_each_file_has_its_own_three_attempts(monkeypatch, tmp_path):
     assert dest.read_bytes() == BODY and not list(cache.rglob("*.part"))
 
 
+def test_each_tools_file_fails_once_and_is_kept_on_its_second_attempt(monkeypatch, tmp_path):
+    # Review iter-391 should-fix 1 (row ESC3h done-criterion): the parametrized `tools` cases pin airline
+    # alone, so a retry of the first domain only, or one count shared by the three, would pass them; here
+    # each of the three domains fails its first attempt (two at the open, one mid-read) and is kept on its
+    # second, with its own body.
+    mod, convert = load("tools"), load("tau2")
+    bodies = {domain: f"# {domain} tools\n".encode() for domain in ("airline", "retail", "telecom")}
+    monkeypatch.setattr(mod, "TOOL_FILES", {d: (len(b), hashlib.sha256(b).hexdigest()) for d, b in bodies.items()})
+    base = f"https://raw.githubusercontent.com/{convert.REPO}/{convert.REVISION}/src/tau2/domains/"
+    urls = {domain: base + f"{domain}/tools.py" for domain in bodies}
+    failures = {urls["airline"]: [TimeoutError("The read operation timed out")],
+                urls["retail"]: [Broken(TimeoutError("The read operation timed out"))],
+                urls["telecom"]: [ConnectionResetError("reset")]}
+    calls = serve(monkeypatch, {urls[d]: b for d, b in bodies.items()}, [], url_failures=failures)
+    folder = tmp_path / "cache" / "tools"
+    sources = mod.fetch_tools(folder, convert)
+    assert calls == [urls["airline"]] * 2 + [urls["retail"]] * 2 + [urls["telecom"]] * 2
+    assert sources == {d: b.decode() for d, b in bodies.items()}
+    assert {d: (folder / f"{d}-tools.py").read_bytes() for d in bodies} == bodies
+    assert not list(folder.rglob("*.part"))
+
+
 @pytest.mark.parametrize("key", list(SCRIPTS))
 def test_a_failure_on_every_attempt_raises_the_last_error_after_three_calls(key, monkeypatch, tmp_path):
     mod, cache, served, dest, first = setup(key, monkeypatch, tmp_path)
