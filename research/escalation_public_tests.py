@@ -156,7 +156,8 @@ def read_release(lines, label: str) -> dict:
     """{question_id: {"date": "YYYY-MM-DD", "call_based": bool, "cases": [(inputs, expected), ...]}},
     sorted, the cases in their recorded form, from the lines of one release file; only question_id,
     contest_date, metadata and public_test_cases are read. A problem is call-based when its metadata
-    names a func_name; its cases' testtype must then be functional, and stdin otherwise."""
+    names a func_name; its cases' testtype must then be functional, and stdin otherwise. An empty
+    public_test_cases list is a problem with no public case, read with cases [] (DESIGN 7 v1.552)."""
     problems = {}
     for k, line in enumerate(lines, 1):
         at = f"{label} line {k}"
@@ -179,9 +180,9 @@ def read_release(lines, label: str) -> dict:
             cases = json.loads(record.get("public_test_cases"))
         except (TypeError, ValueError):
             cases = None
-        if not isinstance(cases, list) or not cases or not all(_is_case(c) for c in cases):
-            raise ValueError(f"{at}: question_id {qid}: public_test_cases is not a non-empty JSON list of "
-                             "input and output strings")
+        if not isinstance(cases, list) or not all(_is_case(c) for c in cases):  # [] is no public case (v1.552)
+            raise ValueError(f"{at}: question_id {qid}: public_test_cases is not a JSON list of input and "
+                             "output strings")
         try:
             meta = json.loads(record.get("metadata"))
         except (TypeError, ValueError):
