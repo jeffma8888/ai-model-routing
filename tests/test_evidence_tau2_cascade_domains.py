@@ -244,7 +244,9 @@ def test_results_md_holds_the_section_with_its_table_and_command():
     assert [line.split()[:2] for line in block] == want
     assert body.count("```bash") == 1 and f"```bash\n{COMMAND}\n```" in body
     before = body.split("```bash", 1)[0].rstrip("\n").split("\n")[-1]
-    assert "the `evidence` workflow does not rerun it yet" in before
+    # v1.561 (row ESC3s): the workflow reruns it, by tests/test_evidence_workflow.py
+    assert before.endswith("the `evidence` workflow reruns it on GitHub after them and fails if the file changes by a "
+                           "byte (`DESIGN.md` 12.13, v1.561):") and "does not rerun it yet" not in body
     cascades = text.split("\n## Cascades\n", 1)[1].split("\n## ", 1)[0]
     assert f"`## {HEADING}` gives each domain's" in " ".join(cascades.split())
 

@@ -9,7 +9,8 @@ none yet either, from v1.472 that of evidence/registry-pair-delegation/RESULTS.m
 from v1.489 that of evidence/longtail-swe/RESULTS.md (DESIGN 12.26), with `pyarrow` installed for
 it, from v1.525 the `## Slices` block of evidence/autobench-2026/RESULTS.md (DESIGN 12.27), from v1.530 that
 of evidence/livecodebench/RESULTS.md (DESIGN 12.28), from v1.544 the `## Cascades` block of
-evidence/tau2-bench/RESULTS.md (DESIGN 12.29), from v1.559 last that of evidence/livecodebench/RESULTS.md
+evidence/tau2-bench/RESULTS.md (DESIGN 12.29), from v1.561 directly after it the one line of its
+`## Cascades by domain`, from v1.559 last the `## Cascades` block of evidence/livecodebench/RESULTS.md
 (DESIGN 12.30), and fails when a committed results file changes (DESIGN
 12.13, v1.30),
 and both workflows run on one pinned runner image with a dated comment (v1.49), and the job
@@ -131,6 +132,14 @@ CASCADE_LINES = [
     "> tau2-cascades-evaluate.json",
     "python evidence/routerbench/results.py --evaluate tau2-cascades-evaluate.json "
     "--out evidence/tau2-bench/cascades.json"]
+# v1.561 (row ESC3s): the one `bash` block of `## Cascades by domain` in the tau2-bench RESULTS.md (DESIGN 12.29),
+# one line that reads the evaluate output of the `## Cascades` lines, runs directly after them, and its file follows
+# theirs in Compare.
+DOMAIN_HEADING = "Cascades by domain"
+DOMAIN_FILE = "evidence/tau2-bench/cascades-domains.json"
+DOMAIN_LINES = [
+    "python evidence/tau2-bench/domains.py --evaluate tau2-cascades-evaluate.json "
+    "--out evidence/tau2-bench/cascades-domains.json"]
 # v1.559 (row ESC3i): the one `bash` block of `## Cascades` in the LiveCodeBench RESULTS.md (DESIGN 12.30) runs
 # after the tau2-bench one, and its file ends Compare.
 LCB_CASCADE_NOTES = "evidence/livecodebench/RESULTS.md"
@@ -142,8 +151,8 @@ LCB_CASCADE_LINES = [
     "python evidence/routerbench/results.py --evaluate livecodebench-cascades-evaluate.json "
     "--out evidence/livecodebench/cascades.json"]
 # What follows the Longtail-SWE file in Compare: the four AutoBench slice files, then the LiveCodeBench one (v1.530),
-# then the tau2-bench cascades one (v1.544) and the LiveCodeBench cascades one (v1.559).
-TAIL_COMPARE = SLICES_COMPARE + f" {LCB_SLICE_FILE} {CASCADE_FILE} {LCB_CASCADE_FILE}"
+# then the tau2-bench cascades one (v1.544), its per-domain one (v1.561) and the LiveCodeBench cascades one (v1.559).
+TAIL_COMPARE = SLICES_COMPARE + f" {LCB_SLICE_FILE} {CASCADE_FILE} {DOMAIN_FILE} {LCB_CASCADE_FILE}"
 EVIDENCE = "## Evidence: held-out results on public data\n"
 SUBSECTIONS = ("AutoBench", "AutoBench judges", "tau2-bench", "LiveCodeBench", "LLMRouterBench",
                "LLM Routing Response Bank", "Delegation on AutoBench", "Delegation on tau2-bench",
@@ -301,8 +310,9 @@ REPEAT_PROBLEM = "the top comment does not give the repeated-line rule"
 SUBSECTION_LIST = ("Reruns the regenerate commands of the README subsections "
                    + ", ".join(SUBSECTIONS[:-1]) + f" and {SUBSECTIONS[-1]}, and those of {LEDGER_NOTES}, "
                    f"{REGISTRY_NOTES}, {REGISTRY_DELEGATION_NOTES}, {LONGTAIL_NOTES}, the Slices sections of {SLICES_NOTES} "
-                   f"and {LCB_SLICES_NOTES} and the Cascades sections of {CASCADE_NOTES} and {LCB_CASCADE_NOTES}, which")
-# v1.489, v1.525, v1.530, v1.544, v1.559
+                   f"and {LCB_SLICES_NOTES}, the Cascades and Cascades by domain sections of {CASCADE_NOTES} and the "
+                   f"Cascades section of {LCB_CASCADE_NOTES}, which")
+# v1.489, v1.525, v1.530, v1.544, v1.559, v1.561
 SUBSECTION_PROBLEM = "the top comment does not name the rerun subsections in README heading order"
 WIDTH = 100
 WIDTH_PROBLEM = f"a line above on: is {WIDTH} columns or wider"
@@ -384,6 +394,11 @@ def cascade_commands():
     return slices_commands(CASCADE_NOTES, "Cascades")
 
 
+def domain_commands():
+    """The one line of the `bash` block of the tau2-bench RESULTS.md `## Cascades by domain` (v1.561, DESIGN 12.29)."""
+    return slices_commands(CASCADE_NOTES, DOMAIN_HEADING)
+
+
 def lcb_cascade_commands():
     """The lines of the one `bash` block of the LiveCodeBench RESULTS.md `## Cascades` (v1.559, DESIGN 12.30)."""
     return slices_commands(LCB_CASCADE_NOTES, "Cascades")
@@ -391,9 +406,9 @@ def lcb_cascade_commands():
 
 def before_slices(run):
     """The `Regenerate` lines before the slices blocks, the AutoBench one (v1.525) and then the LiveCodeBench
-    one (v1.530), and the cascades blocks, the tau2-bench one (v1.544) and the LiveCodeBench one (v1.559), which
-    end them."""
-    tail = SLICES_LINES + LCB_SLICES_LINES + CASCADE_LINES + LCB_CASCADE_LINES
+    one (v1.530), and the cascades blocks, the tau2-bench one (v1.544) with its per-domain line (v1.561) and the
+    LiveCodeBench one (v1.559), which end them."""
+    tail = SLICES_LINES + LCB_SLICES_LINES + CASCADE_LINES + DOMAIN_LINES + LCB_CASCADE_LINES
     assert run[-len(tail):] == tail
     return run[:-len(tail)]
 
@@ -417,12 +432,14 @@ def regenerate_commands(text):
     the registry-pair block, which its README subsection holds too (its test requires the two blocks equal),
     from v1.472 (row E25c) the registry-pair delegation block and from v1.489 (row E26d) the Longtail-SWE
     block, then from v1.525 (row STRAT3g) the AutoBench `## Slices` block, from v1.530 (row STRAT3i) the
-    LiveCodeBench one, from v1.544 (row ESC3e) the tau2-bench `## Cascades` block and from v1.559 (row ESC3i) the
-    LiveCodeBench one, run last. `readme_commands`
+    LiveCodeBench one, from v1.544 (row ESC3e) the tau2-bench `## Cascades` block, from v1.561 (row ESC3s) the one
+    line of its `## Cascades by domain` and from v1.559 (row ESC3i) the LiveCodeBench `## Cascades` block, run
+    last. `readme_commands`
     is the part
     the README evidence sentence speaks for (v1.464, row DOC39b, review iter-314 nit 6; again from v1.472)."""
     return run_once(expected_commands(text) + results_md_commands() + slices_commands()
-                    + slices_commands(LCB_SLICES_NOTES) + cascade_commands() + lcb_cascade_commands())
+                    + slices_commands(LCB_SLICES_NOTES) + cascade_commands() + domain_commands()
+                    + lcb_cascade_commands())
 
 
 def out_paths(commands):
@@ -664,10 +681,11 @@ def test_the_hand_built_list_count_is_the_one_design_states():
 def test_regenerate_leaves_out_the_three_repeated_converter_lines():
     commands = expected_commands(readme())
     full = regenerate_commands(readme())
-    run = before_slices(full)  # v1.525, v1.530, v1.544, v1.559: the twelve slices lines and the six cascade lines end
-    # the step, none of them a repeat
+    run = before_slices(full)  # v1.525, v1.530, v1.544, v1.559, v1.561: the twelve slices lines and the seven cascade
+    # lines end the step, none of them a repeat
     assert slices_commands() == SLICES_LINES and slices_commands(LCB_SLICES_NOTES) == LCB_SLICES_LINES
-    assert cascade_commands() == CASCADE_LINES and lcb_cascade_commands() == LCB_CASCADE_LINES and len(full) == 73
+    assert cascade_commands() == CASCADE_LINES and lcb_cascade_commands() == LCB_CASCADE_LINES and len(full) == 74
+    assert domain_commands() == DOMAIN_LINES  # v1.561
     assert len(commands) == 45 and len(run) == 55 and run[-12] == ledger_command()
     assert run[-11:-7] == registry_commands() == REGISTRY_LINES  # v1.443
     # v1.472: the third repeat is the 12.23 converter line, which opens the 13.17 block too
@@ -806,8 +824,14 @@ MUTANTS = {
         t, lambda ls: [line for line in ls if line.strip() != CASCADE_LINES[0]]),
     # v1.559: the LiveCodeBench cascades file, last in command order, and its replay line
     "the compare step without the LiveCodeBench cascades file": lambda t: t.replace(
-        " evidence/tau2-bench/cascades.json evidence/livecodebench/cascades.json\n",
-        " evidence/tau2-bench/cascades.json\n", 1),
+        " evidence/tau2-bench/cascades-domains.json evidence/livecodebench/cascades.json\n",
+        " evidence/tau2-bench/cascades-domains.json\n", 1),  # v1.561: the per-domain file comes before it
+    # v1.561: the tau2-bench per-domain file, between the two cascades files, and its line
+    "the compare step without the tau2-bench per-domain file": lambda t: t.replace(
+        " evidence/tau2-bench/cascades.json evidence/tau2-bench/cascades-domains.json ",
+        " evidence/tau2-bench/cascades.json ", 1),
+    "the tau2-bench per-domain line dropped": lambda t: with_lines(
+        t, lambda ls: [line for line in ls if line.strip() != DOMAIN_LINES[0]]),
     "the LiveCodeBench cascade replay line dropped": lambda t: with_lines(
         t, lambda ls: [line for line in ls if line.strip() != LCB_CASCADE_LINES[0]]),
     # v1.299: the response-bank file, directly after the LLMRouterBench one
@@ -882,9 +906,9 @@ TIME_LIMIT_MUTANTS = {
 
 
 def test_the_mutant_count_is_the_one_design_states():
-    assert len(MUTANTS) == 49  # v1.489: the Longtail-SWE Compare file, its converter line and the pyarrow pin;
+    assert len(MUTANTS) == 51  # v1.489: the Longtail-SWE Compare file, its converter line and the pyarrow pin;
     # v1.525: a slice file in Compare and the slices converter line; v1.530: the LiveCodeBench ones; v1.544: the
-    # cascades file and the replay line; v1.559: the LiveCodeBench ones
+    # cascades file and the replay line; v1.559: the LiveCodeBench ones; v1.561: the per-domain file and its line
     assert len(CACHE_MUTANTS) == 2 and set(CACHE_MUTANTS) <= set(MUTANTS)
     assert len(TIME_LIMIT_MUTANTS) == 5 and set(TIME_LIMIT_MUTANTS) <= set(MUTANTS)
     assert len(REPEAT_MUTANTS) == 2 and set(REPEAT_MUTANTS) <= set(MUTANTS)
@@ -1043,6 +1067,7 @@ def test_a_time_limit_mutant_fails_on_the_check_it_names(name):
                                   "the compare step without the LiveCodeBench slice file",  # v1.530, row STRAT3i
                                   "the compare step without the cascades file",  # v1.544, row ESC3e
                                   "the compare step without the LiveCodeBench cascades file",  # v1.559, row ESC3i
+                                  "the compare step without the tau2-bench per-domain file",  # v1.561, row ESC3s
                                   "the compare step without the response-bank delegation",  # v1.392, row DOC21c
                                   "the compare step without variants.json"])
 def test_a_compare_mutant_fails_on_the_compare_line_alone(name):
@@ -1178,10 +1203,10 @@ def test_the_workflow_reruns_the_ledger_handoff_line_after_the_readme_commands()
         "Regenerate is not the README commands in order"]
     design = DESIGN.read_text(encoding="utf-8")
     section = design.split("\n### 12.13 ", 1)[1].split("\n### ", 1)[0]
-    assert f"each of {len(MUTANTS)} broken workflows fails the check, the fourteen `Compare` mutants" in section
+    assert f"each of {len(MUTANTS)} broken workflows fails the check, the fifteen `Compare` mutants" in section
     assert "then (v1.397) the regenerate line of `evidence/ledger-handoff/RESULTS.md` (13.15)" in section
-    assert ("twenty-three files from `evidence/autobench-2026/results.json` to "
-            "`evidence/livecodebench/cascades.json`") in section  # v1.544, v1.559
+    assert ("twenty-four files from `evidence/autobench-2026/results.json` to "
+            "`evidence/livecodebench/cascades.json`") in section  # v1.544, v1.559, v1.561
     # v1.401 (row CI21): the basis is the slowest run on main, whatever its lines; v1.407 (row CI22),
     # by its latest attempt.
     assert (f"all on `main` and all successful by their latest attempt, the slowest is run {SLOWEST_RUN_ID} on "
@@ -1246,8 +1271,8 @@ def test_the_workflow_reruns_the_registry_pair_delegation_block_after_the_regist
                             "evidence/registry-pair-delegation/results.json evidence/longtail-swe/results.json"
                             + TAIL_COMPARE)
     assert (ROOT / "evidence" / "registry-pair-delegation" / "results.json").is_file()
-    at = -5 - len(SLICE_FILES)  # v1.525, v1.530, v1.544, v1.559: the four AutoBench slice files, the LiveCodeBench
-    # one and the two cascades ones follow it
+    at = -6 - len(SLICE_FILES)  # v1.525, v1.530, v1.544, v1.559, v1.561: the four AutoBench slice files, the
+    # LiveCodeBench one, the two cascades ones and the per-domain one follow it
     assert out_paths(regenerate_commands(readme()))[at] == "evidence/registry-pair-delegation/results.json"
     assert "evidence/registry-pair-delegation/results.json" not in out_paths(readme_commands(readme()))
     ci_text = CI.read_text(encoding="utf-8")
@@ -1290,9 +1315,10 @@ def test_the_workflow_installs_pyarrow_and_reruns_the_longtail_swe_block_before_
     compare = text.split("      - name: Compare\n", 1)[1].split("\n", 1)[0]
     assert compare.endswith(" evidence/registry-pair-delegation/results.json evidence/longtail-swe/results.json"
                             + TAIL_COMPARE)
-    assert compare.count(" evidence/") == 16 + len(SLICE_FILES) + 3  # v1.559: the LiveCodeBench cascades file
+    assert compare.count(" evidence/") == 16 + len(SLICE_FILES) + 4  # v1.559, v1.561: the LiveCodeBench cascades and
+    # the per-domain file
     assert (ROOT / "evidence" / "longtail-swe" / "results.json").is_file()
-    assert out_paths(regenerate_commands(readme()))[-4 - len(SLICE_FILES)] == "evidence/longtail-swe/results.json"
+    assert out_paths(regenerate_commands(readme()))[-5 - len(SLICE_FILES)] == "evidence/longtail-swe/results.json"
     assert "evidence/longtail-swe/results.json" not in out_paths(readme_commands(readme()))
     assert len(out_paths(readme_commands(readme()))) == 14
     ci_text = CI.read_text(encoding="utf-8")
@@ -1322,16 +1348,16 @@ def test_the_workflow_reruns_the_autobench_slices_block_before_the_livecodebench
     assert out_paths(SLICES_LINES) == SLICE_FILES
     text = workflow_text()
     run = [line.strip() for line in regenerate_lines(text)[1]]
-    lcb = len(LCB_SLICES_LINES) + len(CASCADE_LINES) + len(LCB_CASCADE_LINES)  # v1.544, v1.559: the cascade lines
-    # follow the LiveCodeBench ones
+    lcb = len(LCB_SLICES_LINES) + len(CASCADE_LINES) + len(DOMAIN_LINES) + len(LCB_CASCADE_LINES)  # v1.544, v1.559,
+    # v1.561: the cascade lines follow the LiveCodeBench ones
     assert run[-9 - lcb:-lcb] == SLICES_LINES and run[-10 - lcb] == LONGTAIL_LINES[-1]
     assert all(run.count(line) == 1 for line in SLICES_LINES)
     assert regenerate_commands(readme())[-9 - lcb:-lcb] == SLICES_LINES
     compare = text.split("      - name: Compare\n", 1)[1].split("\n", 1)[0]
     assert compare.endswith(" evidence/longtail-swe/results.json" + TAIL_COMPARE)
-    assert compare.count(" evidence/") == 23
+    assert compare.count(" evidence/") == 24
     assert all((ROOT / path).is_file() for path in SLICE_FILES)
-    assert out_paths(regenerate_commands(readme()))[-7:-3] == SLICE_FILES
+    assert out_paths(regenerate_commands(readme()))[-8:-4] == SLICE_FILES
     assert not set(SLICE_FILES) & set(out_paths(readme_commands(readme())))
     assert len(out_paths(readme_commands(readme()))) == 14
     ci_text = CI.read_text(encoding="utf-8")
@@ -1368,16 +1394,17 @@ def test_the_workflow_reruns_the_livecodebench_slices_block_before_the_cascades_
     assert out_paths(LCB_SLICES_LINES) == [LCB_SLICE_FILE]
     text = workflow_text()
     run = [line.strip() for line in regenerate_lines(text)[1]]
-    tail = len(CASCADE_LINES) + len(LCB_CASCADE_LINES)  # v1.544, v1.559: the cascade lines follow it
+    tail = len(CASCADE_LINES) + len(DOMAIN_LINES) + len(LCB_CASCADE_LINES)  # v1.544, v1.559, v1.561: the cascade
+    # lines follow it
     assert run[-3 - tail:-tail] == LCB_SLICES_LINES and run[-4 - tail] == SLICES_LINES[-1]
     assert all(run.count(line) == 1 for line in LCB_SLICES_LINES)
     assert run.count("python evidence/livecodebench/convert.py --out livecodebench-matrix.jsonl") == 1
     assert regenerate_commands(readme())[-3 - tail:-tail] == LCB_SLICES_LINES
     compare = text.split("      - name: Compare\n", 1)[1].split("\n", 1)[0]
-    assert compare.endswith(SLICES_COMPARE + f" {LCB_SLICE_FILE} {CASCADE_FILE} {LCB_CASCADE_FILE}")
-    assert compare.count(" evidence/") == 23
+    assert compare.endswith(SLICES_COMPARE + f" {LCB_SLICE_FILE} {CASCADE_FILE} {DOMAIN_FILE} {LCB_CASCADE_FILE}")
+    assert compare.count(" evidence/") == 24
     assert (ROOT / LCB_SLICE_FILE).is_file()
-    assert out_paths(regenerate_commands(readme()))[-3] == LCB_SLICE_FILE
+    assert out_paths(regenerate_commands(readme()))[-4] == LCB_SLICE_FILE
     assert LCB_SLICE_FILE not in out_paths(readme_commands(readme()))
     ci_text = CI.read_text(encoding="utf-8")
     assert problems(MUTANTS["the LiveCodeBench slices converter line dropped"](text), readme(), ci_text) == [
@@ -1399,22 +1426,23 @@ def test_the_workflow_reruns_the_livecodebench_slices_block_before_the_cascades_
 def test_the_workflow_reruns_the_tau2_cascades_block_before_the_livecodebench_one():
     # v1.544 (row ESC3e, DESIGN 12.13 cascades bullet, 12.29 Workflow bullet): the three lines of the tau2-bench
     # `## Cascades` block after the LiveCodeBench slices lines, none a repeat, and its file in Compare after theirs,
-    # last until v1.559; the
+    # last until v1.559, and from v1.561 the per-domain line and file directly after them; the
     # README sentence does not count it: the README part on cascades holds no block.
     assert cascade_commands() == CASCADE_LINES
     assert out_paths(CASCADE_LINES) == [CASCADE_FILE]
     text = workflow_text()
     run = [line.strip() for line in regenerate_lines(text)[1]]
-    tail = len(LCB_CASCADE_LINES)  # v1.559: the LiveCodeBench cascade lines follow it
+    tail = len(DOMAIN_LINES) + len(LCB_CASCADE_LINES)  # v1.559, v1.561: the per-domain line and the LiveCodeBench
+    # cascade lines follow it
     assert run[-3 - tail:-tail] == CASCADE_LINES and run[-4 - tail] == LCB_SLICES_LINES[-1]
     assert all(run.count(line) == 1 for line in CASCADE_LINES)
     assert run.count("python evidence/tau2-bench/convert.py --out tau2-matrix.jsonl") == 1
     assert regenerate_commands(readme())[-3 - tail:-tail] == CASCADE_LINES
     compare = text.split("      - name: Compare\n", 1)[1].split("\n", 1)[0]
-    assert compare.endswith(TAIL_COMPARE) and compare.endswith(f" {CASCADE_FILE} {LCB_CASCADE_FILE}")
-    assert compare.count(" evidence/") == 23
+    assert compare.endswith(TAIL_COMPARE) and compare.endswith(f" {CASCADE_FILE} {DOMAIN_FILE} {LCB_CASCADE_FILE}")
+    assert compare.count(" evidence/") == 24
     assert (ROOT / CASCADE_FILE).is_file()
-    assert out_paths(regenerate_commands(readme()))[-2] == CASCADE_FILE
+    assert out_paths(regenerate_commands(readme()))[-3] == CASCADE_FILE
     assert CASCADE_FILE not in out_paths(readme_commands(readme()))
     assert "```bash" not in subsection_of(readme(), "## Start cheap, escalate on a signal")
     ci_text = CI.read_text(encoding="utf-8")
@@ -1423,8 +1451,8 @@ def test_the_workflow_reruns_the_tau2_cascades_block_before_the_livecodebench_on
     assert problems(MUTANTS["the compare step without the cascades file"](text), readme(), ci_text) == [
         "Compare is not the diff of the committed results"]
     # The top comment names the section, on lines under 100 columns (the RouterBench bullet of 12.13).
-    assert ("and the Cascades sections of evidence/tau2-bench/RESULTS.md and evidence/livecodebench/RESULTS.md, "
-            "which") in " ".join(
+    assert ("the Cascades and Cascades by domain sections of evidence/tau2-bench/RESULTS.md and the Cascades section "
+            "of evidence/livecodebench/RESULTS.md, which") in " ".join(  # v1.561
         line[2:] for line in text.split("\non:\n", 1)[0].split("\n") if line.startswith("# "))
     design = DESIGN.read_text(encoding="utf-8")
     section = design.split("\n### 12.13 ", 1)[1].split("\n### ", 1)[0]
@@ -1443,7 +1471,7 @@ def test_the_workflow_reruns_the_tau2_cascades_block_before_the_livecodebench_on
     assert "one attempt" not in bullets[0] and "rerunning the job" not in bullets[0] and signals.ATTEMPTS == 3
     assert "does not count its file" in bullets[0] and "(7 v1.543)" in bullets[0]
     assert ("then (v1.530) that of `evidence/livecodebench/RESULTS.md` (12.28), then (v1.544) that of `## Cascades` "
-            "of `evidence/tau2-bench/RESULTS.md` (12.29), then (v1.559)") in section
+            "of `evidence/tau2-bench/RESULTS.md` (12.29) and (v1.561)") in section
     spec = design.split("\n### 12.29 ", 1)[1].split("\n## ", 1)[0].split("\n### ", 1)[0]
     workflow_bullets = [line for line in spec.split("\n") if line.startswith("- Workflow (v1.544, row ESC3e): ")]
     assert len(workflow_bullets) == 1 and "block last" not in workflow_bullets[0]  # v1.559: no longer last
@@ -1463,12 +1491,12 @@ def test_the_workflow_reruns_the_livecodebench_cascades_block_last():
     assert out_paths(LCB_CASCADE_LINES) == [LCB_CASCADE_FILE]
     text = workflow_text()
     run = [line.strip() for line in regenerate_lines(text)[1]]
-    assert run[-3:] == LCB_CASCADE_LINES and run[-4] == CASCADE_LINES[-1]
+    assert run[-3:] == LCB_CASCADE_LINES and run[-4] == DOMAIN_LINES[-1]  # v1.561: the per-domain line before it
     assert all(run.count(line) == 1 for line in LCB_CASCADE_LINES)
     assert run.count("python evidence/livecodebench/convert.py --out livecodebench-matrix.jsonl") == 1
     assert regenerate_commands(readme())[-3:] == LCB_CASCADE_LINES
     compare = text.split("      - name: Compare\n", 1)[1].split("\n", 1)[0]
-    assert compare.endswith(TAIL_COMPARE) and compare.endswith(f" {LCB_CASCADE_FILE}") and compare.count(" evidence/") == 23
+    assert compare.endswith(TAIL_COMPARE) and compare.endswith(f" {LCB_CASCADE_FILE}") and compare.count(" evidence/") == 24
     assert (ROOT / LCB_CASCADE_FILE).is_file()
     assert out_paths(regenerate_commands(readme()))[-1] == LCB_CASCADE_FILE
     assert LCB_CASCADE_FILE not in out_paths(readme_commands(readme()))
@@ -1514,8 +1542,9 @@ def test_the_workflow_reruns_the_livecodebench_cascades_block_last():
     # review iter-404 nit 1: the total is the v1.544 one plus the release files
     assert f"the job then downloads {total} bytes" in bullets[0] and total == f"{4_089_025_877 + size:,}"
     assert "does not count its file" in bullets[0] and "(7 v1.543)" in bullets[0]
-    assert ("then (v1.544) that of `## Cascades` of `evidence/tau2-bench/RESULTS.md` (12.29), then (v1.559) that of "
-            "`evidence/livecodebench/RESULTS.md` (12.30);") in section
+    assert ("then (v1.544) that of `## Cascades` of `evidence/tau2-bench/RESULTS.md` (12.29) and (v1.561) that of its "
+            "`## Cascades by domain` (12.29), then (v1.559) that of `## Cascades` of `evidence/livecodebench/RESULTS.md` "
+            "(12.30);") in section
     spec = design.split("\n### 12.30 ", 1)[1].split("\n## ", 1)[0].split("\n### ", 1)[0]
     workflow_bullets = [line for line in spec.split("\n") if line.startswith("- Workflow (v1.559, row ESC3i): ")]
     assert len(workflow_bullets) == 1 and "block last" in workflow_bullets[0]
@@ -1525,6 +1554,66 @@ def test_the_workflow_reruns_the_livecodebench_cascades_block_last():
     before = notes.split("\n## Cascades\n", 1)[1].split("```bash", 1)[0].rstrip("\n").split("\n")[-1]
     assert before.endswith("the `evidence` workflow reruns them on GitHub and fails if the file changes by a byte "
                            "(`DESIGN.md` 12.13, v1.559):")
+
+def test_the_workflow_reruns_the_tau2_domain_line_between_the_cascades_blocks():
+    # v1.561 (row ESC3s, DESIGN 12.13 per-domain bullet, 12.29 Workflow and Per domain bullets): the one line of the
+    # tau2-bench `## Cascades by domain` block directly after the three of its `## Cascades` block, whose evaluate
+    # output it reads, and before the LiveCodeBench cascade lines, not a repeat, and its file in Compare between the
+    # two cascades files; the README sentence does not count it: the README part on cascades holds no block.
+    assert domain_commands() == DOMAIN_LINES
+    assert out_paths(DOMAIN_LINES) == [DOMAIN_FILE]
+    written = CASCADE_LINES[1].split(" > ", 1)[1]
+    assert written == "tau2-cascades-evaluate.json" and f" --evaluate {written} " in DOMAIN_LINES[0]
+    text = workflow_text()
+    run = [line.strip() for line in regenerate_lines(text)[1]]
+    tail = len(LCB_CASCADE_LINES)
+    assert run[-1 - tail:-tail] == DOMAIN_LINES and run[-2 - tail] == CASCADE_LINES[-1]
+    assert run.count(DOMAIN_LINES[0]) == 1 and not any(written in line for line in run[-tail:])
+    assert regenerate_commands(readme())[-1 - tail:-tail] == DOMAIN_LINES
+    compare = text.split("      - name: Compare\n", 1)[1].split("\n", 1)[0]
+    assert compare.endswith(f" {CASCADE_FILE} {DOMAIN_FILE} {LCB_CASCADE_FILE}") and compare.count(" evidence/") == 24
+    assert compare.split().count(DOMAIN_FILE) == 1
+    assert (ROOT / DOMAIN_FILE).is_file()
+    assert out_paths(regenerate_commands(readme()))[-2] == DOMAIN_FILE
+    assert DOMAIN_FILE not in out_paths(readme_commands(readme()))
+    assert len(out_paths(readme_commands(readme()))) == 14
+    ci_text = CI.read_text(encoding="utf-8")
+    assert problems(MUTANTS["the tau2-bench per-domain line dropped"](text), readme(), ci_text) == [
+        "Regenerate is not the README commands in order"]
+    assert problems(MUTANTS["the compare step without the tau2-bench per-domain file"](text), readme(), ci_text) == [
+        "Compare is not the diff of the committed results"]
+    # The top comment names the section, on lines under 100 columns (the RouterBench bullet of 12.13).
+    comment = " ".join(line[2:] for line in text.split("\non:\n", 1)[0].split("\n") if line.startswith("# "))
+    assert ("the Cascades and Cascades by domain sections of evidence/tau2-bench/RESULTS.md and the Cascades section "
+            "of evidence/livecodebench/RESULTS.md, which") in comment
+    design = DESIGN.read_text(encoding="utf-8")
+    heading = [line for line in design.splitlines() if line.startswith("### 12.13 ")]
+    assert len(heading) == 1 and heading[0].endswith("; tau2-bench cascades by domain v1.561)")
+    section = design.split("\n### 12.13 ", 1)[1].split("\n### ", 1)[0]
+    bullets = [line for line in section.split("\n")
+               if line.startswith("- tau2-bench cascades by domain are rerun (v1.561, row ESC3s): ")]
+    assert len(bullets) == 1
+    for words in ("`Regenerate` runs the one line of the 12.29 `## Cascades by domain` block directly after the three "
+                  "of its `## Cascades` block, none a repeat; it reads the `evaluate` output the second of them writes, "
+                  "downloads nothing", "does not count its file", "(7 v1.543)"):
+        assert words in bullets[0], words
+    assert ("then (v1.544) that of `## Cascades` of `evidence/tau2-bench/RESULTS.md` (12.29) and (v1.561) that of its "
+            "`## Cascades by domain` (12.29), then (v1.559)") in section
+    spec = design.split("\n### 12.29 ", 1)[1].split("\n## ", 1)[0].split("\n### ", 1)[0]
+    workflow_bullets = [line for line in spec.split("\n") if line.startswith("- Workflow (v1.544, row ESC3e): ")]
+    assert len(workflow_bullets) == 1 and ("; from v1.561 (row ESC3s) it runs the one line of `## Cascades by domain` "
+                                           "directly after that block and compares `cascades-domains.json` after the "
+                                           "file") in workflow_bullets[0]
+    per_domain = [line for line in spec.split("\n") if line.startswith("- Per domain (v1.555, row ESC3g): ")]
+    assert len(per_domain) == 1 and "from v1.561 (row ESC3s), that the `evidence` workflow reruns it;" in per_domain[0]
+    assert "does not rerun it yet" not in spec and "workflow lines for `cascades-domains.json`" not in spec
+    # The RESULTS.md line before the block says the workflow reruns it (12.13, 12.29).
+    notes = (ROOT / CASCADE_NOTES).read_text(encoding="utf-8")
+    before = notes.split(f"\n## {DOMAIN_HEADING}\n", 1)[1].split("```bash", 1)[0].rstrip("\n").split("\n")[-1]
+    assert before.endswith("the `evidence` workflow reruns it on GitHub after them and fails if the file changes by a "
+                           "byte (`DESIGN.md` 12.13, v1.561):")
+    assert "does not rerun it yet" not in notes
+
 
 # v1.547 (row CI28, the 12.13 first bullet): `paths` names `evidence/**`, `model_routing/**`, then each file
 # outside those two that the job's code loads by path, at any depth, then `pyproject.toml` and the workflow.
