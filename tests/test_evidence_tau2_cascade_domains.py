@@ -33,7 +33,6 @@ HEADING = "Cascades by domain"
 TABLE = "python evidence/tau2-bench/domains.py --table evidence/tau2-bench/cascades-domains.json"
 COMMAND = ("python evidence/tau2-bench/domains.py --evaluate tau2-cascades-evaluate.json"
            " --out evidence/tau2-bench/cascades-domains.json")
-RED = pytest.mark.xfail(strict=True, raises=(FileNotFoundError, ModuleNotFoundError))
 _loaded = []
 
 
@@ -135,7 +134,6 @@ def test_design_12_29_specifies_the_domain_rows():
 
 # --- the script on hand-built results
 
-@RED
 def test_reduce_keeps_the_first_blocks_model_rows():
     out = script().reduce(hand_built())
     assert list(out) == ["config", "tasks", "per_task"]
@@ -145,7 +143,6 @@ def test_reduce_keeps_the_first_blocks_model_rows():
     assert script().reduce(out) == out
 
 
-@RED
 def test_reduce_refuses_a_row_that_changes_with_the_block():
     for key in ("success", "cost_usd", "escalation_share"):
         result = hand_built()
@@ -165,7 +162,6 @@ def test_reduce_refuses_a_row_that_changes_with_the_block():
             script().reduce(result)
 
 
-@RED
 def test_table_gives_the_best_agent_then_the_cascades_that_beat_it():
     lines = script().table(script().reduce(hand_built())).split("\n")
     assert lines[0].split() == ["task", "candidate", "success", "cost_usd", "vs_agent", "escalation_share"]
@@ -174,7 +170,6 @@ def test_table_gives_the_best_agent_then_the_cascades_that_beat_it():
                     ["t2", "b", "0.500", "8.0000", "1.000", "-"], ["t2", "b>a@y", "0.600", "7.0000", "0.875", "0.400"]]
 
 
-@RED
 def test_the_cli_writes_the_file_and_refuses_bad_use(tmp_path, capsys):
     full = tmp_path / "full.json"
     full.write_text(json.dumps(hand_built()), encoding="utf-8")
@@ -192,7 +187,6 @@ def test_the_cli_writes_the_file_and_refuses_bad_use(tmp_path, capsys):
 
 # --- the committed file
 
-@RED
 def test_the_file_is_small_reduces_to_itself_and_holds_the_runs_config_and_tasks():
     text = FILE.read_text(encoding="utf-8")
     assert len(text.encode("utf-8")) < 300_000
@@ -201,7 +195,6 @@ def test_the_file_is_small_reduces_to_itself_and_holds_the_runs_config_and_tasks
     assert results["config"] == pooled()["config"] and results["tasks"] == pooled()["tasks"]
 
 
-@RED
 def test_the_file_holds_one_row_per_domain_and_candidate_at_the_first_block():
     results = committed()
     keys = [(r["task"], r["strategy"]) for r in results["per_task"]]
@@ -210,7 +203,6 @@ def test_the_file_holds_one_row_per_domain_and_candidate_at_the_first_block():
     assert all((r["bar"], r["flavor"]) == (BARS[0], "cost_effective") for r in results["per_task"])
 
 
-@RED
 def test_each_candidates_domain_costs_add_up_to_its_pooled_cost():
     results, before = committed(), pooled()
     summary = {r["strategy"]: r for r in before["summary"] if (r["bar"], r["flavor"]) == (BARS[0], "cost_effective")}
@@ -221,7 +213,6 @@ def test_each_candidates_domain_costs_add_up_to_its_pooled_cost():
 
 # --- RESULTS.md
 
-@RED
 def test_results_md_holds_the_section_with_its_table_and_command():
     results = committed()
     text = RESULTS_MD.read_text(encoding="utf-8")
@@ -238,7 +229,6 @@ def test_results_md_holds_the_section_with_its_table_and_command():
     assert f"`## {HEADING}` gives each domain's" in " ".join(cascades.split())
 
 
-@RED
 def test_each_number_of_the_section_is_the_file():
     results = committed()
     body = " ".join(section().split())
@@ -266,7 +256,6 @@ def pinned_result(tmp_path_factory):
     return result
 
 
-@RED
 def test_pinned_files_rebuild_the_file_byte_for_byte(pinned_result):
     text = FILE.read_text(encoding="utf-8")
     assert json.dumps(script().reduce(pinned_result), indent=2) + "\n" == text

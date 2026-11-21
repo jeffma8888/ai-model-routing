@@ -28,7 +28,8 @@ RESULTS = FOLDER / "results.json"
 RESULTS_MD = FOLDER / "RESULTS.md"
 DESIGN = ROOT / "DESIGN.md"
 SCRIPT = FOLDER / "cascades.py"
-HEADINGS = ["Source and licence", "Results", "Reading it", "Sensitivity", "Cascades", "Regenerate"]
+HEADINGS = ["Source and licence", "Results", "Reading it", "Sensitivity", "Cascades", "Cascades by domain",  # v1.556
+            "Regenerate"]
 TABLE = "python evidence/routerbench/results.py --table evidence/tau2-bench/cascades.json"
 COMMANDS = [
     "python evidence/tau2-bench/cascades.py --out tau2-cascades.jsonl",
@@ -37,7 +38,8 @@ COMMANDS = [
     "python evidence/routerbench/results.py --evaluate tau2-cascades-evaluate.json"
     " --out evidence/tau2-bench/cascades.json",
 ]
-OPENING = ("The file behind every number here but those of `## Cascades` is [results.json](results.json)")
+OPENING = ("The file behind every number here but those of `## Cascades` and `## Cascades by domain` is "
+           "[results.json](results.json)")  # v1.556 (row ESC3g) names the second section
 SINGLE = ("routed", "oracle", "best_on_calibration", "cheapest")
 RULES = [
     "In each pair of the 4 agents the cheap one is the agent with the lower input list price in [prices.json](prices.json)",
@@ -51,8 +53,8 @@ RULES = [
     "A row's `escalation_share` counts, over its (domain, seed) cells whose strategy names a cascade, the held-out items "
     "handed up over those cells' held-out items, so for `routed` it is how often the cheap agent handed up an item routed "
     "to a cascade, and `-` means that no cell named one",
-    "Each is one cascade fixed for all three domains, scored on the 50 seeds' held-out halves as a single agent is; the "
-    "file keeps no domain's row of a cascade or an agent, only the routed ones",
+    "Each is one cascade fixed for all three domains, scored on the 50 seeds' held-out halves as a single agent is; this "
+    "file keeps a domain's row for `routed` alone, and `## Cascades by domain` gives each domain's",  # v1.556
 ]
 LIMITS = [
     "a signal measured on a benchmark may not exist in your product",

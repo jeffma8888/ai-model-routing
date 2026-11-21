@@ -1,6 +1,6 @@
 # tau2-bench results
 
-What `model-routing evaluate` measures on the public tau2-bench paper results: 4 agent models from 2025, each in 3 customer-service domains (airline 50 tasks, retail 114, telecom 114), one conversation per task and agent with a simulated user, a success label from the run's own program checks (`reward_info.reward` of 1) and the agent's recorded cost of that conversation (`agent_cost`; the simulated user's `user_cost` is never counted). See [README.md](README.md) for what the converter reads and keeps, and DESIGN 12.15 for this file's contract. Each domain is one routing task, the converter's default, because a task in this library is one kind of job and the three domains are three kinds. For each of 50 seeds the tasks of each domain are split in half by a seeded hash; the router calibrates on one half at a bar and is scored on the other half, next to the oracle, the best agent on the calibration half, the cheapest agent and every single agent (DESIGN 12.3). The file behind every number here but those of `## Cascades` is [results.json](results.json): the summary rows and the routed per-domain rows, including how many of the 50 seeds routed to each agent. It is made by the RouterBench results script, `evidence/routerbench/results.py`, which does not depend on the dataset.
+What `model-routing evaluate` measures on the public tau2-bench paper results: 4 agent models from 2025, each in 3 customer-service domains (airline 50 tasks, retail 114, telecom 114), one conversation per task and agent with a simulated user, a success label from the run's own program checks (`reward_info.reward` of 1) and the agent's recorded cost of that conversation (`agent_cost`; the simulated user's `user_cost` is never counted). See [README.md](README.md) for what the converter reads and keeps, and DESIGN 12.15 for this file's contract. Each domain is one routing task, the converter's default, because a task in this library is one kind of job and the three domains are three kinds. For each of 50 seeds the tasks of each domain are split in half by a seeded hash; the router calibrates on one half at a bar and is scored on the other half, next to the oracle, the best agent on the calibration half, the cheapest agent and every single agent (DESIGN 12.3). The file behind every number here but those of `## Cascades` and `## Cascades by domain` is [results.json](results.json): the summary rows and the routed per-domain rows, including how many of the 50 seeds routed to each agent. It is made by the RouterBench results script, `evidence/routerbench/results.py`, which does not depend on the dataset.
 
 The bars run from 0.3 to 0.8, every tenth from the one below the lowest per-domain agent success rate to the one above the highest: the agents' per-domain success rates at trial 0 run from 0.368 to 0.798. The bars were chosen after a first run at the 0.6 to 0.9 of the other datasets, where 0.8 and 0.9 cleared no cell and nothing was said below 0.6; the table still holds 0.6 to 0.8.
 
@@ -122,7 +122,7 @@ Reading it:
 - With cascades, `cost_effective` routes at each bar at this held-out success and cost, against the 12.15 routed row without them: bar 0.3 0.553 at 7.5116 USD against 0.547 at 9.1340 USD; bar 0.4 0.563 at 20.7001 USD against 0.544 at 15.6738 USD; bar 0.5 0.562 at 22.8151 USD against 0.545 at 16.4831 USD; bar 0.6 0.563 at 26.2674 USD against 0.559 at 24.2031 USD; bar 0.7 0.588 at 34.8283 USD against 0.578 at 30.7979 USD; bar 0.8 0.591 at 36.0885 USD against 0.578 at 31.0962 USD. It beats the 12.15 row on both counts at bar 0.3 only. A cascade takes 50 of the 150 (domain, seed) cells at bar 0.3 and 137 at bar 0.8.
 - `cost_blind` routes at 0.602 held-out success for 43.1779 USD at every bar, against 12.15's 0.589 at 40.3751 USD, with 122 of the 150 cells routed to a cascade.
 - Per domain at bar 0.3, `cost_effective`, with cascades and then the 12.15 row: `airline`: 0.521 at 2.9704 USD, `escalation_share` 0.377, 32 of the 50 seeds routed to a cascade, against 0.516 at 2.3602 USD; `retail`: 0.692 at 0.7711 USD, `escalation_share` -, 0 of the 50 seeds routed to a cascade, against 0.692 at 0.7711 USD; `telecom`: 0.425 at 3.7701 USD, `escalation_share` 0.498, 18 of the 50 seeds routed to a cascade, against 0.412 at 6.0027 USD.
-- The best single agent, `anthropic/claude-3-7-sonnet-20250219`, holds 0.612 at 63.2133 USD. 3 cascades beat it on both counts: `openai/o4-mini-2025-04-16>anthropic/claude-3-7-sonnet-20250219@calls-over-10` 0.627 at 58.1419 USD, `escalation_share` 0.776; `openai/o4-mini-2025-04-16>anthropic/claude-3-7-sonnet-20250219@calls-over-10-no-write` 0.618 at 34.0048 USD, `escalation_share` 0.396; `openai/gpt-4.1-2025-04-14>anthropic/claude-3-7-sonnet-20250219@calls-over-10` 0.617 at 59.0811 USD, `escalation_share` 0.696; the cheapest of them, `openai/o4-mini-2025-04-16>anthropic/claude-3-7-sonnet-20250219@calls-over-10-no-write`, costs 0.538 of the agent's. Each is one cascade fixed for all three domains, scored on the 50 seeds' held-out halves as a single agent is; the file keeps no domain's row of a cascade or an agent, only the routed ones.
+- The best single agent, `anthropic/claude-3-7-sonnet-20250219`, holds 0.612 at 63.2133 USD. 3 cascades beat it on both counts: `openai/o4-mini-2025-04-16>anthropic/claude-3-7-sonnet-20250219@calls-over-10` 0.627 at 58.1419 USD, `escalation_share` 0.776; `openai/o4-mini-2025-04-16>anthropic/claude-3-7-sonnet-20250219@calls-over-10-no-write` 0.618 at 34.0048 USD, `escalation_share` 0.396; `openai/gpt-4.1-2025-04-14>anthropic/claude-3-7-sonnet-20250219@calls-over-10` 0.617 at 59.0811 USD, `escalation_share` 0.696; the cheapest of them, `openai/o4-mini-2025-04-16>anthropic/claude-3-7-sonnet-20250219@calls-over-10-no-write`, costs 0.538 of the agent's. Each is one cascade fixed for all three domains, scored on the 50 seeds' held-out halves as a single agent is; this file keeps a domain's row for `routed` alone, and `## Cascades by domain` gives each domain's.
 - The `cheapest`, `best_on_calibration` and `oracle` rows and the 4 single-agent rows are those of [results.json](results.json) at every bar and flavor: the cascades change the `routed` rows and add one `model:` row each.
 - Limits: a signal measured on a benchmark may not exist in your product; the strong run in the data is a fresh conversation with its own simulated user, so the replay assumes a hand-up that restarts the conversation; a write the cheap agent made before the hand-up would stay in a real system, which the replay cannot see, so `calls-over-N-no-write` never hands such a run up while `calls-over-N` and `transfer` do; and in telecom the user's own device actions change state too, and no signal counts them.
 
@@ -132,6 +132,53 @@ The commands, with the replay downloading the 12 pinned run files and the 3 doma
 python evidence/tau2-bench/cascades.py --out tau2-cascades.jsonl
 model-routing evaluate --outcomes tau2-cascades.jsonl --bar 0.3 0.4 0.5 0.6 0.7 0.8 --seeds 50 --json > tau2-cascades-evaluate.json
 python evidence/routerbench/results.py --evaluate tau2-cascades-evaluate.json --out evidence/tau2-bench/cascades.json
+```
+
+## Cascades by domain
+
+[cascades.json](cascades.json) keeps a domain's row for `routed` alone. [cascades-domains.json](cascades-domains.json) keeps each domain's row of every agent and cascade, 138 rows (3 domains of 46 candidates), from the same evaluator run reduced by `domains.py` (DESIGN 12.29 v1.555): the rows at bar 0.3 and `cost_effective`, since a candidate's held-out success, cost and `escalation_share` in a domain are the same at every bar and flavor (`domains.py` checks it). The table of `python evidence/tau2-bench/domains.py --table evidence/tau2-bench/cascades-domains.json` gives, for each domain, the best single agent by the 12.15 rule (highest held-out success, then lower cost, then name), then every cascade whose row beats it on both counts (held-out success at least as high and cost at most as high, one of them strictly), by success; `vs_agent` divides each cost by the agent's:
+
+```text
+task     candidate                                                                                   success  cost_usd  vs_agent  escalation_share
+-------  ------------------------------------------------------------------------------------------  -------  --------  --------  ----------------
+airline  openai/gpt-4.1-2025-04-14                                                                   0.577    1.3822    1.000     -
+retail   anthropic/claude-3-7-sonnet-20250219                                                        0.804    19.0640   1.000     -
+telecom  anthropic/claude-3-7-sonnet-20250219                                                        0.448    34.4732   1.000     -
+telecom  openai/o4-mini-2025-04-16>anthropic/claude-3-7-sonnet-20250219@transfer                     0.501    33.2082   0.963     0.728
+telecom  openai/gpt-4.1-mini-2025-04-14>anthropic/claude-3-7-sonnet-20250219@transfer                0.499    22.9453   0.666     0.585
+telecom  openai/gpt-4.1-mini-2025-04-14>openai/o4-mini-2025-04-16@transfer                           0.484    6.0434    0.175     0.585
+telecom  openai/o4-mini-2025-04-16>anthropic/claude-3-7-sonnet-20250219@calls-over-10-no-write       0.479    13.9221   0.404     0.294
+telecom  openai/o4-mini-2025-04-16>openai/gpt-4.1-2025-04-14@transfer                                0.478    10.9092   0.316     0.728
+telecom  openai/o4-mini-2025-04-16>anthropic/claude-3-7-sonnet-20250219@calls-over-15                0.474    26.9402   0.781     0.678
+telecom  openai/gpt-4.1-mini-2025-04-14>anthropic/claude-3-7-sonnet-20250219@calls-over-15-no-write  0.473    19.5435   0.567     0.537
+telecom  openai/gpt-4.1-mini-2025-04-14>anthropic/claude-3-7-sonnet-20250219@calls-over-10-no-write  0.473    24.4582   0.709     0.635
+telecom  openai/gpt-4.1-mini-2025-04-14>anthropic/claude-3-7-sonnet-20250219@calls-over-20           0.468    23.4828   0.681     0.628
+telecom  openai/o4-mini-2025-04-16>anthropic/claude-3-7-sonnet-20250219@calls-over-10                0.467    31.7213   0.920     0.882
+telecom  openai/gpt-4.1-mini-2025-04-14>anthropic/claude-3-7-sonnet-20250219@calls-over-20-no-write  0.466    17.4300   0.506     0.452
+telecom  openai/o4-mini-2025-04-16>openai/gpt-4.1-2025-04-14@calls-over-10-no-write                  0.461    7.0314    0.204     0.294
+telecom  openai/o4-mini-2025-04-16>openai/gpt-4.1-2025-04-14@calls-over-15-no-write                  0.459    6.6678    0.193     0.147
+telecom  openai/gpt-4.1-mini-2025-04-14>openai/gpt-4.1-2025-04-14@calls-over-20-no-write             0.456    5.5271    0.160     0.452
+telecom  openai/gpt-4.1-mini-2025-04-14>openai/gpt-4.1-2025-04-14@calls-over-15-no-write             0.456    5.7484    0.167     0.537
+telecom  openai/gpt-4.1-2025-04-14>anthropic/claude-3-7-sonnet-20250219@transfer                     0.456    28.7803   0.835     0.545
+telecom  openai/gpt-4.1-mini-2025-04-14>anthropic/claude-3-7-sonnet-20250219@calls-over-15           0.456    29.1503   0.846     0.827
+telecom  openai/o4-mini-2025-04-16>anthropic/claude-3-7-sonnet-20250219@calls-over-15-no-write       0.452    9.8991    0.287     0.147
+telecom  openai/gpt-4.1-mini-2025-04-14>openai/o4-mini-2025-04-16@calls-over-20                      0.451    5.2963    0.154     0.628
+telecom  openai/gpt-4.1-mini-2025-04-14>openai/gpt-4.1-2025-04-14@calls-over-20                      0.450    6.4989    0.189     0.628
+telecom  openai/o4-mini-2025-04-16>openai/gpt-4.1-2025-04-14@calls-over-20-no-write                  0.449    5.6506    0.164     0.055
+```
+
+Reading it:
+
+- `airline`: the best single agent, `openai/gpt-4.1-2025-04-14`, holds 0.577 at 1.3822 USD, and none of the 42 cascades beats it on both counts.
+- `retail`: the best single agent, `anthropic/claude-3-7-sonnet-20250219`, holds 0.804 at 19.0640 USD, and none of the 42 cascades beats it on both counts.
+- `telecom`: the best single agent, `anthropic/claude-3-7-sonnet-20250219`, holds 0.448 at 34.4732 USD, and 21 of the 42 cascades beat it on both counts: the highest, `openai/o4-mini-2025-04-16>anthropic/claude-3-7-sonnet-20250219@transfer`, 0.501 at 33.2082 USD, 0.963 of the agent's cost, `escalation_share` 0.728; the cheapest, `openai/gpt-4.1-mini-2025-04-14>openai/o4-mini-2025-04-16@calls-over-20`, 0.451 at 5.2963 USD, 0.154 of the agent's cost, `escalation_share` 0.628.
+- A cascade fixed for a domain beats its best single agent on both counts in `telecom` only: in the other two no cascade, fixed for the domain, pays against the domain's own best agent.
+- Each candidate's three domain costs add up to its `model:` row's cost in [cascades.json](cascades.json), which pools the three domains, so the two files price each candidate alike.
+
+The command, after the first two of `## Cascades`, which write `tau2-cascades-evaluate.json`; the `evidence` workflow does not rerun it yet:
+
+```bash
+python evidence/tau2-bench/domains.py --evaluate tau2-cascades-evaluate.json --out evidence/tau2-bench/cascades-domains.json
 ```
 
 ## Regenerate
