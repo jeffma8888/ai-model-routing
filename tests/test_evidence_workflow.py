@@ -7,8 +7,9 @@ evidence/ledger-handoff/RESULTS.md (DESIGN 13.15), which has no README subsectio
 after it the `## Regenerate` block of evidence/registry-pair/RESULTS.md (DESIGN 12.24), which has
 none yet either, from v1.472 that of evidence/registry-pair-delegation/RESULTS.md (DESIGN 13.17) and
 from v1.489 that of evidence/longtail-swe/RESULTS.md (DESIGN 12.26), with `pyarrow` installed for
-it, from v1.525 the `## Slices` block of evidence/autobench-2026/RESULTS.md (DESIGN 12.27), from v1.530 last that
-of evidence/livecodebench/RESULTS.md (DESIGN 12.28), and fails when a committed results file changes (DESIGN
+it, from v1.525 the `## Slices` block of evidence/autobench-2026/RESULTS.md (DESIGN 12.27), from v1.530 that
+of evidence/livecodebench/RESULTS.md (DESIGN 12.28), from v1.544 last the `## Cascades` block of
+evidence/tau2-bench/RESULTS.md (DESIGN 12.29), and fails when a committed results file changes (DESIGN
 12.13, v1.30),
 and both workflows run on one pinned runner image with a dated comment (v1.49), and the job
 has a time limit of ten times its slowest run, rounded up to whole five minutes, with no download
@@ -115,8 +116,20 @@ LCB_SLICES_LINES = [
     "--seeds 50 --flavor cost_blind --slice-by difficulty --json > livecodebench-slices-difficulty.json",
     "python evidence/routerbench/results.py --evaluate livecodebench-slices-difficulty.json "
     "--out evidence/livecodebench/slices-difficulty.json"]
-# What follows the Longtail-SWE file in Compare: the four AutoBench slice files, then the LiveCodeBench one (v1.530).
-TAIL_COMPARE = SLICES_COMPARE + f" {LCB_SLICE_FILE}"
+# v1.544 (row ESC3e): the README part on cascades (DESIGN 7 v1.543, row ESC3d) holds no block either; the one
+# `bash` block of `## Cascades` in the tau2-bench RESULTS.md (DESIGN 12.29) runs after the slices ones, and its
+# file ends Compare.
+CASCADE_NOTES = "evidence/tau2-bench/RESULTS.md"
+CASCADE_FILE = "evidence/tau2-bench/cascades.json"
+CASCADE_LINES = [
+    "python evidence/tau2-bench/cascades.py --out tau2-cascades.jsonl",
+    "model-routing evaluate --outcomes tau2-cascades.jsonl --bar 0.3 0.4 0.5 0.6 0.7 0.8 --seeds 50 --json "
+    "> tau2-cascades-evaluate.json",
+    "python evidence/routerbench/results.py --evaluate tau2-cascades-evaluate.json "
+    "--out evidence/tau2-bench/cascades.json"]
+# What follows the Longtail-SWE file in Compare: the four AutoBench slice files, then the LiveCodeBench one (v1.530),
+# then the cascades one (v1.544).
+TAIL_COMPARE = SLICES_COMPARE + f" {LCB_SLICE_FILE} {CASCADE_FILE}"
 EVIDENCE = "## Evidence: held-out results on public data\n"
 SUBSECTIONS = ("AutoBench", "AutoBench judges", "tau2-bench", "LiveCodeBench", "LLMRouterBench",
                "LLM Routing Response Bank", "Delegation on AutoBench", "Delegation on tau2-bench",
@@ -270,8 +283,8 @@ REPEAT_PROBLEM = "the top comment does not give the repeated-line rule"
 # line above `on:` is under 100 columns; the comment checks join its lines, so a reflow is safe.
 SUBSECTION_LIST = ("Reruns the regenerate commands of the README subsections "
                    + ", ".join(SUBSECTIONS[:-1]) + f" and {SUBSECTIONS[-1]}, and those of {LEDGER_NOTES}, "
-                   f"{REGISTRY_NOTES}, {REGISTRY_DELEGATION_NOTES}, {LONGTAIL_NOTES} and the Slices sections of {SLICES_NOTES} "
-                   f"and {LCB_SLICES_NOTES}, which")  # v1.489, v1.525, v1.530
+                   f"{REGISTRY_NOTES}, {REGISTRY_DELEGATION_NOTES}, {LONGTAIL_NOTES}, the Slices sections of {SLICES_NOTES} "
+                   f"and {LCB_SLICES_NOTES} and the Cascades section of {CASCADE_NOTES}, which")  # v1.489, v1.525, v1.530, v1.544
 SUBSECTION_PROBLEM = "the top comment does not name the rerun subsections in README heading order"
 WIDTH = 100
 WIDTH_PROBLEM = f"a line above on: is {WIDTH} columns or wider"
@@ -334,13 +347,13 @@ def longtail_commands():
     return block_commands(LONGTAIL_NOTES, LONGTAIL_INSTALL)
 
 
-def slices_commands(notes=SLICES_NOTES):
+def slices_commands(notes=SLICES_NOTES, heading="Slices"):
     """The lines of the one `bash` block of the AutoBench RESULTS.md `## Slices` (v1.525, DESIGN 12.27), or from
-    v1.530 of the LiveCodeBench one (DESIGN 12.28), which, unlike a `## Regenerate` block, opens with no install
-    line."""
+    v1.530 of the LiveCodeBench one (DESIGN 12.28), or from v1.544 of the tau2-bench `## Cascades` (DESIGN 12.29),
+    which, unlike a `## Regenerate` block, opens with no install line."""
     text = (ROOT / notes).read_text(encoding="utf-8")
-    assert text.count("\n## Slices\n") == 1
-    section = text.split("\n## Slices\n", 1)[1].split("\n## ", 1)[0]
+    assert text.count(f"\n## {heading}\n") == 1
+    section = text.split(f"\n## {heading}\n", 1)[1].split("\n## ", 1)[0]
     found = re.findall(r"```bash\n(.*?)```", section, re.S)
     assert len(found) == 1
     block = found[0].rstrip("\n").split("\n")
@@ -348,10 +361,15 @@ def slices_commands(notes=SLICES_NOTES):
     return block
 
 
+def cascade_commands():
+    """The lines of the one `bash` block of the tau2-bench RESULTS.md `## Cascades` (v1.544, DESIGN 12.29)."""
+    return slices_commands(CASCADE_NOTES, "Cascades")
+
+
 def before_slices(run):
     """The `Regenerate` lines before the slices blocks, the AutoBench one (v1.525) and then the LiveCodeBench
-    one (v1.530), which end them."""
-    tail = SLICES_LINES + LCB_SLICES_LINES
+    one (v1.530), and the cascades block (v1.544), which end them."""
+    tail = SLICES_LINES + LCB_SLICES_LINES + CASCADE_LINES
     assert run[-len(tail):] == tail
     return run[:-len(tail)]
 
@@ -374,11 +392,12 @@ def regenerate_commands(text):
     """The lines the workflow reruns: the README commands, the ledger line (v1.397), from v1.452 (row E24c)
     the registry-pair block, which its README subsection holds too (its test requires the two blocks equal),
     from v1.472 (row E25c) the registry-pair delegation block and from v1.489 (row E26d) the Longtail-SWE
-    block, then from v1.525 (row STRAT3g) the AutoBench `## Slices` block and from v1.530 (row STRAT3i) the
-    LiveCodeBench one, run last. `readme_commands` is the part
+    block, then from v1.525 (row STRAT3g) the AutoBench `## Slices` block, from v1.530 (row STRAT3i) the
+    LiveCodeBench one and from v1.544 (row ESC3e) the tau2-bench `## Cascades` block, run last. `readme_commands`
+    is the part
     the README evidence sentence speaks for (v1.464, row DOC39b, review iter-314 nit 6; again from v1.472)."""
     return run_once(expected_commands(text) + results_md_commands() + slices_commands()
-                    + slices_commands(LCB_SLICES_NOTES))
+                    + slices_commands(LCB_SLICES_NOTES) + cascade_commands())
 
 
 def out_paths(commands):
@@ -540,6 +559,12 @@ def problems(text, readme_text, ci_text):
     return found
 
 
+def subsection_of(text, heading):
+    """The README part under the `## ` heading `heading`, to the next `## ` heading (v1.544)."""
+    assert text.count(f"\n{heading}\n") == 1
+    return text.split(f"\n{heading}\n", 1)[1].split("\n## ", 1)[0]
+
+
 def workflow_text():
     assert WORKFLOW.is_file(), "the evidence workflow is missing"
     return WORKFLOW.read_text(encoding="utf-8")
@@ -614,9 +639,10 @@ def test_the_hand_built_list_count_is_the_one_design_states():
 def test_regenerate_leaves_out_the_three_repeated_converter_lines():
     commands = expected_commands(readme())
     full = regenerate_commands(readme())
-    run = before_slices(full)  # v1.525, v1.530: the twelve slices lines end the step, none of them a repeat
+    run = before_slices(full)  # v1.525, v1.530, v1.544: the twelve slices lines and the three cascade lines end
+    # the step, none of them a repeat
     assert slices_commands() == SLICES_LINES and slices_commands(LCB_SLICES_NOTES) == LCB_SLICES_LINES
-    assert len(full) == 67
+    assert cascade_commands() == CASCADE_LINES and len(full) == 70
     assert len(commands) == 45 and len(run) == 55 and run[-12] == ledger_command()
     assert run[-11:-7] == registry_commands() == REGISTRY_LINES  # v1.443
     # v1.472: the third repeat is the 12.23 converter line, which opens the 13.17 block too
@@ -743,10 +769,16 @@ MUTANTS = {
         t, lambda ls: [line for line in ls if line.strip() != SLICES_LINES[0]]),
     # v1.530: the LiveCodeBench slice file, last in command order, and its converter line
     "the compare step without the LiveCodeBench slice file": lambda t: t.replace(
-        " evidence/autobench-2026/slices-skill-min10.json evidence/livecodebench/slices-difficulty.json\n",
-        " evidence/autobench-2026/slices-skill-min10.json\n", 1),
+        " evidence/autobench-2026/slices-skill-min10.json evidence/livecodebench/slices-difficulty.json ",
+        " evidence/autobench-2026/slices-skill-min10.json ", 1),
     "the LiveCodeBench slices converter line dropped": lambda t: with_lines(
         t, lambda ls: [line for line in ls if line.strip() != LCB_SLICES_LINES[0]]),
+    # v1.544: the cascades file, last in command order, and the replay line
+    "the compare step without the cascades file": lambda t: t.replace(
+        " evidence/livecodebench/slices-difficulty.json evidence/tau2-bench/cascades.json\n",
+        " evidence/livecodebench/slices-difficulty.json\n", 1),
+    "the cascade replay line dropped": lambda t: with_lines(
+        t, lambda ls: [line for line in ls if line.strip() != CASCADE_LINES[0]]),
     # v1.299: the response-bank file, directly after the LLMRouterBench one
     "the compare step without the response bank": lambda t: t.replace(
         "evidence/llmrouterbench/results.json evidence/response-bank/results.json ",
@@ -819,8 +851,9 @@ TIME_LIMIT_MUTANTS = {
 
 
 def test_the_mutant_count_is_the_one_design_states():
-    assert len(MUTANTS) == 45  # v1.489: the Longtail-SWE Compare file, its converter line and the pyarrow pin;
-    # v1.525: a slice file in Compare and the slices converter line; v1.530: the LiveCodeBench ones
+    assert len(MUTANTS) == 47  # v1.489: the Longtail-SWE Compare file, its converter line and the pyarrow pin;
+    # v1.525: a slice file in Compare and the slices converter line; v1.530: the LiveCodeBench ones; v1.544: the
+    # cascades file and the replay line
     assert len(CACHE_MUTANTS) == 2 and set(CACHE_MUTANTS) <= set(MUTANTS)
     assert len(TIME_LIMIT_MUTANTS) == 5 and set(TIME_LIMIT_MUTANTS) <= set(MUTANTS)
     assert len(REPEAT_MUTANTS) == 2 and set(REPEAT_MUTANTS) <= set(MUTANTS)
@@ -977,6 +1010,7 @@ def test_a_time_limit_mutant_fails_on_the_check_it_names(name):
                                   "the compare step without the Longtail-SWE file",  # v1.489, row E26d
                                   "the compare step without a slice file",  # v1.525, row STRAT3g
                                   "the compare step without the LiveCodeBench slice file",  # v1.530, row STRAT3i
+                                  "the compare step without the cascades file",  # v1.544, row ESC3e
                                   "the compare step without the response-bank delegation",  # v1.392, row DOC21c
                                   "the compare step without variants.json"])
 def test_a_compare_mutant_fails_on_the_compare_line_alone(name):
@@ -1112,10 +1146,10 @@ def test_the_workflow_reruns_the_ledger_handoff_line_after_the_readme_commands()
         "Regenerate is not the README commands in order"]
     design = DESIGN.read_text(encoding="utf-8")
     section = design.split("\n### 12.13 ", 1)[1].split("\n### ", 1)[0]
-    assert f"each of {len(MUTANTS)} broken workflows fails the check, the twelve `Compare` mutants" in section
+    assert f"each of {len(MUTANTS)} broken workflows fails the check, the thirteen `Compare` mutants" in section
     assert "then (v1.397) the regenerate line of `evidence/ledger-handoff/RESULTS.md` (13.15)" in section
-    assert ("twenty-one files from `evidence/autobench-2026/results.json` to "
-            "`evidence/livecodebench/slices-difficulty.json`") in section  # v1.530
+    assert ("twenty-two files from `evidence/autobench-2026/results.json` to "
+            "`evidence/tau2-bench/cascades.json`") in section  # v1.544
     # v1.401 (row CI21): the basis is the slowest run on main, whatever its lines; v1.407 (row CI22),
     # by its latest attempt.
     assert (f"all on `main` and all successful by their latest attempt, the slowest is run {SLOWEST_RUN_ID} on "
@@ -1180,7 +1214,8 @@ def test_the_workflow_reruns_the_registry_pair_delegation_block_after_the_regist
                             "evidence/registry-pair-delegation/results.json evidence/longtail-swe/results.json"
                             + TAIL_COMPARE)
     assert (ROOT / "evidence" / "registry-pair-delegation" / "results.json").is_file()
-    at = -3 - len(SLICE_FILES)  # v1.525, v1.530: the four AutoBench slice files and the LiveCodeBench one follow it
+    at = -4 - len(SLICE_FILES)  # v1.525, v1.530, v1.544: the four AutoBench slice files, the LiveCodeBench one and
+    # the cascades one follow it
     assert out_paths(regenerate_commands(readme()))[at] == "evidence/registry-pair-delegation/results.json"
     assert "evidence/registry-pair-delegation/results.json" not in out_paths(readme_commands(readme()))
     ci_text = CI.read_text(encoding="utf-8")
@@ -1223,9 +1258,9 @@ def test_the_workflow_installs_pyarrow_and_reruns_the_longtail_swe_block_before_
     compare = text.split("      - name: Compare\n", 1)[1].split("\n", 1)[0]
     assert compare.endswith(" evidence/registry-pair-delegation/results.json evidence/longtail-swe/results.json"
                             + TAIL_COMPARE)
-    assert compare.count(" evidence/") == 16 + len(SLICE_FILES) + 1
+    assert compare.count(" evidence/") == 16 + len(SLICE_FILES) + 2
     assert (ROOT / "evidence" / "longtail-swe" / "results.json").is_file()
-    assert out_paths(regenerate_commands(readme()))[-2 - len(SLICE_FILES)] == "evidence/longtail-swe/results.json"
+    assert out_paths(regenerate_commands(readme()))[-3 - len(SLICE_FILES)] == "evidence/longtail-swe/results.json"
     assert "evidence/longtail-swe/results.json" not in out_paths(readme_commands(readme()))
     assert len(out_paths(readme_commands(readme()))) == 14
     ci_text = CI.read_text(encoding="utf-8")
@@ -1255,15 +1290,15 @@ def test_the_workflow_reruns_the_autobench_slices_block_before_the_livecodebench
     assert out_paths(SLICES_LINES) == SLICE_FILES
     text = workflow_text()
     run = [line.strip() for line in regenerate_lines(text)[1]]
-    lcb = len(LCB_SLICES_LINES)
+    lcb = len(LCB_SLICES_LINES) + len(CASCADE_LINES)  # v1.544: the cascade lines follow the LiveCodeBench ones
     assert run[-9 - lcb:-lcb] == SLICES_LINES and run[-10 - lcb] == LONGTAIL_LINES[-1]
     assert all(run.count(line) == 1 for line in SLICES_LINES)
     assert regenerate_commands(readme())[-9 - lcb:-lcb] == SLICES_LINES
     compare = text.split("      - name: Compare\n", 1)[1].split("\n", 1)[0]
     assert compare.endswith(" evidence/longtail-swe/results.json" + TAIL_COMPARE)
-    assert compare.count(" evidence/") == 21
+    assert compare.count(" evidence/") == 22
     assert all((ROOT / path).is_file() for path in SLICE_FILES)
-    assert out_paths(regenerate_commands(readme()))[-5:-1] == SLICE_FILES
+    assert out_paths(regenerate_commands(readme()))[-6:-2] == SLICE_FILES
     assert not set(SLICE_FILES) & set(out_paths(readme_commands(readme())))
     assert len(out_paths(readme_commands(readme()))) == 14
     ci_text = CI.read_text(encoding="utf-8")
@@ -1275,11 +1310,11 @@ def test_the_workflow_reruns_the_autobench_slices_block_before_the_livecodebench
     section = design.split("\n### 12.13 ", 1)[1].split("\n### ", 1)[0]
     bullets = [line for line in section.split("\n")
                if line.startswith("- Slices are rerun (AutoBench v1.525, row STRAT3g; LiveCodeBench v1.530, row STRAT3i): ")]
-    assert len(bullets) == 1 and "nine lines of the 12.27 block, then the three of the 12.28 block last, none a repeat" \
-        in bullets[0]
+    assert len(bullets) == 1 and "nine lines of the 12.27 block, then the three of the 12.28 block, none a repeat" \
+        in bullets[0]  # v1.544: no longer last
     assert "row STRAT4" in bullets[0] and "does not count their five files" in bullets[0]
     assert ("then (v1.525) the one `bash` block of `## Slices` of `evidence/autobench-2026/RESULTS.md` (12.27), "
-            "which has none, then (v1.530) that of `evidence/livecodebench/RESULTS.md` (12.28);") in section
+            "which has none, then (v1.530) that of `evidence/livecodebench/RESULTS.md` (12.28), then (v1.544)") in section
     spec = design.split("\n### 12.27 ", 1)[1].split("\n## ", 1)[0].split("\n### ", 1)[0]  # 12.28 follows (v1.528)
     workflow_bullets = [line for line in spec.split("\n") if line.startswith("- Workflow (v1.525, row STRAT3g): ")]
     assert len(workflow_bullets) == 1 and "block last" not in workflow_bullets[0]  # v1.530: no longer last
@@ -1291,22 +1326,24 @@ def test_the_workflow_reruns_the_autobench_slices_block_before_the_livecodebench
             "(`DESIGN.md` 12.13, v1.525):") in before
 
 
-def test_the_workflow_reruns_the_livecodebench_slices_block_last():
+def test_the_workflow_reruns_the_livecodebench_slices_block_before_the_cascades_one():
     # v1.530 (row STRAT3i, DESIGN 12.13 slices bullet, 12.28 Workflow bullet): the three lines of the LiveCodeBench
     # `## Slices` block after the AutoBench slices lines, none a repeat (its converter line is not the v1.65 one),
-    # and its file last in Compare; the README sentence does not count it: the README part on slices links it.
+    # and its file after the AutoBench ones in Compare, last until v1.544; the README sentence does not count it:
+    # the README part on slices links it.
     assert slices_commands(LCB_SLICES_NOTES) == LCB_SLICES_LINES
     assert out_paths(LCB_SLICES_LINES) == [LCB_SLICE_FILE]
     text = workflow_text()
     run = [line.strip() for line in regenerate_lines(text)[1]]
-    assert run[-3:] == LCB_SLICES_LINES and run[-4] == SLICES_LINES[-1]
+    tail = len(CASCADE_LINES)  # v1.544: the cascade lines follow it
+    assert run[-3 - tail:-tail] == LCB_SLICES_LINES and run[-4 - tail] == SLICES_LINES[-1]
     assert all(run.count(line) == 1 for line in LCB_SLICES_LINES)
     assert run.count("python evidence/livecodebench/convert.py --out livecodebench-matrix.jsonl") == 1
-    assert regenerate_commands(readme())[-3:] == LCB_SLICES_LINES
+    assert regenerate_commands(readme())[-3 - tail:-tail] == LCB_SLICES_LINES
     compare = text.split("      - name: Compare\n", 1)[1].split("\n", 1)[0]
-    assert compare.endswith(SLICES_COMPARE + f" {LCB_SLICE_FILE}") and compare.count(" evidence/") == 21
+    assert compare.endswith(SLICES_COMPARE + f" {LCB_SLICE_FILE} {CASCADE_FILE}") and compare.count(" evidence/") == 22
     assert (ROOT / LCB_SLICE_FILE).is_file()
-    assert out_paths(regenerate_commands(readme()))[-1] == LCB_SLICE_FILE
+    assert out_paths(regenerate_commands(readme()))[-2] == LCB_SLICE_FILE
     assert LCB_SLICE_FILE not in out_paths(readme_commands(readme()))
     ci_text = CI.read_text(encoding="utf-8")
     assert problems(MUTANTS["the LiveCodeBench slices converter line dropped"](text), readme(), ci_text) == [
@@ -1315,10 +1352,62 @@ def test_the_workflow_reruns_the_livecodebench_slices_block_last():
         "Compare is not the diff of the committed results"]
     design = DESIGN.read_text(encoding="utf-8")
     spec = design.split("\n### 12.28 ", 1)[1].split("\n## ", 1)[0].split("\n### ", 1)[0]
-    assert len([line for line in spec.split("\n") if line.startswith("- Workflow (v1.530, row STRAT3i): ")]) == 1
+    workflow_bullets = [line for line in spec.split("\n") if line.startswith("- Workflow (v1.530, row STRAT3i): ")]
+    assert len(workflow_bullets) == 1 and "block last" not in workflow_bullets[0]  # v1.544: no longer last
     assert "12.13 workflow lines" not in spec and "(row STRAT3i) and" not in spec
     # The RESULTS.md line before the block says the workflow reruns it (12.13, 12.28).
     notes = (ROOT / LCB_SLICES_NOTES).read_text(encoding="utf-8")
     before = notes.split("\n## Slices\n", 1)[1].split("```bash", 1)[0].rstrip("\n").split("\n")[-1]
     assert ("the `evidence` workflow reruns them on GitHub and fails if the file changes by a byte "
             "(`DESIGN.md` 12.13, v1.530):") in before
+
+
+def test_the_workflow_reruns_the_tau2_cascades_block_last():
+    # v1.544 (row ESC3e, DESIGN 12.13 cascades bullet, 12.29 Workflow bullet): the three lines of the tau2-bench
+    # `## Cascades` block after the LiveCodeBench slices lines, none a repeat, and its file last in Compare; the
+    # README sentence does not count it: the README part on cascades holds no block.
+    assert cascade_commands() == CASCADE_LINES
+    assert out_paths(CASCADE_LINES) == [CASCADE_FILE]
+    text = workflow_text()
+    run = [line.strip() for line in regenerate_lines(text)[1]]
+    assert run[-3:] == CASCADE_LINES and run[-4] == LCB_SLICES_LINES[-1]
+    assert all(run.count(line) == 1 for line in CASCADE_LINES)
+    assert run.count("python evidence/tau2-bench/convert.py --out tau2-matrix.jsonl") == 1
+    assert regenerate_commands(readme())[-3:] == CASCADE_LINES
+    compare = text.split("      - name: Compare\n", 1)[1].split("\n", 1)[0]
+    assert compare.endswith(TAIL_COMPARE) and compare.endswith(f" {CASCADE_FILE}") and compare.count(" evidence/") == 22
+    assert (ROOT / CASCADE_FILE).is_file()
+    assert out_paths(regenerate_commands(readme()))[-1] == CASCADE_FILE
+    assert CASCADE_FILE not in out_paths(readme_commands(readme()))
+    assert "```bash" not in subsection_of(readme(), "## Start cheap, escalate on a signal")
+    ci_text = CI.read_text(encoding="utf-8")
+    assert problems(MUTANTS["the cascade replay line dropped"](text), readme(), ci_text) == [
+        "Regenerate is not the README commands in order"]
+    assert problems(MUTANTS["the compare step without the cascades file"](text), readme(), ci_text) == [
+        "Compare is not the diff of the committed results"]
+    # The top comment names the section, on lines under 100 columns (the RouterBench bullet of 12.13).
+    assert "and the Cascades section of evidence/tau2-bench/RESULTS.md, which" in " ".join(
+        line[2:] for line in text.split("\non:\n", 1)[0].split("\n") if line.startswith("# "))
+    design = DESIGN.read_text(encoding="utf-8")
+    section = design.split("\n### 12.13 ", 1)[1].split("\n### ", 1)[0]
+    bullets = [line for line in section.split("\n") if line.startswith("- tau2-bench cascades are rerun (v1.544, row ESC3e): ")]
+    assert len(bullets) == 1 and "runs the three lines of the 12.29 block last, none a repeat" in bullets[0]
+    # the replay reads the run files the 12.14 converter line downloaded and downloads the three tools.py files
+    import importlib.util
+    spec_ = importlib.util.spec_from_file_location("wf_escalation_signals", ROOT / "research" / "escalation_signals.py")
+    signals = importlib.util.module_from_spec(spec_)
+    spec_.loader.exec_module(signals)
+    size = sum(entry[0] for entry in signals.TOOL_FILES.values())
+    assert len(signals.TOOL_FILES) == 3 and f"{size:,} bytes, one attempt each" in bullets[0]
+    assert "does not count its file" in bullets[0] and "(7 v1.543)" in bullets[0]
+    assert ("then (v1.530) that of `evidence/livecodebench/RESULTS.md` (12.28), then (v1.544) that of `## Cascades` "
+            "of `evidence/tau2-bench/RESULTS.md` (12.29);") in section
+    spec = design.split("\n### 12.29 ", 1)[1].split("\n## ", 1)[0].split("\n### ", 1)[0]
+    workflow_bullets = [line for line in spec.split("\n") if line.startswith("- Workflow (v1.544, row ESC3e): ")]
+    assert len(workflow_bullets) == 1 and "block last" in workflow_bullets[0]
+    assert "12.13 workflow lines" not in spec and "(row ESC3e);" not in spec
+    # The RESULTS.md line before the block says the workflow reruns it (12.13, 12.29).
+    notes = (ROOT / CASCADE_NOTES).read_text(encoding="utf-8")
+    before = notes.split("\n## Cascades\n", 1)[1].split("```bash", 1)[0].rstrip("\n").split("\n")[-1]
+    assert before.endswith("the `evidence` workflow reruns them on GitHub and fails if the file changes by a byte "
+                           "(`DESIGN.md` 12.13, v1.544):")

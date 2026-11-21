@@ -126,7 +126,7 @@ Reading it:
 - The `cheapest`, `best_on_calibration` and `oracle` rows and the 4 single-agent rows are those of [results.json](results.json) at every bar and flavor: the cascades change the `routed` rows and add one `model:` row each.
 - Limits: a signal measured on a benchmark may not exist in your product; the strong run in the data is a fresh conversation with its own simulated user, so the replay assumes a hand-up that restarts the conversation; a write the cheap agent made before the hand-up would stay in a real system, which the replay cannot see, so `calls-over-N-no-write` never hands such a run up while `calls-over-N` and `transfer` do; and in telecom the user's own device actions change state too, and no signal counts them.
 
-The commands, with the replay downloading the 12 pinned run files and the 3 domains' tool files as [README.md](README.md) says:
+The commands, with the replay downloading the 12 pinned run files and the 3 domains' tool files as [README.md](README.md) says; the `evidence` workflow reruns them on GitHub and fails if the file changes by a byte (`DESIGN.md` 12.13, v1.544):
 
 ```bash
 python evidence/tau2-bench/cascades.py --out tau2-cascades.jsonl
