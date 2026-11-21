@@ -15,8 +15,6 @@ import pytest
 
 from model_routing import Cascade, evaluate, outcomes_from_rows
 
-pytestmark = pytest.mark.xfail(strict=True, raises=FileNotFoundError)
-
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "evidence" / "livecodebench" / "cascades.py"
 RESEARCH = ROOT / "research" / "escalation_public_tests.py"
