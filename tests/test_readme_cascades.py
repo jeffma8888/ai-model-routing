@@ -5,7 +5,11 @@ v1.532); its tasks-file block loads with `load_tasks` and its calibration line f
 `calibrate_from_results`; every number of its evidence bullets is read here from the committed
 tau2-bench cascade results (DESIGN 12.29) or, for the route without cascades, the 12.15
 results.json; and it links the RESULTS.md section that holds the commands instead of holding them,
-so the README evidence sentence keeps its count (12.13)."""
+so the README evidence sentence keeps its count (12.13).
+
+From v1.557 (row ESC3r) a fourth bullet gives the LiveCodeBench cascade result (DESIGN 12.30), success
+only, each number built here from evidence/livecodebench/cascades.json or, for the route without
+cascades, the 12.17 results.json, and the limits paragraph gains LiveCodeBench's limits."""
 
 import json
 import re
@@ -15,12 +19,17 @@ import pytest
 
 from model_routing import Cascade, calibrate_from_results, load_tasks
 from test_evidence_tau2_cascade_results import beats, replay, row, task_row, to_cascade
+import test_evidence_livecodebench_cascade_results as lcb
 
 ROOT = Path(__file__).resolve().parent.parent
 README = ROOT / "README.md"
 DESIGN = ROOT / "DESIGN.md"
 FOLDER = ROOT / "evidence" / "tau2-bench"
 HEADING = "\n## Start cheap, escalate on a signal\n"
+LCB_LINK = "[LiveCodeBench cascade results](evidence/livecodebench/RESULTS.md#cascades)"
+LCB_LIMITS = ("On LiveCodeBench no cost is recorded, so its bullet claims no saving; the strong row is the strong "
+              "model's own first sample, so the replay starts the problem over at the hand-up; and a wrong answer "
+              "that only a private test case finds stays on the cheap model")
 
 
 def readme_text():
@@ -234,3 +243,104 @@ def test_design_names_the_part():
     assert "- README (v1.543, 7): README `## Start cheap, escalate on a signal` (row ESC3d)" in sub
     assert "the README part (row ESC3d)" not in sub
     assert "fails if one of the 14 results files those commands write changes by a byte" in readme_text()
+
+
+# --- v1.557 (row ESC3r): the LiveCodeBench bullet
+
+def evidence_bullets():
+    return [line for line in section().split("\n") if line.startswith("- **")]
+
+
+def _anchor(heading):
+    """GitHub's anchor for a heading, as tests/test_research_check_fallback.py builds it (DESIGN 12.8, v1.23)."""
+    return "#" + re.sub(r"[^\w\- ]", "", heading.lower()).replace(" ", "-")
+
+
+def lcb_phrases(results, before):
+    """The LiveCodeBench bullet's numbers, each in its words, from the 12.30 file and, for the route without
+    cascades, the 12.17 results.json."""
+    bars = results["config"]["bars"]
+    assert bars == before["config"]["bars"] and results["config"]["flavors"] == ["cost_blind"]
+    by = lcb.models(results, bars[0])
+    cascades = {name: r for name, r in by.items() if ">" in name}
+    singles = {name: r for name, r in by.items() if ">" not in name}
+    pairs = sorted({name.split("@")[0] for name in cascades})
+    signals = list(lcb.replay().SIGNALS)
+    assert sorted({name.split("@")[1] for name in cascades}) == sorted(signals)
+    assert len(cascades) == len(pairs) * len(signals)
+    assert sorted(cascades) == sorted(lcb.cascade_ids())  # one model at two settings, the lower cheap (7 v1.550)
+    out = [f"the replay makes {len(cascades)} cascades, {len(pairs)} pairs of one model at two reasoning settings, "
+           f"the lower setting the cheap model, each on {len(signals)} signals: the cheap model's first sample fails "
+           f"one of the problem's public test cases, or it does or its record holds no test at all"]
+    now = lcb.one(r3(lcb.row(results, bar, "routed")["success"]) for bar in bars)
+    then = lcb.one(r3(lcb.row(before, bar, "routed")["success"]) for bar in bars)
+    best_name, best = min(singles.items(), key=lambda kv: (-kv[1]["success"], kv[0]))
+    assert now == r3(best["success"])  # "the same ... as the best single model"
+    out.append(f"With them as candidates the route holds {now} held-out success at every bar, against {then} without "
+               f"them, the same {r3(best['success'])} as the best single model, `{best_name}`")
+    above = sorted(((n, r) for n, r in cascades.items() if r["success"] > best["success"]),
+                   key=lambda kv: (-kv[1]["success"], kv[0]))
+    assert len(above) == 1  # "holds", one cascade
+    (name, top), = above
+    pair, signal = name.split("@")
+    other = next(s for s in signals if s != signal)
+    twin = cascades[pair + "@" + other]
+    assert twin["success"] <= best["success"]  # its pair on the other signal is not above the best model
+    out.append(f"{len(above)} of the {len(cascades)} cascades holds more: `{name}`, {r3(top['success'])}, handing up "
+               f"{r3(top['escalation_share'])} of the problems, while on `{other}` the same pair holds "
+               f"{r3(twin['success'])}")
+    return out
+
+
+def test_the_livecodebench_bullet_is_last_and_links_the_cascades_heading():
+    found = evidence_bullets()
+    assert len(found) == 4
+    assert not any("LiveCodeBench" in b for b in found[:3])  # the three tau2-bench bullets keep their place
+    last = found[-1]
+    assert last.startswith("- **On code, a failed public test can be the signal.**")
+    assert LCB_LINK in last and last.count("](evidence/") == 1
+    text = (ROOT / "evidence" / "livecodebench" / "RESULTS.md").read_text(encoding="utf-8")
+    headings = [line[3:] for line in text.splitlines() if line.startswith("## ")]
+    fragment = "#" + LCB_LINK.rstrip(")").split("#", 1)[1]
+    assert [h for h in headings if _anchor(h) == fragment] == ["Cascades"]
+    assert ("What the public data shows, first from the [tau2-bench cascade results]"
+            "(evidence/tau2-bench/RESULTS.md#cascades), which hold the commands that rebuild them") in flat()
+
+
+def test_the_livecodebench_numbers_are_the_committed_ones():
+    results, before = lcb.committed(), lcb.old()
+    last = " ".join(evidence_bullets()[-1].split())
+    for words in lcb_phrases(results, before):
+        assert words in last, words
+
+
+def test_the_livecodebench_bullet_is_success_only():
+    results = lcb.committed()
+    assert {r["cost_usd"] for r in results["summary"] + results["per_task"]} == {0.0}
+    last = evidence_bullets()[-1]
+    assert "which record no cost" in last
+    assert "USD" not in last and "cheaper" not in last and "saving" not in last
+
+
+def test_the_limits_paragraph_states_the_livecodebench_limits():
+    paragraphs = [" ".join(p.split()) for p in section().split("\n\n") if p.startswith("The limits:")]
+    assert len(paragraphs) == 1
+    assert paragraphs[0].endswith(LCB_LIMITS + ".")
+
+
+def test_design_names_the_livecodebench_bullet():
+    text = DESIGN.read_text(encoding="utf-8")
+    execution = text.split("\n## 7. ", 1)[1].split("\n## 8. ", 1)[0]
+    line = next(x for x in execution.split("\n")
+                if x.startswith("- v1.543 README (row ESC3d): `## Start cheap, escalate on a signal`"))
+    for words in ("From v1.557 (row ESC3r)", "`first from`", "success only",
+                  "linking `evidence/livecodebench/RESULTS.md#cascades`", "(the 12.17 results.json)",
+                  "each number built by `tests/test_readme_cascades.py` from the 12.30 file or the 12.17 results.json",
+                  "no cost is recorded, so the bullet makes no cost claim", "the strong row restarts the problem",
+                  "a wrong answer only a private case finds stays on the cheap model"):
+        assert words in line, words
+    lines = text.split("\n### 12.30 ", 1)[1].split("\n## ", 1)[0].split("\n")
+    readme = [k for k, x in enumerate(lines)
+              if x.startswith("- README (v1.557, 7): README `## Start cheap, escalate on a signal` (row ESC3r)")]
+    closing = [k for k, x in enumerate(lines) if x.startswith("- Not in this version:")]
+    assert len(readme) == len(closing) == 1 and readme[0] < closing[0]
