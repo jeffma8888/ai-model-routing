@@ -1,4 +1,4 @@
-"""DESIGN 12.13 v1.137: each workflow, `ci.yml` and `evidence.yml`, sets its own token
+"""DESIGN 12.31 v1.137: each workflow, `ci.yml` and `evidence.yml`, sets its own token
 permissions, one top-level `permissions` block of `contents: read`, and no job sets its own, so
 the read-only `GITHUB_TOKEN` holds by the file and not by a repository setting.
 

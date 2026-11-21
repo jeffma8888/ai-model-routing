@@ -29,7 +29,7 @@ Research notes out of 12.8 (v1.390, row DOC21o): the seven research-note bullets
 sub-bullet of the first, are 12.22, a research-notes spec with a cap of 40,000 bytes, in the same order
 (RESEARCH_NOTES); 12.8 holds none of them and leaves PENDING, and the `## 12.` total is 300,000 bytes
 (330,000 from v1.456, 345,000 from v1.478, 360,000 from v1.481, 375,000 from v1.523, 390,000 from v1.528, 405,000 from v1.541,
-420,000 from v1.553).
+420,000 from v1.553, 445,000 from v1.558).
 
 The time-limit line (v1.391, row DOC26): the 12.13 time-limit bullet keeps its contract and puts its earlier
 bases behind one history pointer (POINTERS), so it is at most LINE_CAP and PENDING_LINES is empty; 12.13
@@ -70,7 +70,8 @@ STRAT3f), is a routing results subsection, which raises it by 15,000 to 375,000;
 slice results (v1.528, row STRAT3h), is a routing results subsection, which raises it by 15,000 to 390,000;
 12.29, the tau2-bench cascade results (v1.541, row ESC3c), is a routing results subsection, which raises it by
 15,000 to 405,000; 12.30, the LiveCodeBench cascade results (v1.553, row ESC3m), is a routing results
-subsection, which raises it by 15,000 to 420,000.
+subsection, which raises it by 15,000 to 420,000; 12.31, the token permissions and Python versions of both
+workflows (v1.558, row DOC47), is a workflow subsection, which raises it by 25,000 to 445,000.
 Longtail-SWE delegation (v1.498, row E27a): 13.18, the Longtail-SWE delegation results, is a delegation results
 subsection, which raises the `## 13.` total by 22,000 to 284,000.
 
@@ -94,12 +95,16 @@ The tau2-bench cascades in the workflow (v1.544, row ESC3e): the runner line dro
 runner comment gives, the repeated-line, RouterBench and Python-versions lines an aside each and the no-cache
 line restates the caching reference in fewer words, so 12.13 has room for the cascades bullet and grows by 198
 bytes.
+The token permissions and Python versions out of 12.13 (v1.558, row DOC47): the two 12.13 bullets that bind
+`ci.yml` as much as the `evidence` workflow are 12.31, in the same order, word for word but for the two `this
+workflow`, each now `evidence.yml`, a workflow subsection with 12.13's cap (SHARED_CI), so 12.13 has room for the
+queued workflow lines; 12.13's job bullet names 12.31 for the `ci.yml` matrix.
 
 The section totals (v1.456, row DOC37): each total is the one last set with the subsections it counted,
 `## 12.` 300,000 at v1.390 with 12.1 to 12.22 and `## 13.` 185,000 at v1.386 with 13.1 to 13.14
 (TOTAL_BASES), raised by the cap of each subsection added after them (12.23 and 12.24, 13.15, from v1.461,
 13.16, from v1.468, 13.17, from v1.478, 12.25, from v1.481, 12.26, from v1.498, 13.18, from v1.523, 12.27,
-from v1.528, 12.28, from v1.541, 12.29 and, from v1.553, 12.30), so 420,000 and
+from v1.528, 12.28, from v1.541, 12.29, from v1.553, 12.30 and, from v1.558, 12.31), so 445,000 and
 284,000. While PENDING is not empty, each section with every PENDING subsection cut to its cap
 (`projected`) must fit its total; the DESIGN 12 Caps bullet names each subsection of GROUPS in its class,
 with that class's cap, and states the totals (CAPS_CLAUSES, `caps_bullet_problems`). So a subsection
@@ -115,7 +120,7 @@ from test_readme_evidence_budget import design_12_8
 ROOT = Path(__file__).resolve().parents[1]
 DESIGN = ROOT / "DESIGN.md"
 SECTIONS = ("12", "13")
-SECTION_CAPS = {"12": 420_000, "13": 284_000}  # v1.456, 12 v1.553 (405,000 at v1.541, 390,000 at v1.528, 375,000 at v1.523, 360,000 at v1.481, 345,000 at v1.478, 330,000 at v1.456), 13 v1.498 (262,000 at v1.468, 240,000 at v1.461); 12 300,000 at v1.390 and 260,000 at v1.386, 13 185,000
+SECTION_CAPS = {"12": 445_000, "13": 284_000}  # v1.456, 12 v1.558 (420,000 at v1.553, 405,000 at v1.541, 390,000 at v1.528, 375,000 at v1.523, 360,000 at v1.481, 345,000 at v1.478, 330,000 at v1.456), 13 v1.498 (262,000 at v1.468, 240,000 at v1.461); 12 300,000 at v1.390 and 260,000 at v1.386, 13 185,000
 # The total each section had when it last counted its subsections, the version that set it, and the last
 # subsection number it counted (12 v1.390 with 12.1 to 12.22, 13 v1.386 with 13.1 to 13.14); each
 # subsection numbered after it raises its section's total by the cap of its class (v1.456, row DOC37).
@@ -129,7 +134,7 @@ GROUPS = {
                         "12.28", "12.29", "12.30"),
     "delegation results": ("13.10", "13.12", "13.13", "13.14", "13.17", "13.18"),
     "README evidence": ("12.8",),
-    "workflow": ("12.13",),
+    "workflow": ("12.13", "12.31"),
     "limits and test status": ("13.8",),
     "delegation evaluator": ("13.9",),
     "research notes": ("12.22", "13.16"),
@@ -279,7 +284,7 @@ def test_the_class_table_names_every_heading_once_in_order():
     numbers = [number for number, _ in subsections]
     by_number = sorted(CLASS, key=lambda n: tuple(int(part) for part in n.split(".")))
     assert numbers == by_number
-    assert len(CLASS) == sum(len(group) for group in GROUPS.values()) == 48  # 36 before 13.15 (v1.394), 37 before 12.23 (v1.431), 38 before 12.24 (v1.433), 39 before 13.16 (v1.461), 40 before 13.17 (v1.468), 41 before 12.25 (v1.478), 42 before 12.26 (v1.481), 43 before 13.18 (v1.498), 44 before 12.27 (v1.523), 45 before 12.28 (v1.528), 46 before 12.29 (v1.541), 47 before 12.30 (v1.553)
+    assert len(CLASS) == sum(len(group) for group in GROUPS.values()) == 49  # 36 before 13.15 (v1.394), 37 before 12.23 (v1.431), 38 before 12.24 (v1.433), 39 before 13.16 (v1.461), 40 before 13.17 (v1.468), 41 before 12.25 (v1.478), 42 before 12.26 (v1.481), 43 before 13.18 (v1.498), 44 before 12.27 (v1.523), 45 before 12.28 (v1.528), 46 before 12.29 (v1.541), 47 before 12.30 (v1.553), 48 before 12.31 (v1.558)
     assert set(GROUPS) == set(CAPS)
     assert strays == []
 
@@ -766,11 +771,11 @@ def test_the_12_opening_gives_the_research_notes_cap_and_the_12_total():
     caps = [line for line in opening if line.startswith("- Caps, each a ceiling ")]
     assert len(caps) == 1
     assert "; the research notes 12.22 (v1.390, row DOC21o) and 13.16 (v1.461, row DOC38c), 40,000 each;" in caps[0]
-    assert ("; and the totals `## 12.` 420,000 and `## 13.` 284,000 (v1.456, row DOC37, v1.461, row DOC38c, v1.468, "
+    assert ("; and the totals `## 12.` 445,000 and `## 13.` 284,000 (v1.456, row DOC37, v1.461, row DOC38c, v1.468, "
             "row E25a, v1.478, row E26a, v1.481, row E26c, v1.498, row E27a, v1.523, row STRAT3f, v1.528, row "
-            "STRAT3h, v1.541, row ESC3c, and v1.553, row ESC3m), "
+            "STRAT3h, v1.541, row ESC3c, v1.553, row ESC3m, and v1.558, row DOC47), "
             in caps[0])
-    assert (CAPS["research notes"], SECTION_CAPS["12"], SECTION_CAPS["13"]) == (40_000, 420_000, 284_000)
+    assert (CAPS["research notes"], SECTION_CAPS["12"], SECTION_CAPS["13"]) == (40_000, 445_000, 284_000)
     moved = [line for line in opening if line.startswith("- Research notes out of 12.8 (v1.390, row DOC21o): ")]
     assert len(moved) == 1
     for words in ("are 12.22, a research-notes spec with a cap of 40,000 bytes, in the same order",
@@ -870,8 +875,14 @@ def test_the_caps_bullet_names_each_subsection_in_its_class_and_the_totals():
     ("the contract, 12.1 to 12.5 and", "the contract, 12.1 to 12.4 and",
      ["the contract clause lacks 12.5"]),
     ("16,000 bytes each", "15,000 bytes each", ["the contract clause gives 15,000, not its cap 16,000"]),
-    ("; the workflow 12.13 25,000", "", ["the Caps bullet has 0 clauses opening `the workflow`, not one"]),
-    ("`## 12.` 420,000", "`## 12.` 405,000", ["the Caps bullet gives `## 12.` 405,000, not 420,000"]),
+    ("; the workflow 12.13 and the token permissions and Python versions of both workflows 12.31 (v1.558, row DOC47), "
+     "25,000 each", "", ["the Caps bullet has 0 clauses opening `the workflow`, not one"]),
+    ("`## 12.` 445,000", "`## 12.` 420,000", ["the Caps bullet gives `## 12.` 420,000, not 445,000"]),
+    # v1.558 (row DOC47)
+    (" and the token permissions and Python versions of both workflows 12.31 (v1.558, row DOC47)", "",
+     ["the workflow clause lacks 12.31"]),
+    ("12.31 (v1.558, row DOC47), 25,000 each", "12.31 (v1.558, row DOC47), 22,000 each",
+     ["the workflow clause gives 22,000, not its cap 25,000"]),
     # v1.478 (row E26a)
     (", the Longtail-SWE converter 12.25 (v1.478)", "", ["the converter clause lacks 12.25"]),
     # v1.481 (row E26c)
@@ -909,9 +920,9 @@ def test_each_total_is_its_base_raised_by_the_cap_of_each_subsection_added_after
         later = [number for number in CLASS if number.split(".")[0] == section and by_number(number)[1] > last]
         added += later
         raised[section] = base + sum(CAPS[CLASS[number]] for number in later)
-    assert sorted(added, key=by_number) == ["12.23", "12.24", "12.25", "12.26", "12.27", "12.28", "12.29", "12.30",
+    assert sorted(added, key=by_number) == ["12.23", "12.24", "12.25", "12.26", "12.27", "12.28", "12.29", "12.30", "12.31",
                                                 "13.15", "13.16", "13.17", "13.18"]
-    assert raised == SECTION_CAPS == {"12": 420_000, "13": 284_000}
+    assert raised == SECTION_CAPS == {"12": 445_000, "13": 284_000}
 
 
 def test_the_projected_totals_fit_the_totals_the_caps_bullet_states():
@@ -932,7 +943,7 @@ def test_the_section_totals_bullet_gives_each_base_and_each_raise():
     (base12, set12, last12), (base13, set13, last13) = TOTAL_BASES["12"], TOTAL_BASES["13"]
     for words in (f"`## 12.` the {base12:,} of {set12}, which counts 12.1 to 12.{last12}, plus 15,000 for each of "
                   f"12.23 (v1.431), 12.24 (v1.433), 12.25 (v1.478), 12.26 (v1.481), 12.27 (v1.523), 12.28 (v1.528), "
-                  f"12.29 (v1.541) and 12.30 (v1.553), "
+                  f"12.29 (v1.541) and 12.30 (v1.553), and {CAPS['workflow']:,} for 12.31 (v1.558), "
                   f"so {SECTION_CAPS['12']:,}",
                   f"`## 13.` the {base13:,} of {set13}, which counts 13.1 to 13.{last13}, plus 15,000 for 13.15 "
                   f"(v1.394), 40,000 for 13.16 (v1.461) and 22,000 for each of 13.17 (v1.468) and 13.18 (v1.498), "
@@ -940,7 +951,7 @@ def test_the_section_totals_bullet_gives_each_base_and_each_raise():
                   "once `PENDING` is empty and, until then, the section with each `PENDING` subsection cut to "
                   "exactly its cap and the rest as measured"):
         assert words in bullets[0], words
-    assert (CAPS["converter"], CAPS["routing results"]) == (15_000, 15_000)
+    assert (CAPS["converter"], CAPS["routing results"], CAPS["workflow"]) == (15_000, 15_000, 25_000)
 
 
 def test_the_12_8_size_budget_clause_holds_no_history():
@@ -1146,10 +1157,13 @@ def test_12_13_states_its_contract_as_it_is_and_holds_no_growth_history():
                   f"then the {words[len(workflow.SUBSECTIONS)]} names in README heading order",
                   f"the README holds those {words[len(workflow.SUBSECTIONS)]} `### ` headings in that order",
                   f"check it on {words[len(workflow.RUN_ONCE_CASES)]} hand-built lists",
-                  f"each of {words[len(workflow.RUNNER_MUTANTS)]} broken pairs fails it",
-                  f"each of {words[len(pythons.MUTANTS)]} broken variants of those four files fails the check",
-                  f"each of {len(permissions.MUTANTS)} broken pairs fails with the one problem it names"):
+                  f"each of {words[len(workflow.RUNNER_MUTANTS)]} broken pairs fails it"):
         assert shown in joined, shown
+    # v1.558 (row DOC47): the two bullets that bind `ci.yml` as much as the workflow are 12.31.
+    shared = "\n".join(subsection_body(text, "12.31"))
+    for shown in (f"each of {words[len(pythons.MUTANTS)]} broken variants of those four files fails the check",
+                  f"each of {len(permissions.MUTANTS)} broken pairs fails with the one problem it names"):
+        assert shown in shared and shown not in joined, shown
     # The steps bullet names every rerun subsection, in order, the response-bank delegation one too.
     steps = [line for line in body if line.startswith("- Steps, in this order: ")]
     assert len(steps) == 1
@@ -1158,7 +1172,7 @@ def test_12_13_states_its_contract_as_it_is_and_holds_no_growth_history():
     # The history sentences the trim dropped (v1.391 text) are behind the pointers.
     for words in ("When v1.65 was written", "On one laptop", "Expected time", "Measured (v1.301", "(10 to v1.119)",
                   "(11 from v1.139)", "In run 42814244636", "In run 43008722362", "three to v1.54"):
-        assert words not in joined, words
+        assert words not in joined and words not in shared, words
     heading = [line for line in text.splitlines() if line.startswith("### 12.13 ")]
     # v1.397 (row E23c): the heading names no entry a bullet of 12.13 opens with, and ends with the ledger
     # line; from v1.443 (row E24e) with the registry pair, from v1.472 (row E25c) with its delegation and
@@ -1169,7 +1183,7 @@ def test_12_13_states_its_contract_as_it_is_and_holds_no_growth_history():
     # v1.544 (row ESC3e): the reason and the aside two lines dropped stay out
     for words in ("which GitHub moves to Ubuntu 26.04", "so leaving it out changes only the log",
                   "which a reflow keeps", "the same manifest lists 3.15.2", "would go unseen until a run missed"):
-        assert words not in joined, words
+        assert words not in joined and words not in shared, words
     # v1.530 (row STRAT3i): the asides and growth history four lines dropped stay out
     for words in ("(so a failing command stops the step)", "(one per rerun subsection and two in",
                   "from v1.299 12.20", "the registry pair v1.443, its delegation v1.472",
@@ -1183,3 +1197,51 @@ def test_12_13_states_its_contract_as_it_is_and_holds_no_growth_history():
                   "one run of a repeated line v1.215", "no cache between runs v1.251"):
         assert words not in heading[0], words
     assert "restated" not in heading[0] and "(history: " not in heading[0]
+
+
+# --- the token permissions and Python versions out of 12.13 (DESIGN 12 v1.558, row DOC47) -------------
+
+SHARED_CI_HEADING = ("### 12.31 Token permissions and Python versions of both workflows (`.github/workflows/ci.yml` "
+                     "and `.github/workflows/evidence.yml`, out of 12.13 v1.558)")
+# The openings of the two bullets, in their 12.13 order, and the test module that checks each.
+SHARED_CI = (("- Token permissions (v1.137): ", "test_ci_permissions.py"),
+             ("- Python versions (v1.118): ", "test_ci_pythons.py"))
+
+
+def test_12_31_holds_the_two_bullets_that_bind_both_workflows_and_12_13_neither():
+    text = DESIGN.read_text(encoding="utf-8")
+    body, workflow_body = subsection_body(text, "12.31"), subsection_body(text, "12.13")
+    assert [line for line in text.splitlines() if line.startswith("### 12.31 ")] == [SHARED_CI_HEADING]
+    # A Purpose line, the two bullets in their 12.13 order, then the blank line before `## 13.`.
+    assert len(body) == 4 and body[0].startswith("Purpose: ") and body[3] == ""
+    for line, (opening, _) in zip(body[1:3], SHARED_CI):
+        assert line.startswith(opening), opening
+        assert sum(other.startswith(opening) for other in text.splitlines()) == 1, opening
+        assert not [other for other in workflow_body if other.startswith(opening)], opening
+    for words in ("Purpose: the two 12.13 bullets that bind `ci.yml` as much as the `evidence` workflow, the token "
+                  "permissions and the Python versions, in the same order (12 v1.558, row DOC47): ",
+                  "word for word but for the two `this workflow`, each now `evidence.yml`.",
+                  "Its class is workflow, with 12.13's cap (the 12 Caps bullet).",
+                  "A reference to one of them as 12.13, with or without a version, in this file, a test or a script, "
+                  "names its bullet here."):
+        assert words in body[0], words
+    # Word for word but for the two `this workflow`, which in 12.13 named the `evidence` workflow.
+    assert "this workflow" not in "\n".join(body[1:])
+    assert body[1].startswith("- Token permissions (v1.137): `ci.yml`, like `evidence.yml` (12.13), sets one top-level ")
+    assert body[1].count("as the `secrets` check of `evidence.yml` fails closed") == 1
+    # 12.13's job bullet names the subsection that states the matrix its setup-python picks from.
+    job = [line for line in workflow_body if line.startswith("- One job, `regenerate`, ")]
+    assert len(job) == 1 and job[0].endswith("setup-python installs one Python version, one of those in the `ci.yml` "
+                                             "matrix (12.31)")
+    # A reference to one of them names 12.31: the two test modules that check them open with it, and no test
+    # or script under the repo names either bullet's version as 12.13.
+    for (opening, module), version in zip(SHARED_CI, ("v1.137", "v1.118")):
+        assert opening.endswith(f"({version}): ")
+        first = (ROOT / "tests" / module).read_text(encoding="utf-8").splitlines()[0]
+        assert first.startswith(f'"""DESIGN 12.31 {version}: '), module
+        stale = "12.13 " + version
+        for folder in ("evidence", "model_routing", "research", "tests"):
+            for path in sorted((ROOT / folder).rglob("*.py")):
+                assert stale not in path.read_text(encoding="utf-8"), (path.name, stale)
+    sizes = dict(measure(text)[1])
+    assert CLASS["12.31"] == CLASS["12.13"] == "workflow" and sizes["12.31"] <= CAPS["workflow"]

@@ -1,4 +1,4 @@
-"""DESIGN 12.13 v1.118: the Python versions `ci.yml` tests, the floor `pyproject.toml` states
+"""DESIGN 12.31 v1.118: the Python versions `ci.yml` tests, the floor `pyproject.toml` states
 and the README Development line agree with the list the DESIGN bullet writes; v1.120 (review):
 the matrix block holds only that list, so no `include` or `exclude` changes the jobs.
 
