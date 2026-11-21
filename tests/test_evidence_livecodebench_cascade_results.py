@@ -191,6 +191,12 @@ def phrases(results, before):
                      f"`{next(s for s in signals if s != signal)}`")
     out.append(f"The best single model, `{best_name}`, holds {r3(best['success'])}. {len(above)} of the "
                f"{len(cascades)} cascades {'holds' if len(above) == 1 else 'hold'} more: " + "; ".join(words))
+    # the closing sentence holds only while each such cascade is on the bound's upper end and its twin is not above
+    # the best model (review iter-399 nit 1)
+    assert len(above) == 1 and above[0][0].endswith("@" + signals[1])
+    assert cascades[above[0][0].split("@")[0] + "@" + signals[0]]["success"] <= best["success"]
+    out.append("So the one cascade that beats the best model does so only when a sample with no recorded test is "
+               "handed up too, the bound's upper end")
     # (3) the two signals as the no_test bound, and each cascade against its two models
     gaps = {p: cascades[p + "@" + signals[1]]["success"] - cascades[p + "@" + signals[0]]["success"] for p in pairs}
     assert all(g >= 0 for g in gaps.values())
