@@ -226,6 +226,13 @@ def _cmd_select(args) -> int:
     print(f"fallbacks: {', '.join(marked) or '(none)'}")
     print(f"basis:     {decision.basis}")
     print(f"below_bar: {str(decision.below_bar).lower()}")
+    if decision.failure_policy != "none":  # DESIGN 10 v1.567
+        value = decision.expected_cost_per_success_usd
+        shown = "n/a" if value is None else f"${value:.6f}"
+        print(f"policy:    {decision.failure_policy}, expected cost per success {shown} "
+              "(an estimate assuming independent retries)")
+        if decision.pick_reason is not None:
+            print(f"pick:      {decision.pick_reason}")
     print()
     print(_candidate_table(decision.candidates))
     _warn_expired_prices(registry, args.today, used)

@@ -281,6 +281,8 @@ class Executor:
             record["escalated"] = escalated
         if size is not None:
             record["prompt_tokens"], record["prompt_tokens_estimated"] = size
+        if decision.failure_policy != "none":  # DESIGN 8.1 v1.567: the last key
+            record["expected_cost_per_success_usd"] = decision.expected_cost_per_success_usd
         return record
 
 

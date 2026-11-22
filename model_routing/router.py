@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import asdict, dataclass, replace
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
@@ -19,6 +20,7 @@ INSUFFICIENT_SAMPLES = "insufficient_samples"
 BELOW_BAR = "below_bar"
 PASSES = "passes"
 CASCADE_UNKNOWN_MODEL = "cascade_unknown_model"
+CHEAPER_PER_SUCCESS = "cheaper_per_success"  # a decision's reason, never a candidate's
 
 FLAVORS = ("cost_effective", "cost_blind")
 
@@ -31,6 +33,13 @@ def _check_prompt_tokens(prompt_tokens) -> None:
         return
     if isinstance(prompt_tokens, bool) or not isinstance(prompt_tokens, int) or prompt_tokens < 0:
         raise ValueError(f"prompt_tokens must be an integer >= 0, got {prompt_tokens!r}")
+
+
+def _per_success(candidate: "Candidate") -> float:
+    """Routing cost over the Wilson lower bound, infinite when it is 0 (DESIGN 5.3 v1.567)."""
+    if candidate.quality_lb <= 0:
+        return math.inf
+    return candidate.routing_cost / candidate.quality_lb
 
 
 def _sizes(stats: Stats, task: Task, model_id: str) -> Tuple[int, int]:
@@ -81,11 +90,15 @@ class RouteDecision:
     candidates: Tuple[Candidate, ...]
     below_bar_fallbacks: Tuple[str, ...] = ()
     slice: Optional[str] = None
+    failure_policy: str = "none"
+    expected_cost_per_success_usd: Optional[float] = None
+    pick_reason: Optional[str] = None
 
     def to_dict(self) -> dict:
         """Return the decision as plain JSON-able types.
 
-        ``below_bar_fallbacks`` is a key only when it is not empty (DESIGN 5.1).
+        ``below_bar_fallbacks`` is a key only when it is not empty (DESIGN 5.1); the cost per
+        success keys only when ``failure_policy`` is not ``"none"`` (v1.567).
         """
         data = {"task": self.task}
         if self.slice is not None:
@@ -97,8 +110,13 @@ class RouteDecision:
         })
         if self.below_bar_fallbacks:
             data["below_bar_fallbacks"] = list(self.below_bar_fallbacks)
-        data.update(below_bar=self.below_bar, basis=self.basis,
-                    candidates=[asdict(c) for c in self.candidates])
+        data.update(below_bar=self.below_bar, basis=self.basis)
+        if self.failure_policy != "none":
+            data["failure_policy"] = self.failure_policy
+            data["expected_cost_per_success_usd"] = self.expected_cost_per_success_usd
+            if self.pick_reason is not None:
+                data["pick_reason"] = self.pick_reason
+        data["candidates"] = [asdict(c) for c in self.candidates]
         return data
 
 
@@ -182,6 +200,12 @@ class Router:
         passing = [c for c in candidates if c.passes]
         if passing:
             passing.sort(key=lambda c: (c.routing_cost, -c.quality_lb, c.model_id))
+            pick_reason = None
+            if task.failure_policy == "retry_same":  # DESIGN 5.3 v1.567
+                per_call_first = passing[0].model_id
+                passing.sort(key=lambda c: (_per_success(c), -c.quality_lb, c.model_id))
+                if passing[0].model_id != per_call_first:
+                    pick_reason = CHEAPER_PER_SUCCESS
             under = []
             if task.fallback_below_bar:
                 under = sorted((c for c in candidates
@@ -189,7 +213,7 @@ class Router:
                                key=lambda c: (-c.quality_lb, c.routing_cost, c.model_id))
             return self._decision(task, flavor, passing + under, False, "measured", candidates,
                                   under=frozenset(c.model_id for c in under),
-                                  name=base.name, slice_name=slice)
+                                  name=base.name, slice_name=slice, pick_reason=pick_reason)
 
         where = f"task {base.name!r}" + ("" if slice is None else f" slice {slice!r}")
         if task.on_no_model == "refuse":
@@ -362,8 +386,12 @@ class Router:
     def _decision(task: Task, flavor: str, ordered: Sequence[Candidate], below_bar: bool,
                   basis: str, candidates: Tuple[Candidate, ...],
                   under: frozenset = frozenset(), name: Optional[str] = None,
-                  slice_name: Optional[str] = None) -> RouteDecision:
+                  slice_name: Optional[str] = None,
+                  pick_reason: Optional[str] = None) -> RouteDecision:
         chosen: List[Candidate] = list(ordered)
+        per_success = None  # DESIGN 5.1 v1.567: at list price, in either flavor
+        if task.failure_policy != "none" and chosen[0].quality_lb > 0:
+            per_success = chosen[0].list_cost / chosen[0].quality_lb
         fallbacks = tuple(c.model_id for c in chosen[1:1 + task.max_fallbacks])
         return RouteDecision(
             task=task.name if name is None else name,
@@ -375,4 +403,7 @@ class Router:
             candidates=candidates,
             below_bar_fallbacks=tuple(m for m in fallbacks if m in under),
             slice=slice_name,
+            failure_policy=task.failure_policy,
+            expected_cost_per_success_usd=per_success,
+            pick_reason=pick_reason,
         )

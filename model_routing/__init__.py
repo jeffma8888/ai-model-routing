@@ -14,7 +14,7 @@ from .tasks import Cascade, Task, load_tasks  # noqa: E402
 from .stats import Stats, calibrate_from_results, items_needed, wilson_lower_bound  # noqa: E402
 from .priors import Priors  # noqa: E402
 from .router import (  # noqa: E402
-    BELOW_BAR, CASCADE_UNKNOWN_MODEL, CONTEXT_TOO_SMALL, EXCLUDED_FAMILY, EXCLUDED_MODEL,
+    BELOW_BAR, CASCADE_UNKNOWN_MODEL, CHEAPER_PER_SUCCESS, CONTEXT_TOO_SMALL, EXCLUDED_FAMILY, EXCLUDED_MODEL,
     GENERATOR, GENERATOR_FAMILY, INSUFFICIENT_SAMPLES, PASSES, Candidate, NoModelClearsBar,
     RouteDecision, Router,
 )
@@ -37,7 +37,7 @@ __all__ = [
     "calibrate_from_results", "wilson_lower_bound", "items_needed", "Priors", "Candidate",
     "RouteDecision", "Router", "NoModelClearsBar", "EXCLUDED_MODEL", "EXCLUDED_FAMILY",
     "GENERATOR", "GENERATOR_FAMILY", "CONTEXT_TOO_SMALL", "INSUFFICIENT_SAMPLES",
-    "BELOW_BAR", "PASSES", "CASCADE_UNKNOWN_MODEL", "Completion", "ProviderError", "Provider", "FakeProvider",
+    "BELOW_BAR", "PASSES", "CASCADE_UNKNOWN_MODEL", "CHEAPER_PER_SUCCESS", "Completion", "ProviderError", "Provider", "FakeProvider",
     "OpenAICompatibleProvider", "Attempt", "CallResult", "Executor", "AllModelsFailed",
     "json_validator", "estimate_prompt_tokens", "Monitor", "load_records", "report", "run_demo",
     "main", "Outcome", "outcomes_from_rows", "load_outcomes", "split_items", "evaluate",

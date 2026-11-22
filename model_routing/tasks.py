@@ -11,6 +11,7 @@ from typing import Dict, Mapping, Optional, Tuple, Union
 PathLike = Union[str, Path]
 
 ON_NO_MODEL_CHOICES = ("refuse", "best_available")
+FAILURE_POLICIES = ("none", "retry_same")
 SLICE_KEYS = ("bar", "min_samples", "expected_input_tokens", "expected_output_tokens")
 CASCADE_KEYS = ("cheap", "strong", "signal")
 _SIGNAL = re.compile(r"[a-z0-9][a-z0-9._-]*")
@@ -101,8 +102,10 @@ class Task:
     the Wilson lower bound at ``confidence``. ``slices`` maps a slice name to
     that slice's own ``bar``, ``min_samples`` and token sizes, each one it does
     not give coming from the task (DESIGN 4.2 v1.511). ``cascades`` holds the task's
-    cascades, stored as a tuple with no two of one ``id`` (DESIGN 7 v1.532). Invalid values
-    raise ``ValueError`` at construction.
+    cascades, stored as a tuple with no two of one ``id`` (DESIGN 7 v1.532).
+    ``failure_policy`` says what the caller does when a call's result fails the check:
+    ``"none"`` or ``"retry_same"``, which ranks the routes by expected cost per success
+    (DESIGN 4.2 and 5.3 v1.567). Invalid values raise ``ValueError`` at construction.
     """
 
     name: str
@@ -120,6 +123,7 @@ class Task:
     fallback_below_bar: bool = False
     slices: Mapping[str, Mapping[str, object]] = field(default_factory=dict, hash=False)
     cascades: Tuple[Cascade, ...] = ()
+    failure_policy: str = "none"
 
     def __post_init__(self) -> None:
         if not isinstance(self.exclude_families, tuple):
@@ -163,6 +167,9 @@ class Task:
                 raise ValueError(f"task {self.name!r}: duplicate cascade {cascade.id!r}")
             ids.add(cascade.id)
         object.__setattr__(self, "cascades", cascades)
+        if not isinstance(self.failure_policy, str) or self.failure_policy not in FAILURE_POLICIES:
+            raise ValueError(f"task {self.name!r}: failure_policy must be one of "
+                             f"{FAILURE_POLICIES}, got {self.failure_policy!r}")
 
 
 _TASK_FIELDS = {f.name for f in fields(Task)}

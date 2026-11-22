@@ -123,7 +123,8 @@ def test_rows_without_a_slice_count_once_under_the_task():
 
 def test_slices_follows_fallback_below_bar_and_is_empty_by_default():
     names = [f.name for f in dataclasses.fields(Task)]
-    assert names[-3:] == ["fallback_below_bar", "slices", "cascades"]  # cascades: v1.535
+    # cascades: v1.535; failure_policy: v1.567
+    assert names[-4:] == ["fallback_below_bar", "slices", "cascades", "failure_policy"]
     assert Task("t", 0.5).slices == {}
 
 
@@ -338,7 +339,8 @@ def test_measured_slice_tokens_price_the_slice(slice_registry):
 def test_the_decision_names_the_slice_after_the_task(slice_registry):
     names = [f.name for f in dataclasses.fields(type(make_router(slice_registry)
                                                      .select("support")))]
-    assert names[-1] == "slice"
+    # v1.567 (row CPS1a): the three cost-per-success fields come after it
+    assert names[-4:] == ["slice", "failure_policy", "expected_cost_per_success_usd", "pick_reason"]
     deep = make_router(slice_registry).select("support", slice="deep")
     assert list(deep.to_dict()) == ["task", "slice", "flavor", "primary", "fallbacks",
                                     "below_bar", "basis", "candidates"]

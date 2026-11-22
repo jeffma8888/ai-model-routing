@@ -104,6 +104,8 @@ def _tasks_json(task: Task) -> str:
                            for c in task.cascades]
     else:
         del row["cascades"]
+    if row["failure_policy"] == "none":  # DESIGN 4.2 v1.567
+        del row["failure_policy"]
     return json.dumps({"tasks": [row]}, indent=2) + "\n"
 
 

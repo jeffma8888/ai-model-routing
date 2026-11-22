@@ -20,8 +20,6 @@ from model_routing.cli import main
 from model_routing.demo import _tasks_json
 from model_routing.providers import Completion
 
-RED = pytest.mark.xfail(strict=True, reason="v1.567 lands in the implementing commit (row CPS1a)")
-
 A, B = "fiction/a", "fiction/b"
 CASCADE = f"{A}>{B}@sig"
 NOTE = Path(__file__).resolve().parent.parent / "research" / "production-lessons.md"
@@ -61,21 +59,18 @@ def _by_id(decision):
 
 # ---- 4.2 the field ------------------------------------------------------------------------
 
-@RED
 def test_the_field_is_last_and_none_by_default():
     assert [f.name for f in dataclasses.fields(Task)][-2:] == ["cascades", "failure_policy"]
     assert Task("t", 0.5).failure_policy == "none"
     assert Task("t", 0.5, failure_policy="retry_same").failure_policy == "retry_same"
 
 
-@RED
 @pytest.mark.parametrize("value", ["retry", "", "RETRY_SAME", "None", None, 1, True])
 def test_any_other_value_raises_valueerror_naming_the_task(value):
     with pytest.raises(ValueError, match=r"task 't'.*failure_policy"):
         Task("t", 0.5, failure_policy=value)
 
 
-@RED
 def test_load_tasks_reads_the_field_and_a_row_without_it_gets_none(tmp_path):
     path = tmp_path / "tasks.json"
     path.write_text(json.dumps({"tasks": [
@@ -91,7 +86,6 @@ def test_the_demo_tasks_file_has_no_key_for_the_default():
     assert "failure_policy" not in json.loads(_tasks_json(Task("t", 0.5)))["tasks"][0]
 
 
-@RED
 def test_the_demo_tasks_file_holds_the_key_when_it_is_not_the_default():
     row = json.loads(_tasks_json(Task("t", 0.5, failure_policy="retry_same")))["tasks"][0]
     assert row["failure_policy"] == "retry_same"
@@ -99,7 +93,6 @@ def test_the_demo_tasks_file_holds_the_key_when_it_is_not_the_default():
 
 # ---- 5.3 the order, on the row's example -----------------------------------------------------
 
-@RED
 def test_the_row_example_none_picks_a_and_retry_same_picks_b():
     none = _router().select("t")
     assert (none.primary, none.fallbacks) == (A, (B,))
@@ -121,7 +114,6 @@ def test_the_row_example_none_picks_a_and_retry_same_picks_b():
     assert retry.expected_cost_per_success_usd == cands[B].list_cost / cands[B].quality_lb
 
 
-@RED
 def test_the_same_first_pick_gives_no_reason_and_the_primarys_cost_per_success():
     decision = _router("retry_same", a=(99, 100), b=(60, 100)).select("t")
     assert (decision.primary, decision.fallbacks, decision.pick_reason) == (A, (B,), None)
@@ -129,7 +121,6 @@ def test_the_same_first_pick_gives_no_reason_and_the_primarys_cost_per_success()
     assert decision.expected_cost_per_success_usd == cand.list_cost / cand.quality_lb
 
 
-@RED
 def test_cost_blind_keeps_the_per_call_order_and_states_the_list_price_estimate():
     for policy in (None, "retry_same"):
         decision = _router(policy).select("t", flavor="cost_blind")
@@ -139,7 +130,6 @@ def test_cost_blind_keeps_the_per_call_order_and_states_the_list_price_estimate(
     assert decision.expected_cost_per_success_usd == cand.list_cost / cand.quality_lb
 
 
-@RED
 def test_a_zero_lower_bound_is_infinite_per_success_and_states_no_number():
     # bar 0: A passes on 0 of 10 with a bound of 0, the cheaper one per call
     none = _router(a=(0, 10), bar=0.0).select("t")
@@ -153,7 +143,6 @@ def test_a_zero_lower_bound_is_infinite_per_success_and_states_no_number():
     assert alone.to_dict()["expected_cost_per_success_usd"] is None
 
 
-@RED
 def test_best_available_below_the_bar_keeps_its_order_and_states_the_estimate():
     for policy in (None, "retry_same"):
         decision = _router(policy, bar=0.99, on_no_model="best_available").select("t")
@@ -163,7 +152,6 @@ def test_best_available_below_the_bar_keeps_its_order_and_states_the_estimate():
     assert decision.expected_cost_per_success_usd == cand.list_cost / cand.quality_lb
 
 
-@RED
 def test_a_cascade_is_priced_by_its_own_bound_and_cost():
     stats = _stats()
     stats.add("t", CASCADE, 98, 100, escalated=20)
@@ -179,7 +167,6 @@ def test_a_cascade_is_priced_by_its_own_bound_and_cost():
     assert decision.expected_cost_per_success_usd == pytest.approx(0.00116 / 0.929988, rel=1e-6)
 
 
-@RED
 def test_a_slice_takes_the_tasks_policy():
     stats = _stats(task="t@deep")
     decision = _router("retry_same", stats=stats, slices={"deep": {"bar": 0.5}}).select(
@@ -188,7 +175,6 @@ def test_a_slice_takes_the_tasks_policy():
         B, "cheaper_per_success", "retry_same")
 
 
-@RED
 def test_the_delegate_follows_the_policy_through_select():
     kwargs = dict(context_tokens=100, brief_tokens=50, result_tokens=50)
     assert _router().decide_delegation("t", B, **kwargs).route.primary == A
@@ -201,7 +187,6 @@ def test_the_default_dict_has_the_v1_566_keys():
     assert list(_router().select("t").to_dict()) == V1_566_KEYS
 
 
-@RED
 def test_the_dict_gains_the_keys_after_basis_only_off_the_default():
     data = _router("retry_same").select("t").to_dict()
     assert list(data) == [*V1_566_KEYS[:-1], "failure_policy", "expected_cost_per_success_usd",
@@ -212,7 +197,6 @@ def test_the_dict_gains_the_keys_after_basis_only_off_the_default():
                           "candidates"]
 
 
-@RED
 def test_the_reason_code_is_exported_after_cascade_unknown_model():
     names = model_routing.__all__
     assert names[names.index("CASCADE_UNKNOWN_MODEL") + 1] == "CHEAPER_PER_SUCCESS"
@@ -232,7 +216,6 @@ def test_records_of_the_default_have_no_new_key():
     assert all("expected_cost_per_success_usd" not in r for r in _records(None))
 
 
-@RED
 def test_records_end_with_the_decisions_cost_per_success_off_the_default():
     (record,) = _records("retry_same")
     assert record["model"] == B
@@ -262,7 +245,6 @@ def test_select_output_of_the_default_has_no_policy_line(tmp_path, capsys):
     assert "policy:" not in out and "pick:" not in out
 
 
-@RED
 def test_select_prints_the_policy_line_and_the_pick_reason(tmp_path, capsys):
     files = _cli_files(tmp_path, "retry_same")
     assert main(["select", "t", *files], today=date(2026, 1, 2)) == 0
@@ -279,7 +261,6 @@ def test_select_prints_the_policy_line_and_the_pick_reason(tmp_path, capsys):
 
 # ---- the note ---------------------------------------------------------------------------------
 
-@RED
 def test_the_harvey_line_names_the_shipped_policy_and_keeps_the_report_column_planned():
     text = NOTE.read_text(encoding="utf-8")
     harvey = text[text.index("## Harvey"):text.index("## Uber")]

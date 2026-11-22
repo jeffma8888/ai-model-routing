@@ -99,8 +99,10 @@ def test_a_bad_cascade_is_a_value_error(args):
 
 # --- Task.cascades and load_tasks ----------------------------------------------------------
 
-def test_cascades_is_the_last_task_field_and_defaults_to_an_empty_tuple():
-    assert [f.name for f in dataclasses.fields(Task)][-2:] == ["slices", "cascades"]
+def test_cascades_follows_slices_and_defaults_to_an_empty_tuple():
+    # v1.567 (row CPS1a): `failure_policy` comes after it, the last field
+    assert [f.name for f in dataclasses.fields(Task)][-3:] == [
+        "slices", "cascades", "failure_policy"]
     assert Task("t", 0.8).cascades == ()
 
 
