@@ -38,8 +38,14 @@ def _is_cascade_key(model_id: object) -> bool:
 
 
 def _is_cost(value: object) -> bool:
-    return not isinstance(value, bool) and isinstance(value, (int, float)) and isfinite(value) \
-        and value >= 0
+    """A finite number >= 0 that a float can hold, never a bool (DESIGN 4.3 v1.577)."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return False
+    try:
+        value = float(value)
+    except OverflowError:  # an int too large for a float (review iter-424 should-fix 1)
+        return False
+    return isfinite(value) and value >= 0
 
 
 def _check_cost(model_id: object, trials: int, cost_usd: object,
@@ -192,6 +198,9 @@ class Stats:
         e = _check_escalated(model_id, trials, escalated, input_tokens is not None)
         c = _check_cost(model_id, trials, cost_usd, input_tokens is not None)
         key = (task, model_id)
+        if c is not None and not isfinite(self._cost.get(key, 0.0) + c):  # review iter-424 must-fix 1
+            raise ValueError(f"cost_usd {c!r} would take the summed cost of {model_id!r} on "
+                             f"{task!r} past the largest float")
         s, t = self.get(task, model_id)
         self._counts[key] = (s + successes, t + trials)
         if e is not None:

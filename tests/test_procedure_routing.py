@@ -20,7 +20,8 @@ import pytest
 import model_routing
 from model_routing import (
     DATA_DIR, Cascade, Model, NoModelClearsBar, Priors, Procedure, ProcedureResult, Registry,
-    Router, Stats, Task, calibrate_from_results, load_tasks, run_demo, wilson_lower_bound,
+    Router, Stats, Task, Variant, calibrate_from_results, load_tasks, run_demo,
+    wilson_lower_bound,
 )
 
 MODEL, CHEAP, TWIN, NARROW = "fiction/model", "fiction/cheap", "fiction/twin", "fiction/narrow"
@@ -163,6 +164,40 @@ def test_a_cost_never_comes_without_trials():
         stats.add("t", CODE.id, 0, 0, cost_usd=0.5)
     stats.add("t", CODE.id, 0, 0, cost_usd=0.0)
     assert stats.get("t", CODE.id) == (0, 0) and stats.cost("t", CODE.id) == 0.0
+
+
+def test_a_sum_past_the_largest_float_is_a_value_error_and_adds_nothing(tmp_path):
+    # review iter-424 must-fix 1: each cost is finite, their sum is not
+    stats = Stats()
+    stats.add("t", CODE.id, 1, 1, cost_usd=1e308)
+    with pytest.raises(ValueError, match="largest float"):
+        stats.add("t", CODE.id, 1, 1, cost_usd=1e308)
+    assert stats.get("t", CODE.id) == (1, 1) and stats.cost("t", CODE.id) == 1e308
+    with pytest.raises(ValueError, match="largest float"):
+        stats.merge(stats)
+    row = {"task": "t", "model": CODE.id, "successes": 1, "trials": 1, "cost_usd": 1e308}
+    path = tmp_path / "big.json"
+    path.write_text(json.dumps({"stats": [row, row]}), encoding="utf-8")
+    with pytest.raises(ValueError, match="big.json"):
+        Stats.load(path)
+    with pytest.raises(ValueError, match="largest float"):
+        calibrate_from_results([{"task": "t", "model": CODE.id, "correct": True,
+                                 "cost_usd": 1e308}] * 2)
+
+
+def test_an_int_too_large_for_a_float_is_a_value_error(tmp_path):
+    # review iter-424 should-fix 1: never an OverflowError
+    with pytest.raises(ValueError, match="cost_usd"):
+        Stats().add("t", CODE.id, 1, 1, cost_usd=10 ** 400)
+    with pytest.raises(ValueError, match="cost_usd"):
+        calibrate_from_results([{"task": "t", "model": CODE.id, "correct": True,
+                                 "cost_usd": 10 ** 400}])
+    path = tmp_path / "huge.json"
+    path.write_text(json.dumps({"stats": [{"task": "t", "model": CODE.id, "successes": 1,
+                                           "trials": 1, "cost_usd": 10 ** 400}]}),
+                    encoding="utf-8")
+    with pytest.raises(ValueError, match="huge.json"):
+        Stats.load(path)
 
 
 @pytest.mark.parametrize("extra", [dict(input_tokens=10, output_tokens=5), dict(escalated=0)])
@@ -382,6 +417,64 @@ def test_rules_1_to_5_run_on_the_named_model(kw, fields, reason):
     assert (c.reason, c.eligible, c.passes) == (reason, False, False)
 
 
+def candidate(proc, t=None, stats=None, registry=REGISTRY, **kw):
+    """The procedure's candidate, from the decision or the NoModelClearsBar it raises."""
+    try:
+        candidates = router(t, stats, registry=registry).select("t", procedures=[proc], **kw)
+    except NoModelClearsBar as exc:
+        candidates = exc.candidates
+    return by_id(candidates)[proc.id]
+
+
+def test_an_unknown_model_comes_before_the_procedures_own_exclusion():
+    ghost = Procedure("poll", "v1", one_call, max_model_calls=1, max_tool_calls=0,
+                      model="fiction/ghost")
+    assert candidate(ghost, stats=planted(route=ghost.id), exclude_models=[ghost.id]).reason == (
+        "procedure_unknown_model")
+
+
+@pytest.mark.parametrize("kw, fields, reason", [
+    # rule 1 on its own ID comes before every rule on its model
+    (dict(exclude_models=[WITH_CHEAP.id], generator_model=CHEAP, prompt_tokens=9_900),
+     dict(exclude_families=("fam-b",), independent_of_generator=True), "excluded_model"),
+    # on the model, rule 1 before 2, 2 before 3, 3 before 4 and 4 before 5
+    (dict(exclude_models=[CHEAP]), dict(exclude_families=("fam-b",)), "excluded_model"),
+    (dict(generator_model=CHEAP), dict(exclude_families=("fam-b",), independent_of_generator=True),
+     "excluded_family"),
+    (dict(generator_model=CHEAP, prompt_tokens=9_900), dict(independent_of_generator=True),
+     "generator"),
+    (dict(generator_model=TWIN, prompt_tokens=9_900), dict(independent_of_generator=True),
+     "generator_family"),
+])
+def test_the_rules_apply_in_their_order(kw, fields, reason):
+    # review iter-424 should-fix 3
+    assert candidate(WITH_CHEAP, task(**fields), planted(route=WITH_CHEAP.id), **kw).reason == reason
+
+
+@pytest.mark.parametrize("kw, reason", [
+    (dict(exclude_models=[CHEAP]), "excluded_model"),
+    (dict(generator_model=CHEAP), "generator"),
+    ({}, "passes"),
+])
+def test_a_variant_named_model_is_ruled_out_by_its_base(kw, reason):
+    # review iter-424 should-fix 3: excluding the base, or the base as the generator (5.2 v1.572)
+    high = Model(CHEAP + "@high", "fam-b", 0.1, 0.2, 10_000, variant=Variant("high"))
+    registry = Registry([*REGISTRY.models, high])
+    proc = Procedure("poll", "v1", one_call, max_model_calls=1, max_tool_calls=0, model=high.id)
+    t = task(independent_of_generator=True)
+    assert candidate(proc, t, planted(route=proc.id), registry, **kw).reason == reason
+
+
+@pytest.mark.parametrize("kw, match", [(dict(flavor="bad"), "flavor"),
+                                       (dict(prompt_tokens=-1), "prompt_tokens"),
+                                       (dict(slice="a@b"), "slice"),
+                                       (dict(cascades=1), "cascades")])
+def test_the_earlier_keyword_checks_come_before_the_procedures_check(kw, match):
+    # review iter-424 should-fix 3: procedures is checked right after cascades
+    with pytest.raises(ValueError, match=match):
+        router().select("t", procedures=None, **kw)
+
+
 def test_a_window_too_small_for_the_tasks_sizes_rules_out_the_procedure():
     narrow = Procedure("poll", "v1", one_call, max_model_calls=1, max_tool_calls=0, model=NARROW)
     c = by_id(router(stats=planted(route=narrow.id)).select("t", procedures=[narrow]))[narrow.id]
@@ -443,6 +536,33 @@ def test_no_model_clears_bar_carries_the_procedure_candidates():
         router(task(bar=0.99)).select("t", procedures=[CODE])
     assert [c.model_id for c in info.value.candidates][-1] == CODE.id
     assert str(info.value) == "no model clears the bar 0.99 for task 't'"
+
+
+@pytest.mark.parametrize("flavor, pick_reason", [("cost_effective", "cheaper_per_success"),
+                                                 ("cost_blind", None)])
+def test_retry_same_puts_a_procedure_cheaper_per_trial_but_dearer_per_success_second(
+        flavor, pick_reason):
+    # review iter-424 should-fix 2: 0.00084 / 0.502003 is 0.00167330 per success, above the
+    # model's 0.0014 / 0.945514, 0.00148068; in cost_blind both are 0 and the bound decides
+    stats = planted((60, 100, 0.084), model=(99, 100))
+    decision = router(task(bar=0.5, failure_policy="retry_same"), stats).select(
+        "t", flavor, procedures=[CODE])
+    assert route(decision) == (MODEL, CODE.id) and decision.pick_reason == pick_reason
+    per_call = router(task(bar=0.5), stats).select("t", flavor, procedures=[CODE])
+    assert route(per_call) == ((CODE.id, MODEL) if flavor == "cost_effective" else (MODEL, CODE.id))
+
+
+@pytest.mark.parametrize("fields", [dict(failure_policy="retry_same"),
+                                    dict(fallback_below_bar=True),
+                                    dict(bar=0.99, on_no_model="best_available")])
+def test_an_unmeasured_procedure_enters_no_order(fields):
+    # review iter-424 should-fix 2: its cost, one call or 0.0, never decides
+    stats = planted(proc=None)
+    stats.add("t", TWIN, 7, 10)  # a below-bar model with trials, so the fallback list is not empty
+    bare_and_named = [CODE, WITH_CHEAP]
+    decision = router(task(**fields), stats).select("t", procedures=bare_and_named)
+    assert not set(route(decision)) & {CODE.id, WITH_CHEAP.id}
+    assert not set(decision.below_bar_fallbacks) & {CODE.id, WITH_CHEAP.id}
 
 
 def test_retry_same_orders_a_procedure_by_cost_per_success():
