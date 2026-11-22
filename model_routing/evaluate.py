@@ -66,7 +66,8 @@ def _row_to_outcome(row, registry: Optional[Registry], slice_by: Optional[str] =
             raise ValueError(f"token counts must be integers >= 0: {row!r}")
         if registry is None or row["model"] not in registry:
             raise ValueError(f"token-form row needs a registry that has {row['model']!r}")
-        cost = registry.get(row["model"]).cost(tin, tout)
+        model = registry.get(row["model"])  # v1.573: one item of a call of items_per_call items
+        cost = model.cost(tin, tout) / model.items_per_call
     else:
         raise ValueError(f"outcome row needs 'cost_usd' or both token counts: {row!r}")
     name = None if slice_by is None else row.get(slice_by)

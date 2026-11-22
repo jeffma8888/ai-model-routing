@@ -383,8 +383,15 @@ class Router:
         )
 
     def _list_cost(self, task: Task, model) -> float:
-        """A candidate's list-price cost of one call of the task at its 5.2 sizes."""
-        return model.cost(*_sizes(self.stats, task, model.id))
+        """A candidate's list-price cost at its 5.2 sizes, per item (DESIGN 5.2 v1.573).
+
+        At its measured mean, one call, the cost is over the route's ``items_per_call``; at the
+        task's expected sizes, one call of one item, it is that call's cost, undivided.
+        """
+        mean = self.stats.mean_tokens(task.name, model.id)
+        if mean is None:
+            return model.cost(task.expected_input_tokens, task.expected_output_tokens)
+        return model.cost(*mean) / model.items_per_call
 
     @staticmethod
     def _decision(task: Task, flavor: str, ordered: Sequence[Candidate], below_bar: bool,

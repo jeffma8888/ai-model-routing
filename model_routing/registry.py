@@ -13,7 +13,7 @@ from typing import Dict, Iterable, Mapping, Optional, Tuple, Union
 PathLike = Union[str, Path]
 _ISO_DAY = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}")
 _VARIANT_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
-_VARIANT_KEYS = ("reasoning_effort", "harness", "context_policy")
+_VARIANT_KEYS = ("reasoning_effort", "harness", "context_policy", "items_per_call")
 
 
 def _is_price(value) -> bool:
@@ -61,12 +61,15 @@ class Variant:
     """A named setup of a model: labels of how the caller's harness runs it (DESIGN 4.1 v1.572).
 
     The library sets no effort and compacts nothing; a variant's route has its own stats.
+    ``items_per_call`` is how many items one call of the route handles, so a measured route is
+    priced per item, its mean call over that number (4.1 and 5.2 v1.573).
     """
 
     name: str
     reasoning_effort: Optional[str] = None
     harness: Optional[str] = None
     context_policy: Mapping[str, object] = field(default_factory=dict)
+    items_per_call: int = 1
 
     def __post_init__(self):
         if not isinstance(self.name, str) or not _VARIANT_NAME.fullmatch(self.name):
@@ -87,6 +90,9 @@ class Variant:
                 raise ValueError(f"context_policy[{key!r}] must be None, a bool, an int, a "
                                  f"finite float or a string, got {value!r}")
         object.__setattr__(self, "context_policy", dict(policy))
+        k = self.items_per_call
+        if not isinstance(k, int) or isinstance(k, bool) or k < 1:  # DESIGN 4.1 v1.573
+            raise ValueError(f"items_per_call must be an int >= 1, got {k!r}")
 
 
 @dataclass(frozen=True)
@@ -147,6 +153,11 @@ class Model:
     def base_id(self) -> str:
         """The model's ID without ``@<variant name>`` (DESIGN 4.1 v1.572)."""
         return self.id if self.variant is None else self.id.rpartition("@")[0]
+
+    @property
+    def items_per_call(self) -> int:
+        """How many items one call handles: its variant's, 1 without one (DESIGN 4.1 v1.573)."""
+        return 1 if self.variant is None else self.variant.items_per_call
 
     def price_expired(self, today: date) -> bool:
         """Return True when the stated price end date is before ``today``."""

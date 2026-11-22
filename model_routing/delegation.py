@@ -141,6 +141,14 @@ def _shared(parent, c: int, rho: float, added_in: int, added_out: int = 0) -> fl
             + added_out * price_out) / 1_000_000
 
 
+class _PerCallRouter(Router):
+    """The delegate's ``select`` for one work call: each candidate priced per call at its 5.2
+    sizes, whatever its ``items_per_call`` (13.3 v1.573), as ``delegate_cost_usd`` prices it."""
+
+    def _list_cost(self, task: Task, model) -> float:
+        return model.cost(*_sizes(self.stats, task, model.id))
+
+
 class _WorkCallsRouter(Router):
     """The delegate's ``select`` for K > 1 work calls on the brief (13.3, v1.38).
 
@@ -267,8 +275,8 @@ def decide_delegation(router: Router, task_name: str, parent_model: str,
     # is the v1.34 select, and K > 1 checks the last call and prices the K calls
     if k == 1:
         briefed = replace(task, expected_input_tokens=s_in + b)
-        sub = Router(router.registry, {task.name: briefed},
-                     _briefed_stats(router.stats, task.name, b), router.priors)
+        sub = _PerCallRouter(router.registry, {task.name: briefed},
+                             _briefed_stats(router.stats, task.name, b), router.priors)
     else:
         sub = _WorkCallsRouter(router, task, b, k, sigma)
     route: Optional[RouteDecision] = None

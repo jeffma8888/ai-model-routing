@@ -189,7 +189,22 @@ def _eligible(candidates) -> set:
     return {c.model_id for c in candidates if c.eligible}
 
 
-def _candidate_table(candidates) -> str:
+PER_ITEM_LINE = ("list_cost and routing_cost are per item; items is how many items one call of "
+                 "the route handles")
+
+
+def _candidate_table(candidates, registry=None) -> str:
+    """The candidate table; with an ``items`` column and the per-item line when some route of
+    ``registry`` handles more than one item a call (DESIGN 10 v1.573)."""
+    items = {} if registry is None else {
+        c.model_id: registry.get(c.model_id).items_per_call
+        for c in candidates if c.model_id in registry}
+    if any(k > 1 for k in items.values()):
+        rows = [[c.model_id, c.family, f"{c.successes}/{c.trials}", f"{c.quality_lb:.3f}",
+                 items.get(c.model_id, 1), f"{c.list_cost:.6f}", f"{c.routing_cost:.6f}",
+                 c.reason] for c in candidates]
+        return _table(["model", "family", "measured", "quality_lb", "items", "list_cost",
+                       "routing_cost", "reason"], rows) + "\n" + PER_ITEM_LINE
     rows = [[c.model_id, c.family, f"{c.successes}/{c.trials}", f"{c.quality_lb:.3f}",
              f"{c.list_cost:.6f}", f"{c.routing_cost:.6f}", c.reason] for c in candidates]
     return _table(["model", "family", "measured", "quality_lb", "list_cost",
@@ -212,7 +227,7 @@ def _cmd_select(args) -> int:
                                  prompt_tokens=args.prompt_tokens, slice=args.slice)
     except NoModelClearsBar as exc:
         print(f"error: {exc}", file=sys.stderr)
-        print(_candidate_table(exc.candidates), file=sys.stderr)
+        print(_candidate_table(exc.candidates, registry), file=sys.stderr)
         _warn_expired_prices(registry, args.today, _eligible(exc.candidates))
         return EXIT_NO_MODEL
     used = _eligible(decision.candidates)
@@ -238,7 +253,7 @@ def _cmd_select(args) -> int:
         if decision.pick_reason is not None:
             print(f"pick:      {decision.pick_reason}")
     print()
-    print(_candidate_table(decision.candidates))
+    print(_candidate_table(decision.candidates, registry))
     _warn_expired_prices(registry, args.today, used)
     return EXIT_OK
 
