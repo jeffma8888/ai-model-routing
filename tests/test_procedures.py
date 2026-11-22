@@ -7,8 +7,6 @@ from pathlib import Path
 
 import pytest
 
-pytestmark = pytest.mark.xfail(strict=True, raises=ModuleNotFoundError)
-
 PACKAGE = Path(__file__).resolve().parent.parent / "model_routing"
 NAMES = ("Procedure", "ProcedureResult", "ProcedureRun", "ProcedureLimitError")
 

@@ -29,6 +29,7 @@ from .demo import run_demo  # noqa: E402
 from .evaluate import Outcome, evaluate, load_outcomes, outcomes_from_rows, split_items  # noqa: E402
 from .delegation import DelegationDecision  # noqa: E402
 from .delegation_eval import evaluate_delegation  # noqa: E402
+from .procedures import Procedure, ProcedureLimitError, ProcedureResult, ProcedureRun  # noqa: E402
 
 __version__ = "0.1.0"
 
@@ -43,6 +44,7 @@ __all__ = [
     "run_demo",
     "main", "Outcome", "outcomes_from_rows", "load_outcomes", "split_items", "evaluate",
     "DelegationDecision", "evaluate_delegation",
+    "Procedure", "ProcedureResult", "ProcedureRun", "ProcedureLimitError",
 ]
 
 
