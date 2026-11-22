@@ -7,7 +7,7 @@ Usage:
 Standard library only. ``--evaluate`` reads the output of ``model-routing evaluate --json``
 and keeps the summary and the routed per-task rows, and a sliced run's ``per_slice`` and
 ``slice_summary`` (v1.521); ``--table`` prints the two tables that RESULTS.md shows, and a
-third, the slices table, when the file has ``slice_summary``. When its summary rows carry
+third, the slices table, when the file has ``slice_summary``. When a summary row carries
 ``cost_per_correct_usd`` (``evaluate --cost-per-correct``), the first two tables end in that
 column (v1.571).
 """

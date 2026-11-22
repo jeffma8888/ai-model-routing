@@ -27,7 +27,7 @@ instead would leave it over the cap, it drops its `cost_effective` bullet, the s
 
 v1.571 (DESIGN 12.15 v1.571, row CPS1d): the committed file is made with ``--cost-per-correct``, so every
 summary and per-task row ends in ``cost_per_correct_usd``; a ``model:`` row's value is the same in every
-(bar, flavor), and with the pinned files cached a test sums each strategy's held-out cost and passed tasks
+(bar, flavor), and with the pinned files cached a test sums each strategy's held-out cost and passed items
 by hand at the lowest bar. Row CPS1d wrote those tests under strict xfail; the implementing commit removed it.
 """
 
@@ -603,7 +603,7 @@ def test_real_sensitivity_lines_are_in_results_md(cv, extracts):
 
 def test_real_cost_per_correct_at_the_lowest_bar_is_the_hand_sum(cv, extracts):
     # v1.571 (12.15 v1.571): from the converter's rows and the 12.2 split, each strategy but `oracle`
-    # summed by hand at bar 0.3 `cost_effective`: its held-out cost and passed tasks over the domains
+    # summed by hand at bar 0.3 `cost_effective`: its held-out cost and passed items over the domains
     # and seeds, by the agent each cell names for it, then one quotient
     rows, _ = cv.convert(extracts[0])
     by_key = {(r["task"], r["item"], r["model"]): r for r in rows}

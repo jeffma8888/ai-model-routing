@@ -272,6 +272,10 @@ def test_the_single_model_rows_are_those_of_results_json():
     found, before = single_rows(committed()), {}
     for r in old()["summary"]:
         if r["strategy"] != "routed":
+            # v1.571 (12.29, row CPS1d): results.json is made with --cost-per-correct and the cascade run is not
+            r = dict(r)
+            assert list(r)[-1] == "cost_per_correct_usd"
+            del r["cost_per_correct_usd"]
             before[r["bar"], r["flavor"], r["strategy"]] = r
     assert len(found) == len(before) == 84
     assert found == before
