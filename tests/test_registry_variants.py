@@ -7,9 +7,10 @@ from pathlib import Path
 import pytest
 
 import model_routing
-from model_routing import (CONTEXT_TOO_SMALL, DATA_DIR, EXCLUDED_FAMILY, EXCLUDED_MODEL, GENERATOR,
-                           GENERATOR_FAMILY, INSUFFICIENT_SAMPLES, BELOW_BAR, PASSES, Model,
-                           Registry, Router, Stats, Task, Variant, calibrate_from_results)
+from model_routing import (BELOW_BAR, CONTEXT_TOO_SMALL, DATA_DIR, EXCLUDED_FAMILY, EXCLUDED_MODEL,
+                           GENERATOR, GENERATOR_FAMILY, INSUFFICIENT_SAMPLES, PASSES, Cascade,
+                           Completion, Executor, FakeProvider, Model, Monitor, Registry, Router,
+                           Stats, Task, Variant, calibrate_from_results)
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -80,11 +81,26 @@ def test_model_variant_is_the_last_field_and_names_the_route():
 
 @pytest.mark.parametrize("model_id, variant", [
     ("v/m@deep", Variant("lean")), ("@lean", Variant("lean")), ("a@b@lean", Variant("lean")),
-    ("v/m", Variant("lean")), ("v/m@lean", None), ("v/m@lean", "lean"), ("v/m", {"name": "x"}),
+    ("v/m", Variant("lean")), ("lean", Variant("lean")), (3, Variant("lean")),
+    ("v/m@lean", "lean"), ("v/m", {"name": "x"}),
 ])
 def test_a_route_id_and_its_variant_must_agree(model_id, variant):
     with pytest.raises(ValueError):
         Model(model_id, "v", 1.0, 2.0, 8000, variant=variant)
+
+
+def test_a_model_without_a_variant_keeps_a_v1_571_id():
+    cascade_like = Model("fiction/cheap>fiction/best@sig", "x", 1.0, 1.0, 100_000)
+    assert cascade_like.base_id == cascade_like.id and cascade_like.variant is None
+
+
+def test_null_settings_are_absent_and_aliases_are_copied(tmp_path):
+    registry = load(tmp_path, [row("v/m", aliases={"gateway": "m-1"}, variants={
+        "lean": {"harness": None, "reasoning_effort": None, "context_policy": None}})])
+    lean = registry.get("v/m@lean")
+    assert lean.variant == Variant("lean")
+    assert lean.aliases == registry.get("v/m").aliases
+    assert lean.aliases is not registry.get("v/m").aliases
 
 
 def test_load_puts_each_variant_right_after_its_base(tmp_path):
@@ -231,11 +247,53 @@ def test_family_exclusion_and_the_window_apply_to_variants(family_router, tmp_pa
     assert got == {"v/m": CONTEXT_TOO_SMALL, "v/m@lean": CONTEXT_TOO_SMALL, "w/n": PASSES}
 
 
+def test_a_cascade_member_is_judged_by_the_base_rules_and_is_never_a_variant(tmp_path):
+    with pytest.raises(ValueError):
+        Cascade("v/m@lean", "w/n", "sig")
+    registry = load(tmp_path, [row("v/m", variants={"lean": {}}), row("w/n", "w")])
+    stats = Stats()
+    for model in registry.models:
+        stats.add("review", model.id, 30, 30)
+    task = _review_task(cascades=(Cascade("v/m", "w/n", "sig"),))
+    router = Router(registry, {"review": task}, stats)
+    got = reasons(router.select("review", generator_model="v/m@lean", cascades=True))
+    assert got == {"v/m": GENERATOR, "v/m@lean": GENERATOR, "w/n": PASSES,
+                   "v/m>w/n@sig": GENERATOR}
+    got = reasons(router.select("review", exclude_models=("v/m",), cascades=True))
+    assert got == {"v/m": EXCLUDED_MODEL, "v/m@lean": EXCLUDED_MODEL, "w/n": PASSES,
+                   "v/m>w/n@sig": EXCLUDED_MODEL}
+
+
+@pytest.mark.parametrize("parent, generator", [("v/m@lean", "v/m"), ("v/m", "v/m@lean")])
+def test_the_inline_check_refuses_a_parent_that_is_the_generator_s_setup(family_router, parent,
+                                                                         generator):
+    decision = family_router().decide_delegation(
+        "review", parent, generator_model=generator, context_tokens=1000, brief_tokens=100,
+        result_tokens=50)
+    assert (decision.inline_allowed, decision.mode, decision.model) == (False, "delegate", "w/n")
+
+
+def test_the_executor_calls_and_logs_the_route_id(tmp_path):
+    registry = load(tmp_path, [row("v/m", variants={"lean": {"harness": "lean-agent 2.0"}})])
+    stats = Stats()
+    stats.add("review", "v/m@lean", 30, 30)
+    router = Router(registry, {"review": _review_task()}, stats)
+    seen = []
+    provider = FakeProvider(
+        {"v/m@lean": lambda messages: seen.append(1) or Completion("ok", 10, 2)})
+    monitor = Monitor()
+    result = Executor(router, provider, monitor=monitor).call(
+        "review", [{"role": "user", "content": "x"}])
+    assert (result.model, seen, [r["model"] for r in monitor.records]) == (
+        "v/m@lean", [1], ["v/m@lean"])
+
+
 def test_the_readme_names_the_variants_key():
     text = (ROOT / "README.md").read_text(encoding="utf-8")
     part = text.split("## How a model is chosen", 1)[1].split("\n## ", 1)[0]
     assert '"variants": {"lean": {"harness": "lean-agent 2.0", "reasoning_effort": "low"}}' in part
     assert "`vendor/model@lean`" in part and "`DESIGN.md` 4.1 and 5.2" in part
+    assert "map each route in `OpenAICompatibleProvider(model_map=...)`" in part
 
 
 def test_the_production_note_states_the_shipped_part_of_measured_setups():

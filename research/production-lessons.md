@@ -132,7 +132,7 @@ Each lesson gives the mechanism, the result with its source, and what this libra
 
 - Mechanism: "An ungrounded agent fails slowly rather than cheaply, repeatedly sending an expanding context window to search one more location." ([software factory](https://www.uber.com/us/en/blog/efficient-software-factory/)) Uber built a graph of its code and data that any agent can query.
 - Result: in one comparison, the same prompt to the same model, the grounded agent "delivered the answer in 38 seconds" ([software factory](https://www.uber.com/us/en/blog/efficient-software-factory/)), while the ungrounded one "spent 20 minutes inspecting service code, spawning 2 subagents, and hitting 3 errors before incorrectly concluding the dataset was unqueryable." ([software factory](https://www.uber.com/us/en/blog/efficient-software-factory/)) It is one example, not a measured rate.
-- In this library: not taken as routing behavior, since what a prompt holds is the caller's. A grounded and an ungrounded prompt can be measured today as two named variants of one model, each with its own success rate and cost.
+- In this library: not taken as routing behavior, since what a prompt holds is the caller's. A grounded and an ungrounded prompt can be measured today as two named variants of one model, each with its own success rate and cost, the caller's harness building each prompt.
 
 ### Find the routing waste in the logs
 

@@ -112,13 +112,14 @@ class Model:
 
     def __post_init__(self):
         variant = self.variant
-        if variant is not None and not isinstance(variant, Variant):
-            raise ValueError(f"variant must be None or a Variant, got {variant!r}")
-        base, at, name = str(self.id).rpartition("@")
-        if variant is None and at or variant is not None and (
-                name != variant.name or not base or "@" in base):
-            raise ValueError(f"model id {self.id!r} does not match its variant {variant!r}: "
-                             "an id holds '@' exactly when it is <base>@<variant name>")
+        if variant is not None:  # DESIGN 4.1 v1.572; an id without a variant is v1.571's
+            if not isinstance(variant, Variant):
+                raise ValueError(f"variant must be None or a Variant, got {variant!r}")
+            text = self.id if isinstance(self.id, str) else ""
+            base, _, name = text.rpartition("@")
+            if name != variant.name or not base or "@" in base:
+                raise ValueError(f"model id {self.id!r} must be <base>@{variant.name}, its "
+                                 "base non-empty and holding no '@'")
         value = self.price_valid_until
         if value is not None:
             if not isinstance(value, str) or not _ISO_DAY.fullmatch(value):
@@ -203,7 +204,8 @@ def _load_variants(value) -> Tuple[Variant, ...]:
         if unknown:
             raise ValueError(f"variant {name!r} has keys {unknown}; a variant takes only "
                              f"{', '.join(_VARIANT_KEYS)}")
-        variants.append(Variant(name, **settings))
+        variants.append(Variant(name, **{key: setting for key, setting in settings.items()
+                                         if setting is not None}))  # null is absent, as on a row
     return tuple(variants)
 
 
@@ -239,8 +241,12 @@ class Registry:
                     price_valid_until=row.get("price_valid_until"),
                     price_tiers=_load_tiers(row.get("price_tiers")),
                 )
+                if "@" in base.id:
+                    raise ValueError("a row id must not hold '@', which joins a model and "
+                                     "its variant (DESIGN 4.1 v1.572)")
                 models.append(base)
-                models.extend(replace(base, id=f"{base.id}@{variant.name}", variant=variant)
+                models.extend(replace(base, id=f"{base.id}@{variant.name}",
+                                      aliases=dict(base.aliases), variant=variant)
                               for variant in _load_variants(row.get("variants")))
             except (KeyError, TypeError, ValueError) as exc:
                 raise ValueError(f"{path}: invalid model row {row!r}: {exc}") from exc
