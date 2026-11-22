@@ -220,6 +220,7 @@ def test_records_end_with_the_decisions_cost_per_success_off_the_default():
     (record,) = _records("retry_same")
     assert record["model"] == B
     assert list(record)[-1] == "expected_cost_per_success_usd"
+    # review iter-413 nit 3: the decision's number, which a fallback's record holds too
     assert record["expected_cost_per_success_usd"] == pytest.approx(0.0014 / 0.945514, rel=1e-6)
 
 
@@ -257,6 +258,23 @@ def test_select_prints_the_policy_line_and_the_pick_reason(tmp_path, capsys):
     data = json.loads(capsys.readouterr().out)
     assert data["pick_reason"] == "cheaper_per_success"
     assert data["expected_cost_per_success_usd"] == pytest.approx(0.00148068, abs=1e-8)
+
+
+def test_select_prints_n_a_when_the_primarys_bound_is_0(tmp_path, capsys):
+    # review iter-413 nit 2: bar 0 and B excluded leave A, passing on 0 of 10 with a bound of 0
+    files = _cli_files(tmp_path, "retry_same")
+    (tmp_path / "tasks.json").write_text(json.dumps({"tasks": [
+        {"name": "t", "bar": 0.0, "min_samples": 10, "failure_policy": "retry_same"}]}))
+    stats = Stats()
+    stats.add("t", A, 0, 10)
+    stats.add("t", B, 99, 100)
+    stats.save(tmp_path / "stats.json")
+    assert main(["select", "t", "--exclude", B, *files], today=date(2026, 1, 2)) == 0
+    lines = capsys.readouterr().out.splitlines()
+    at = lines.index("below_bar: false")
+    assert lines[at + 1] == ("policy:    retry_same, expected cost per success n/a "
+                             "(an estimate assuming independent retries)")
+    assert not lines[at + 2].startswith("pick:")
 
 
 # ---- the note ---------------------------------------------------------------------------------
