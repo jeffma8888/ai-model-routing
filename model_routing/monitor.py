@@ -76,10 +76,12 @@ def load_audits(path: PathLike) -> Dict[str, bool]:
 def _grouper(by: str):
     if by in _GROUP_KEYS:
         return lambda rec: str(rec.get(by))
+    if by == "pricing_basis":  # DESIGN 8.3 v1.584: only a self-hosted model's records hold it
+        return lambda rec: str(rec.get(by, "list"))
     if by.startswith("tag:") and len(by) > 4:
         key = by[4:]
         return lambda rec: (rec.get("tags") or {}).get(key, NO_TAG)
-    raise ValueError(f"unknown report key {by!r}; use model, task, flavor, family or tag:<key>")
+    raise ValueError(f"unknown report key {by!r}; use model, task, flavor, family, pricing_basis or tag:<key>")
 
 
 def _entry(rec: dict) -> object:

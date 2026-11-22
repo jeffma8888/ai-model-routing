@@ -60,7 +60,8 @@ def _sizes(stats: Stats, task: Task, model_id: str) -> Tuple[int, int]:
 class Candidate:
     """One registry model, cascade (DESIGN 7 v1.536) or procedure (5.2 v1.577) for a task.
 
-    ``reason`` names the rule that decided it.
+    ``reason`` names the rule that decided it. ``pricing_basis`` is a registry model's own
+    (``"list"`` or ``"self_hosted"``) and None for a cascade or a procedure (5.1 v1.584).
     """
 
     model_id: str
@@ -73,6 +74,7 @@ class Candidate:
     eligible: bool
     passes: bool
     reason: str
+    pricing_basis: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -101,7 +103,8 @@ class RouteDecision:
         """Return the decision as plain JSON-able types.
 
         ``below_bar_fallbacks`` is a key only when it is not empty (DESIGN 5.1); the cost per
-        success keys only when ``failure_policy`` is not ``"none"`` (v1.567).
+        success keys only when ``failure_policy`` is not ``"none"`` (v1.567); a candidate's
+        ``pricing_basis`` only when it is ``"self_hosted"`` (v1.584).
         """
         data = {"task": self.task}
         if self.slice is not None:
@@ -119,8 +122,16 @@ class RouteDecision:
             data["expected_cost_per_success_usd"] = self.expected_cost_per_success_usd
             if self.pick_reason is not None:
                 data["pick_reason"] = self.pick_reason
-        data["candidates"] = [asdict(c) for c in self.candidates]
+        data["candidates"] = [_candidate_dict(c) for c in self.candidates]
         return data
+
+
+def _candidate_dict(candidate: Candidate) -> dict:
+    """A candidate's dict, its ``pricing_basis`` key only for a self-hosted model (5.1 v1.584)."""
+    data = asdict(candidate)
+    if data["pricing_basis"] != "self_hosted":
+        del data["pricing_basis"]
+    return data
 
 
 class NoModelClearsBar(Exception):
@@ -360,6 +371,7 @@ class Router:
             eligible=reason in _ELIGIBLE_REASONS,
             passes=reason == PASSES,
             reason=reason,
+            pricing_basis=model.pricing_basis,
         )
 
     def _cascade_candidate(self, task: Task, cascade: Cascade, flavor: str, excluded: set,

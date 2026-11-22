@@ -195,20 +195,21 @@ PER_ITEM_LINE = ("list_cost and routing_cost are per item; items is how many ite
 
 def _candidate_table(candidates, registry=None) -> str:
     """The candidate table; with an ``items`` column and the per-item line when some route of
-    ``registry`` handles more than one item a call (DESIGN 10 v1.573)."""
+    ``registry`` handles more than one item a call (DESIGN 10 v1.573), and a ``pricing_basis``
+    column when some candidate is self-hosted (v1.584)."""
     items = {} if registry is None else {
         c.model_id: registry.get(c.model_id).items_per_call
         for c in candidates if c.model_id in registry}
-    if any(k > 1 for k in items.values()):
-        rows = [[c.model_id, c.family, f"{c.successes}/{c.trials}", f"{c.quality_lb:.3f}",
-                 items.get(c.model_id, 1), f"{c.list_cost:.6f}", f"{c.routing_cost:.6f}",
-                 c.reason] for c in candidates]
-        return _table(["model", "family", "measured", "quality_lb", "items", "list_cost",
-                       "routing_cost", "reason"], rows) + "\n" + PER_ITEM_LINE
-    rows = [[c.model_id, c.family, f"{c.successes}/{c.trials}", f"{c.quality_lb:.3f}",
-             f"{c.list_cost:.6f}", f"{c.routing_cost:.6f}", c.reason] for c in candidates]
-    return _table(["model", "family", "measured", "quality_lb", "list_cost",
-                   "routing_cost", "reason"], rows)
+    per_item = any(k > 1 for k in items.values())
+    hosted = any(c.pricing_basis == "self_hosted" for c in candidates)
+    rows = [[c.model_id, c.family, f"{c.successes}/{c.trials}", f"{c.quality_lb:.3f}"]
+            + ([items.get(c.model_id, 1)] if per_item else [])
+            + ([c.pricing_basis or "-"] if hosted else [])
+            + [f"{c.list_cost:.6f}", f"{c.routing_cost:.6f}", c.reason] for c in candidates]
+    table = _table(["model", "family", "measured", "quality_lb"]
+                   + (["items"] if per_item else []) + (["pricing_basis"] if hosted else [])
+                   + ["list_cost", "routing_cost", "reason"], rows)
+    return table + "\n" + PER_ITEM_LINE if per_item else table
 
 
 def _cmd_select(args) -> int:

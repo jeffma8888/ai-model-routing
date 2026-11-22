@@ -25,7 +25,6 @@ from model_routing import (DATA_DIR, Candidate, Completion, Executor, FakeProvid
 from model_routing.cli import main
 
 ROOT = Path(__file__).resolve().parents[1]
-red = pytest.mark.xfail(strict=True, reason="v1.584 records name a self-hosted basis (row SELF1c)")
 TS = "2026-11-22T00:00:00Z"
 TEN = ["model_id", "family", "successes", "trials", "quality_lb", "routing_cost", "list_cost",
        "eligible", "passes", "reason"]
@@ -79,14 +78,12 @@ def answer(text="ok"):
 MSGS = [{"role": "user", "content": "hi"}]
 
 
-@red
 def test_the_candidate_field_is_last_and_none_by_default():
     last = dataclasses.fields(Candidate)[-1]
     assert [f.name for f in dataclasses.fields(Candidate)] == TEN + ["pricing_basis"]
     assert last.default is None
 
 
-@red
 def test_a_model_candidate_holds_its_models_basis():
     decision = decide()
     assert decision.primary == HOSTED
@@ -94,7 +91,6 @@ def test_a_model_candidate_holds_its_models_basis():
         LISTED: "list", HOSTED: "self_hosted"}
 
 
-@red
 def test_to_dict_names_the_basis_last_and_only_for_a_self_hosted_candidate():
     data = decide().to_dict()
     listed, hosted_dict = data["candidates"]
@@ -103,7 +99,6 @@ def test_to_dict_names_the_basis_last_and_only_for_a_self_hosted_candidate():
     assert json.loads(json.dumps(data)) == data
 
 
-@red
 def test_a_procedure_candidate_holds_none_and_writes_no_key():
     proc = Procedure("poll", "v1", lambda value, call: ProcedureResult(call(value)), max_model_calls=1,
                      max_tool_calls=0, model=HOSTED)
@@ -124,7 +119,6 @@ def test_a_list_priced_decision_keeps_ten_keys_a_candidate():
     assert data["candidates"] and all(list(c) == TEN for c in data["candidates"])
 
 
-@red
 def test_a_self_hosted_attempt_names_its_basis_right_after_routing_cost():
     run, monitor = executor({HOSTED: answer()})
     run.call("t", MSGS)
@@ -133,7 +127,6 @@ def test_a_self_hosted_attempt_names_its_basis_right_after_routing_cost():
     assert list(rec) == keys and rec["pricing_basis"] == "self_hosted" and rec["model"] == HOSTED
 
 
-@red
 def test_a_fallback_from_a_self_hosted_model_names_the_basis_on_its_attempt_only():
     def down(messages):
         from model_routing import ProviderError
@@ -145,7 +138,6 @@ def test_a_fallback_from_a_self_hosted_model_names_the_basis_on_its_attempt_only
     assert second["model"] == LISTED and list(second) == V1_583_KEYS
 
 
-@red
 def test_a_procedures_model_call_names_the_basis_and_its_closing_record_does_not():
     proc = Procedure("poll", "v1", lambda value, call: ProcedureResult("shaped " + call(value)),
                      max_model_calls=1, max_tool_calls=0, model=HOSTED)
@@ -172,7 +164,6 @@ def test_the_demo_log_keeps_its_bytes(tmp_path):
     assert digest == DEMO_CALLS_SHA256
 
 
-@red
 def test_report_by_pricing_basis_splits_the_spend():
     records = [
         {"call_id": "a", "attempt": 0, "final": True, "outcome": "ok", "model": HOSTED,
@@ -187,7 +178,6 @@ def test_report_by_pricing_basis_splits_the_spend():
         ("list", 2, 1.5), ("self_hosted", 1, 0.25)]
 
 
-@red
 def test_an_unknown_report_key_names_pricing_basis():
     with pytest.raises(ValueError, match=r"use model, task, flavor, family, pricing_basis or tag:<key>"):
         report([], by="nope")
@@ -224,7 +214,6 @@ HOSTED_ROW = {"id": HOSTED, "family": "acme", "context_window": 32_000, "pricing
 LISTED_ROW = {"id": LISTED, "family": "v", "price_in": 1.0, "price_out": 2.0, "context_window": 100_000}
 
 
-@red
 def test_select_shows_a_pricing_basis_column_before_list_cost(tmp_path):
     code, out, _ = run_cli(["select", "t"] + write_files(tmp_path, [LISTED_ROW, HOSTED_ROW]))
     assert code == 0
@@ -243,7 +232,6 @@ def test_select_without_a_self_hosted_candidate_has_no_column(tmp_path):
         "model", "family", "measured", "quality_lb", "list_cost", "routing_cost", "reason"]
 
 
-@red
 def test_select_json_names_the_basis_only_on_the_self_hosted_candidate(tmp_path):
     code, out, _ = run_cli(["select", "t", "--json"] + write_files(tmp_path, [LISTED_ROW, HOSTED_ROW]))
     assert code == 0

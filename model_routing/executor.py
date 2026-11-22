@@ -339,13 +339,14 @@ class Executor:
                 size: Optional[Tuple[int, bool]] = None, entry: Optional[str] = None,
                 cascade=None, escalated: Optional[bool] = None, keys: Optional[dict] = None,
                 family: Optional[str] = None) -> dict:
+        model = registry.get(attempt.model) if family is None else None  # None: a closing record
         record = {
             "ts": self.now(),
             "call_id": call_id,
             "task": decision.task,
             "flavor": decision.flavor,
             "model": attempt.model,
-            "family": registry.get(attempt.model).family if family is None else family,
+            "family": model.family if model is not None else family,
             "attempt": index,
             "final": final,
             "outcome": attempt.outcome,
@@ -355,8 +356,10 @@ class Executor:
             "output_tokens": attempt.output_tokens,
             "cost_usd": attempt.cost_usd,
             "routing_cost_usd": attempt.cost_usd if decision.flavor == "cost_effective" else 0.0,
-            "below_bar": decision.below_bar,
         }
+        if model is not None and model.pricing_basis == "self_hosted":  # DESIGN 8.1 v1.584
+            record["pricing_basis"] = "self_hosted"
+        record["below_bar"] = decision.below_bar
         # v1.537: by the route entry, so both attempts of a cascade entry share it
         if (attempt.model if entry is None else entry) in decision.below_bar_fallbacks:
             record["below_bar_fallback"] = True

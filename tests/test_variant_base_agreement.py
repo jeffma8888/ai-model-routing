@@ -184,4 +184,6 @@ def test_design_and_the_changelog_state_the_version():
     five = design[design.index("### 5.2 "):design.index("### 5.3 ")]
     assert five.count("from v1.583 `Registry` holds a variant to its base's family") == 1
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").rstrip("\n").split("\n")
-    assert changelog[-1].startswith("- v1.583 (2026-11-22): spec, code and tests (4.1, 5.2, row VAR2).")
+    mine = [line for line in changelog if line.startswith("- v1.583 (")]
+    assert len(mine) == 1
+    assert mine[0].startswith("- v1.583 (2026-11-22): spec, code and tests (4.1, 5.2, row VAR2).")
