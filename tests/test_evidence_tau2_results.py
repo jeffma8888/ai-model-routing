@@ -24,6 +24,11 @@ v1.475 (DESIGN 12.15 v1.475, row DOC44c): to the 12.8 v1.473 routing cap of 4,60
 folder and ``customer-service`` (two more ``SHED_SOURCE_CLAUSES``), and, since shedding its `cost_blind` bullet
 instead would leave it over the cap, it drops its `cost_effective` bullet, the start of the first RESULTS.md
 ``## Reading it`` bullet, and its link line names that reading.
+
+v1.571 (DESIGN 12.15 v1.571, row CPS1d): the committed file is made with ``--cost-per-correct``, so every
+summary and per-task row ends in ``cost_per_correct_usd``; a ``model:`` row's value is the same in every
+(bar, flavor), and with the pinned files cached a test sums each strategy's held-out cost and passed tasks
+by hand at the lowest bar. Row CPS1d wrote those tests under strict xfail.
 """
 
 import importlib.util
@@ -240,6 +245,23 @@ def test_committed_results_are_small_reduced_and_pinned(rs):
     assert all(r["strategy"] == "routed" for r in results["per_task"])
     assert all(sum(r["routed_models"].values()) == 50 and set(r["routed_models"]) <= set(MODELS)
                for r in results["per_task"])
+
+
+CPC = "cost_per_correct_usd"
+RED_CPC = pytest.mark.xfail(strict=True, reason="v1.571: results.json is regenerated in the implementing commit")
+
+
+@RED_CPC
+def test_every_row_ends_in_cost_per_correct_and_a_model_rows_value_is_one():
+    results = committed()
+    rows = results["summary"] + results["per_task"]
+    assert all(list(r)[-1] == CPC for r in rows)
+    assert all(r[CPC] is None or r[CPC] > 0 for r in rows)
+    for model in MODELS:
+        values = {r[CPC] for r in results["summary"] if r["strategy"] == f"model:{model}"}
+        # no bar or flavor changes a single agent's held-out cost or passed tasks; the value itself is
+        # the hand sum of test_real_cost_per_correct_at_the_lowest_bar_is_the_hand_sum
+        assert len(values) == 1, model
 
 
 def test_results_md_shows_the_table_of_the_committed_results(rs):
@@ -578,3 +600,30 @@ def test_real_sensitivity_lines_are_in_results_md(cv, extracts):
     assert len(needles) == 6 + 3 * 4
     for needle in needles:
         assert needle + "\n" in text, needle
+
+
+@RED_CPC
+def test_real_cost_per_correct_at_the_lowest_bar_is_the_hand_sum(cv, extracts):
+    # v1.571 (12.15 v1.571): from the converter's rows and the 12.2 split, each strategy but `oracle`
+    # summed by hand at bar 0.3 `cost_effective`: its held-out cost and passed tasks over the domains
+    # and seeds, by the agent each cell names for it, then one quotient
+    rows, _ = cv.convert(extracts[0])
+    by_key = {(r["task"], r["item"], r["model"]): r for r in rows}
+    items = {task: sorted({r["item"] for r in rows if r["task"] == task}) for task in TASKS}
+    result = evaluate(outcomes_from_rows(rows), bars=BARS[:1], seeds=range(50), flavors=("cost_effective",))
+    strategies = [r["strategy"] for r in committed()["summary"]
+                  if (r["bar"], r["flavor"]) == (BARS[0], "cost_effective") and r["strategy"] != "oracle"]
+    assert len(strategies) == 3 + len(MODELS)
+    for strategy in strategies:
+        costs, passed = [], 0
+        for cell in result["cells"]:
+            model = (cell["models"][strategy] if strategy in cell["models"]
+                     else strategy[len("model:"):])
+            _, held = split_items(items[cell["task"]], cell["seed"])
+            for item in held:
+                r = by_key[cell["task"], item, model]
+                costs.append(r["cost_usd"])
+                passed += r["correct"]
+        assert len(result["cells"]) == 50 * len(TASKS) and passed > 0
+        got = summary_row(committed(), BARS[0], "cost_effective", strategy)[CPC]
+        assert math.isclose(got, math.fsum(costs) / passed, rel_tol=1e-12), strategy
