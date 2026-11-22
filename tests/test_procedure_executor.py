@@ -21,8 +21,6 @@ from model_routing import (
     ProcedureResult, ProviderError, Registry, Router, Stats, Task, Variant, report, run_demo,
 )
 
-contract = pytest.mark.xfail(strict=True, reason="DESIGN v1.578 is not implemented yet (PROC1c)")
-
 MODEL, CHEAP, BEST = "fiction/model", "fiction/cheap", "fiction/best"
 REGISTRY = Registry([
     Model(MODEL, "fam-a", 1.0, 2.0, 10_000),
@@ -181,14 +179,12 @@ def test_guard_call_delegated_takes_no_procedures():
 
 # --- the keyword and its check (7 v1.578) ---------------------------------------------------
 
-@contract
 def test_procedures_is_a_keyword_after_signals_defaulting_to_empty():
     params = list(inspect.signature(Executor.call).parameters.values())
     assert [p.name for p in params[-2:]] == ["signals", "procedures"]
     assert params[-1].kind is inspect.Parameter.KEYWORD_ONLY and params[-1].default == ()
 
 
-@contract
 @pytest.mark.parametrize("value", ["poll", {PID: POLL}, [POLL, "x"], None])
 def test_bad_procedures_raise_before_any_call_or_record(value):
     h = Harness()
@@ -197,7 +193,6 @@ def test_bad_procedures_raise_before_any_call_or_record(value):
     assert (h.provider.calls, h.monitor.records, h.ids) == ([], [], [])
 
 
-@contract
 def test_an_empty_list_routes_and_records_as_without_procedures():
     h = Harness()
     result = h.call(procedures=[])
@@ -207,7 +202,6 @@ def test_an_empty_list_routes_and_records_as_without_procedures():
 
 # --- a procedure route to success -------------------------------------------------------------
 
-@contract
 def test_a_procedure_primary_runs_its_model_call_and_closes_ok():
     h = Harness()
     result = h.call(procedures=[POLL])
@@ -221,7 +215,6 @@ def test_a_procedure_primary_runs_its_model_call_and_closes_ok():
     assert h.monitor.records == [model_call(0), closing(1, True, "ok")]
 
 
-@contract
 def test_the_procedure_keys_follow_slice_in_this_order():
     h = Harness()
     h.call(procedures=[POLL])
@@ -230,7 +223,6 @@ def test_the_procedure_keys_follow_slice_in_this_order():
     assert list(last) == CLOSING_KEYS
 
 
-@contract
 def test_a_procedure_without_a_model_makes_no_provider_call():
     h = Harness(stats=planted((95, 100, 0.01), CODE.id))
     result = h.call(procedures=[CODE])
@@ -241,7 +233,6 @@ def test_a_procedure_without_a_model_makes_no_provider_call():
                 model="proc:shape@v2", family="", name="shape", version="v2")]
 
 
-@contract
 def test_cost_blind_records_the_tool_cost_with_no_routing_cost():
     h = Harness()
     result = h.call(procedures=[POLL], flavor="cost_blind", exclude_models=[BEST])
@@ -252,7 +243,6 @@ def test_cost_blind_records_the_tool_cost_with_no_routing_cost():
     assert h.monitor.records[1]["routing_cost_usd"] == 0.0
 
 
-@contract
 def test_a_variant_model_of_a_procedure_gets_its_provider_options():
     high = CHEAP + "@high"
     registry = Registry([
@@ -272,7 +262,6 @@ def test_a_variant_model_of_a_procedure_gets_its_provider_options():
 
 # --- failed runs fall back ----------------------------------------------------------------------
 
-@contract
 def test_a_procedure_that_raises_is_an_error_attempt_and_falls_back():
     h = Harness()
     result = h.call(procedures=[proc(boom)])
@@ -285,7 +274,6 @@ def test_a_procedure_that_raises_is_an_error_attempt_and_falls_back():
     ]
 
 
-@contract
 def test_a_call_over_max_model_calls_is_an_error_after_the_calls_it_made():
     def greedy(value, call):
         for _ in range(3):
@@ -305,7 +293,6 @@ def test_a_call_over_max_model_calls_is_an_error_after_the_calls_it_made():
     ]
 
 
-@contract
 def test_tool_calls_over_the_bound_or_a_wrong_return_value_is_an_error():
     over = proc(lambda value, call: ProcedureResult("x", tool_calls=6, tool_cost_usd=0.1))
     wrong = proc(lambda value, call: "x")
@@ -317,7 +304,6 @@ def test_tool_calls_over_the_bound_or_a_wrong_return_value_is_an_error():
                                                model_calls=0, tool_calls=None, tool_cost=None)
 
 
-@contract
 def test_a_provider_error_is_raised_into_fn_which_may_call_again():
     outage = ProviderError("outage")
     seen, caught = [], []
@@ -345,7 +331,6 @@ def test_a_provider_error_is_raised_into_fn_which_may_call_again():
     ]
 
 
-@contract
 def test_a_provider_error_fn_lets_through_fails_the_entry():
     h = Harness({CHEAP: fail(), BEST: ok("strong answer", 55, 12)})
     result = h.call(procedures=[proc(lambda value, call: ProcedureResult(call(value)))])
@@ -358,7 +343,6 @@ def test_a_provider_error_fn_lets_through_fails_the_entry():
     ]
 
 
-@contract
 def test_validate_applies_to_the_output_and_an_invalid_one_falls_back_at_its_tool_cost():
     checked = []
 
@@ -377,7 +361,6 @@ def test_validate_applies_to_the_output_and_an_invalid_one_falls_back_at_its_too
     ]
 
 
-@contract
 def test_a_procedure_as_the_last_entry_ends_in_all_models_failed():
     h = Harness()
     with pytest.raises(AllModelsFailed, match="^all 1 routed models failed for task 't'$") as info:
@@ -389,7 +372,6 @@ def test_a_procedure_as_the_last_entry_ends_in_all_models_failed():
                 tool_calls=None, tool_cost=None)]
 
 
-@contract
 def test_the_procedure_gets_a_copy_so_its_edits_never_reach_a_later_entry():
     received = []
 
@@ -409,7 +391,6 @@ def test_the_procedure_gets_a_copy_so_its_edits_never_reach_a_later_entry():
 
 # --- what propagates --------------------------------------------------------------------------
 
-@contract
 def test_a_provider_bug_propagates_even_when_fn_catches_it():
     bug = KeyError("bug")
 
@@ -417,10 +398,11 @@ def test_a_provider_bug_propagates_even_when_fn_catches_it():
         raise bug
 
     def swallow(value, call):
-        try:
-            call(value)
-        except Exception:
-            pass
+        for _ in range(2):  # the second call raises the bug again without reaching the provider
+            try:
+                call(value)
+            except KeyError as exc:
+                assert exc is bug
         return ProcedureResult("swallowed")
 
     h = Harness({CHEAP: broken, BEST: ok("strong answer", 55, 12)})
@@ -431,7 +413,6 @@ def test_a_provider_bug_propagates_even_when_fn_catches_it():
     assert h.monitor.records == []
 
 
-@contract
 def test_an_exception_from_validate_and_a_keyboard_interrupt_propagate():
     def bad_check(text):
         raise ZeroDivisionError("check")
@@ -450,9 +431,17 @@ def test_an_exception_from_validate_and_a_keyboard_interrupt_propagate():
     assert h.monitor.records == []
 
 
+def test_messages_that_cannot_be_copied_raise_before_the_run_with_no_record():
+    ran = []
+    h = Harness()
+    messages = [{"role": "user", "content": "hi", "extra": (x for x in "ab")}]
+    with pytest.raises(TypeError):
+        h.call(messages, procedures=[proc(lambda value, call: ran.append(value))])
+    assert (ran, h.provider.calls, h.monitor.records) == ([], [], [])
+
+
 # --- below-bar fallback and the report (8.1 and 8.3 v1.578) -----------------------------------
 
-@contract
 def test_a_procedure_below_bar_fallback_marks_both_its_records():
     task = Task("t", bar=0.8, min_samples=10, fallback_below_bar=True)
     h = Harness({CHEAP: ok("cheap answer", 4000, 1000), BEST: fail()}, task=task,
@@ -469,7 +458,6 @@ def test_a_procedure_below_bar_fallback_marks_both_its_records():
     assert list(last) == CLOSING_KEYS[:at] + ["below_bar_fallback"] + CLOSING_KEYS[at:]
 
 
-@contract
 def test_report_charges_the_tool_cost_to_the_procedure_and_the_model_call_to_its_model():
     h = Harness()
     h.call(procedures=[POLL])

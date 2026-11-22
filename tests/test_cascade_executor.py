@@ -153,9 +153,11 @@ def test_signals_that_is_no_mapping_is_a_value_error_before_select(value):
 
 
 def test_signals_is_a_keyword_after_slice():
+    # v1.578 (row PROC1c): `procedures` follows it, so the three are read by name
     params = list(inspect.signature(Executor.call).parameters.values())
-    assert [p.name for p in params[-3:]] == ["prompt_tokens", "slice", "signals"]
-    assert params[-1].kind is inspect.Parameter.KEYWORD_ONLY and params[-1].default is None
+    at = [p.name for p in params].index("signals")
+    assert [p.name for p in params[at - 2:at + 1]] == ["prompt_tokens", "slice", "signals"]
+    assert params[at].kind is inspect.Parameter.KEYWORD_ONLY and params[at].default is None
 
 
 def test_with_signals_the_route_holds_the_cascade():
