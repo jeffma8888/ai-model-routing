@@ -10,12 +10,14 @@ and after it.
 
 import dataclasses
 import json
+import os
 from pathlib import Path
 
 import pytest
 
 import model_routing
-from model_routing import (BELOW_BAR, CONTEXT_TOO_SMALL, DATA_DIR, EXCLUDED_MODEL, INSUFFICIENT_SAMPLES, PASSES,
+from model_routing import (BELOW_BAR, CONTEXT_TOO_SMALL, DATA_DIR, EXCLUDED_FAMILY, EXCLUDED_MODEL, GENERATOR,
+                           GENERATOR_FAMILY, INSUFFICIENT_SAMPLES, PASSES,
                            Cascade, Model, NoModelClearsBar, Priors, Procedure, ProcedureResult, Registry, Router,
                            Stats, Task, Variant)
 
@@ -98,7 +100,10 @@ def test_a_scoped_fine_tune_is_primary_on_its_task_and_out_of_scope_elsewhere():
     ("review_*", PASSES, "out"), ("*_cell", PASSES, "out"), ("contract_summar?", "out", PASSES),
     ("[cr]*", PASSES, PASSES), ("Review_*", "out", "out"), ("review", "out", "out"),
 ])
-def test_patterns_are_case_sensitive_globs_over_the_task_name(pattern, cell, summary):
+def test_patterns_are_case_sensitive_globs_over_the_task_name(pattern, cell, summary, monkeypatch):
+    # review iter-434 should-fix 2: fold case as Windows does, so `fnmatch` in place of
+    # `fnmatchcase` would match `Review_*` here
+    monkeypatch.setattr(os.path, "normcase", lambda text: text.lower())
     picked = {name: reasons(router([fine_tune((pattern,)), strong()]).select(name))[FT]
               for name in (CELL, SUMMARY)}
     want = {CELL: cell, SUMMARY: summary}
@@ -143,6 +148,11 @@ def test_the_rules_before_5a_keep_their_reasons():
     models = [fine_tune(), strong()]
     excluded = router(models).select(SUMMARY, exclude_models=[FT])
     assert reasons(excluded)[FT] == EXCLUDED_MODEL
+    # review iter-434 should-fix 3: rules 2, 3 and 4 come before 5a too
+    assert reasons(router(models, exclude_families=("acme",)).select(SUMMARY))[FT] == EXCLUDED_FAMILY
+    judged = router(models + [Model("acme/gen", "acme", 1.0, 1.0, 100_000)], independent_of_generator=True)
+    assert reasons(judged.select(SUMMARY, generator_model=FT))[FT] == GENERATOR
+    assert reasons(judged.select(SUMMARY, generator_model="acme/gen"))[FT] == GENERATOR_FAMILY
     narrow = Model(FT, "acme", 0.1, 0.2, 1000, scope_tasks=(CELL,))
     assert reasons(router([narrow, strong()]).select(SUMMARY))[FT] == CONTEXT_TOO_SMALL
     assert reasons(router([narrow, strong()]).select(CELL))[FT] == CONTEXT_TOO_SMALL
@@ -165,6 +175,17 @@ def test_on_a_slice_the_scope_reads_the_task_or_its_slice_key():
     starred = router([fine_tune(("*@deep",)), strong()], counts=counts + [(deep, FT, 95, 100)])
     assert starred.select(CELL, slice="deep").primary == FT
     assert reasons(starred.select(CELL))[FT] == out_of_scope()
+    # review iter-434 should-fix 1: a pattern without '@' reads the task name, never the slice's
+    table = f"{SUMMARY}@table_cell"
+    by_slice = router([fine_tune(("*_cell",)), strong()],
+                      counts=[(table, FT, 95, 100), (table, LIST, 95, 100)])
+    assert reasons(by_slice.select(SUMMARY, slice="table_cell"))[FT] == out_of_scope()
+    keyed = router([fine_tune(("*@table_cell",)), strong()],
+                   counts=[(table, FT, 95, 100), (table, LIST, 95, 100)])
+    assert keyed.select(SUMMARY, slice="table_cell").primary == FT
+    # an unsliced task whose name holds '@' is matched by its whole name
+    odd = router([fine_tune(("odd@name",)), strong()], tasks=("odd@name",))
+    assert reasons(odd.select("odd@name"))[FT] == PASSES
 
 
 def test_a_cascade_or_procedure_naming_a_scoped_model_is_out_of_scope_too():
@@ -183,6 +204,14 @@ def test_a_cascade_or_procedure_naming_a_scoped_model_is_out_of_scope_too():
     assert (on_cell[cascade.id], on_cell[proc.id]) == (PASSES, PASSES)
     on_summary = reasons(routed.select(SUMMARY, cascades=True, procedures=[proc]))
     assert on_summary == {FT: out_of_scope(), LIST: PASSES, cascade.id: out_of_scope(), proc.id: out_of_scope()}
+    # review iter-434 should-fix 4: the strong model of a cascade is checked too
+    upward = Cascade(LIST, FT, "low-confidence")
+    tasks_up = {name: task(name, cascades=(upward,)) for name in (CELL, SUMMARY)}
+    for name in (CELL, SUMMARY):
+        stats.add(name, upward.id, 95, 100, escalated=10)
+    routed_up = Router(Registry([fine_tune(), strong()]), tasks_up, stats)
+    assert reasons(routed_up.select(CELL, cascades=True))[upward.id] == PASSES
+    assert reasons(routed_up.select(SUMMARY, cascades=True))[upward.id] == out_of_scope()
 
 
 def test_the_delegate_obeys_the_scope():
@@ -223,6 +252,12 @@ def test_scoped_and_unscoped_models_round_trip_through_asdict(tmp_path):
     back = _load(tmp_path, [dataclasses.asdict(m) for m in registry.models])
     assert back.models == registry.models
     assert json.loads(json.dumps(dataclasses.asdict(registry.get("v/b"))))["scope_tasks"] == []
+    # review iter-434 must-fix 1: a self-hosted model or a variant is refused as before v1.586
+    hosted = Model("v/h", "v", 1.0, 2.0, 100_000, pricing_basis="self_hosted", scope_tasks=(CELL,))
+    variant = Model("v/a@hi", "v", 1.0, 2.0, 100_000, variant=Variant("hi"), scope_tasks=(CELL,))
+    for model in (hosted, variant):
+        with pytest.raises(ValueError, match="models.json"):
+            _load(tmp_path, [dataclasses.asdict(model)])
 
 
 def test_without_a_scope_every_model_is_a_candidate_on_every_task():

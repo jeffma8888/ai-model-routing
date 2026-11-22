@@ -39,6 +39,12 @@ def _check_prompt_tokens(prompt_tokens) -> None:
         raise ValueError(f"prompt_tokens must be an integer >= 0, got {prompt_tokens!r}")
 
 
+def _in_scope(patterns: Tuple[str, ...], name: str, key: Optional[str]) -> bool:
+    """Rule 5a (DESIGN 5.2 v1.586): on a sliced call a pattern with '@' reads the key, any other the name."""
+    return any(fnmatchcase(key if key is not None and "@" in pattern else name, pattern)
+               for pattern in patterns)
+
+
 def _per_success(candidate: "Candidate") -> float:
     """Routing cost over the Wilson lower bound, infinite when it is 0 (DESIGN 5.3 v1.567)."""
     if candidate.quality_lb <= 0:
@@ -224,7 +230,7 @@ class Router:
             generator_base, generator_family = generator.base_id, generator.family
 
         fit_input = task.expected_input_tokens if prompt_tokens is None else prompt_tokens
-        names = (base.name,) if slice is None else (base.name, task.name)  # DESIGN 5.2 v1.586
+        names = (base.name, None if slice is None else task.name)  # DESIGN 5.2 v1.586
         candidates = tuple(self._candidate(task, model, flavor, excluded,
                                            generator_base, generator_family, fit_input, names)
                            for model in self.registry.models)
@@ -331,11 +337,11 @@ class Router:
     @staticmethod
     def _model_rule(task: Task, model, excluded: set, generator_base: Optional[str],
                     generator_family: Optional[str], fit_input: int,
-                    names: Tuple[str, ...]) -> Optional[str]:
+                    names: Tuple[str, Optional[str]]) -> Optional[str]:
         """The first of rules 1 to 5a (DESIGN 5.2) that applies to ``model``, or None.
 
         Rules 1 and 3 read ``base_id`` too, so they cover a model's variants (v1.572). Rule 5a
-        (v1.586) matches ``scope_tasks`` against ``names``: the task's, and a sliced call's key.
+        (v1.586) matches ``scope_tasks`` against ``names``, the task's name and a sliced call's key.
         """
         if model.id in excluded or model.base_id in excluded:  # DESIGN 5.2 v1.572
             return EXCLUDED_MODEL
@@ -349,8 +355,7 @@ class Router:
             return GENERATOR_FAMILY
         if model.context_window < fit_input + task.expected_output_tokens:
             return CONTEXT_TOO_SMALL
-        if model.scope_tasks and not any(fnmatchcase(name, pattern) for name in names
-                                         for pattern in model.scope_tasks):
+        if model.scope_tasks and not _in_scope(model.scope_tasks, *names):
             return OUT_OF_SCOPE
         return None
 
@@ -366,7 +371,7 @@ class Router:
     def _candidate(self, task: Task, model, flavor: str, excluded: set,
                    generator_base: Optional[str],
                    generator_family: Optional[str], fit_input: int,
-                   names: Tuple[str, ...]) -> Candidate:
+                   names: Tuple[str, Optional[str]]) -> Candidate:
         successes, trials = self.stats.get(task.name, model.id)
         reason = self._model_rule(task, model, excluded, generator_base, generator_family,
                                   fit_input, names) or self._measured_rule(task, successes, trials)
@@ -388,7 +393,7 @@ class Router:
     def _cascade_candidate(self, task: Task, cascade: Cascade, flavor: str, excluded: set,
                            generator_base: Optional[str],
                            generator_family: Optional[str], fit_input: int,
-                           names: Tuple[str, ...]) -> Candidate:
+                           names: Tuple[str, Optional[str]]) -> Candidate:
         """A cascade as one candidate (DESIGN 7 v1.532 and v1.536).
 
         ``cascade_unknown_model`` when the registry lacks either model; else rule 1 on its
@@ -432,7 +437,7 @@ class Router:
     def _procedure_candidate(self, task: Task, proc: Procedure, flavor: str, excluded: set,
                              generator_base: Optional[str],
                              generator_family: Optional[str], fit_input: int,
-                             names: Tuple[str, ...]) -> Candidate:
+                             names: Tuple[str, Optional[str]]) -> Candidate:
         """A procedure as one candidate (DESIGN 5.2 v1.577).
 
         ``procedure_unknown_model`` when the registry lacks its named model; else rule 1 on its
