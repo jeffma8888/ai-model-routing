@@ -84,9 +84,10 @@ class Procedure:
                 raise ValueError(f"{label} must be an integer >= 0, got {value!r}")
         model = self.model
         if model is not None and (not isinstance(model, str) or not model or "+" in model
-                                  or any(ch.isspace() for ch in model)):
-            raise ValueError(f"procedure model must be None or a route ID without '+' or "
-                             f"whitespace, got {model!r}")
+                                  or any(ch.isspace() for ch in model)
+                                  or model.startswith("proc:")):
+            raise ValueError(f"procedure model must be None or a registry route ID without '+', "
+                             f"whitespace or a 'proc:' start, got {model!r}")
         if (model is None) != (self.max_model_calls == 0):
             raise ValueError("a procedure names a model exactly when max_model_calls is above 0, "
                              f"got model {model!r} and max_model_calls {self.max_model_calls}")
@@ -97,12 +98,12 @@ class Procedure:
         base = f"proc:{self.name}@{self.version}"
         return base if self.model is None else f"{base}+{self.model}"
 
-    def run(self, input: object, call: Callable[[List[dict]], str]) -> ProcedureRun:
-        """Run ``fn`` once on ``input`` with a call handle bounded by ``max_model_calls``.
+    def run(self, value: object, call: Callable[[List[dict]], str]) -> ProcedureRun:
+        """Run ``fn`` once on ``value`` with a call handle bounded by ``max_model_calls``.
 
         The handle refuses a call over the bound, or any call once the run has ended, with
         :class:`ProcedureLimitError` before ``call`` is reached; exceptions of ``fn`` and
-        ``call`` propagate unchanged (DESIGN 4.5 v1.576).
+        ``call`` propagate unchanged (DESIGN 4.5 v1.576). A handle is for one thread.
         """
         route = self.id
         state = {"calls": 0, "open": True}
@@ -117,7 +118,7 @@ class Procedure:
             return call(messages)
 
         try:
-            result = self.fn(input, handle)
+            result = self.fn(value, handle)
         finally:
             state["open"] = False
         if not isinstance(result, ProcedureResult):

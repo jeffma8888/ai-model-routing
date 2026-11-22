@@ -69,10 +69,16 @@ def test_limits_are_ints_of_at_least_zero(field, bad):
         make(**kwargs)
 
 
-@pytest.mark.parametrize("bad", ["", "a b", "a\tb", "a+b", 3, b"acme/small"])
+@pytest.mark.parametrize("bad", ["", "a b", "a\tb", "a+b", 3, b"acme/small", "proc:poll-job@1"])
 def test_model_is_none_or_a_route_id_without_plus_or_space(bad):
     with pytest.raises(ValueError):
         make(model=bad, max_model_calls=1)
+
+
+def test_the_id_is_name_version_and_model_whatever_fn_and_bounds():
+    first = make(done("a"), model="acme/small", max_model_calls=1, max_tool_calls=0)
+    second = make(done("b"), model="acme/small", max_model_calls=9, max_tool_calls=4)
+    assert first.id == second.id == "proc:poll-job@1+acme/small"
 
 
 def test_model_calls_need_a_named_model():
@@ -225,6 +231,19 @@ def test_a_kept_handle_is_dead_once_the_run_ends(raises):
     assert calls == []
 
 
+def test_a_kept_handle_reports_the_ended_run_before_the_bound():
+    kept = []
+
+    def fn(value, handle):
+        handle([])
+        kept.append(handle)
+        return mod().ProcedureResult("ok")
+
+    make(fn, model="acme/small", max_model_calls=1).run(None, lambda m: "t")
+    with pytest.raises(mod().ProcedureLimitError, match="after its run ended"):
+        kept[0]([])
+
+
 def test_exceptions_of_fn_and_call_propagate_unchanged():
     error = ValueError("from fn")
 
@@ -248,8 +267,10 @@ def test_exceptions_of_fn_and_call_propagate_unchanged():
     assert caught2.value is call_error
 
 
-@pytest.mark.parametrize("bad", ["text", None, {"output": "x"}])
+@pytest.mark.parametrize("bad", ["text", None, {"output": "x"}, "run"])
 def test_a_return_that_is_no_result_is_a_value_error_naming_the_id(bad):
+    if bad == "run":  # has tool_calls over the bound, so the type is checked first
+        bad = mod().ProcedureRun("r", "x", 0, 99, 0.0)
     with pytest.raises(ValueError, match="proc:poll-job@1"):
         make(lambda value, handle: bad).run(None, lambda m: "")
 
