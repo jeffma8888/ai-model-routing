@@ -16,7 +16,6 @@ PACKAGE = ROOT / "model_routing"
 HOUR = {"usd_per_hour": 10, "tokens_per_hour_in": 36_000_000, "tokens_per_hour_out": 2_000_000,
         "utilization": 0.5, "input_cost_share": 0.5}
 KEYS = tuple(HOUR)
-XFAIL = pytest.mark.xfail(strict=True, reason="row SELF1a: v1.581 lands in the feat commit")
 
 
 def prices(**overrides):
@@ -24,8 +23,10 @@ def prices(**overrides):
 
 
 def hosted_row(model_id="acme/ft-7b", **extra):
-    return dict({"id": model_id, "family": "acme", "context_window": 32_000,
-                 "pricing_basis": "self_hosted"}, **HOUR, **extra)
+    row = dict({"id": model_id, "family": "acme", "context_window": 32_000,
+                "pricing_basis": "self_hosted"}, **HOUR)
+    row.update(extra)
+    return row
 
 
 def list_row(model_id="v/m", **extra):
@@ -39,7 +40,6 @@ def load(tmp_path, rows):
     return Registry.load(path)
 
 
-@XFAIL
 def test_the_function_is_exported_right_after_variant():
     from model_routing.registry import self_hosted_prices as inner
     names = list(model_routing.__all__)
@@ -47,7 +47,6 @@ def test_the_function_is_exported_right_after_variant():
     assert model_routing.self_hosted_prices is inner
 
 
-@XFAIL
 def test_the_row_example_gives_the_two_prices():
     price_in, price_out = prices()
     assert round(price_in, 4) == 0.2778
@@ -56,7 +55,6 @@ def test_the_row_example_gives_the_two_prices():
     assert isinstance(price_in, float) and isinstance(price_out, float)
 
 
-@XFAIL
 def test_the_hour_is_charged_once():
     price_in, price_out = prices()
     model = Model("acme/ft-7b", "acme", price_in, price_out, 32_000, pricing_basis="self_hosted")
@@ -66,15 +64,13 @@ def test_the_hour_is_charged_once():
     assert model.cost(0, 1_000_000) == pytest.approx(5.0, rel=1e-12)
 
 
-@XFAIL
 @pytest.mark.parametrize("share, expected", [(0, (0.0, 5.0)), (1, (10 / 36, 0.0))])
 def test_a_share_at_either_end_charges_the_hour_to_one_side(share, expected):
     got = prices(input_cost_share=share, utilization=1)
     assert got == pytest.approx(expected, rel=1e-12, abs=0.0)
-    assert got[1 - share] == 0.0
+    assert got[share] == 0.0
 
 
-@XFAIL
 def test_a_free_hour_is_free_and_full_use_is_allowed():
     assert prices(usd_per_hour=0) == (0.0, 0.0)
     full = prices(utilization=1)
@@ -89,13 +85,11 @@ def test_a_free_hour_is_free_and_full_use_is_allowed():
     ("utilization", 0), ("utilization", 1.0001), ("utilization", -0.5), ("utilization", math.nan),
     ("input_cost_share", -0.0001), ("input_cost_share", 1.0001), ("input_cost_share", True),
 ])
-@XFAIL
 def test_each_argument_is_checked_and_named(name, value):
     with pytest.raises(ValueError, match=name):
         prices(**{name: value})
 
 
-@XFAIL
 def test_a_model_is_list_priced_by_default_and_the_field_is_last():
     model = Model("v/m", "v", 1.0, 2.0, 100_000)
     assert model.pricing_basis == "list"
@@ -104,14 +98,12 @@ def test_a_model_is_list_priced_by_default_and_the_field_is_last():
     assert dataclasses.asdict(model)["pricing_basis"] == "list"
 
 
-@XFAIL
 @pytest.mark.parametrize("basis", ["", "self-hosted", "api", "LIST", None, 1])
 def test_a_basis_is_list_or_self_hosted(basis):
     with pytest.raises(ValueError, match="pricing_basis"):
         Model("v/m", "v", 1.0, 2.0, 100_000, pricing_basis=basis)
 
 
-@XFAIL
 def test_a_self_hosted_model_holds_no_price_tiers():
     tier = PriceTier(50_000, 2.0, 4.0)
     Model("v/m", "v", 1.0, 2.0, 100_000, price_tiers=(tier,))
@@ -119,7 +111,6 @@ def test_a_self_hosted_model_holds_no_price_tiers():
         Model("v/m", "v", 1.0, 2.0, 100_000, price_tiers=(tier,), pricing_basis="self_hosted")
 
 
-@XFAIL
 def test_a_self_hosted_row_gets_the_derived_prices(tmp_path):
     registry = load(tmp_path, [list_row(), hosted_row(price_valid_until="2027-06-30")])
     hosted = registry.get("acme/ft-7b")
@@ -138,7 +129,6 @@ def test_an_absent_null_or_list_basis_is_a_list_row(tmp_path, basis):
     assert load(tmp_path, [list_row(pricing_basis=None)]).get("v/m") == plain
 
 
-@XFAIL
 @pytest.mark.parametrize("key", KEYS)
 def test_a_self_hosted_row_missing_a_key_is_refused(tmp_path, key):
     row = hosted_row()
@@ -151,13 +141,11 @@ def test_a_self_hosted_row_missing_a_key_is_refused(tmp_path, key):
 
 @pytest.mark.parametrize("extra", [{"price_in": 1.0}, {"price_out": 2.0}, {"price_tiers": []},
                                    {"price_in": 1.0, "price_out": 2.0}])
-@XFAIL
 def test_a_self_hosted_row_states_no_list_price(tmp_path, extra):
     with pytest.raises(ValueError, match="models.json.*takes no price_in, price_out or price_tiers"):
         load(tmp_path, [hosted_row(**extra)])
 
 
-@XFAIL
 @pytest.mark.parametrize("key", KEYS)
 def test_a_list_row_naming_an_hourly_key_is_refused(tmp_path, key):
     with pytest.raises(ValueError, match=f"models.json.*{key}.*pricing_basis"):
@@ -166,14 +154,12 @@ def test_a_list_row_naming_an_hourly_key_is_refused(tmp_path, key):
         load(tmp_path, [list_row(pricing_basis="list", **{key: HOUR[key]})])
 
 
-@XFAIL
 @pytest.mark.parametrize("basis", ["gpu", "", 3, "Self_Hosted"])
 def test_an_unknown_basis_on_a_row_is_refused(tmp_path, basis):
     with pytest.raises(ValueError, match="models.json.*pricing_basis"):
         load(tmp_path, [list_row(pricing_basis=basis)])
 
 
-@XFAIL
 @pytest.mark.parametrize("name, value", [("utilization", 0), ("utilization", 2), ("input_cost_share", 1.5),
                                          ("tokens_per_hour_in", 0), ("usd_per_hour", -1),
                                          ("usd_per_hour", True), ("usd_per_hour", "10")])
@@ -182,7 +168,6 @@ def test_a_refused_hour_value_on_a_row_names_the_file(tmp_path, name, value):
         load(tmp_path, [hosted_row(**{name: value})])
 
 
-@XFAIL
 def test_the_variants_of_a_self_hosted_row_keep_its_basis_and_prices(tmp_path):
     registry = load(tmp_path, [hosted_row(variants={"batch8": {"items_per_call": 8}})])
     base, variant = registry.models
@@ -191,7 +176,6 @@ def test_the_variants_of_a_self_hosted_row_keep_its_basis_and_prices(tmp_path):
         "self_hosted", base.price_in, base.price_out)
 
 
-@XFAIL
 def test_a_list_model_round_trips_and_a_self_hosted_one_is_refused(tmp_path):
     registry = load(tmp_path, [list_row(price_tiers=[{"above_input_tokens": 50_000, "price_in": 2.0,
                                                       "price_out": 4.0}]), hosted_row()])
@@ -202,7 +186,6 @@ def test_a_list_model_round_trips_and_a_self_hosted_one_is_refused(tmp_path):
         load(tmp_path, [dataclasses.asdict(hosted)])
 
 
-@XFAIL
 def test_a_self_hosted_model_is_routed_by_its_measured_success_at_its_derived_price(tmp_path):
     registry = load(tmp_path, [list_row("v/m"), hosted_row()])
     task = Task(name="review", bar=0.8, min_samples=30, expected_input_tokens=1000,
@@ -223,7 +206,6 @@ def test_a_self_hosted_model_is_routed_by_its_measured_success_at_its_derived_pr
     assert {c.model_id: c.reason for c in below.candidates} == {"v/m": PASSES, "acme/ft-7b": BELOW_BAR}
 
 
-@XFAIL
 def test_every_packaged_row_is_list_priced():
     registry = Registry.load(DATA_DIR / "models.json")
     assert {m.pricing_basis for m in registry.models} == {"list"}
@@ -241,7 +223,6 @@ def test_only_the_registry_reads_the_basis_yet():
         assert "pricing_basis" not in text and "self_hosted" not in text, path.name
 
 
-@XFAIL
 def test_the_production_note_says_the_hourly_row_ships():
     text = (ROOT / "research" / "production-lessons.md").read_text(encoding="utf-8")
     assert "a model is a registry row priced from a vendor's list price" not in text

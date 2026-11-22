@@ -15,6 +15,9 @@ _ISO_DAY = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}")
 _VARIANT_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
 _VARIANT_KEYS = ("reasoning_effort", "harness", "context_policy", "items_per_call",
                  "provider_options")
+_PRICING_BASES = ("list", "self_hosted")
+_HOUR_KEYS = ("usd_per_hour", "tokens_per_hour_in", "tokens_per_hour_out", "utilization",
+              "input_cost_share")
 
 
 def _is_price(value) -> bool:
@@ -45,6 +48,33 @@ def _json_copy(value, at: str):
         return copied
     raise ValueError(f"{at} must be None, a bool, an int, a finite float, a string, a list or a "
                      f"mapping, got {type(value).__name__}")
+
+
+def self_hosted_prices(usd_per_hour, tokens_per_hour_in, tokens_per_hour_out, utilization,
+                       input_cost_share) -> Tuple[float, float]:
+    """``(price_in, price_out)`` in USD per 1M tokens of a model you serve (DESIGN 4.1 v1.581).
+
+    The hour is split between input and output by ``input_cost_share``, and each side's share is
+    spread over the tokens it handles in the used part of the hour, so an hour fully used at these
+    throughputs is charged once. The throughputs describe one workload, and the split is an
+    approximation: a unit that reads and writes in the same hour has no one price of each.
+    """
+    values = {"usd_per_hour": usd_per_hour, "tokens_per_hour_in": tokens_per_hour_in,
+              "tokens_per_hour_out": tokens_per_hour_out, "utilization": utilization,
+              "input_cost_share": input_cost_share}
+    for name, value in values.items():
+        if not _is_price(value):
+            raise ValueError(f"{name} must be a finite number >= 0, got {value!r}")
+    for name in ("tokens_per_hour_in", "tokens_per_hour_out"):
+        if values[name] <= 0:
+            raise ValueError(f"{name} must be above 0, got {values[name]!r}")
+    if not 0 < utilization <= 1:
+        raise ValueError(f"utilization must be in (0, 1], got {utilization!r}")
+    if not input_cost_share <= 1:
+        raise ValueError(f"input_cost_share must be in [0, 1], got {input_cost_share!r}")
+    price_in = usd_per_hour * input_cost_share / (tokens_per_hour_in * utilization) * 1_000_000
+    price_out = usd_per_hour * (1 - input_cost_share) / (tokens_per_hour_out * utilization) * 1_000_000
+    return float(price_in), float(price_out)
 
 
 def _tier_prices(model, input_tokens) -> Tuple[float, float]:
@@ -139,6 +169,8 @@ class Model:
     states these prices, or ``None`` when no end date is stated. ``price_tiers`` holds the
     higher prices of long prompts, thresholds rising, each below ``context_window``.
     ``variant`` names a setup of the model, whose ``id`` is then ``<base>@<name>`` (4.1 v1.572).
+    ``pricing_basis`` is ``"list"`` (a vendor's page) or ``"self_hosted"`` (prices derived from an
+    hour of your own serving by ``self_hosted_prices``; 4.1 v1.581).
     """
 
     id: str
@@ -150,8 +182,14 @@ class Model:
     price_valid_until: Optional[str] = None
     price_tiers: Tuple[PriceTier, ...] = ()
     variant: Optional[Variant] = None
+    pricing_basis: str = "list"
 
     def __post_init__(self):
+        if not isinstance(self.pricing_basis, str) or self.pricing_basis not in _PRICING_BASES:
+            raise ValueError(f"pricing_basis must be 'list' or 'self_hosted', got {self.pricing_basis!r}")
+        if self.pricing_basis == "self_hosted" and self.price_tiers:  # DESIGN 4.1 v1.581
+            raise ValueError("a self_hosted model holds no price tiers: an hour costs the same "
+                             "whatever a prompt's length")
         variant = self.variant
         if variant is not None:  # DESIGN 4.1 v1.572; an id without a variant is v1.571's
             if not isinstance(variant, Variant):
@@ -243,6 +281,28 @@ def _load_tiers(value) -> Tuple[PriceTier, ...]:
     return tuple(tiers)
 
 
+def _load_prices(row) -> Tuple[str, float, float]:
+    """A models.json row's basis and prices: list prices, or ones derived from its hour (DESIGN 4.1 v1.581)."""
+    basis = row.get("pricing_basis")
+    basis = "list" if basis is None else basis
+    if not isinstance(basis, str) or basis not in _PRICING_BASES:
+        raise ValueError(f"pricing_basis must be 'list' or 'self_hosted', got {basis!r}")
+    if basis == "list":
+        named = [key for key in _HOUR_KEYS if key in row]
+        if named:
+            raise ValueError(f"{', '.join(named)} needs pricing_basis 'self_hosted'; a list row "
+                             "states price_in and price_out")
+        return basis, float(row["price_in"]), float(row["price_out"])
+    if any(key in row for key in ("price_in", "price_out", "price_tiers")):
+        raise ValueError("a self_hosted row's prices are derived from its hour, so it takes no "
+                         "price_in, price_out or price_tiers")
+    missing = [key for key in _HOUR_KEYS if row.get(key) is None]
+    if missing:
+        raise ValueError(f"a self_hosted row needs {', '.join(missing)}")
+    price_in, price_out = self_hosted_prices(*(row[key] for key in _HOUR_KEYS))
+    return basis, price_in, price_out
+
+
 def _load_variants(value) -> Tuple[Variant, ...]:
     """The ``variants`` of a models.json row, in its order: absent or null is none (DESIGN 4.1)."""
     if value is None:
@@ -284,15 +344,17 @@ class Registry:
         models = []
         for row in raw["models"]:
             try:
+                basis, price_in, price_out = _load_prices(row)
                 base = Model(
                     id=str(row["id"]),
                     family=str(row["family"]),
-                    price_in=float(row["price_in"]),
-                    price_out=float(row["price_out"]),
+                    price_in=price_in,
+                    price_out=price_out,
                     context_window=int(row["context_window"]),
                     aliases=dict(row.get("aliases") or {}),
                     price_valid_until=row.get("price_valid_until"),
                     price_tiers=_load_tiers(row.get("price_tiers")),
+                    pricing_basis=basis,
                 )
                 if "@" in base.id:
                     raise ValueError("a row id must not hold '@', which joins a model and "
