@@ -306,11 +306,12 @@ def test_all_exports_the_four_names_after_evaluate_delegation():
         assert getattr(model_routing, name) is getattr(procedures, name)
 
 
-def test_reports_the_cli_the_demo_and_delegation_do_not_read_procedures_yet():
+def test_the_cli_the_demo_and_delegation_do_not_read_procedures_yet():
     # v1.577 (row PROC1b): router.py and stats.py route and count procedures, and
-    # decide_delegation passes none (5.2 v1.577); v1.578 (row PROC1c): executor.py runs one, and
-    # report reads none of its record keys (8.3 v1.578); the demo is row PROC1d
+    # decide_delegation passes none (5.2 v1.577); v1.578 (row PROC1c): executor.py runs one;
+    # v1.579 (row RPT2): monitor.py's report reads its record keys to tell a call's route
+    # entries apart (8.3 v1.579); the demo is row PROC1d
     assert mod().__file__ == str(PACKAGE / "procedures.py")
-    for module in ("monitor.py", "cli.py", "demo.py", "delegation.py"):
+    for module in ("cli.py", "demo.py", "delegation.py"):
         text = (PACKAGE / module).read_text(encoding="utf-8")
         assert "procedure" not in text.lower(), module

@@ -33,8 +33,9 @@ CID = "fiction/cheap>fiction/best@sig"
 TS = "2026-11-22T00:00:00Z"
 BY = ("model", "task", "flavor", "family", "tag:team")
 
-# report(...) rows of the demo's calls.jsonl, json.dumps of the list, at fa2551c (v1.578),
-# computed in iter 426 before any v1.579 code; the log has no cascade or procedure key
+# report(...) rows of the demo's calls.jsonl, json.dumps of the list, at fa2551c (v1.578, whose
+# report is v1.577's: monitor.py is unchanged since v1.569), computed in iter 426 before any
+# v1.579 code; the log has no cascade or procedure key
 DEMO_CALLS_SHA256 = "4f111326781939140bebe04e0841a66306cac48492bc6c95f4bc2211fa92b351"
 DEMO_ROWS_SHA256 = {
     "model": "08cac9ebeae776b44ef2559903f107eaa7a3a99befc43e1f4105fd68b26fe2de",
@@ -176,7 +177,7 @@ def demo_records(tmp_path_factory):
 
 
 @pytest.mark.parametrize("by", sorted(DEMO_ROWS_SHA256))
-def test_guard_the_demo_log_gives_v1_578_rows_key_for_key(demo_records, by):
+def test_guard_the_demo_log_gives_v1_577_rows_key_for_key(demo_records, by):
     rows = report(demo_records, by=by)
     assert hashlib.sha256(json.dumps(rows).encode()).hexdigest() == DEMO_ROWS_SHA256[by]
     assert sum(row["fallback_calls"] for row in rows) == 55
@@ -323,6 +324,25 @@ def test_logs_appended_one_after_another_keep_a_reused_call_id_apart():
     # the other way round: the cascade's first record is still its own, the plain call's too
     assert fallbacks(second_log + first_log) == {
         MID: (1, 0, 0.0), CHEAP: (0, 0, 0.0), BEST: (1, 0, 0.0)}
+
+
+def test_a_reused_call_id_s_first_record_is_the_latest_at_attempt_0_not_any_earlier_one():
+    # review iter-426 should-fix 1: the second call's first record is the plain MID attempt, so
+    # its cascade final is a fallback, although the first call's cascade has the same entry
+    first_log = [rec(CHEAP, 0, False, cascade=CID, escalated=True), strong(1)]
+    second_log = [rec(MID, 0, False, "error"),
+                  rec(CHEAP, 1, False, cascade=CID, escalated=True), strong(2)]
+    assert fallbacks(first_log + second_log) == {
+        BEST: (2, 1, 0.5), CHEAP: (0, 0, 0.0), MID: (0, 0, 0.0)}
+
+
+def test_a_missing_or_null_call_id_and_equal_dict_keys_are_one_call_id():
+    # review iter-426 nit 3: the call_id is read as a dict key
+    missing = rec(CHEAP, 0, False, cascade=CID, escalated=True)
+    del missing["call_id"]
+    assert fallbacks([missing, strong(1, call_id=None)])[BEST] == (1, 0, 0.0)
+    assert fallbacks([rec(CHEAP, 0, False, cascade=CID, escalated=True, call_id=1),
+                      strong(1, call_id=True)])[BEST] == (1, 0, 0.0)
 
 
 def test_the_rule_holds_under_every_report_key_and_with_audits():
