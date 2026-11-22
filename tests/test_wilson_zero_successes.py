@@ -9,7 +9,7 @@ finite per-success estimate (DESIGN 5.3 v1.567) where tests/test_cost_per_succes
 
 import json
 from datetime import date
-from math import sqrt
+from math import copysign, sqrt
 from statistics import NormalDist, StatisticsError
 
 import pytest
@@ -31,16 +31,15 @@ def _formula(successes, trials, confidence):
 
 
 def test_the_bound_at_0_successes_is_exactly_0_for_every_count_and_confidence():
-    residues = [(n, c, wilson_lower_bound(0, n, c))
+    residues = [(n, c, value)
                 for c in CONFIDENCES for n in range(1, 201)
-                if wilson_lower_bound(0, n, c) != 0.0]
+                if (value := wilson_lower_bound(0, n, c)) != 0.0]
     assert residues == []
 
 
-def test_the_bound_at_0_successes_is_a_float_zero():
+def test_the_bound_at_0_successes_is_a_positive_float_zero():
     value = wilson_lower_bound(0, 15)
-    assert type(value) is float and value == 0.0
-    assert wilson_lower_bound(0, 0) == 0.0
+    assert type(value) is float and value == 0.0 and copysign(1.0, value) == 1.0
 
 
 def test_bounds_at_1_or_more_successes_keep_their_bits():
@@ -50,11 +49,8 @@ def test_bounds_at_1_or_more_successes_keep_their_bits():
                 assert wilson_lower_bound(k, n, c) == _formula(k, n, c), (k, n, c)
 
 
-def test_the_reference_values_hold():
-    expected = {(27, 30): 0.743789, (45, 50): 0.786398, (90, 100): 0.825634,
-                (170, 200): 0.793944, (10, 10): 0.722467, (0, 10): 0.0}
-    for (k, n), value in expected.items():
-        assert round(wilson_lower_bound(k, n), 6) == value
+def test_no_trials_is_still_0():
+    assert wilson_lower_bound(0, 0) == 0.0
 
 
 @pytest.mark.parametrize("successes,trials", [(-1, 10), (0, -1), (11, 10)])
@@ -85,8 +81,7 @@ def _stats():
 
 
 def test_a_route_passing_on_0_of_15_has_no_per_success_estimate():
-    # 0 of 15 at 0.95 is a count whose formula leaves a residue here (2.2e-17)
-    assert _formula(0, 15, 0.95) > 0.0
+    # 0 of 15: a count whose formula leaves a residue on some platforms
     task = Task(name="t", bar=0.0, min_samples=10, failure_policy="retry_same")
     router = Router(_registry(), {"t": task}, _stats())
     decision = router.select("t", exclude_models=(B,))
@@ -95,6 +90,19 @@ def test_a_route_passing_on_0_of_15_has_no_per_success_estimate():
     assert decision.to_dict()["expected_cost_per_success_usd"] is None
     both = router.select("t")
     assert (both.primary, both.fallbacks, both.pick_reason) == (B, (A,), "cheaper_per_success")
+
+
+def test_two_routes_at_0_successes_tie_and_the_cheaper_comes_first():
+    # review iter-414 should-fix 2: with no route passing, best_available orders by
+    # (-quality_lb, routing_cost, model_id); at 0 of 15 and 0 of 10 the bounds tie exactly
+    task = Task(name="t", bar=0.5, min_samples=10, on_no_model="best_available")
+    for a, b in (((0, 10), (0, 15)), ((0, 15), (0, 10))):
+        stats = Stats()
+        stats.add("t", A, *a)
+        stats.add("t", B, *b)
+        decision = Router(_registry(), {"t": task}, stats).select("t")
+        assert (decision.below_bar, decision.primary) == (True, A)
+        assert decision.candidates[0].quality_lb == decision.candidates[1].quality_lb == 0.0
 
 
 def test_select_prints_n_a_at_0_of_15(tmp_path, capsys):

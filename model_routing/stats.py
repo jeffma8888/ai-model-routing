@@ -79,8 +79,8 @@ def wilson_lower_bound(successes: int, trials: int, confidence: float = 0.95) ->
     _check_counts(successes, trials)
     if trials == 0:
         return 0.0
-    z = NormalDist().inv_cdf(1 - (1 - confidence) / 2)
-    if successes == 0:
+    z = NormalDist().inv_cdf(1 - (1 - confidence) / 2)  # first, so a bad confidence still raises
+    if successes == 0:  # the formula's value for z >= 0, with no floating-point residue
         return 0.0
     n = trials
     p = successes / n
