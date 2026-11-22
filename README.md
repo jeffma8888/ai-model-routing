@@ -65,6 +65,8 @@ The context-window check reads three kinds of size differently:
 
 The window limits one request. A provider rejects a request longer than the window, and an agent harness compacts its context between requests, never inside one. So for multi-call agent work, a model that compacts is judged by its measured success rate on whole runs, which already holds what compaction costs it, and is not ruled out by size.
 
+One model run two ways can be two routes. A `models.json` row may name variants of its model, for example `"variants": {"lean": {"harness": "lean-agent 2.0", "reasoning_effort": "low"}}`, and each is a route of its own, `vendor/model@lean`, listed right after its base. Calibration lines and stats name the route, so a variant's success rate and mean tokens are its own and an unmeasured variant starts cold, while it keeps its base's family, list prices and context window. Excluding a model, or naming it as the generator, covers its variants, and the library only records the effort, harness or compaction setting your harness uses (`DESIGN.md` 4.1 and 5.2).
+
 ### The quality bar is a confidence bound, not an average
 
 A model is admitted for a task only when the lower end of a two-sided Wilson score interval on its measured success rate against the task's acceptance check is at or above the task's bar, and only after at least `min_samples` trials. At 95% confidence:

@@ -5,13 +5,15 @@ from __future__ import annotations
 import json
 import math
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date, datetime
 from pathlib import Path
-from typing import Dict, Iterable, Optional, Tuple, Union
+from typing import Dict, Iterable, Mapping, Optional, Tuple, Union
 
 PathLike = Union[str, Path]
 _ISO_DAY = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}")
+_VARIANT_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
+_VARIANT_KEYS = ("reasoning_effort", "harness", "context_policy")
 
 
 def _is_price(value) -> bool:
@@ -55,6 +57,39 @@ class PriceTier:
 
 
 @dataclass(frozen=True)
+class Variant:
+    """A named setup of a model: labels of how the caller's harness runs it (DESIGN 4.1 v1.572).
+
+    The library sets no effort and compacts nothing; a variant's route has its own stats.
+    """
+
+    name: str
+    reasoning_effort: Optional[str] = None
+    harness: Optional[str] = None
+    context_policy: Mapping[str, object] = field(default_factory=dict)
+
+    def __post_init__(self):
+        if not isinstance(self.name, str) or not _VARIANT_NAME.fullmatch(self.name):
+            raise ValueError(f"a variant name must match [A-Za-z0-9][A-Za-z0-9._-]*, "
+                             f"got {self.name!r}")
+        for key in ("reasoning_effort", "harness"):
+            value = getattr(self, key)
+            if value is not None and (not isinstance(value, str) or not value):
+                raise ValueError(f"{key} must be None or a non-empty string, got {value!r}")
+        policy = self.context_policy
+        if not isinstance(policy, Mapping):
+            raise ValueError(f"context_policy must be a mapping, got {policy!r}")
+        for key, value in policy.items():
+            if not isinstance(key, str) or not key:
+                raise ValueError(f"a context_policy key must be a non-empty string, got {key!r}")
+            if not (value is None or isinstance(value, (str, int))
+                    or (isinstance(value, float) and math.isfinite(value))):
+                raise ValueError(f"context_policy[{key!r}] must be None, a bool, an int, a "
+                                 f"finite float or a string, got {value!r}")
+        object.__setattr__(self, "context_policy", dict(policy))
+
+
+@dataclass(frozen=True)
 class Model:
     """A routable model with list prices in USD per 1M tokens.
 
@@ -62,6 +97,7 @@ class Model:
     ``price_valid_until`` is the last day, as ``YYYY-MM-DD``, on which the vendor
     states these prices, or ``None`` when no end date is stated. ``price_tiers`` holds the
     higher prices of long prompts, thresholds rising, each below ``context_window``.
+    ``variant`` names a setup of the model, whose ``id`` is then ``<base>@<name>`` (4.1 v1.572).
     """
 
     id: str
@@ -72,8 +108,17 @@ class Model:
     aliases: Dict[str, str] = field(default_factory=dict)
     price_valid_until: Optional[str] = None
     price_tiers: Tuple[PriceTier, ...] = ()
+    variant: Optional[Variant] = None
 
     def __post_init__(self):
+        variant = self.variant
+        if variant is not None and not isinstance(variant, Variant):
+            raise ValueError(f"variant must be None or a Variant, got {variant!r}")
+        base, at, name = str(self.id).rpartition("@")
+        if variant is None and at or variant is not None and (
+                name != variant.name or not base or "@" in base):
+            raise ValueError(f"model id {self.id!r} does not match its variant {variant!r}: "
+                             "an id holds '@' exactly when it is <base>@<variant name>")
         value = self.price_valid_until
         if value is not None:
             if not isinstance(value, str) or not _ISO_DAY.fullmatch(value):
@@ -96,6 +141,11 @@ class Model:
         if tiers and previous >= self.context_window:
             raise ValueError(f"price tier threshold {previous} is not below the context window "
                              f"{self.context_window}")
+
+    @property
+    def base_id(self) -> str:
+        """The model's ID without ``@<variant name>`` (DESIGN 4.1 v1.572)."""
+        return self.id if self.variant is None else self.id.rpartition("@")[0]
 
     def price_expired(self, today: date) -> bool:
         """Return True when the stated price end date is before ``today``."""
@@ -139,6 +189,24 @@ def _load_tiers(value) -> Tuple[PriceTier, ...]:
     return tuple(tiers)
 
 
+def _load_variants(value) -> Tuple[Variant, ...]:
+    """The ``variants`` of a models.json row, in its order: absent or null is none (DESIGN 4.1)."""
+    if value is None:
+        return ()
+    if not isinstance(value, dict):
+        raise ValueError(f"variants must be an object of variant objects, got {value!r}")
+    variants = []
+    for name, settings in value.items():
+        if not isinstance(settings, dict):
+            raise ValueError(f"variant {name!r} must be an object, got {settings!r}")
+        unknown = sorted(set(settings) - set(_VARIANT_KEYS))
+        if unknown:
+            raise ValueError(f"variant {name!r} has keys {unknown}; a variant takes only "
+                             f"{', '.join(_VARIANT_KEYS)}")
+        variants.append(Variant(name, **settings))
+    return tuple(variants)
+
+
 class Registry:
     """An ordered, ID-unique collection of models."""
 
@@ -161,7 +229,7 @@ class Registry:
         models = []
         for row in raw["models"]:
             try:
-                models.append(Model(
+                base = Model(
                     id=str(row["id"]),
                     family=str(row["family"]),
                     price_in=float(row["price_in"]),
@@ -170,7 +238,10 @@ class Registry:
                     aliases=dict(row.get("aliases") or {}),
                     price_valid_until=row.get("price_valid_until"),
                     price_tiers=_load_tiers(row.get("price_tiers")),
-                ))
+                )
+                models.append(base)
+                models.extend(replace(base, id=f"{base.id}@{variant.name}", variant=variant)
+                              for variant in _load_variants(row.get("variants")))
             except (KeyError, TypeError, ValueError) as exc:
                 raise ValueError(f"{path}: invalid model row {row!r}: {exc}") from exc
         return cls(models)

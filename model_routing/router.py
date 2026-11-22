@@ -185,16 +185,17 @@ class Router:
                 raise ValueError(f"registry model {cascade.id!r} has the id of a cascade "
                                  f"of task {base.name!r}")
         excluded = set(exclude_models)
-        generator_family = None
+        generator_base = generator_family = None
         if generator_model is not None:
-            generator_family = self.registry.get(generator_model).family
+            generator = self.registry.get(generator_model)
+            generator_base, generator_family = generator.base_id, generator.family
 
         fit_input = task.expected_input_tokens if prompt_tokens is None else prompt_tokens
         candidates = tuple(self._candidate(task, model, flavor, excluded,
-                                           generator_model, generator_family, fit_input)
+                                           generator_base, generator_family, fit_input)
                            for model in self.registry.models)
         candidates += tuple(self._cascade_candidate(task, cascade, flavor, excluded,
-                                                    generator_model, generator_family, fit_input)
+                                                    generator_base, generator_family, fit_input)
                             for cascade in routed)
 
         passing = [c for c in candidates if c.passes]
@@ -289,15 +290,18 @@ class Router:
                                  exclude_models=exclude_models)
 
     @staticmethod
-    def _model_rule(task: Task, model, excluded: set, generator_model: Optional[str],
+    def _model_rule(task: Task, model, excluded: set, generator_base: Optional[str],
                     generator_family: Optional[str], fit_input: int) -> Optional[str]:
-        """The first of rules 1 to 5 (DESIGN 5.2) that applies to ``model``, or None."""
-        if model.id in excluded:
+        """The first of rules 1 to 5 (DESIGN 5.2) that applies to ``model``, or None.
+
+        Rules 1 and 3 read ``base_id`` too, so they cover a model's variants (v1.572).
+        """
+        if model.id in excluded or model.base_id in excluded:  # DESIGN 5.2 v1.572
             return EXCLUDED_MODEL
         if model.family in task.exclude_families:
             return EXCLUDED_FAMILY
-        if task.independent_of_generator and generator_model is not None \
-                and model.id == generator_model:
+        if task.independent_of_generator and generator_base is not None \
+                and model.base_id == generator_base:
             return GENERATOR
         if task.independent_of_generator and generator_family is not None \
                 and model.family == generator_family:
@@ -316,10 +320,10 @@ class Router:
         return PASSES
 
     def _candidate(self, task: Task, model, flavor: str, excluded: set,
-                   generator_model: Optional[str],
+                   generator_base: Optional[str],
                    generator_family: Optional[str], fit_input: int) -> Candidate:
         successes, trials = self.stats.get(task.name, model.id)
-        reason = self._model_rule(task, model, excluded, generator_model, generator_family,
+        reason = self._model_rule(task, model, excluded, generator_base, generator_family,
                                   fit_input) or self._measured_rule(task, successes, trials)
         list_cost = self._list_cost(task, model)
         return Candidate(
@@ -336,7 +340,7 @@ class Router:
         )
 
     def _cascade_candidate(self, task: Task, cascade: Cascade, flavor: str, excluded: set,
-                           generator_model: Optional[str],
+                           generator_base: Optional[str],
                            generator_family: Optional[str], fit_input: int) -> Candidate:
         """A cascade as one candidate (DESIGN 7 v1.532 and v1.536).
 
@@ -358,7 +362,7 @@ class Router:
         reason = EXCLUDED_MODEL if cascade.id in excluded else None
         for model in (cheap, strong):
             if reason is None:
-                reason = self._model_rule(task, model, excluded, generator_model,
+                reason = self._model_rule(task, model, excluded, generator_base,
                                           generator_family, fit_input)
         if reason is None:
             reason = self._measured_rule(task, successes, trials)

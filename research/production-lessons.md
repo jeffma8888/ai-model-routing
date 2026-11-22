@@ -70,7 +70,7 @@ Each lesson gives the mechanism, the result with its source, and what this libra
 
 - Mechanism: Harvey fixes the reasoning effort and the harness of a comparison, "All models are evaluated at minimal reasoning effort to meet product latency requirements." ([Review Table models](https://www.harvey.ai/blog/training-frontier-review-table-models-with-applied-compute))
 - Result: for two Qwen3.6 models trained to nearly the same answer score, one in an agentic retrieval harness and one in a single-turn harness, "The agentic model reached 0.799, compared to 0.794 with the single-turn model and harness." ([Review Table models](https://www.harvey.ai/blog/training-frontier-review-table-models-with-applied-compute)) Then "At this matched level of answer quality, the agentic harness used 50.3% fewer input tokens and 28.6% fewer output tokens" ([Review Table models](https://www.harvey.ai/blog/training-frontier-review-table-models-with-applied-compute)) One harness does not suit every model: "We found that our approach had a mixed effect on other models, with some scoring better (Fable 5: +7.7%) and some regressing (GPT-5.6 Sol: -4.2%)." ([Tenet update](https://www.harvey.ai/blog/post-training-update-harvey-tenet))
-- In this library: stats are kept per task and model, so the runs of one model at two efforts or in two harnesses pool into one success rate and one mean cost. The change: route a measured setup, a model plus a named variant (an effort, a harness or a number of criteria per call), each with its own stats and price.
+- In this library: a registry row can name variants of its model, such as an effort or a harness, and each is a route of its own, `vendor/model@variant`, with its own stats, so today the runs of one model at two efforts or in two harnesses no longer pool into one success rate and one mean cost. A variant keeps its model's list prices, so its cost differs by the tokens it is measured to use. The changes still planned: the number of criteria per call as a setting of a variant, priced per item, and the provider options a variant passes on each call.
 
 ### Latency moves work to smaller models
 
@@ -114,7 +114,7 @@ Each lesson gives the mechanism, the result with its source, and what this libra
 
 - Mechanism: two defaults of Uber's interactive tools, "Automatic compaction is triggered at 400k tokens even for 1M context window models" ([software factory](https://www.uber.com/us/en/blog/efficient-software-factory/)) and "Reasoning effort defaulted to Medium" ([software factory](https://www.uber.com/us/en/blog/efficient-software-factory/))
 - Result: "Our measurements show a meaningful reduction in fleet-wide input tokens per request." ([software factory](https://www.uber.com/us/en/blog/efficient-software-factory/)) and "For a large category of tasks, Medium reasoning hits a good balance between cost vs quality." ([software factory](https://www.uber.com/us/en/blog/efficient-software-factory/)) The post gives a number for neither.
-- In this library: as in the Harvey lesson on measured setups, the runs of one model at two efforts pool into one success rate and one mean cost. The change named there, a model plus a named variant with its own stats and price, covers an effort and a compaction threshold too. A compaction threshold bounds the context, not the spend.
+- In this library: as in the Harvey lesson on measured setups, a variant of a model, an effort or a compaction threshold, is a route with its own stats today, so its runs do not pool with the model's other runs. The library records the threshold as a label of the variant and compacts nothing itself. A compaction threshold bounds the context, not the spend.
 
 ### Price cache writes, and set the cache's life by how the work pauses
 
@@ -132,7 +132,7 @@ Each lesson gives the mechanism, the result with its source, and what this libra
 
 - Mechanism: "An ungrounded agent fails slowly rather than cheaply, repeatedly sending an expanding context window to search one more location." ([software factory](https://www.uber.com/us/en/blog/efficient-software-factory/)) Uber built a graph of its code and data that any agent can query.
 - Result: in one comparison, the same prompt to the same model, the grounded agent "delivered the answer in 38 seconds" ([software factory](https://www.uber.com/us/en/blog/efficient-software-factory/)), while the ungrounded one "spent 20 minutes inspecting service code, spawning 2 subagents, and hitting 3 errors before incorrectly concluding the dataset was unqueryable." ([software factory](https://www.uber.com/us/en/blog/efficient-software-factory/)) It is one example, not a measured rate.
-- In this library: not taken as routing behavior, since what a prompt holds is the caller's. A grounded and an ungrounded prompt can be measured as two named variants of one setup, each with its own success rate and cost, once the measured-setup change lands.
+- In this library: not taken as routing behavior, since what a prompt holds is the caller's. A grounded and an ungrounded prompt can be measured today as two named variants of one model, each with its own success rate and cost.
 
 ### Find the routing waste in the logs
 
