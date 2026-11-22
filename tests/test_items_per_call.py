@@ -9,6 +9,7 @@ import pytest
 
 from model_routing import (BELOW_BAR, DATA_DIR, PASSES, Completion, Executor, FakeProvider, Model,
                            Monitor, Registry, Router, Stats, Task, Variant, outcomes_from_rows)
+from model_routing.delegation_eval import evaluate_delegation
 from model_routing.cli import main
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -198,6 +199,42 @@ def test_every_delegation_cost_prices_a_call_whole(tmp_path, work_calls):
             work_calls=work_calls))
     assert decisions[0] == decisions[1]
     assert decisions[0].route is not None and decisions[0].route.primary == JUDGE
+
+
+def test_the_held_out_delegation_costs_price_a_call_whole():
+    """13.9 (review iter-419 should-fix 1): a delegate of 4 items a call changes no result."""
+    rows = []
+    for j in range(80):
+        rows.append({"task": "t", "item": f"i{j:02d}", "model": "v/p", "correct": j % 4 != 0,
+                     "input_tokens": 10, "output_tokens": j % 40})
+        rows.append({"task": "t", "item": f"i{j:02d}", "model": "v/d@batch4", "correct": j % 5 != 0,
+                     "input_tokens": 10, "output_tokens": 20})
+    point = {"context_tokens": 0, "brief_tokens": 10, "result_tokens": 10, "carry_turns": 0,
+             "inline_separate_call": False}
+    results = []
+    for k in (4, 1):
+        registry = Registry([Model("v/p", "p", 3.0, 15.0, 100_000),
+                             Model("v/d@batch4", "v", 1.0, 4.0, 100_000,
+                                   variant=Variant("batch4", items_per_call=k))])
+        results.append(evaluate_delegation(rows, registry, bars=[0.5], points=[point],
+                                           seeds=range(3), min_samples=10, parents=["v/p"]))
+    assert results[0] == results[1]
+    assert results[0]["summary"]  # costs were compared, not an empty result
+
+
+def test_the_delegate_exit_3_table_shows_no_items(tmp_path, capsys):
+    """13.3 and 10 (review iter-419 should-fix 1): the delegate's costs are a call's, so no column."""
+    files = cli_files(tmp_path, {"batch4": {"items_per_call": 4}, "batch16": {"items_per_call": 16}},
+                      {"bar": 0.99})
+    assert main(["delegate", "grade", "--parent", JUDGE, "--context-tokens", "4000",
+                 "--brief-tokens", "300", "--result-tokens", "100", *files],
+                today=date(2026, 1, 2)) == 3
+    captured = capsys.readouterr()
+    lines = captured.err.splitlines()
+    assert lines[0].startswith("error: ")
+    header, rows, after = table_rows(lines)
+    assert "items" not in header and [r["model"] for r in rows] == [JUDGE, BATCH4, BATCH16]
+    assert PER_ITEM not in captured.err
 
 
 def test_the_log_record_prices_the_whole_call(tmp_path):
