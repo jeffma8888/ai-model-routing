@@ -364,6 +364,22 @@ def _check_base(model: "Model", by_id: Mapping[str, "Model"]) -> None:
                          f"base's family {base.family!r}")
 
 
+_VARIANT_AGREES = ("family", "pricing_basis", "deployment", "base_model")
+
+
+def _check_variant(model: "Model", by_id: Mapping[str, "Model"]) -> None:
+    """A variant whose base is a registry model has its family, basis, deployment and base (DESIGN 4.1 v1.583)."""
+    base = by_id.get(model.base_id)
+    if base is None:  # a variant routed alone, as v1.572 allows
+        return
+    differ = [f"{name} {getattr(model, name)!r} (its base's {getattr(base, name)!r})"
+              for name in _VARIANT_AGREES if getattr(model, name) != getattr(base, name)]
+    if differ:  # prices, tiers, window and aliases stay free: a provider option may change them
+        raise ValueError(f"variant {model.id!r} differs from its base model {base.id!r} in "
+                         f"{', '.join(differ)}; a variant has its base's family, pricing_basis, "
+                         "deployment and base_model")
+
+
 def _load_variants(value) -> Tuple[Variant, ...]:
     """The ``variants`` of a models.json row, in its order: absent or null is none (DESIGN 4.1)."""
     if value is None:
@@ -396,6 +412,9 @@ class Registry:
         for model in ordered:  # DESIGN 4.1 v1.582, after the duplicate check
             if model.base_model is not None:
                 _check_base(model, by_id)
+        for model in ordered:  # DESIGN 4.1 v1.583, after the base checks
+            if model.variant is not None:
+                _check_variant(model, by_id)
         self._models = ordered
         self._by_id = by_id
 

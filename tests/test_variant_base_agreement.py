@@ -11,7 +11,6 @@ from model_routing import (CONTEXT_TOO_SMALL, DATA_DIR, GENERATOR_FAMILY, PASSES
                            Router, Stats, Task, Variant)
 
 ROOT = Path(__file__).resolve().parents[1]
-red = pytest.mark.xfail(strict=True, reason="v1.583 a variant agrees with its base (row VAR2)")
 TASK = "grade"
 TAIL = "; a variant has its base's family, pricing_basis, deployment and base_model"
 
@@ -49,7 +48,6 @@ def load(tmp_path, rows):
     return Registry.load(path)
 
 
-@red
 @pytest.mark.parametrize("models, differs", [
     (lambda: [base(), variant_of(base(), family="w")], "family 'w' (its base's 'v')"),
     (lambda: [base(), variant_of(base(), pricing_basis="self_hosted")],
@@ -68,7 +66,6 @@ def test_a_variant_that_differs_from_its_base_in_one_checked_field_is_refused(mo
         Registry(built)
 
 
-@red
 def test_the_reviewer_probe_is_refused_naming_each_field_in_order():
     # review iter-429 should-fix 4: this registry routed acme/ft@high as the primary judge of v/base
     probe = Model("acme/ft@high", "acme", 0.1, 0.2, 100_000, variant=Variant("high"))
@@ -78,7 +75,6 @@ def test_the_reviewer_probe_is_refused_naming_each_field_in_order():
                                  "(its base's 'v'), base_model None (its base's 'v/base')" + TAIL)
 
 
-@red
 def test_the_first_differing_variant_in_registry_order_is_named():
     x_model = Model("x/m", "x", 1.0, 2.0, 100_000)
     built = [x_model, base(), variant_of(base(), family="w"), variant_of(x_model, family="w")]
