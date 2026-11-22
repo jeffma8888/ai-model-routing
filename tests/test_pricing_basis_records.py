@@ -19,10 +19,10 @@ from pathlib import Path
 
 import pytest
 
-from model_routing import (DATA_DIR, Candidate, Completion, Executor, FakeProvider, Model, Monitor,
-                           Procedure, ProcedureResult, Registry, Router, Stats, Task, report,
-                           run_demo, self_hosted_prices)
-from model_routing.cli import main
+from model_routing import (Cascade, DATA_DIR, Candidate, Completion, Executor, FakeProvider, Model,
+                           Monitor, Procedure, ProcedureResult, Registry, Router, Stats, Task,
+                           Variant, report, run_demo, self_hosted_prices)
+from model_routing.cli import PER_ITEM_LINE, _candidate_table, main
 
 ROOT = Path(__file__).resolve().parents[1]
 TS = "2026-11-22T00:00:00Z"
@@ -151,6 +151,47 @@ def test_a_procedures_model_call_names_the_basis_and_its_closing_record_does_not
     assert closing["model"] == proc.id and "pricing_basis" not in closing
 
 
+def cascade_task(cheap, strong):
+    return Task("t", bar=0.8, min_samples=10, cascades=(Cascade(cheap, strong, "sig"),))
+
+
+@pytest.mark.parametrize("cheap, strong, expected", [
+    (HOSTED, LISTED, ["self_hosted", None]),     # the cheap attempt holds the key, the strong one not
+    (LISTED, HOSTED, [None, "self_hosted"]),     # and the other way round
+])
+def test_each_attempt_of_a_cascade_names_the_basis_of_its_own_model(cheap, strong, expected):
+    # review iter-432 should-fix 1: both branches of a mixed-basis cascade, not the shared path alone
+    task_with = cascade_task(cheap, strong)
+    planted = stats(hosted_counts=(0, 100), listed_counts=(0, 100))
+    planted.add("t", task_with.cascades[0].id, 99, 100, escalated=10)
+    monitor = Monitor()
+    ticks = iter(0.5 * i for i in range(1000))
+    router = Router(registry(), {"t": task_with}, planted)
+    run = Executor(router, FakeProvider({cheap: answer("cheap"), strong: answer("strong")}),
+                   monitor=monitor, clock=lambda: next(ticks), now=lambda: TS,
+                   id_factory=lambda: "call-1")
+    result = run.call("t", MSGS, signals={"sig": lambda text: text == "cheap"})
+    assert result.model == strong
+    assert [rec["model"] for rec in monitor.records] == [cheap, strong]
+    assert [rec.get("pricing_basis") for rec in monitor.records] == expected
+
+
+def test_a_delegated_hand_off_to_a_self_hosted_model_names_the_basis():
+    # review iter-432 should-fix 1: .call_delegated writes the key too
+    router = Router(registry(), {"t": task()}, stats())
+    decision = router.decide_delegation("t", LISTED, "cost_effective", context_tokens=5000,
+                                        brief_tokens=100, result_tokens=20)
+    assert (decision.mode, decision.model) == ("delegate", HOSTED)
+    monitor = Monitor()
+    ticks = iter(0.5 * i for i in range(1000))
+    run = Executor(router, FakeProvider({HOSTED: answer()}), monitor=monitor,
+                   clock=lambda: next(ticks), now=lambda: TS, id_factory=lambda: "call-1")
+    run.call_delegated(decision, MSGS)
+    [rec] = monitor.records
+    assert rec["model"] == HOSTED and rec["pricing_basis"] == "self_hosted"
+    assert list(rec).index("pricing_basis") == list(rec).index("routing_cost_usd") + 1
+
+
 def test_a_list_priced_attempt_keeps_v1_583_keys():
     run, monitor = executor({LISTED: answer()}, planted=stats(hosted_counts=(0, 100)))
     run.call("t", MSGS)
@@ -237,6 +278,40 @@ def test_select_json_names_the_basis_only_on_the_self_hosted_candidate(tmp_path)
     assert code == 0
     listed, hosted_dict = json.loads(out)["candidates"]
     assert "pricing_basis" not in listed and hosted_dict["pricing_basis"] == "self_hosted"
+
+
+def test_the_basis_column_follows_items_and_a_cascade_cell_is_a_dash():
+    # review iter-432 should-fix 2: the two optional columns together, in DESIGN 10 v1.584's order
+    cascade = Cascade(HOSTED, LISTED, "sig")
+    task_with = Task("t", bar=0.8, min_samples=10, cascades=(cascade,))
+    planted = stats()
+    planted.add("t", cascade.id, 99, 100, escalated=10)
+    reg = Registry([Model(LISTED, "v", 1.0, 2.0, 100_000),
+                    hosted(),
+                    Model("v/m@batch4", "v", 1.0, 2.0, 100_000,
+                          variant=Variant("batch4", items_per_call=4))])
+    planted.add("t", "v/m@batch4", 95, 100)
+    decision = Router(reg, {"t": task_with}, planted).select("t", "cost_effective", cascades=True)
+    table = _candidate_table(decision.candidates, reg).splitlines()
+    assert table[0].split() == ["model", "family", "measured", "quality_lb", "items",
+                                "pricing_basis", "list_cost", "routing_cost", "reason"]
+    cells = {line.split()[0]: line.split()[4:6] for line in table[2:] if line.startswith(("v/", "acme/"))}
+    assert cells[LISTED] == ["1", "list"] and cells[HOSTED] == ["1", "self_hosted"]
+    assert cells[cascade.id] == ["1", "-"]
+    assert table[-1] == PER_ITEM_LINE
+
+
+def test_the_exit_3_table_on_stderr_shows_the_column(tmp_path):
+    # review iter-432 should-fix 2: the NoModelClearsBar table takes the same column
+    files = write_files(tmp_path, [LISTED_ROW, HOSTED_ROW])
+    (tmp_path / "stats.json").write_text(json.dumps({"stats": [
+        {"task": "t", "model": LISTED, "successes": 1, "trials": 100},
+        {"task": "t", "model": HOSTED, "successes": 1, "trials": 100}]}), encoding="utf-8")
+    code, out, err = run_cli(["select", "t"] + files)
+    assert code == 3 and out == ""
+    header = err.splitlines()[1].split()
+    assert header == ["model", "family", "measured", "quality_lb", "pricing_basis", "list_cost",
+                      "routing_cost", "reason"]
 
 
 def test_design_and_the_changelog_state_the_version():
