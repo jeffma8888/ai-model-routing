@@ -121,7 +121,7 @@ def test_the_note_quotes_and_cites_its_sources():
     # v1.566 (row PL1e): gateways, evaluation and price drift; the opening covers the whole note
     opening = frame.split("\n\n")[1]
     assert "more write-ups of other teams follow" not in opening
-    assert "and eleven write-ups by others: four by teams on prompt caching;" in opening
+    assert "and eleven write-ups by others: four on prompt caching;" in opening  # review iter-412 should-fix 1
     assert "and two analyses of how fast the price of a given benchmark score has fallen" in opening
     assert ("A page whose text fetch left out the part quoted is quoted from its raw HTML, and its Sources item says so."
             in frame)
@@ -137,6 +137,14 @@ def test_the_note_quotes_and_cites_its_sources():
     epoch = [line for line in text.split(SOURCES)[1].splitlines()
              if line.startswith("- https://epoch.ai/data-insights/llm-inference-price-trends ")]
     assert len(epoch) == 1 and "its quotes were checked against its raw HTML" in epoch[0]
+    # review iter-412 must-fix 1: the price-drift lesson names the shipped `price_valid_until` warning
+    drift = other[other.index("\n### The price of a given score falls fast and unevenly"):]
+    drift = [line for line in drift.splitlines() if line.startswith("- In this library: ")][0]
+    assert ("A row whose vendor states an end date for its price can carry it as `price_valid_until`, and after that day "
+            "`select`, `delegate` and `evaluate` print a warning") in drift
+    assert "a price with no end date never warns, however old" in drift
+    assert "nothing warns that prices are old" not in body
+    assert "The output price of the leading model did not fall the same way" in other  # review iter-412 should-fix 2
 
 
 SMALL = """# Note
