@@ -94,7 +94,7 @@ def test_registry_load_reads_items_per_call_and_a_null_is_absent(tmp_path):
 @pytest.mark.parametrize("settings", [{"items_per_call": 0}, {"items_per_call": 2.5},
                                       {"items_per_call": 4.0}, {"items_per_call": True},
                                       {"items_per_call": "4"},
-                                      {"provider_options": {"effort": "low"}}])
+                                      {"provider_options": {"": "low"}}])  # v1.574
 def test_a_bad_items_per_call_or_provider_options_names_the_file(tmp_path, settings):
     with pytest.raises(ValueError, match="models.json"):
         load(tmp_path, [judge_row({"batch": settings})])
@@ -344,8 +344,9 @@ def test_the_production_note_states_items_per_call_as_shipped():
     assert "and the number of criteria per call measured as a setting of the judge" not in text
     assert ("A variant can also set how many items one call grades, `items_per_call`, and is then "
             "priced per item, its measured call cost over that number, so grading many criteria per "
-            "call is measured as a setup of its own. The change still planned: the provider options a "
-            "variant passes on each call.") in text
+            "call is measured as a setup of its own. A variant can also carry provider options, such "
+            "as an effort parameter, which the executor sends to the provider on each call of its "
+            "route.") in text  # v1.574
     assert ("The number of criteria per call is measured today as a setting of the judge, a variant "
             "with its own stats priced per item, as in the lesson on measured setups below. The "
             "changes: labels built from the items where every run of the chosen strong judges agrees, "
