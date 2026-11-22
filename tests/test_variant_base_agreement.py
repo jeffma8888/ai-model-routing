@@ -53,11 +53,14 @@ def load(tmp_path, rows):
     (lambda: [base(), variant_of(base(), pricing_basis="self_hosted")],
      "pricing_basis 'self_hosted' (its base's 'list')"),
     (lambda: [base(), variant_of(base(), deployment="self_hosted")], "deployment 'self_hosted' (its base's 'api')"),
+    # review iter-431 nit 2: two fields at once, pricing_basis named before deployment
+    (lambda: [base(), variant_of(base(), pricing_basis="self_hosted", deployment="self_hosted")],
+     "pricing_basis 'self_hosted' (its base's 'list'), deployment 'self_hosted' (its base's 'api')"),
     (lambda: [base(), tune(), variant_of(tune(), base_model=None)], "base_model None (its base's 'v/base')"),
     (lambda: [base(), Model("v/other", "v", 2.0, 4.0, 100_000),
               variant_of(Model("v/other", "v", 2.0, 4.0, 100_000), base_model="v/base")],
      "base_model 'v/base' (its base's None)"),
-], ids=["family", "pricing_basis", "deployment", "base_model-dropped", "base_model-added"])
+], ids=["family", "pricing_basis", "deployment", "basis-and-deployment", "base_model-dropped", "base_model-added"])
 def test_a_variant_that_differs_from_its_base_in_one_checked_field_is_refused(models, differs):
     built = models()  # built inside the test, so the red run collects
     variant = built[-1]
@@ -82,6 +85,9 @@ def test_the_first_differing_variant_in_registry_order_is_named():
         Registry(built)
     with pytest.raises(ValueError, match="^variant 'x/m@high' differs"):
         Registry([built[0], built[1], built[3], built[2]])
+    # review iter-431 nit 1: a base later in the order than its variant is still its base
+    with pytest.raises(ValueError, match="^variant 'v/base@high' differs from its base model 'v/base' in family"):
+        Registry([variant_of(base(), family="w"), base()])
 
 
 @pytest.mark.parametrize("models, message", [
