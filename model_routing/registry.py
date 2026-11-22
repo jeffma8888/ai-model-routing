@@ -86,8 +86,8 @@ class PriceTier:
 class Variant:
     """A named setup of a model: labels of how the caller's harness runs it (DESIGN 4.1 v1.572).
 
-    The settings are labels: the library sets no effort and compacts nothing, and a variant's route
-    has its own stats. ``items_per_call`` is how many items one call of the route handles, so a
+    ``reasoning_effort``, ``harness`` and ``context_policy`` are labels: the library sets no effort
+    from them and compacts nothing, and a variant's route has its own stats. ``items_per_call`` is how many items one call of the route handles, so a
     measured route is priced per item, its mean call over that number (4.1 and 5.2 v1.573).
     ``provider_options`` is sent: the executor passes a copy to the provider on each call of the
     route (4.1, 6 and 7 v1.574), for example ``{"reasoning_effort": "high"}``.

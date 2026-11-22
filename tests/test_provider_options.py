@@ -203,9 +203,9 @@ def test_an_option_never_replaces_a_key_the_adapter_sets(key):
     opener = Opener()
     with pytest.raises(ValueError) as caught:
         openai(opener).complete("v/m@high", MESSAGES, 5.0,
-                                options={"reasoning_effort": "high", key: "secret-value-here"})
+                                options={"reasoning_effort": "high", key: "value-not-shown"})
     assert opener.requests == []
-    assert repr(key) in str(caught.value) and "secret-value-here" not in str(caught.value)
+    assert repr(key) in str(caught.value) and "value-not-shown" not in str(caught.value)
 
 
 @pytest.mark.parametrize("options", [["reasoning_effort"], "high", 3])
@@ -352,6 +352,19 @@ def test_a_refused_key_propagates_after_the_attempts_before_it(tmp_path):
         fixed_executor(router, provider, monitor).call("review", MESSAGES)
     assert len(opened) == 1
     assert [(r["model"], r["outcome"]) for r in monitor.records] == [("v/m", "error")]
+
+
+def test_a_hand_built_route_of_an_unknown_model_calls_the_provider_before_the_cost_lookup(tmp_path):
+    # review iter-421 nit 1: as in v1.573, the provider is called, then registry.get raises
+    registry = two_variants(tmp_path)
+    router = measured_router(registry)
+    route = dataclasses.replace(router.select("review"), primary="x/unknown", fallbacks=())
+    decision = DelegationDecision("review", "cost_effective", "v/m", DELEGATE, "x/unknown",
+                                  "delegate_cheaper", False, True, 0.002, 0.001, 0.0, 0.8, route)
+    provider = FakeProvider({"x/unknown": ok})
+    with pytest.raises(KeyError):
+        fixed_executor(router, provider).call_delegated(decision, MESSAGES)
+    assert (provider.calls, provider.call_options) == ([("x/unknown", MESSAGES)], [None])
 
 
 # Docs
