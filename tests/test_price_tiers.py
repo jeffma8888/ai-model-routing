@@ -140,10 +140,10 @@ def test_model_default_has_no_tiers_and_positional_fields_keep_their_meaning():
     model = Model("a/b", "a", 1.0, 2.0, 10, {"p": "b"}, "2026-12-31")
     assert model.price_tiers == ()
     assert (model.aliases, model.price_valid_until) == ({"p": "b"}, "2026-12-31")
-    # the last field until v1.572 adds `variant` after it, v1.581 `pricing_basis` and v1.582
-    # `deployment` and `base_model` (DESIGN 4.1)
-    assert [f.name for f in dataclasses.fields(Model)][-5:] == [
-        "price_tiers", "variant", "pricing_basis", "deployment", "base_model"]
+    # the last field until v1.572 adds `variant` after it, v1.581 `pricing_basis`, v1.582
+    # `deployment` and `base_model` and v1.586 `scope_tasks` (DESIGN 4.1)
+    assert [f.name for f in dataclasses.fields(Model)][-6:] == [
+        "price_tiers", "variant", "pricing_basis", "deployment", "base_model", "scope_tasks"]
 
 
 @pytest.mark.parametrize("tiers", [

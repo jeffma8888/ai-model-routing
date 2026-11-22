@@ -187,7 +187,8 @@ class Model:
     hour of your own serving by ``self_hosted_prices``; 4.1 v1.581).
     ``deployment`` is where it runs, ``"api"`` or ``"self_hosted"``, ``None`` meaning ``"self_hosted"``
     for a self-hosted-priced model and ``"api"`` otherwise; ``base_model`` names a fine-tune's base,
-    whose family a ``Registry`` requires it to have (4.1 v1.582).
+    whose family a ``Registry`` requires it to have (4.1 v1.582). ``scope_tasks`` holds the task names
+    or glob patterns the model is a candidate on, ``()`` meaning every task (4.1 v1.586).
     """
 
     id: str
@@ -202,6 +203,7 @@ class Model:
     pricing_basis: str = "list"
     deployment: Optional[str] = None
     base_model: Optional[str] = None
+    scope_tasks: Tuple[str, ...] = ()
 
     def __post_init__(self):
         if not isinstance(self.pricing_basis, str) or self.pricing_basis not in _PRICING_BASES:
@@ -218,6 +220,9 @@ class Model:
         base = self.base_model
         if base is not None and (not isinstance(base, str) or not base):
             raise ValueError(f"base_model must be None or a non-empty string, got {base!r}")
+        scope = self.scope_tasks  # DESIGN 4.1 v1.586: a tuple, so a frozen model's scope cannot change
+        if not isinstance(scope, tuple) or not all(isinstance(p, str) and p for p in scope):
+            raise ValueError(f"scope_tasks must be a tuple of non-empty strings, got {scope!r}")
         variant = self.variant
         if variant is not None:  # DESIGN 4.1 v1.572; an id without a variant is v1.571's
             if not isinstance(variant, Variant):
@@ -307,6 +312,15 @@ def _load_tiers(value) -> Tuple[PriceTier, ...]:
             raise ValueError(f"a price tier must be an object, got {item!r}")
         tiers.append(PriceTier(item["above_input_tokens"], item["price_in"], item["price_out"]))
     return tuple(tiers)
+
+
+def _load_scope(value) -> Tuple[str, ...]:
+    """The ``scope_tasks`` of a models.json row: absent, null or empty is every task (DESIGN 4.1 v1.586)."""
+    if value is None:
+        return ()
+    if not isinstance(value, list):
+        raise ValueError(f"scope_tasks must be a list of task names or patterns, got {value!r}")
+    return tuple(value)
 
 
 def _load_prices(row) -> Tuple[str, float, float]:
@@ -450,6 +464,7 @@ class Registry:
                     pricing_basis=basis,
                     deployment=row.get("deployment"),
                     base_model=row.get("base_model"),
+                    scope_tasks=_load_scope(row.get("scope_tasks")),
                 )
                 if "@" in base.id:
                     raise ValueError("a row id must not hold '@', which joins a model and "

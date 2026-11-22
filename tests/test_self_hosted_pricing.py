@@ -123,10 +123,11 @@ def test_a_row_that_is_not_an_object_names_the_file(tmp_path, row):
 def test_a_model_is_list_priced_by_default_and_the_field_follows_variant():
     model = Model("v/m", "v", 1.0, 2.0, 100_000)
     assert model.pricing_basis == "list"
-    # the last field until v1.582 adds `deployment` and `base_model` after it (DESIGN 4.1)
-    assert [f.name for f in dataclasses.fields(Model)][-4:] == ["variant", "pricing_basis", "deployment",
-                                                                "base_model"]
-    assert list(dataclasses.asdict(model))[-3] == "pricing_basis"
+    # the last field until v1.582 adds `deployment` and `base_model` after it, and v1.586
+    # `scope_tasks` (DESIGN 4.1)
+    assert [f.name for f in dataclasses.fields(Model)][-5:] == ["variant", "pricing_basis", "deployment",
+                                                                "base_model", "scope_tasks"]
+    assert list(dataclasses.asdict(model))[-4] == "pricing_basis"
     assert dataclasses.asdict(model)["pricing_basis"] == "list"
 
 
@@ -268,7 +269,9 @@ def test_the_production_note_says_the_hourly_row_ships():
     assert "so a hosted 7B model has no price of its own" not in text
     assert ("for a model you host, `pricing_basis` `self_hosted` derives its prices from your own hourly cost, "
             "throughput and utilization") in text
-    assert "The change still planned: a task scope, so a model built for some tasks is never a candidate on others" in text
+    # v1.586 (row SCOPE1): the task scope ships, so neither lesson calls it planned
+    assert "The change still planned: a task scope" not in text
+    assert "and its `scope_tasks` keeps a model trained for one job off the others" in text
     assert "a hosted 7B model can be a registry row priced from your own hourly cost and throughput" in text
     assert "capacity you pay for by the hour can enter as a row priced from that hourly cost" in text
 

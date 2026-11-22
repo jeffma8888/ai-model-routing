@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from fnmatch import fnmatchcase
 from dataclasses import asdict, dataclass, replace
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
@@ -23,6 +24,7 @@ PASSES = "passes"
 CASCADE_UNKNOWN_MODEL = "cascade_unknown_model"
 CHEAPER_PER_SUCCESS = "cheaper_per_success"  # a decision's reason, never a candidate's
 PROCEDURE_UNKNOWN_MODEL = "procedure_unknown_model"
+OUT_OF_SCOPE = "out_of_scope"
 
 FLAVORS = ("cost_effective", "cost_blind")
 
@@ -222,14 +224,17 @@ class Router:
             generator_base, generator_family = generator.base_id, generator.family
 
         fit_input = task.expected_input_tokens if prompt_tokens is None else prompt_tokens
+        names = (base.name,) if slice is None else (base.name, task.name)  # DESIGN 5.2 v1.586
         candidates = tuple(self._candidate(task, model, flavor, excluded,
-                                           generator_base, generator_family, fit_input)
+                                           generator_base, generator_family, fit_input, names)
                            for model in self.registry.models)
         candidates += tuple(self._cascade_candidate(task, cascade, flavor, excluded,
-                                                    generator_base, generator_family, fit_input)
+                                                    generator_base, generator_family, fit_input,
+                                                    names)
                             for cascade in routed)
         candidates += tuple(self._procedure_candidate(task, proc, flavor, excluded,
-                                                      generator_base, generator_family, fit_input)
+                                                      generator_base, generator_family, fit_input,
+                                                      names)
                             for proc in procedures)
 
         passing = [c for c in candidates if c.passes]
@@ -325,10 +330,12 @@ class Router:
 
     @staticmethod
     def _model_rule(task: Task, model, excluded: set, generator_base: Optional[str],
-                    generator_family: Optional[str], fit_input: int) -> Optional[str]:
-        """The first of rules 1 to 5 (DESIGN 5.2) that applies to ``model``, or None.
+                    generator_family: Optional[str], fit_input: int,
+                    names: Tuple[str, ...]) -> Optional[str]:
+        """The first of rules 1 to 5a (DESIGN 5.2) that applies to ``model``, or None.
 
-        Rules 1 and 3 read ``base_id`` too, so they cover a model's variants (v1.572).
+        Rules 1 and 3 read ``base_id`` too, so they cover a model's variants (v1.572). Rule 5a
+        (v1.586) matches ``scope_tasks`` against ``names``: the task's, and a sliced call's key.
         """
         if model.id in excluded or model.base_id in excluded:  # DESIGN 5.2 v1.572
             return EXCLUDED_MODEL
@@ -342,6 +349,9 @@ class Router:
             return GENERATOR_FAMILY
         if model.context_window < fit_input + task.expected_output_tokens:
             return CONTEXT_TOO_SMALL
+        if model.scope_tasks and not any(fnmatchcase(name, pattern) for name in names
+                                         for pattern in model.scope_tasks):
+            return OUT_OF_SCOPE
         return None
 
     @staticmethod
@@ -355,10 +365,11 @@ class Router:
 
     def _candidate(self, task: Task, model, flavor: str, excluded: set,
                    generator_base: Optional[str],
-                   generator_family: Optional[str], fit_input: int) -> Candidate:
+                   generator_family: Optional[str], fit_input: int,
+                   names: Tuple[str, ...]) -> Candidate:
         successes, trials = self.stats.get(task.name, model.id)
         reason = self._model_rule(task, model, excluded, generator_base, generator_family,
-                                  fit_input) or self._measured_rule(task, successes, trials)
+                                  fit_input, names) or self._measured_rule(task, successes, trials)
         list_cost = self._list_cost(task, model)
         return Candidate(
             model_id=model.id,
@@ -376,7 +387,8 @@ class Router:
 
     def _cascade_candidate(self, task: Task, cascade: Cascade, flavor: str, excluded: set,
                            generator_base: Optional[str],
-                           generator_family: Optional[str], fit_input: int) -> Candidate:
+                           generator_family: Optional[str], fit_input: int,
+                           names: Tuple[str, ...]) -> Candidate:
         """A cascade as one candidate (DESIGN 7 v1.532 and v1.536).
 
         ``cascade_unknown_model`` when the registry lacks either model; else rule 1 on its
@@ -398,7 +410,7 @@ class Router:
         for model in (cheap, strong):
             if reason is None:
                 reason = self._model_rule(task, model, excluded, generator_base,
-                                          generator_family, fit_input)
+                                          generator_family, fit_input, names)
         if reason is None:
             reason = self._measured_rule(task, successes, trials)
         size_in, size_out = _sizes(self.stats, task, cheap.id)
@@ -419,7 +431,8 @@ class Router:
 
     def _procedure_candidate(self, task: Task, proc: Procedure, flavor: str, excluded: set,
                              generator_base: Optional[str],
-                             generator_family: Optional[str], fit_input: int) -> Candidate:
+                             generator_family: Optional[str], fit_input: int,
+                             names: Tuple[str, ...]) -> Candidate:
         """A procedure as one candidate (DESIGN 5.2 v1.577).
 
         ``procedure_unknown_model`` when the registry lacks its named model; else rule 1 on its
@@ -440,7 +453,7 @@ class Router:
         reason = EXCLUDED_MODEL if proc.id in excluded else None
         if reason is None and model is not None:
             reason = self._model_rule(task, model, excluded, generator_base, generator_family,
-                                      fit_input)
+                                      fit_input, names)
         if reason is None:
             reason = self._measured_rule(task, successes, trials)
         list_cost = self.stats.mean_cost(task.name, proc.id)

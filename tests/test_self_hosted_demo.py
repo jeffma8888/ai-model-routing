@@ -192,7 +192,9 @@ def test_the_production_note_states_deployment_and_base_model_as_shipped():
     assert "A fine-tune names its base with `base_model` and is judged as its base's family" in line
     assert "`deployment` records whether a model runs on a vendor's endpoint or on servers you run" in line
     assert "`model_routing.demo.run_self_hosted_demo()`" in line
-    assert "The change still planned: a task scope" in line
+    # v1.586 (row SCOPE1): the task scope ships, so the line states it
+    assert "`scope_tasks`, task names or glob patterns, keeps a model built for some tasks off the others" in line
+    assert "The change still planned" not in line
 
 
 def test_design_and_the_changelog_state_the_version():

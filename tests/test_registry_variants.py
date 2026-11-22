@@ -68,15 +68,16 @@ def test_a_context_policy_is_a_mapping_of_scalars(policy):
 
 
 def test_model_variant_is_the_last_field_and_names_the_route():
-    # the last field until v1.581 adds `pricing_basis` after it, and v1.582 `deployment` and `base_model` (DESIGN 4.1)
-    assert [f.name for f in dataclasses.fields(Model)][-5:] == [
-        "price_tiers", "variant", "pricing_basis", "deployment", "base_model"]
+    # the last field until v1.581 adds `pricing_basis` after it, v1.582 `deployment` and `base_model`
+    # and v1.586 `scope_tasks` (DESIGN 4.1)
+    assert [f.name for f in dataclasses.fields(Model)][-6:] == [
+        "price_tiers", "variant", "pricing_basis", "deployment", "base_model", "scope_tasks"]
     lean = Model("v/m@lean", "v", 1.0, 2.0, 8000, variant=Variant("lean", harness="agent 2"))
     assert (lean.id, lean.base_id) == ("v/m@lean", "v/m")
     plain = Model("v/m", "v", 1.0, 2.0, 8000)
     assert (plain.variant, plain.base_id) == (None, "v/m")
-    assert list(dataclasses.asdict(plain))[-4:] == ["variant", "pricing_basis", "deployment",
-                                                    "base_model"]  # v1.581, v1.582
+    assert list(dataclasses.asdict(plain))[-5:] == ["variant", "pricing_basis", "deployment",
+                                                    "base_model", "scope_tasks"]  # v1.581, v1.582, v1.586
     assert dataclasses.asdict(plain)["variant"] is None
     assert dataclasses.asdict(lean)["variant"] == {
         "name": "lean", "reasoning_effort": None, "harness": "agent 2", "context_policy": {},
