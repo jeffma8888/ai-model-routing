@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 import json
+import math
 import random
 from dataclasses import fields
 from pathlib import Path
-from typing import Dict, List, Union
+from typing import Callable, Dict, List, Optional, Union
 
 from .delegation import DELEGATE
-from .executor import AllModelsFailed, Executor, json_validator
-from .monitor import Monitor
+from .executor import AllModelsFailed, Executor, estimate_prompt_tokens, json_validator
+from .monitor import Monitor, report
+from .procedures import Procedure, ProcedureResult
 from .providers import Completion, FakeProvider, ProviderError
 from .registry import Model, Registry
 from .router import Router
@@ -250,3 +252,194 @@ def run_demo(out_dir: Union[str, Path], seed: int = 7) -> dict:
         summary[flavor]["delegation"] = _hand_off(router, provider, monitor, clock, state,
                                                   validate, flavor)
     return summary
+
+
+# v1.580 (DESIGN 11, row PROC1d): a recurring job routed between an agent route and a procedure
+PROCEDURE_TASK = "demo_job_summary"
+PROCEDURE_MODEL = "demo/atlas-mid"
+PROCEDURE_JOBS = 40
+PROCEDURE_CALLS = 20
+PROCEDURE_TOOL_COST_USD = 0.00001
+_TURN_OUTPUT_TOKENS = 20
+_RESULT_TOKENS = 12
+_SHAPE = "Write one line: "
+_NOW = "2026-01-01T00:00:00.000Z"
+
+
+def _job_amounts(i: int) -> List[int]:
+    return [(31 * i + 17 * k) % 100 for k in range(30 + (7 * i) % 20)]
+
+
+def _job_polls(i: int) -> int:
+    return 2 + i % 4
+
+
+def _payload(amounts: List[int]) -> str:
+    return "\n".join(f"row {k}: amount {a}" for k, a in enumerate(amounts))
+
+
+def _answer(i: int, amounts: List[int]) -> str:
+    return f"job {i}: {len(amounts)} rows, total {sum(amounts)}"
+
+
+def _job_messages(i: int) -> List[dict]:
+    return [{"role": "user", "content": f"Run job {i} and report its row count and total."}]
+
+
+def _job_number(messages: List[dict]) -> int:
+    return int(messages[0]["content"].split()[2])
+
+
+def _job_check(i: int) -> Callable[[str], bool]:
+    expected = _answer(i, _job_amounts(i))
+    return lambda text: text == expected
+
+
+class _JobService:
+    """Fictional jobs: done at their ``_job_polls``-th status poll; an early fetch is partial."""
+
+    def __init__(self) -> None:
+        self.polls: Dict[int, int] = {}
+
+    def submit(self, i: int) -> int:
+        self.polls[i] = 0
+        return i
+
+    def poll(self, i: int) -> bool:
+        self.polls[i] += 1
+        return self.polls[i] >= _job_polls(i)
+
+    def fetch(self, i: int) -> str:
+        amounts = _job_amounts(i)
+        done = self.polls[i] >= _job_polls(i)
+        return _payload(amounts if done else amounts[:len(amounts) // 2])
+
+
+def _job_procedure(version: str, max_polls: Optional[int]) -> Procedure:
+    """Submit, poll in code (at most ``max_polls`` times, or until done), fetch, count, shape."""
+    service = _JobService()
+
+    def fn(messages: List[dict], call: Callable[[List[dict]], str]) -> ProcedureResult:
+        i = _job_number(messages)
+        job = service.submit(i)
+        polls, done = 0, False
+        while not done and (max_polls is None or polls < max_polls):
+            done = service.poll(job)
+            polls += 1
+        raw = service.fetch(job)
+        amounts = [int(line.rsplit(" ", 1)[1]) for line in raw.split("\n")]
+        tool_calls = polls + 2  # the submit, the polls and the fetch
+        text = call([{"role": "user", "content": f"{_SHAPE}{_answer(i, amounts)}."}])
+        return ProcedureResult(text, tool_calls=tool_calls,
+                               tool_cost_usd=tool_calls * PROCEDURE_TOOL_COST_USD)
+
+    return Procedure("job-summary", version, fn, max_model_calls=1, max_tool_calls=8,
+                     model=PROCEDURE_MODEL)
+
+
+def _agent_run(messages: List[dict]) -> Completion:
+    """One agent run billed as its turns: submit, each poll, fetch, answer (DESIGN 11 v1.580)."""
+    i = _job_number(messages)
+    amounts, polls = _job_amounts(i), _job_polls(i)
+    payload_tokens = -(-len(_payload(amounts)) // 4)
+    context, input_tokens = estimate_prompt_tokens(messages), 0
+    turns = polls + 3
+    for turn in range(turns):
+        input_tokens += context
+        context += _TURN_OUTPUT_TOKENS
+        if turn <= polls:  # the submit turn and each poll turn return a short result
+            context += _RESULT_TOKENS
+        elif turn == polls + 1:  # the fetch turn returns the raw payload
+            context += payload_tokens
+    rows = len(amounts) - (1 if i % 20 == 19 else 0)
+    return Completion(f"job {i}: {rows} rows, total {sum(amounts)}", input_tokens,
+                      _TURN_OUTPUT_TOKENS * turns)
+
+
+def _job_script(messages: List[dict]) -> Completion:
+    content = messages[0]["content"]
+    if content.startswith(_SHAPE):
+        return Completion(content[len(_SHAPE):-1], estimate_prompt_tokens(messages),
+                          _TURN_OUTPUT_TOKENS)
+    return _agent_run(messages)
+
+
+def run_procedure_demo() -> dict:
+    """Route a fictional submit, poll and fetch job between an agent route and a procedure.
+
+    The agent route, ``demo/atlas-mid``, does the job by model turns, the raw rows in its
+    context after the fetch; the procedures poll in code and send their one model call only
+    what they counted. ``job-summary@1`` fetches before some jobs are done and ``job-summary@2``
+    does not. Each route runs 40 jobs to calibrate; then three ``cost_effective`` decisions show
+    an unmeasured procedure and one under the bar left out and the one that clears the bar
+    routed, and 20 more jobs run through the executor with that procedure and without it.
+    Returns ``{"task", "bar", "stages", "routed"}`` (DESIGN 11 v1.580); writes no file, draws no
+    random number and reads no clock, so every run returns the same.
+    """
+    registry = Registry([model for model, _ in JUDGES if model.id == PROCEDURE_MODEL])
+    model = registry.get(PROCEDURE_MODEL)
+    task = Task(PROCEDURE_TASK, bar=0.8, min_samples=30, max_fallbacks=1)
+    provider = FakeProvider({PROCEDURE_MODEL: _job_script})
+    early, fixed = _job_procedure("1", 3), _job_procedure("2", None)
+
+    rows: Dict[str, List[dict]] = {PROCEDURE_MODEL: []}
+    for i in range(PROCEDURE_JOBS):
+        completion = provider.complete(PROCEDURE_MODEL, _job_messages(i), task.timeout_s)
+        rows[PROCEDURE_MODEL].append({
+            "task": PROCEDURE_TASK, "model": PROCEDURE_MODEL,
+            "correct": _job_check(i)(completion.text),
+            "input_tokens": completion.input_tokens, "output_tokens": completion.output_tokens})
+    for proc in (early, fixed):
+        rows[proc.id] = []
+        for i in range(PROCEDURE_JOBS):
+            spent: List[float] = []
+
+            def call(messages: List[dict]) -> str:
+                completion = provider.complete(PROCEDURE_MODEL, messages, task.timeout_s)
+                spent.append(model.cost(completion.input_tokens, completion.output_tokens))
+                return completion.text
+
+            run = proc.run(_job_messages(i), call)
+            rows[proc.id].append({
+                "task": PROCEDURE_TASK, "model": proc.id, "correct": _job_check(i)(run.output),
+                "cost_usd": math.fsum(spent) + run.tool_cost_usd})
+
+    def router(*routes: str) -> Router:
+        stats = calibrate_from_results([row for route in routes for row in rows[route]])
+        return Router(registry, {task.name: task}, stats)
+
+    stages = []
+    for stage, proc, routes in (("cold", fixed, (PROCEDURE_MODEL,)),
+                                ("below_bar", early, (PROCEDURE_MODEL, early.id)),
+                                ("admitted", fixed, (PROCEDURE_MODEL, early.id, fixed.id))):
+        decision = router(*routes).select(PROCEDURE_TASK, flavor="cost_effective",
+                                          procedures=[proc])
+        reason = next(c.reason for c in decision.candidates if c.model_id == proc.id)
+        stages.append({"stage": stage, "procedure": proc.id, "reason": reason,
+                       "primary": decision.primary})
+
+    admitted = router(PROCEDURE_MODEL, early.id, fixed.id)
+    routed = {}
+    for path, procedures in (("procedure", [fixed]), ("agent", [])):
+        monitor = Monitor()
+        counter = iter(range(1, PROCEDURE_CALLS + 1))
+        executor = Executor(admitted, provider, monitor=monitor, clock=lambda: 0.0,
+                            now=lambda: _NOW,
+                            id_factory=lambda p=path, c=counter: f"{p}-{next(c):04d}")
+        route = None
+        for i in range(PROCEDURE_JOBS, PROCEDURE_JOBS + PROCEDURE_CALLS):
+            try:
+                decision = executor.call(PROCEDURE_TASK, _job_messages(i),
+                                         flavor="cost_effective", validate=_job_check(i),
+                                         procedures=procedures).decision
+            except AllModelsFailed as exc:
+                decision = exc.decision
+            route = decision.primary if route is None else route
+        row = report(monitor.records, by="task")[0]
+        routed[path] = {
+            "route": route, "calls": row["calls"], "fallback_calls": row["fallback_calls"],
+            "failed_calls": row["failed_calls"],
+            "cost_usd": round(sum(r["cost_usd"] for r in monitor.records), 6),
+            "input_tokens": sum(r["input_tokens"] for r in monitor.records),
+        }
+    return {"task": PROCEDURE_TASK, "bar": task.bar, "stages": stages, "routed": routed}

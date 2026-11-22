@@ -11,7 +11,6 @@ what v1.580 keeps and passed before and after it.
 import hashlib
 from pathlib import Path
 
-import pytest
 
 import model_routing
 from model_routing import demo as demo_module
@@ -23,7 +22,6 @@ V1 = "proc:job-summary@1+demo/atlas-mid"
 V2 = "proc:job-summary@2+demo/atlas-mid"
 # the demo's calls.jsonl, unchanged since v1.536 (tests/test_cascade_executor.py)
 DEMO_CALLS_SHA256 = "4f111326781939140bebe04e0841a66306cac48492bc6c95f4bc2211fa92b351"
-XFAIL = pytest.mark.xfail(strict=True, reason="row PROC1d: v1.580 lands in the feat commit")
 
 
 def run():
@@ -36,14 +34,12 @@ def readme_part():
     return part.split("\n### The quality bar", 1)[0]
 
 
-@XFAIL
 def test_the_summary_keys_and_task():
     summary = run()
     assert list(summary) == ["task", "bar", "stages", "routed"]
     assert (summary["task"], summary["bar"]) == ("demo_job_summary", 0.8)
 
 
-@XFAIL
 def test_the_procedure_is_routed_only_once_its_own_runs_clear_the_bar():
     assert run()["stages"] == [
         {"stage": "cold", "procedure": V2, "reason": "insufficient_samples", "primary": AGENT},
@@ -52,7 +48,6 @@ def test_the_procedure_is_routed_only_once_its_own_runs_clear_the_bar():
     ]
 
 
-@XFAIL
 def test_the_routed_procedure_answers_every_call_and_costs_less_than_the_agent():
     routed = run()["routed"]
     assert list(routed) == ["procedure", "agent"]
@@ -68,7 +63,6 @@ def test_the_routed_procedure_answers_every_call_and_costs_less_than_the_agent()
     assert 0 < proc["input_tokens"] < agent["input_tokens"]
 
 
-@XFAIL
 def test_the_raw_rows_never_enter_a_model_call_of_a_procedure(monkeypatch):
     providers = []
 
@@ -93,7 +87,6 @@ def test_the_raw_rows_never_enter_a_model_call_of_a_procedure(monkeypatch):
         assert content.endswith(" total " + content.rsplit(" total ", 1)[1])
 
 
-@XFAIL
 def test_the_demo_is_the_same_on_every_run():
     assert run() == run()
 
@@ -105,7 +98,6 @@ def test_run_demo_keeps_its_bytes_and_the_procedure_demo_is_not_api(tmp_path):
     assert "run_procedure_demo" not in model_routing.__all__
 
 
-@XFAIL
 def test_the_readme_paragraph_on_procedures():
     part = readme_part()
     assert "`model_routing.demo.run_procedure_demo()`" in part
@@ -116,10 +108,9 @@ def test_the_readme_paragraph_on_procedures():
     assert ("(research/production-lessons.md#keep-tool-schemas-and-polling-out-of-the-models-context)"
             in part)
     # row PROC1d: no skill-only precision number exists in the sources, so none is claimed
-    assert "precision" not in part.split("recurring tool work", 1)[1]
+    assert "precision" not in part.split("\n\nRecurring tool work can be a route", 1)[1]
 
 
-@XFAIL
 def test_the_production_note_states_procedures_as_shipped():
     text = (ROOT / "research" / "production-lessons.md").read_text(encoding="utf-8")
     assert "a script that does recurring work is outside its choice. The change:" not in text
