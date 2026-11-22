@@ -164,7 +164,8 @@ def test_the_readme_paragraph_on_self_hosted_models():
     for key in ('`"pricing_basis": "self_hosted"`', "`usd_per_hour`", "`tokens_per_hour_in`",
                 "`tokens_per_hour_out`", "`utilization`", "`input_cost_share`", '`"base_model"`',
                 '`"deployment"`', "`report --by pricing_basis`",
-                "`model_routing.demo.run_self_hosted_demo()`", "`DESIGN.md` 4.1, 5.1, 8.3 and 11"):
+                "`model_routing.demo.run_self_hosted_demo()`",
+                "`DESIGN.md` 4.1, 5.1, 8.1, 8.3, 10 and 11"):  # review iter-433 nit 1
         assert key in text, key
     assert "The throughputs describe one workload" in text
     assert "is an approximation you choose" in text

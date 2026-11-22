@@ -479,6 +479,7 @@ def _reviewer(model_id: str) -> Callable[[List[dict]], Completion]:
     every, miss = _MISSES[model_id]
 
     def answer(messages: List[dict]) -> Completion:
+        # the item number is the last word of _clause_messages's one message, before its period
         i = int(messages[0]["content"].rsplit(" ", 1)[1].rstrip("."))
         gold = _clause_gold(i)
         text = gold if i % every != miss else ("reject" if gold == "accept" else "accept")
@@ -514,7 +515,7 @@ def run_self_hosted_demo() -> dict:
     listed = [model for model, _ in JUDGES if model.id in _SELF_HOSTED_LISTED]
     fine_tune = _fine_tune(SELF_HOSTED_ROW["utilization"])
     registry = Registry(listed + [fine_tune])
-    task = Task(SELF_HOSTED_TASK, bar=0.75, min_samples=30, max_fallbacks=1)
+    task = Task(SELF_HOSTED_TASK, bar=0.75)
     provider = FakeProvider({model.id: _reviewer(model.id) for model in registry.models})
 
     rows: Dict[str, List[dict]] = {}
