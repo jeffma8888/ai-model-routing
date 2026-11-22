@@ -29,7 +29,7 @@ Research notes out of 12.8 (v1.390, row DOC21o): the seven research-note bullets
 sub-bullet of the first, are 12.22, a research-notes spec with a cap of 40,000 bytes, in the same order
 (RESEARCH_NOTES); 12.8 holds none of them and leaves PENDING, and the `## 12.` total is 300,000 bytes
 (330,000 from v1.456, 345,000 from v1.478, 360,000 from v1.481, 375,000 from v1.523, 390,000 from v1.528, 405,000 from v1.541,
-420,000 from v1.553, 445,000 from v1.558).
+420,000 from v1.553, 445,000 from v1.558, 460,000 from v1.575).
 
 The time-limit line (v1.391, row DOC26): the 12.13 time-limit bullet keeps its contract and puts its earlier
 bases behind one history pointer (POINTERS), so it is at most LINE_CAP and PENDING_LINES is empty; 12.13
@@ -71,7 +71,9 @@ slice results (v1.528, row STRAT3h), is a routing results subsection, which rais
 12.29, the tau2-bench cascade results (v1.541, row ESC3c), is a routing results subsection, which raises it by
 15,000 to 405,000; 12.30, the LiveCodeBench cascade results (v1.553, row ESC3m), is a routing results
 subsection, which raises it by 15,000 to 420,000; 12.31, the token permissions and Python versions of both
-workflows (v1.558, row DOC47), is a workflow subsection, which raises it by 25,000 to 445,000.
+workflows (v1.558, row DOC47), is a workflow subsection, which raises it by 25,000 to 445,000; 12.32, the
+LiveCodeBench variant results (v1.575, row VAR1b), is a routing results subsection, which raises it by 15,000
+to 460,000.
 Longtail-SWE delegation (v1.498, row E27a): 13.18, the Longtail-SWE delegation results, is a delegation results
 subsection, which raises the `## 13.` total by 22,000 to 284,000.
 
@@ -104,7 +106,8 @@ The section totals (v1.456, row DOC37): each total is the one last set with the 
 `## 12.` 300,000 at v1.390 with 12.1 to 12.22 and `## 13.` 185,000 at v1.386 with 13.1 to 13.14
 (TOTAL_BASES), raised by the cap of each subsection added after them (12.23 and 12.24, 13.15, from v1.461,
 13.16, from v1.468, 13.17, from v1.478, 12.25, from v1.481, 12.26, from v1.498, 13.18, from v1.523, 12.27,
-from v1.528, 12.28, from v1.541, 12.29, from v1.553, 12.30 and, from v1.558, 12.31), so 445,000 and
+from v1.528, 12.28, from v1.541, 12.29, from v1.553, 12.30, from v1.558, 12.31 and, from v1.575, 12.32), so
+460,000 and
 284,000. While PENDING is not empty, each section with every PENDING subsection cut to its cap
 (`projected`) must fit its total; the DESIGN 12 Caps bullet names each subsection of GROUPS in its class,
 with that class's cap, and states the totals (CAPS_CLAUSES, `caps_bullet_problems`). So a subsection
@@ -120,7 +123,7 @@ from test_readme_evidence_budget import design_12_8
 ROOT = Path(__file__).resolve().parents[1]
 DESIGN = ROOT / "DESIGN.md"
 SECTIONS = ("12", "13")
-SECTION_CAPS = {"12": 445_000, "13": 284_000}  # v1.456, 12 v1.558 (420,000 at v1.553, 405,000 at v1.541, 390,000 at v1.528, 375,000 at v1.523, 360,000 at v1.481, 345,000 at v1.478, 330,000 at v1.456), 13 v1.498 (262,000 at v1.468, 240,000 at v1.461); 12 300,000 at v1.390 and 260,000 at v1.386, 13 185,000
+SECTION_CAPS = {"12": 460_000, "13": 284_000}  # v1.456, 12 v1.575 (445,000 at v1.558, 420,000 at v1.553, 405,000 at v1.541, 390,000 at v1.528, 375,000 at v1.523, 360,000 at v1.481, 345,000 at v1.478, 330,000 at v1.456), 13 v1.498 (262,000 at v1.468, 240,000 at v1.461); 12 300,000 at v1.390 and 260,000 at v1.386, 13 185,000
 # The total each section had when it last counted its subsections, the version that set it, and the last
 # subsection number it counted (12 v1.390 with 12.1 to 12.22, 13 v1.386 with 13.1 to 13.14); each
 # subsection numbered after it raises its section's total by the cap of its class (v1.456, row DOC37).
@@ -131,7 +134,7 @@ GROUPS = {
     "contract": ("12.1", "12.2", "12.3", "12.4", "12.5", "13.1", "13.2", "13.3", "13.4", "13.5", "13.6", "13.7"),
     "converter": ("12.6", "12.9", "12.11", "12.14", "12.16", "12.18", "12.20", "12.23", "12.25", "13.11", "13.15"),
     "routing results": ("12.7", "12.10", "12.12", "12.15", "12.17", "12.19", "12.21", "12.24", "12.26", "12.27",
-                        "12.28", "12.29", "12.30"),
+                        "12.28", "12.29", "12.30", "12.32"),
     "delegation results": ("13.10", "13.12", "13.13", "13.14", "13.17", "13.18"),
     "README evidence": ("12.8",),
     "workflow": ("12.13", "12.31"),
@@ -284,7 +287,7 @@ def test_the_class_table_names_every_heading_once_in_order():
     numbers = [number for number, _ in subsections]
     by_number = sorted(CLASS, key=lambda n: tuple(int(part) for part in n.split(".")))
     assert numbers == by_number
-    assert len(CLASS) == sum(len(group) for group in GROUPS.values()) == 49  # 36 before 13.15 (v1.394), 37 before 12.23 (v1.431), 38 before 12.24 (v1.433), 39 before 13.16 (v1.461), 40 before 13.17 (v1.468), 41 before 12.25 (v1.478), 42 before 12.26 (v1.481), 43 before 13.18 (v1.498), 44 before 12.27 (v1.523), 45 before 12.28 (v1.528), 46 before 12.29 (v1.541), 47 before 12.30 (v1.553), 48 before 12.31 (v1.558)
+    assert len(CLASS) == sum(len(group) for group in GROUPS.values()) == 50  # 36 before 13.15 (v1.394), 37 before 12.23 (v1.431), 38 before 12.24 (v1.433), 39 before 13.16 (v1.461), 40 before 13.17 (v1.468), 41 before 12.25 (v1.478), 42 before 12.26 (v1.481), 43 before 13.18 (v1.498), 44 before 12.27 (v1.523), 45 before 12.28 (v1.528), 46 before 12.29 (v1.541), 47 before 12.30 (v1.553), 48 before 12.31 (v1.558), 49 before 12.32 (v1.575)
     assert set(GROUPS) == set(CAPS)
     assert strays == []
 
@@ -771,11 +774,11 @@ def test_the_12_opening_gives_the_research_notes_cap_and_the_12_total():
     caps = [line for line in opening if line.startswith("- Caps, each a ceiling ")]
     assert len(caps) == 1
     assert "; the research notes 12.22 (v1.390, row DOC21o) and 13.16 (v1.461, row DOC38c), 40,000 each;" in caps[0]
-    assert ("; and the totals `## 12.` 445,000 and `## 13.` 284,000 (v1.456, row DOC37, v1.461, row DOC38c, v1.468, "
+    assert ("; and the totals `## 12.` 460,000 and `## 13.` 284,000 (v1.456, row DOC37, v1.461, row DOC38c, v1.468, "
             "row E25a, v1.478, row E26a, v1.481, row E26c, v1.498, row E27a, v1.523, row STRAT3f, v1.528, row "
-            "STRAT3h, v1.541, row ESC3c, v1.553, row ESC3m, and v1.558, row DOC47), "
+            "STRAT3h, v1.541, row ESC3c, v1.553, row ESC3m, v1.558, row DOC47, and v1.575, row VAR1b), "
             in caps[0])
-    assert (CAPS["research notes"], SECTION_CAPS["12"], SECTION_CAPS["13"]) == (40_000, 445_000, 284_000)
+    assert (CAPS["research notes"], SECTION_CAPS["12"], SECTION_CAPS["13"]) == (40_000, 460_000, 284_000)
     moved = [line for line in opening if line.startswith("- Research notes out of 12.8 (v1.390, row DOC21o): ")]
     assert len(moved) == 1
     for words in ("are 12.22, a research-notes spec with a cap of 40,000 bytes, in the same order",
@@ -869,15 +872,15 @@ def test_the_caps_bullet_names_each_subsection_in_its_class_and_the_totals():
     (" and the ledger hand-off converter 13.15 (v1.394)", "", ["the converter clause lacks 13.15"]),
     ("12.21, the registry-pair results 12.24 (v1.433), the Longtail-SWE results 12.26 (v1.481), the AutoBench slice "
      "results 12.27 (v1.523), the LiveCodeBench slice results 12.28 (v1.528), the tau2-bench cascade results 12.29 "
-     "(v1.541) and the LiveCodeBench cascade results 12.30 (v1.553)", "12.21, 12.24, 12.25, 12.26, 12.27, 12.28, 12.29 "
-     "and 12.30",
+     "(v1.541), the LiveCodeBench cascade results 12.30 (v1.553) and the LiveCodeBench variant results 12.32 (v1.575)",
+     "12.21, 12.24, 12.25, 12.26, 12.27, 12.28, 12.29, 12.30 and 12.32",
      ["the routing results clause names 12.25, not of its class"]),
     ("the contract, 12.1 to 12.5 and", "the contract, 12.1 to 12.4 and",
      ["the contract clause lacks 12.5"]),
     ("16,000 bytes each", "15,000 bytes each", ["the contract clause gives 15,000, not its cap 16,000"]),
     ("; the workflow 12.13 and the token permissions and Python versions of both workflows 12.31 (v1.558, row DOC47), "
      "25,000 each", "", ["the Caps bullet has 0 clauses opening `the workflow`, not one"]),
-    ("`## 12.` 445,000", "`## 12.` 420,000", ["the Caps bullet gives `## 12.` 420,000, not 445,000"]),
+    ("`## 12.` 460,000", "`## 12.` 445,000", ["the Caps bullet gives `## 12.` 445,000, not 460,000"]),
     # v1.558 (row DOC47)
     (" and the token permissions and Python versions of both workflows 12.31 (v1.558, row DOC47)", "",
      ["the workflow clause lacks 12.31"]),
@@ -894,7 +897,9 @@ def test_the_caps_bullet_names_each_subsection_in_its_class_and_the_totals():
     # v1.541 (row ESC3c)
     (", the tau2-bench cascade results 12.29 (v1.541)", "", ["the routing results clause lacks 12.29"]),
     # v1.553 (row ESC3m)
-    (" and the LiveCodeBench cascade results 12.30 (v1.553)", "", ["the routing results clause lacks 12.30"]),
+    (", the LiveCodeBench cascade results 12.30 (v1.553)", "", ["the routing results clause lacks 12.30"]),
+    # v1.575 (row VAR1b)
+    (" and the LiveCodeBench variant results 12.32 (v1.575)", "", ["the routing results clause lacks 12.32"]),
     ("`## 13.` 284,000", "`## 13.` 262,000", ["the Caps bullet gives `## 13.` 262,000, not 284,000"]),
     (" and `## 13.` 284,000", "", ["the Caps bullet gives `## 13.` 0 times, not once"]),
     # v1.468 (row E25a)
@@ -921,8 +926,8 @@ def test_each_total_is_its_base_raised_by_the_cap_of_each_subsection_added_after
         added += later
         raised[section] = base + sum(CAPS[CLASS[number]] for number in later)
     assert sorted(added, key=by_number) == ["12.23", "12.24", "12.25", "12.26", "12.27", "12.28", "12.29", "12.30", "12.31",
-                                                "13.15", "13.16", "13.17", "13.18"]
-    assert raised == SECTION_CAPS == {"12": 445_000, "13": 284_000}
+                                                "12.32", "13.15", "13.16", "13.17", "13.18"]
+    assert raised == SECTION_CAPS == {"12": 460_000, "13": 284_000}
 
 
 def test_the_projected_totals_fit_the_totals_the_caps_bullet_states():
@@ -943,7 +948,7 @@ def test_the_section_totals_bullet_gives_each_base_and_each_raise():
     (base12, set12, last12), (base13, set13, last13) = TOTAL_BASES["12"], TOTAL_BASES["13"]
     for words in (f"`## 12.` the {base12:,} of {set12}, which counts 12.1 to 12.{last12}, plus 15,000 for each of "
                   f"12.23 (v1.431), 12.24 (v1.433), 12.25 (v1.478), 12.26 (v1.481), 12.27 (v1.523), 12.28 (v1.528), "
-                  f"12.29 (v1.541) and 12.30 (v1.553), and {CAPS['workflow']:,} for 12.31 (v1.558), "
+                  f"12.29 (v1.541), 12.30 (v1.553) and 12.32 (v1.575), and {CAPS['workflow']:,} for 12.31 (v1.558), "
                   f"so {SECTION_CAPS['12']:,}",
                   f"`## 13.` the {base13:,} of {set13}, which counts 13.1 to 13.{last13}, plus 15,000 for 13.15 "
                   f"(v1.394), 40,000 for 13.16 (v1.461) and 22,000 for each of 13.17 (v1.468) and 13.18 (v1.498), "
