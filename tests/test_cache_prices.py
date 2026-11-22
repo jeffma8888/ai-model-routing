@@ -182,8 +182,10 @@ def test_a_refused_row_price_names_the_file(tmp_path, name, value):
 
 @pytest.mark.parametrize("name", ["price_cached_in", "price_cache_write"])
 def test_a_self_hosted_or_tiered_row_refuses_a_cache_price(tmp_path, name):
-    with pytest.raises(ValueError, match="models.json"):
-        _load(tmp_path, [dict({"id": "v/h", "family": "v", "context_window": 100_000, name: 0.3}, **_hour())])
+    for value in (0.3, None):  # review iter-435 nit 1: the key's presence, named in the message
+        with pytest.raises(ValueError, match=f"models.json.*a self_hosted row takes no {name}"):
+            _load(tmp_path, [dict({"id": "v/h", "family": "v", "context_window": 100_000, name: value},
+                                  **_hour())])
     tiers = [{"above_input_tokens": 100_000, "price_in": 6.0, "price_out": 22.5}]
     with pytest.raises(ValueError, match=f"models.json.*{name}"):
         _load(tmp_path, [_row("v/t", price_tiers=tiers, **{name: 0.3})])
