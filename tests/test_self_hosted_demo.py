@@ -35,7 +35,6 @@ DEMO_SHA256 = {
     "models.json": "00aceac37c9ca8fff3f8b00d01e819df88cc3b474dc7c12c61f3e8ddf4004124",
     "tasks.json": "81793ea3b26dae535cbbdd18f754c22fa870d19d76f33c659340ad06f034f806",
 }
-RED = pytest.mark.xfail(strict=True, reason="v1.585 (row SELF1d) is not implemented yet")
 
 
 def run():
@@ -54,7 +53,6 @@ def paragraph():
     return found[0]
 
 
-@RED
 def test_the_summary_keys_task_and_row():
     summary = run()
     assert list(summary) == ["task", "bar", "row", "prices", "stages", "routed"]
@@ -64,7 +62,6 @@ def test_the_summary_keys_task_and_row():
     assert demo_module.SELF_HOSTED_ROW == ROW
 
 
-@RED
 def test_the_row_loads_as_the_routed_fine_tune(tmp_path):
     listed = {m.id: m for m, _ in demo_module.JUDGES}
     rows = [{"id": m.id, "family": m.family, "price_in": m.price_in, "price_out": m.price_out,
@@ -84,7 +81,6 @@ def test_the_row_loads_as_the_routed_fine_tune(tmp_path):
     assert (idle.price_in, idle.price_out) == pytest.approx((25 / 9, 250 / 9), rel=1e-12)
 
 
-@RED
 def test_the_fine_tune_is_routed_only_once_its_own_runs_clear_the_bar():
     # by hand: 1,000 in and 200 out at 1/9 and 10/9 USD per 1M is 0.000333...; at 0.02, 25 times
     # that, 0.008333..., over demo/atlas-mid's 1,000 x 2.0 + 200 x 10.0 per 1M, 0.004
@@ -100,7 +96,6 @@ def test_the_fine_tune_is_routed_only_once_its_own_runs_clear_the_bar():
     ]
 
 
-@RED
 def test_the_routed_paths_and_their_spend_by_basis():
     routed = run()["routed"]
     assert list(routed) == ["self_hosted", "list_only"]
@@ -117,7 +112,6 @@ def test_the_routed_paths_and_their_spend_by_basis():
     }
 
 
-@RED
 def test_each_attempt_on_the_fine_tune_names_its_basis_and_its_base_family(monkeypatch):
     monitors = []
 
@@ -139,7 +133,6 @@ def test_each_attempt_on_the_fine_tune_names_its_basis_and_its_base_family(monke
     assert {r["ts"] for r in records} == {"2026-01-01T00:00:00.000Z"}
 
 
-@RED
 def test_the_calibration_counts_of_each_model():
     passed = {}
     for model_id in (LIST, BASE, FT):
@@ -155,7 +148,6 @@ def test_the_calibration_counts_of_each_model():
         {"role": "user", "content": "Review the tag given to clause 7."}]
 
 
-@RED
 def test_the_demo_is_the_same_on_every_run():
     assert run() == run()
 
@@ -167,7 +159,6 @@ def test_run_demo_keeps_its_bytes_and_the_self_hosted_demo_is_not_api(tmp_path):
     assert "run_self_hosted_demo" not in model_routing.__all__
 
 
-@RED
 def test_the_readme_paragraph_on_self_hosted_models():
     text = paragraph()
     for key in ('`"pricing_basis": "self_hosted"`', "`usd_per_hour`", "`tokens_per_hour_in`",
@@ -190,7 +181,6 @@ def test_the_readme_paragraph_on_self_hosted_models():
     assert readme.index("Recurring tool work can be a route") < readme.index(text)
 
 
-@RED
 def test_the_production_note_states_deployment_and_base_model_as_shipped():
     text = (ROOT / "research" / "production-lessons.md").read_text(encoding="utf-8")
     lesson = text.split("\n### Your own trained model is a candidate, kept to the tasks it was "
@@ -213,4 +203,5 @@ def test_design_and_the_changelog_state_the_version():
     mine = [line for line in changelog if line.startswith("- v1.585 (")]
     assert len(mine) == 1
     assert "(11, row SELF1d). `run_self_hosted_demo()`" in mine[0]
-    assert "Changes `test_only_the_registry_reads_the_basis_yet`." in mine[0]
+    assert ("Changes `test_only_the_registry_reads_the_basis_yet` and "
+            "`test_only_the_registry_reads_the_keys_yet`.") in mine[0]

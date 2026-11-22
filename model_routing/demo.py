@@ -14,7 +14,7 @@ from .executor import AllModelsFailed, Executor, estimate_prompt_tokens, json_va
 from .monitor import Monitor, report
 from .procedures import Procedure, ProcedureResult
 from .providers import Completion, FakeProvider, ProviderError
-from .registry import Model, Registry
+from .registry import Model, Registry, self_hosted_prices
 from .router import Router
 from .stats import calibrate_from_results
 from .tasks import Task
@@ -443,3 +443,134 @@ def run_procedure_demo() -> dict:
             "input_tokens": sum(r["input_tokens"] for r in monitor.records),
         }
     return {"task": PROCEDURE_TASK, "bar": task.bar, "stages": stages, "routed": routed}
+
+
+# v1.585 (DESIGN 11, row SELF1d): a fine-tune its owner serves, priced from its hour
+SELF_HOSTED_TASK = "demo_clause_review"
+SELF_HOSTED_MODEL = "demo/birch-nano-ft"
+SELF_HOSTED_ROW = {
+    "id": SELF_HOSTED_MODEL, "base_model": "demo/birch-nano", "context_window": 32000,
+    "pricing_basis": "self_hosted", "deployment": "self_hosted", "usd_per_hour": 2.0,
+    "tokens_per_hour_in": 18000000, "tokens_per_hour_out": 1800000, "utilization": 0.5,
+    "input_cost_share": 0.5,
+}
+SELF_HOSTED_IDLE_UTILIZATION = 0.02
+SELF_HOSTED_ITEMS = 60
+SELF_HOSTED_CALLS = 20
+_SELF_HOSTED_LISTED = ("demo/atlas-mid", "demo/birch-nano")
+_MISSES = {"demo/atlas-mid": (40, 38), "demo/birch-nano": (4, 3), SELF_HOSTED_MODEL: (10, 9)}
+
+
+def _clause_messages(i: int) -> List[dict]:
+    return [{"role": "user", "content": f"Review the tag given to clause {i}."}]
+
+
+def _clause_gold(i: int) -> str:
+    return "accept" if i % 3 else "reject"
+
+
+def _clause_check(i: int) -> Callable[[str], bool]:
+    gold = _clause_gold(i)
+    return lambda text: text == gold
+
+
+def _reviewer(model_id: str) -> Callable[[List[dict]], Completion]:
+    """A model's fake answers: the gold one, but the other when ``i % every == miss``."""
+    every, miss = _MISSES[model_id]
+
+    def answer(messages: List[dict]) -> Completion:
+        i = int(messages[0]["content"].rsplit(" ", 1)[1].rstrip("."))
+        gold = _clause_gold(i)
+        text = gold if i % every != miss else ("reject" if gold == "accept" else "accept")
+        return Completion(text, 1000, 200)
+
+    return answer
+
+
+def _fine_tune(utilization: float) -> Model:
+    """The model ``SELF_HOSTED_ROW`` gives at ``utilization``, as Registry.load reads the row."""
+    row = SELF_HOSTED_ROW
+    price_in, price_out = self_hosted_prices(row["usd_per_hour"], row["tokens_per_hour_in"],
+                                             row["tokens_per_hour_out"], utilization,
+                                             row["input_cost_share"])
+    return Model(row["id"], "birch", price_in, price_out, row["context_window"],
+                 pricing_basis=row["pricing_basis"], deployment=row["deployment"],
+                 base_model=row["base_model"])
+
+
+def run_self_hosted_demo() -> dict:
+    """Route a fictional fine-tune that its owner serves against a list-priced model.
+
+    ``demo/birch-nano-ft`` is a fine-tune of ``demo/birch-nano`` priced from 2 USD an hour of
+    serving (``SELF_HOSTED_ROW``); ``demo/atlas-mid`` has list prices. Each model answers 60
+    clause reviews to calibrate; then four ``cost_effective`` decisions show the fine-tune
+    unmeasured and not routed, measured over the bar and the primary, the dearer route when
+    the same hour is used a fiftieth of the time, and kept off its base's output, and 20 more
+    reviews run through the executor with the fine-tune and without it, their spend split by
+    ``pricing_basis``. Returns ``{"task", "bar", "row", "prices", "stages", "routed"}`` (DESIGN
+    11 v1.585); writes no file, draws no random number and reads no clock, so every run returns
+    the same.
+    """
+    listed = [model for model, _ in JUDGES if model.id in _SELF_HOSTED_LISTED]
+    fine_tune = _fine_tune(SELF_HOSTED_ROW["utilization"])
+    registry = Registry(listed + [fine_tune])
+    task = Task(SELF_HOSTED_TASK, bar=0.75, min_samples=30, max_fallbacks=1)
+    provider = FakeProvider({model.id: _reviewer(model.id) for model in registry.models})
+
+    rows: Dict[str, List[dict]] = {}
+    for model in registry.models:
+        rows[model.id] = []
+        for i in range(SELF_HOSTED_ITEMS):
+            completion = provider.complete(model.id, _clause_messages(i), task.timeout_s)
+            rows[model.id].append({
+                "task": SELF_HOSTED_TASK, "model": model.id,
+                "correct": _clause_check(i)(completion.text),
+                "input_tokens": completion.input_tokens,
+                "output_tokens": completion.output_tokens})
+    every = [model.id for model in registry.models]
+
+    def router(models: Registry, measured: List[str]) -> Router:
+        stats = calibrate_from_results([row for model_id in measured for row in rows[model_id]])
+        return Router(models, {task.name: task}, stats)
+
+    stages = []
+    for stage, utilization, measured, generator in (
+            ("cold", SELF_HOSTED_ROW["utilization"], every[:2], None),
+            ("admitted", SELF_HOSTED_ROW["utilization"], every, None),
+            ("idle", SELF_HOSTED_IDLE_UTILIZATION, every, None),
+            ("generator_base", SELF_HOSTED_ROW["utilization"], every, "demo/birch-nano")):
+        models = Registry(listed + [_fine_tune(utilization)])
+        decision = router(models, measured).select(SELF_HOSTED_TASK, flavor="cost_effective",
+                                                   generator_model=generator)
+        candidate = next(c for c in decision.candidates if c.model_id == SELF_HOSTED_MODEL)
+        stages.append({"stage": stage, "utilization": utilization, "reason": candidate.reason,
+                       "list_cost": round(candidate.list_cost, 6), "primary": decision.primary})
+
+    routed = {}
+    for path, models in (("self_hosted", registry), ("list_only", Registry(listed))):
+        monitor = Monitor()
+        counter = iter(range(1, SELF_HOSTED_CALLS + 1))
+        executor = Executor(router(models, every), provider, monitor=monitor,
+                            clock=lambda: 0.0, now=lambda: _NOW,
+                            id_factory=lambda p=path, c=counter: f"{p}-{next(c):04d}")
+        route = None
+        for i in range(SELF_HOSTED_ITEMS, SELF_HOSTED_ITEMS + SELF_HOSTED_CALLS):
+            try:
+                decision = executor.call(SELF_HOSTED_TASK, _clause_messages(i),
+                                         flavor="cost_effective",
+                                         validate=_clause_check(i)).decision
+            except AllModelsFailed as exc:
+                decision = exc.decision
+            route = decision.primary if route is None else route
+        row = report(monitor.records, by="task")[0]
+        routed[path] = {
+            "route": route, "calls": row["calls"], "fallback_calls": row["fallback_calls"],
+            "failed_calls": row["failed_calls"],
+            "cost_usd": round(sum(r["cost_usd"] for r in monitor.records), 6),
+            "spend": [{"pricing_basis": group["group"], "calls": group["calls"],
+                       "cost_usd": group["cost_usd"]}
+                      for group in report(monitor.records, by="pricing_basis")],
+        }
+    return {"task": SELF_HOSTED_TASK, "bar": task.bar, "row": dict(SELF_HOSTED_ROW),
+            "prices": [fine_tune.price_in, fine_tune.price_out], "stages": stages,
+            "routed": routed}

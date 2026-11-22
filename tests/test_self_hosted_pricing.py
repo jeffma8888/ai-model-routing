@@ -252,12 +252,13 @@ def test_every_packaged_row_is_list_priced():
 def test_only_the_registry_reads_the_basis_yet():
     # v1.581 (row SELF1a): selection, execution, records and reports read price_in and price_out
     # as for any model; v1.584 (row SELF1c): the router, executor, report and CLI also name the
-    # basis in candidates, records, report groups and the select table, and no other module does
+    # basis in candidates, records, report groups and the select table; v1.585 (row SELF1d): the
+    # demo builds a self-hosted fine-tune and reads its spend by basis; no other module does
     naming = {path.name for path in PACKAGE.glob("*.py")
               if any(word in path.read_text(encoding="utf-8")
                      for word in ("pricing_basis", "self_hosted"))}
     assert naming == {"registry.py", "__init__.py", "router.py", "executor.py", "monitor.py",
-                      "cli.py"}
+                      "cli.py", "demo.py"}
 
 
 def test_the_production_note_says_the_hourly_row_ships():

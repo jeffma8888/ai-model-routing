@@ -220,12 +220,12 @@ def test_explicit_defaults_load_as_the_packaged_models(tmp_path):
 
 def test_only_the_registry_reads_the_keys_yet():
     # v1.582 (row SELF1b): routing, delegation, execution, records and reports read `family`
-    # as before, so without the keys every decision is v1.581's; SELF1c and SELF1d may name them
-    for path in sorted(PACKAGE.glob("*.py")):
-        if path.name == "registry.py":
-            continue
-        text = path.read_text(encoding="utf-8")
-        assert "base_model" not in text and "deployment" not in text, path.name
+    # as before, so without the keys every decision is v1.581's; v1.585 (row SELF1d): the demo
+    # builds a fine-tune with both keys, and no other module names them
+    naming = {path.name for path in PACKAGE.glob("*.py")
+              if any(word in path.read_text(encoding="utf-8")
+                     for word in ("base_model", "deployment"))}
+    assert naming == {"registry.py", "demo.py"}
 
 
 def test_design_and_the_changelog_state_the_version():
