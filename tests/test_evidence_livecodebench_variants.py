@@ -171,7 +171,7 @@ def reading(data, base):
     base_top = [r for r in base["summary"] if r["strategy"] == "routed" and r["bar"] == BARS[-1]][0]
     names = " and ".join(f"`{m}`" for m in sorted(chosen))
     three = (f"- Routed, held-out success is {r3(rows[0]['success'])} at every bar, with all 50 seeds routed to "
-             f"{names} wherever a route cleared, against {r3(base_rows[0]['success'])} for the routed row of the "
+             f"{names} at each bar, against {r3(base_rows[0]['success'])} for the routed row of the "
              f"67 runs in [results.json](../livecodebench/results.json); at bar 0.9 the `cleared_rate` is "
              f"{r3(at_top['cleared_rate'])} here and {r3(base_top['cleared_rate'])} there.")
     parts = []
@@ -208,10 +208,10 @@ def note_sentences(data):
     effort = []
     for m in ("openai/o4-mini", "openai/o3-mini-2025-01-31"):
         by_setting = {split(r)[1]: success[r] for r in models[m]}
-        effort.append(f"`{m}` {', '.join(r3(by_setting[v]) for v in ('low', 'medium'))} and "
+        effort.append(f"`{m}` {{}}{', '.join(r3(by_setting[v]) for v in ('low', 'medium'))} and "
                       f"{r3(by_setting['high'])}")
-    uber = (f"On LiveCodeBench's public runs, {effort[0]} of held-out problems at low, medium and high effort, "
-            f"and {effort[1]}, with no cost recorded {link}.")
+    uber = (f"On LiveCodeBench's public runs, {effort[0].format('solves ')} of held-out problems at low, medium "
+            f"and high effort, and {effort[1].format('')}, with no cost recorded {link}.")
     return harvey, uber
 
 
