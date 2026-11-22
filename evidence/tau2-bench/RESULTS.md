@@ -11,34 +11,34 @@ The bars run from 0.3 to 0.8, every tenth from the one below the lowest per-doma
 
 ## Results
 
-Routed rows: `success` is the share of held-out tasks whose conversation passed the program checks, pooled over the three domains, `cost_usd` is the recorded agent cost of those conversations (both averaged over the 50 seeds), `vs_best_model` is that cost divided by the cost of the best single agent (`anthropic/claude-3-7-sonnet-20250219`), `cleared_rate` is the share of the 150 (domain, seed) cells where some agent cleared the bar on the calibration half, and `bar_violation_rate` is the share of cleared cells whose held-out success fell below the bar. Baseline rows do not depend on the bar or the flavor.
+Routed rows: `success` is the share of held-out tasks whose conversation passed the program checks, pooled over the three domains, `cost_usd` is the recorded agent cost of those conversations (both averaged over the 50 seeds), `vs_best_model` is that cost divided by the cost of the best single agent (`anthropic/claude-3-7-sonnet-20250219`), `cleared_rate` is the share of the 150 (domain, seed) cells where some agent cleared the bar on the calibration half, and `bar_violation_rate` is the share of cleared cells whose held-out success fell below the bar. `cost_per_correct_usd`, in both tables, is the held-out agent cost over the held-out tasks that passed, both summed over the 50 seeds and the domains before dividing (`evaluate --cost-per-correct`, DESIGN 12.3). Baseline rows do not depend on the bar or the flavor.
 
 ```text
 $ python evidence/routerbench/results.py --table evidence/tau2-bench/results.json
-bar  flavor          success  cost_usd  vs_best_model  cleared_rate  bar_violation_rate
----  --------------  -------  --------  -------------  ------------  ------------------
-0.3  cost_effective  0.547    9.1340    0.144          0.667         0.000
-0.3  cost_blind      0.589    40.3751   0.639          0.667         0.000
-0.4  cost_effective  0.544    15.6738   0.248          0.400         0.033
-0.4  cost_blind      0.589    40.3751   0.639          0.400         0.033
-0.5  cost_effective  0.545    16.4831   0.261          0.333         0.000
-0.5  cost_blind      0.589    40.3751   0.639          0.333         0.000
-0.6  cost_effective  0.559    24.2031   0.383          0.327         0.061
-0.6  cost_blind      0.589    40.3751   0.639          0.327         0.000
-0.7  cost_effective  0.578    30.7979   0.487          0.080         0.083
-0.7  cost_blind      0.589    40.3751   0.639          0.080         0.000
-0.8  cost_effective  0.578    31.0962   0.492          0.000         -
-0.8  cost_blind      0.589    40.3751   0.639          0.000         -
+bar  flavor          success  cost_usd  vs_best_model  cleared_rate  bar_violation_rate  cost_per_correct_usd
+---  --------------  -------  --------  -------------  ------------  ------------------  --------------------
+0.3  cost_effective  0.547    9.1340    0.144          0.667         0.000               0.120756
+0.3  cost_blind      0.589    40.3751   0.639          0.667         0.000               0.495765
+0.4  cost_effective  0.544    15.6738   0.248          0.400         0.033               0.208372
+0.4  cost_blind      0.589    40.3751   0.639          0.400         0.033               0.495765
+0.5  cost_effective  0.545    16.4831   0.261          0.333         0.000               0.218608
+0.5  cost_blind      0.589    40.3751   0.639          0.333         0.000               0.495765
+0.6  cost_effective  0.559    24.2031   0.383          0.327         0.061               0.313349
+0.6  cost_blind      0.589    40.3751   0.639          0.327         0.000               0.495765
+0.7  cost_effective  0.578    30.7979   0.487          0.080         0.083               0.385745
+0.7  cost_blind      0.589    40.3751   0.639          0.080         0.000               0.495765
+0.8  cost_effective  0.578    31.0962   0.492          0.000         -                   0.389091
+0.8  cost_blind      0.589    40.3751   0.639          0.000         -                   0.495765
 
-strategy                                    success  cost_usd
-------------------------------------------  -------  --------
-oracle                                      0.801    7.6369
-best_on_calibration                         0.578    31.0962
-cheapest                                    0.548    3.6044
-model:anthropic/claude-3-7-sonnet-20250219  0.612    63.2133
-model:openai/gpt-4.1-2025-04-14             0.562    11.3983
-model:openai/gpt-4.1-mini-2025-04-14        0.548    3.6044
-model:openai/o4-mini-2025-04-16             0.571    10.2499
+strategy                                    success  cost_usd  cost_per_correct_usd
+------------------------------------------  -------  --------  --------------------
+oracle                                      0.801    7.6369    0.068988
+best_on_calibration                         0.578    31.0962   0.389091
+cheapest                                    0.548    3.6044    0.047526
+model:anthropic/claude-3-7-sonnet-20250219  0.612    63.2133   0.747202
+model:openai/gpt-4.1-2025-04-14             0.562    11.3983   0.146697
+model:openai/gpt-4.1-mini-2025-04-14        0.548    3.6044    0.047526
+model:openai/o4-mini-2025-04-16             0.571    10.2499   0.129844
 ```
 
 No routed row beats any of the 4 single agents on both counts: against each of them, every routed row in the table has lower held-out success or a higher cost.
@@ -53,7 +53,7 @@ No routed row beats any of the 4 single agents on both counts: against each of t
 - The 4 agents date from 2025, and the costs are those the runs recorded at the prices of their time, not today's list prices
 - The airline and retail tasks are the June 2025 task sets, which the folder's README says differ from the current base tasks ("airline: 29 tasks differ, retail: 114"); telecom is unchanged
 - A model, `openai/gpt-4.1-2025-04-14`, plays the user in every conversation, so a reward is the agent's success with that simulated user, and a failed conversation can be the simulator's fault
-- Size: the committed file, 44,822 bytes, holds only the summary and the routed per-domain rows (DESIGN 12.7)
+- Size: the committed file, 51,490 bytes, holds only the summary and the routed per-domain rows (DESIGN 12.7)
 
 ## Sensitivity
 
@@ -186,7 +186,7 @@ python evidence/tau2-bench/domains.py --evaluate tau2-cascades-evaluate.json --o
 ```bash
 python -m pip install -e .
 python evidence/tau2-bench/convert.py --out tau2-matrix.jsonl
-model-routing evaluate --outcomes tau2-matrix.jsonl --bar 0.3 0.4 0.5 0.6 0.7 0.8 --seeds 50 --json > tau2-evaluate.json
+model-routing evaluate --outcomes tau2-matrix.jsonl --bar 0.3 0.4 0.5 0.6 0.7 0.8 --seeds 50 --cost-per-correct --json > tau2-evaluate.json
 python evidence/routerbench/results.py --evaluate tau2-evaluate.json --out evidence/tau2-bench/results.json
 python evidence/routerbench/results.py --table evidence/tau2-bench/results.json
 ```

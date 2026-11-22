@@ -28,7 +28,7 @@ instead would leave it over the cap, it drops its `cost_effective` bullet, the s
 v1.571 (DESIGN 12.15 v1.571, row CPS1d): the committed file is made with ``--cost-per-correct``, so every
 summary and per-task row ends in ``cost_per_correct_usd``; a ``model:`` row's value is the same in every
 (bar, flavor), and with the pinned files cached a test sums each strategy's held-out cost and passed tasks
-by hand at the lowest bar. Row CPS1d wrote those tests under strict xfail.
+by hand at the lowest bar. Row CPS1d wrote those tests under strict xfail; the implementing commit removed it.
 """
 
 import importlib.util
@@ -54,7 +54,7 @@ REGENERATE = (
     "python -m pip install -e .\n"
     "python evidence/tau2-bench/convert.py --out tau2-matrix.jsonl\n"
     "model-routing evaluate --outcomes tau2-matrix.jsonl --bar 0.3 0.4 0.5 0.6 0.7 0.8 --seeds 50"
-    " --json > tau2-evaluate.json\n"
+    " --cost-per-correct --json > tau2-evaluate.json\n"
     "python evidence/routerbench/results.py --evaluate tau2-evaluate.json"
     " --out evidence/tau2-bench/results.json\n"
     "python evidence/routerbench/results.py --table evidence/tau2-bench/results.json\n"
@@ -248,10 +248,8 @@ def test_committed_results_are_small_reduced_and_pinned(rs):
 
 
 CPC = "cost_per_correct_usd"
-RED_CPC = pytest.mark.xfail(strict=True, reason="v1.571: results.json is regenerated in the implementing commit")
 
 
-@RED_CPC
 def test_every_row_ends_in_cost_per_correct_and_a_model_rows_value_is_one():
     results = committed()
     rows = results["summary"] + results["per_task"]
@@ -544,8 +542,9 @@ def extracts(cv):
     return by_trial
 
 
-def run_evaluate(rows):
-    result = evaluate(outcomes_from_rows(rows), bars=BARS, seeds=range(50))
+def run_evaluate(rows, cost_per_correct=False):
+    # v1.571: the committed file is made with cost_per_correct=True; the sensitivity runs are not
+    result = evaluate(outcomes_from_rows(rows), bars=BARS, seeds=range(50), cost_per_correct=cost_per_correct)
     result.pop("cells")
     return result
 
@@ -553,7 +552,7 @@ def run_evaluate(rows):
 def test_real_results_regenerate_byte_identical(rs, cv, extracts):
     rows, report = cv.convert(extracts[0])
     assert report["models"] == MODELS and report["kept"] == TASKS
-    assert json.dumps(rs.reduce(run_evaluate(rows)), indent=2) + "\n" == RESULTS.read_text(
+    assert json.dumps(rs.reduce(run_evaluate(rows, cost_per_correct=True)), indent=2) + "\n" == RESULTS.read_text(
         encoding="utf-8")
 
 
@@ -602,7 +601,6 @@ def test_real_sensitivity_lines_are_in_results_md(cv, extracts):
         assert needle + "\n" in text, needle
 
 
-@RED_CPC
 def test_real_cost_per_correct_at_the_lowest_bar_is_the_hand_sum(cv, extracts):
     # v1.571 (12.15 v1.571): from the converter's rows and the 12.2 split, each strategy but `oracle`
     # summed by hand at bar 0.3 `cost_effective`: its held-out cost and passed tasks over the domains

@@ -5,7 +5,7 @@ and when some `summary` row has that key `table` gives the routed and the baseli
 column, `cost_per_correct_usd`, to 6 decimals and `-` for None; a row the two tables read that
 lacks it is a `ValueError` naming its bar, flavor and strategy; the slices table never gains it.
 Without the key the tables are v1.570's (a guard that passes before and after). Row CPS1d wrote
-the tests that need the column under strict xfail.
+the tests that need the column under strict xfail, and the implementing commit removed it.
 
 The planted file has one bar, 0.5, in both flavors. Its best model is `model:v/b` (success 0.8,
 cost 8.0), so `vs_best_model` is 3 / 8 = 0.375 for the `cost_effective` routed row and 8 / 8 for
@@ -21,7 +21,6 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 KEY = "cost_per_correct_usd"
-RED = pytest.mark.xfail(strict=True, reason="v1.571: table gains the column in the implementing commit")
 
 
 def load():
@@ -105,12 +104,10 @@ def test_without_the_key_the_tables_are_v1570s(rs):
     assert rs.table(planted(with_key=False)) == V1570
 
 
-@RED
 def test_with_the_key_both_tables_end_in_the_column(rs):
     assert rs.table(planted()) == V1571
 
 
-@RED
 @pytest.mark.parametrize("flavor, strategy", [("cost_blind", "routed"), ("cost_effective", "routed"),
                                               ("cost_effective", "oracle"),
                                               ("cost_effective", "model:v/b")])
@@ -122,7 +119,6 @@ def test_a_row_the_tables_read_without_the_key_is_a_value_error(rs, flavor, stra
     assert str(info.value) == f"summary row bar 0.5, {flavor}, {strategy} has no {KEY!r} key"
 
 
-@RED
 def test_a_row_the_tables_do_not_read_may_lack_the_key(rs):
     # the cost_blind block's baselines are not printed: the baselines come from the first block
     results = planted()
@@ -153,7 +149,6 @@ def test_the_slices_table_never_gains_the_column(rs):
     assert len(third) == 2 + 4 and all(len(line.split()) == 9 for line in third[2:])
 
 
-@RED
 def test_the_cli_prints_the_column_and_refuses_a_row_without_it(rs, tmp_path, capsys):
     path = tmp_path / "results.json"
     path.write_text(json.dumps(planted()), encoding="utf-8")
@@ -168,7 +163,6 @@ def test_the_cli_prints_the_column_and_refuses_a_row_without_it(rs, tmp_path, ca
     assert captured.err == f"error: summary row bar 0.5, cost_effective, cheapest has no {KEY!r} key\n"
 
 
-@RED
 def test_tau2_bench_is_the_one_committed_results_file_with_the_key():
     carrying, checked = [], 0
     for path in sorted((ROOT / "evidence").glob("*/*.json")):

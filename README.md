@@ -678,7 +678,7 @@ Regenerate (the converter downloads the 12 pinned files, about 296 MB, into a ca
 ```bash
 python -m pip install -e .
 python evidence/tau2-bench/convert.py --out tau2-matrix.jsonl
-model-routing evaluate --outcomes tau2-matrix.jsonl --bar 0.3 0.4 0.5 0.6 0.7 0.8 --seeds 50 --json > tau2-evaluate.json
+model-routing evaluate --outcomes tau2-matrix.jsonl --bar 0.3 0.4 0.5 0.6 0.7 0.8 --seeds 50 --cost-per-correct --json > tau2-evaluate.json
 python evidence/routerbench/results.py --evaluate tau2-evaluate.json --out evidence/tau2-bench/results.json
 python evidence/routerbench/results.py --table evidence/tau2-bench/results.json
 ```

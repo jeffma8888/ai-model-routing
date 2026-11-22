@@ -701,7 +701,9 @@ def test_a_broken_hold_is_named(text, held, message):
 # v1.464 (row DOC39b, review iter-313 nit 3): `This repo` for `The repo` in three licence bullets grew
 # `### tau2-bench` and `### LLMRouterBench` by a byte each, and 12.15 and 12.19 give each size from v1.464.
 # v1.475 (row DOC44c): the 12.15 bullet of row DOC44c gives the size its trim leaves.
-TRIM_SIZES = {"tau2-bench": ("12.15", "from v1.475 the subsection is {:,} bytes by that measure (4,993 from v1.464)"),
+# v1.571 (row CPS1d): the 12.15 v1.475 bullet restates its size in place, 19 bytes more for --cost-per-correct.
+TRIM_SIZES = {"tau2-bench": ("12.15", "from v1.571 the subsection is {:,} bytes by that measure (4,550 from v1.475, "
+                                      "4,993 from v1.464)"),
               # v1.503 (row DOC44e): the 12.19 bullet of that row gives the size its trim leaves (v1.504,
               # review iter-358: its trim to 4,196).
               "LLMRouterBench": ("12.19", "from v1.504 the subsection is {:,} bytes by that measure (4,272 at "

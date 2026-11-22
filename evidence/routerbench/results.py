@@ -7,7 +7,9 @@ Usage:
 Standard library only. ``--evaluate`` reads the output of ``model-routing evaluate --json``
 and keeps the summary and the routed per-task rows, and a sliced run's ``per_slice`` and
 ``slice_summary`` (v1.521); ``--table`` prints the two tables that RESULTS.md shows, and a
-third, the slices table, when the file has ``slice_summary``.
+third, the slices table, when the file has ``slice_summary``. When its summary rows carry
+``cost_per_correct_usd`` (``evaluate --cost-per-correct``), the first two tables end in that
+column (v1.571).
 """
 
 from __future__ import annotations
@@ -21,6 +23,7 @@ KEYS = ("config", "tasks", "summary", "per_task")
 SLICE_KEYS = ("per_slice", "slice_summary")
 SLICE_COLUMNS = ("success", "cost_usd", "below_bar_rate", "cleared_rate", "bar_violation_rate",
                  "slice_miss_rate")
+PER_CORRECT = "cost_per_correct_usd"
 
 
 def reduce(result: dict) -> dict:
@@ -52,6 +55,15 @@ def _rate(value) -> str:
     return "-" if value is None else f"{value:.3f}"
 
 
+def _per_correct(row) -> list[str]:
+    """v1.571: the row's cost per correct item to 6 decimals, ``-`` for None."""
+    if PER_CORRECT not in row:
+        raise ValueError(f"summary row bar {row['bar']}, {row['flavor']}, {row['strategy']} has no "
+                         f"{PER_CORRECT!r} key")
+    value = row[PER_CORRECT]
+    return ["-" if value is None else f"{value:.6f}"]
+
+
 def table(results: dict) -> str:
     for key in ("config", "summary"):
         if key not in results:
@@ -65,6 +77,10 @@ def table(results: dict) -> str:
     if not models:
         raise ValueError(f"no model: summary row for bar {blocks[0][0]}, {blocks[0][1]}")
     best = min(models, key=lambda r: (-r["success"], r["cost_usd"], r["strategy"]))
+    # v1.571: a last column in both tables when some summary row carries the key
+    has_per_correct = any(PER_CORRECT in r for r in summary)
+    per_correct = _per_correct if has_per_correct else (lambda row: [])
+    extra = [PER_CORRECT] if has_per_correct else []
     routed_rows = []
     for bar, flavor in blocks:
         routed = [r for r in summary
@@ -75,12 +91,12 @@ def table(results: dict) -> str:
         ratio = None if best["cost_usd"] == 0 else row["cost_usd"] / best["cost_usd"]
         routed_rows.append([str(bar), flavor, _rate(row["success"]), f"{row['cost_usd']:.4f}",
                             _rate(ratio), _rate(row["cleared_rate"]),
-                            _rate(row["bar_violation_rate"])])
-    baseline_rows = [[r["strategy"], _rate(r["success"]), f"{r['cost_usd']:.4f}"]
+                            _rate(row["bar_violation_rate"]), *per_correct(row)])
+    baseline_rows = [[r["strategy"], _rate(r["success"]), f"{r['cost_usd']:.4f}", *per_correct(r)]
                      for r in first if r["strategy"] != "routed"]
     lines = _layout(["bar", "flavor", "success", "cost_usd", "vs_best_model", "cleared_rate",
-                     "bar_violation_rate"], routed_rows)
-    lines += [""] + _layout(["strategy", "success", "cost_usd"], baseline_rows)
+                     "bar_violation_rate", *extra], routed_rows)
+    lines += [""] + _layout(["strategy", "success", "cost_usd", *extra], baseline_rows)
     if "slice_summary" in results:
         lines += [""] + _layout(["bar", "flavor", "strategy", *SLICE_COLUMNS],
                                 _slice_rows(results["slice_summary"], blocks))
