@@ -52,9 +52,9 @@ def row(model_id, family="v", **extra):
 
 def test_the_two_fields_follow_pricing_basis():
     names = [f.name for f in dataclasses.fields(Model)]
-    # the last two fields until v1.586 adds `scope_tasks` after them (DESIGN 4.1)
-    assert names[-4:] == ["pricing_basis", "deployment", "base_model", "scope_tasks"]
-    assert list(dataclasses.asdict(base()))[-3:-1] == ["deployment", "base_model"]
+    # the last two fields until v1.586 adds `scope_tasks` after them and v1.587 the two cache prices (DESIGN 4.1)
+    assert names[-6:] == ["pricing_basis", "deployment", "base_model", "scope_tasks", "price_cached_in", "price_cache_write"]
+    assert list(dataclasses.asdict(base()))[-5:-3] == ["deployment", "base_model"]
 
 
 def test_a_list_model_runs_at_an_api_and_a_self_hosted_one_where_its_owner_serves_it():

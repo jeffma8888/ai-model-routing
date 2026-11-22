@@ -63,11 +63,12 @@ def test_out_of_scope_is_exported_after_procedure_unknown_model():
 
 
 def test_scope_tasks_is_the_last_field_and_defaults_to_every_task():
-    assert [f.name for f in dataclasses.fields(Model)][-4:] == ["pricing_basis", "deployment", "base_model",
-                                                                "scope_tasks"]
+    # the last field until v1.587 adds the two cache prices after it (DESIGN 4.1)
+    assert [f.name for f in dataclasses.fields(Model)][-6:] == ["pricing_basis", "deployment", "base_model",
+                                                                "scope_tasks", "price_cached_in", "price_cache_write"]
     plain = strong()
     assert plain.scope_tasks == ()
-    assert list(dataclasses.asdict(plain))[-1] == "scope_tasks"
+    assert list(dataclasses.asdict(plain))[-3] == "scope_tasks"
     assert dataclasses.asdict(fine_tune(("a", "b*")))["scope_tasks"] == ("a", "b*")
     assert fine_tune(("a", "a")).scope_tasks == ("a", "a")  # a repeated pattern is kept
 

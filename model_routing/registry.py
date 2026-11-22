@@ -19,6 +19,7 @@ _PRICING_BASES = ("list", "self_hosted")
 _DEPLOYMENTS = ("api", "self_hosted")
 _HOUR_KEYS = ("usd_per_hour", "tokens_per_hour_in", "tokens_per_hour_out", "utilization",
               "input_cost_share")
+_CACHE_PRICES = ("price_cached_in", "price_cache_write")
 
 
 def _is_price(value) -> bool:
@@ -189,6 +190,8 @@ class Model:
     for a self-hosted-priced model and ``"api"`` otherwise; ``base_model`` names a fine-tune's base,
     whose family a ``Registry`` requires it to have (4.1 v1.582). ``scope_tasks`` holds the task names
     or glob patterns the model is a candidate on, ``()`` meaning every task (4.1 v1.586).
+    ``price_cached_in`` and ``price_cache_write`` are USD per 1M input tokens read from and written to
+    the provider's prompt cache, ``None`` meaning unknown, so the call's input price (4.1 v1.587).
     """
 
     id: str
@@ -204,6 +207,8 @@ class Model:
     deployment: Optional[str] = None
     base_model: Optional[str] = None
     scope_tasks: Tuple[str, ...] = ()
+    price_cached_in: Optional[float] = None
+    price_cache_write: Optional[float] = None
 
     def __post_init__(self):
         if not isinstance(self.pricing_basis, str) or self.pricing_basis not in _PRICING_BASES:
@@ -223,6 +228,23 @@ class Model:
         scope = self.scope_tasks  # DESIGN 4.1 v1.586: a tuple, so a frozen model's scope cannot change
         if not isinstance(scope, tuple) or not all(isinstance(p, str) and p for p in scope):
             raise ValueError(f"scope_tasks must be a tuple of non-empty strings, got {scope!r}")
+        for name in _CACHE_PRICES:  # DESIGN 4.1 v1.587
+            value = getattr(self, name)
+            if value is None:
+                continue
+            try:
+                finite = _is_price(value)
+            except OverflowError:  # an int too large for a float
+                finite = False
+            if not finite:
+                raise ValueError(f"{name} must be None or a finite number >= 0, got {value!r}")
+            if self.price_tiers:
+                raise ValueError(f"a model with price_tiers takes no {name}: one cache price could "
+                                 "under-state a long prompt's reads, so its tier's input price applies")
+            if self.pricing_basis == "self_hosted":
+                raise ValueError(f"a self_hosted model takes no {name}: its hour's throughputs already "
+                                 "hold whatever its serving cached")
+            object.__setattr__(self, name, float(value))
         variant = self.variant
         if variant is not None:  # DESIGN 4.1 v1.572; an id without a variant is v1.571's
             if not isinstance(variant, Variant):
@@ -282,14 +304,33 @@ class Model:
             return False
         return today > date.fromisoformat(self.price_valid_until)
 
-    def cost(self, input_tokens: int, output_tokens: int) -> float:
+    def cost(self, input_tokens: int, output_tokens: int, *, cached_input_tokens: int = 0,
+             cache_write_tokens: int = 0) -> float:
         """Return the list-price cost in USD of one call with these token counts.
 
         The call pays the prices of the last tier whose threshold its input is over, on all
-        of its tokens, or ``price_in`` and ``price_out`` when it is over none.
+        of its tokens, or ``price_in`` and ``price_out`` when it is over none. ``input_tokens``
+        counts every input token, the call's cached reads and cache writes included; those are
+        priced at ``price_cached_in`` and ``price_cache_write``, each the input price when
+        ``None``, and with both counts 0 the cost is v1.586's bit for bit (DESIGN 4.1 v1.587).
         """
         price_in, price_out = _tier_prices(self, input_tokens)
-        return (input_tokens * price_in + output_tokens * price_out) / 1_000_000
+        if (type(cached_input_tokens) is int and type(cache_write_tokens) is int
+                and not cached_input_tokens and not cache_write_tokens):  # no bool: False is refused
+            return (input_tokens * price_in + output_tokens * price_out) / 1_000_000
+        for name, count in (("cached_input_tokens", cached_input_tokens),
+                            ("cache_write_tokens", cache_write_tokens)):
+            if not isinstance(count, int) or isinstance(count, bool) or count < 0:
+                raise ValueError(f"{name} must be an int >= 0, got {count!r}")
+        if cached_input_tokens + cache_write_tokens > input_tokens:
+            raise ValueError(f"cached_input_tokens {cached_input_tokens} plus cache_write_tokens "
+                             f"{cache_write_tokens} is over input_tokens {input_tokens}, which counts "
+                             "every input token of the call")
+        read = price_in if self.price_cached_in is None else self.price_cached_in
+        write = price_in if self.price_cache_write is None else self.price_cache_write
+        uncached = input_tokens - cached_input_tokens - cache_write_tokens
+        return (uncached * price_in + cached_input_tokens * read + cache_write_tokens * write
+                + output_tokens * price_out) / 1_000_000
 
     def base_cost(self, input_tokens: int, output_tokens: int) -> float:
         """Return the cost at ``price_in`` and ``price_out`` whatever the tiers.
@@ -338,6 +379,10 @@ def _load_prices(row) -> Tuple[str, float, float]:
     if any(key in row for key in ("price_in", "price_out", "price_tiers")):
         raise ValueError("a self_hosted row's prices are derived from its hour, so it takes no "
                          "price_in, price_out or price_tiers")
+    cache = [key for key in _CACHE_PRICES if key in row]  # DESIGN 4.1 v1.587, its presence whatever its value
+    if cache:
+        raise ValueError(f"a self_hosted row takes no {', '.join(cache)}: its hour's throughputs already "
+                         "hold whatever its serving cached")
     missing = [key for key in _HOUR_KEYS if row.get(key) is None]
     if missing:
         raise ValueError(f"a self_hosted row needs {', '.join(missing)}")
@@ -465,6 +510,8 @@ class Registry:
                     deployment=row.get("deployment"),
                     base_model=row.get("base_model"),
                     scope_tasks=_load_scope(row.get("scope_tasks")),
+                    price_cached_in=row.get("price_cached_in"),  # DESIGN 4.1 v1.587: as is, so "0.3" raises
+                    price_cache_write=row.get("price_cache_write"),
                 )
                 if "@" in base.id:
                     raise ValueError("a row id must not hold '@', which joins a model and "
