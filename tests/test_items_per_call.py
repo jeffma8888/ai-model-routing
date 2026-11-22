@@ -61,8 +61,10 @@ def measured_stats(tokens=True):
 # 4.1: the field, the property and the registry key
 
 
-def test_items_per_call_is_the_last_field_of_a_variant_and_defaults_to_1():
-    assert [f.name for f in dataclasses.fields(Variant)][-2:] == ["context_policy", "items_per_call"]
+def test_items_per_call_follows_context_policy_and_defaults_to_1():
+    # v1.574 (row VAR1d) adds provider_options after it, the last field
+    assert [f.name for f in dataclasses.fields(Variant)][-3:] == [
+        "context_policy", "items_per_call", "provider_options"]
     assert Variant("lean").items_per_call == 1
     assert Variant("batch4", items_per_call=4).items_per_call == 4
     assert Variant("b", "high", "agent 1", {}, 16).items_per_call == 16
@@ -87,7 +89,8 @@ def test_registry_load_reads_items_per_call_and_a_null_is_absent(tmp_path):
     assert [m.items_per_call for m in registry.models] == [1, 4, 1]
     assert registry.get(BATCH4).variant == Variant("batch4", harness="grader 1", items_per_call=4)
     as_dict = dataclasses.asdict(registry.get(BATCH4))["variant"]
-    assert list(as_dict)[-1] == "items_per_call" and as_dict["items_per_call"] == 4
+    assert list(as_dict)[-2:] == ["items_per_call", "provider_options"]  # v1.574
+    assert as_dict["items_per_call"] == 4
     assert dataclasses.asdict(registry.get("v/judge@plain"))["variant"]["items_per_call"] == 1
 
 

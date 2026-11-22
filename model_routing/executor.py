@@ -225,10 +225,19 @@ class Executor:
             tuple(attempts), decision)
 
     def _run(self, model_id: str, messages: List[dict], task, registry):
-        """One timed provider call: its attempt, ``ok`` or ``error``, and the completion or None."""
+        """One timed provider call: its attempt, ``ok`` or ``error``, and the completion or None.
+
+        A route with provider options passes a new copy of them as ``options``; any other route
+        calls the provider as before v1.574 (DESIGN 7 v1.574).
+        """
+        options = registry.get(model_id).provider_options if model_id in registry else {}
         start = self.clock()
         try:
-            completion = self.provider.complete(model_id, messages, task.timeout_s)
+            if options:
+                completion = self.provider.complete(model_id, messages, task.timeout_s,
+                                                    options=options)
+            else:
+                completion = self.provider.complete(model_id, messages, task.timeout_s)
         except ProviderError as exc:
             latency_ms = float((self.clock() - start) * 1000.0)
             return Attempt(model_id, "error", f"{type(exc).__name__}: {exc}",

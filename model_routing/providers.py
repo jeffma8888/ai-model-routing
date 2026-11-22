@@ -8,6 +8,8 @@ import re
 import urllib.error
 import urllib.parse
 import urllib.request
+from collections.abc import Mapping
+from copy import deepcopy
 from dataclasses import dataclass
 from typing import Callable, Dict, List, Optional, Protocol, Tuple
 
@@ -34,7 +36,11 @@ class ProviderError(Exception):
 
 
 class Provider(Protocol):
-    """Anything that can complete a chat for a model ID."""
+    """Anything that can complete a chat for a model ID.
+
+    A provider that serves a route with provider options also takes them as the keyword
+    ``options``; the executor passes it only on such a route (DESIGN 6 and 7 v1.574).
+    """
 
     def complete(self, model_id: str, messages: List[dict], timeout_s: float) -> Completion:
         """Return a completion or raise :class:`ProviderError`."""
@@ -46,16 +52,20 @@ class FakeProvider:
 
     Exceptions raised by a script callable propagate unchanged; a model ID
     missing from the script raises :class:`ProviderError`. ``calls`` records
-    ``(model_id, messages)`` in call order.
+    ``(model_id, messages)`` in call order, and ``call_options`` each call's
+    ``options``: ``None`` when it passed none, else a deep copy (DESIGN 6 v1.574).
     """
 
     def __init__(self, script: Dict[str, Callable[[List[dict]], Completion]]):
         self.script = script
         self.calls: List[Tuple[str, List[dict]]] = []
+        self.call_options: List[Optional[dict]] = []
 
-    def complete(self, model_id: str, messages: List[dict], timeout_s: float) -> Completion:
+    def complete(self, model_id: str, messages: List[dict], timeout_s: float, *,
+                 options: Optional[Mapping] = None) -> Completion:
         """Record the call and return ``script[model_id](messages)``."""
         self.calls.append((model_id, messages))
+        self.call_options.append(None if options is None else deepcopy(options))
         if model_id not in self.script:
             raise ProviderError(f"no scripted response for model {model_id!r}")
         return self.script[model_id](messages)
@@ -110,16 +120,29 @@ class OpenAICompatibleProvider:
     def _clean(self, text: str, key: str) -> str:
         return _redact_values(_strip_urls(text), self._secrets(key))
 
-    def complete(self, model_id: str, messages: List[dict], timeout_s: float) -> Completion:
+    def complete(self, model_id: str, messages: List[dict], timeout_s: float, *,
+                 options: Optional[Mapping] = None) -> Completion:
         """POST the messages and parse the first choice and the token usage.
 
         Every :class:`ProviderError` raised here has the API key value
         replaced with ``[redacted]``, shows URLs without userinfo, query string
         or fragment, and carries no exception chain.
         ``timeout_s`` bounds each blocking socket operation, not the total call.
+        ``options`` (a variant's provider options, DESIGN 6 v1.574) follow ``model`` and
+        ``messages`` in the body; options that are not a mapping, or that hold a key of
+        ``RESERVED_OPTIONS``, raise ``ValueError`` before any request, naming no value.
         """
-        body = json.dumps({"model": self.model_map.get(model_id, model_id),
-                           "messages": messages}).encode("utf-8")
+        request_body = {"model": self.model_map.get(model_id, model_id), "messages": messages}
+        if options is not None:
+            if not isinstance(options, Mapping):
+                raise ValueError(f"options must be None or a mapping, "
+                                 f"got {type(options).__name__}")
+            refused = [key for key in options if key in RESERVED_OPTIONS]
+            if refused:
+                raise ValueError(f"option {refused[0]!r} is refused: the adapter sets model and "
+                                 f"messages and reads one JSON response, not a stream")
+            request_body.update(options)
+        body = json.dumps(request_body).encode("utf-8")
         headers = {"Content-Type": "application/json"}
         key = os.environ.get(self.api_key_env) or ""
         if key:
@@ -169,6 +192,8 @@ class OpenAICompatibleProvider:
 
 
 BODY_SNIPPET_CHARS = 200
+# DESIGN 6 v1.574: the body keys the adapter sets, and `stream`, which it does not read
+RESERVED_OPTIONS = ("model", "messages", "stream")
 REDACTED = "[redacted]"
 # Shorter base_url query values (v=1, beta=true) cannot carry a credential.
 MIN_QUERY_SECRET_CHARS = 8

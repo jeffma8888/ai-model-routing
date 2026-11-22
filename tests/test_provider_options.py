@@ -306,7 +306,10 @@ def test_records_keep_their_bytes_with_options(tmp_path):
         registry = load(tmp_path, [row("v/m", variants=variants)])
         stats = Stats()
         stats.add("review", "v/m@high", 30, 30)
+        stats.add("review", "v/m", 30, 30, input_tokens=60_000, output_tokens=12_000,
+                  token_trials=30)
         router = Router(registry, {"review": review_task()}, stats)
+        assert router.select("review").fallbacks == ("v/m",)
         monitor = Monitor()
         result = fixed_executor(router, FakeProvider({"v/m@high": fail, "v/m": ok}),
                                 monitor).call("review", MESSAGES)

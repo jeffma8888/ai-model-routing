@@ -13,12 +13,38 @@ from typing import Dict, Iterable, Mapping, Optional, Tuple, Union
 PathLike = Union[str, Path]
 _ISO_DAY = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}")
 _VARIANT_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
-_VARIANT_KEYS = ("reasoning_effort", "harness", "context_policy", "items_per_call")
+_VARIANT_KEYS = ("reasoning_effort", "harness", "context_policy", "items_per_call",
+                 "provider_options")
 
 
 def _is_price(value) -> bool:
     return (isinstance(value, (int, float)) and not isinstance(value, bool)
             and math.isfinite(value) and value >= 0)
+
+
+def _json_copy(value, at: str):
+    """A new plain copy of a JSON value: mappings as dicts, lists and tuples as lists (DESIGN 4.1 v1.574).
+
+    Raises ``ValueError`` naming ``at`` for anything else: a non-``str`` mapping key, a float that is
+    not finite, or a value of another type.
+    """
+    if value is None or isinstance(value, (bool, int, str)):
+        return value
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            raise ValueError(f"{at} must be a finite float, got {value!r}")
+        return value
+    if isinstance(value, (list, tuple)):
+        return [_json_copy(item, f"{at}[{index}]") for index, item in enumerate(value)]
+    if isinstance(value, Mapping):
+        copied = {}
+        for key, item in value.items():
+            if not isinstance(key, str):
+                raise ValueError(f"a key in {at} must be a string, got {key!r}")
+            copied[key] = _json_copy(item, f"{at}[{key!r}]")
+        return copied
+    raise ValueError(f"{at} must be None, a bool, an int, a finite float, a string, a list or a "
+                     f"mapping, got {type(value).__name__}")
 
 
 def _tier_prices(model, input_tokens) -> Tuple[float, float]:
@@ -60,9 +86,11 @@ class PriceTier:
 class Variant:
     """A named setup of a model: labels of how the caller's harness runs it (DESIGN 4.1 v1.572).
 
-    The library sets no effort and compacts nothing; a variant's route has its own stats.
-    ``items_per_call`` is how many items one call of the route handles, so a measured route is
-    priced per item, its mean call over that number (4.1 and 5.2 v1.573).
+    The settings are labels: the library sets no effort and compacts nothing, and a variant's route
+    has its own stats. ``items_per_call`` is how many items one call of the route handles, so a
+    measured route is priced per item, its mean call over that number (4.1 and 5.2 v1.573).
+    ``provider_options`` is sent: the executor passes a copy to the provider on each call of the
+    route (4.1, 6 and 7 v1.574), for example ``{"reasoning_effort": "high"}``.
     """
 
     name: str
@@ -70,6 +98,7 @@ class Variant:
     harness: Optional[str] = None
     context_policy: Mapping[str, object] = field(default_factory=dict)
     items_per_call: int = 1
+    provider_options: Mapping[str, object] = field(default_factory=dict)
 
     def __post_init__(self):
         if not isinstance(self.name, str) or not _VARIANT_NAME.fullmatch(self.name):
@@ -93,6 +122,12 @@ class Variant:
         k = self.items_per_call
         if not isinstance(k, int) or isinstance(k, bool) or k < 1:  # DESIGN 4.1 v1.573
             raise ValueError(f"items_per_call must be an int >= 1, got {k!r}")
+        options = self.provider_options
+        if not isinstance(options, Mapping):  # DESIGN 4.1 v1.574
+            raise ValueError(f"provider_options must be a mapping, got {type(options).__name__}")
+        if any(not isinstance(key, str) or not key for key in options):
+            raise ValueError("a provider_options key must be a non-empty string")
+        object.__setattr__(self, "provider_options", _json_copy(options, "provider_options"))
 
 
 @dataclass(frozen=True)
@@ -158,6 +193,13 @@ class Model:
     def items_per_call(self) -> int:
         """How many items one call handles: its variant's, 1 without one (DESIGN 4.1 v1.573)."""
         return 1 if self.variant is None else self.variant.items_per_call
+
+    @property
+    def provider_options(self) -> Dict[str, object]:
+        """A new copy of its variant's provider options, ``{}`` without one (DESIGN 4.1 v1.574)."""
+        if self.variant is None:
+            return {}
+        return _json_copy(self.variant.provider_options, "provider_options")
 
     def price_expired(self, today: date) -> bool:
         """Return True when the stated price end date is before ``today``."""
