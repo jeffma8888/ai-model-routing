@@ -279,14 +279,17 @@ def test_select_prints_n_a_when_the_primarys_bound_is_0(tmp_path, capsys):
 
 # ---- the note ---------------------------------------------------------------------------------
 
-def test_the_harvey_line_names_the_shipped_policy_and_keeps_the_report_column_planned():
+@pytest.mark.xfail(strict=True, reason="v1.569 lands in the implementing commit (row CPS1b)")
+def test_the_harvey_line_names_the_shipped_policy_and_the_report_column():
+    # v1.569 (row CPS1b): the report column ships, so the line no longer calls it to come
     text = NOTE.read_text(encoding="utf-8")
     harvey = text[text.index("## Harvey"):text.index("## Uber")]
     lines = [line for line in harvey.splitlines() if line.startswith("- In this library: ")]
     line = next(line for line in lines if "per success" in line)
     assert "It does not price a failure" not in line
+    assert "The change still to come" not in line
     for phrase in ("`failure_policy`", "`retry_same`", "Wilson lower bound",
-                   "assumes independent retries", "`cheaper_per_success`",
-                   "The change still to come: cost per success as a column of the reports."):
+                   "assumes independent retries", "`cheaper_per_success`", "`report --audits`",
+                   "`n/a`"):
         assert phrase in line, phrase
     assert re.search(r"cost per successful outcome as the `cost_effective` objective", text) is None
