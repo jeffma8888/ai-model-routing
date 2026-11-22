@@ -90,6 +90,36 @@ def test_each_argument_is_checked_and_named(name, value):
         prices(**{name: value})
 
 
+@pytest.mark.parametrize("name", KEYS)
+@pytest.mark.parametrize("value", [True, False, math.nan, math.inf, -math.inf, "1", None, 10 ** 400])
+def test_every_argument_refuses_every_non_number(name, value):
+    # review iter-428 should-fix 2: each argument crossed with each kind; 10 ** 400 is an int too
+    # large for a float
+    with pytest.raises(ValueError, match=name):
+        prices(**{name: value})
+
+
+@pytest.mark.parametrize("overrides, price", [
+    ({"usd_per_hour": 1e308, "tokens_per_hour_in": 1, "tokens_per_hour_out": 1, "utilization": 1},
+     "price_in"),
+    ({"tokens_per_hour_in": 5e-324}, "price_in"),
+    ({"tokens_per_hour_out": 1e-320, "utilization": 1}, "price_out"),
+])
+def test_a_derived_price_that_is_not_finite_is_refused(tmp_path, overrides, price):
+    # review iter-428 must-fix 2: each input is in its range, but the price could never rank
+    with pytest.raises(ValueError, match=f"derived {price} is not a finite number"):
+        prices(**overrides)
+    with pytest.raises(ValueError, match=f"models.json.*derived {price}"):
+        load(tmp_path, [hosted_row(**overrides)])
+
+
+@pytest.mark.parametrize("row", [None, 3, "bad", [], ["v/m"]])
+def test_a_row_that_is_not_an_object_names_the_file(tmp_path, row):
+    # review iter-428 must-fix 1: as before v1.581, never an AttributeError
+    with pytest.raises(ValueError, match="models.json.*invalid model row"):
+        load(tmp_path, [list_row(), row])
+
+
 def test_a_model_is_list_priced_by_default_and_the_field_is_last():
     model = Model("v/m", "v", 1.0, 2.0, 100_000)
     assert model.pricing_basis == "list"
@@ -140,7 +170,8 @@ def test_a_self_hosted_row_missing_a_key_is_refused(tmp_path, key):
 
 
 @pytest.mark.parametrize("extra", [{"price_in": 1.0}, {"price_out": 2.0}, {"price_tiers": []},
-                                   {"price_in": 1.0, "price_out": 2.0}])
+                                   {"price_in": 1.0, "price_out": 2.0}, {"price_in": None},
+                                   {"price_out": None}, {"price_tiers": None}])  # None: should-fix 1
 def test_a_self_hosted_row_states_no_list_price(tmp_path, extra):
     with pytest.raises(ValueError, match="models.json.*takes no price_in, price_out or price_tiers"):
         load(tmp_path, [hosted_row(**extra)])
@@ -148,6 +179,9 @@ def test_a_self_hosted_row_states_no_list_price(tmp_path, extra):
 
 @pytest.mark.parametrize("key", KEYS)
 def test_a_list_row_naming_an_hourly_key_is_refused(tmp_path, key):
+    for value in (None, 0):  # review iter-428 should-fix 1: the key's presence, whatever its value
+        with pytest.raises(ValueError, match=f"models.json.*{key}.*pricing_basis"):
+            load(tmp_path, [list_row(**{key: value})])
     with pytest.raises(ValueError, match=f"models.json.*{key}.*pricing_basis"):
         load(tmp_path, [list_row(**{key: HOUR[key]})])
     with pytest.raises(ValueError, match=f"models.json.*{key}.*pricing_basis"):

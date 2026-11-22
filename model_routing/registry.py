@@ -63,7 +63,11 @@ def self_hosted_prices(usd_per_hour, tokens_per_hour_in, tokens_per_hour_out, ut
               "tokens_per_hour_out": tokens_per_hour_out, "utilization": utilization,
               "input_cost_share": input_cost_share}
     for name, value in values.items():
-        if not _is_price(value):
+        try:
+            finite = _is_price(value)
+        except OverflowError:  # an int too large for a float (review iter-428 should-fix 2)
+            finite = False
+        if not finite:
             raise ValueError(f"{name} must be a finite number >= 0, got {value!r}")
     for name in ("tokens_per_hour_in", "tokens_per_hour_out"):
         if values[name] <= 0:
@@ -72,9 +76,18 @@ def self_hosted_prices(usd_per_hour, tokens_per_hour_in, tokens_per_hour_out, ut
         raise ValueError(f"utilization must be in (0, 1], got {utilization!r}")
     if not input_cost_share <= 1:
         raise ValueError(f"input_cost_share must be in [0, 1], got {input_cost_share!r}")
-    price_in = usd_per_hour * input_cost_share / (tokens_per_hour_in * utilization) * 1_000_000
-    price_out = usd_per_hour * (1 - input_cost_share) / (tokens_per_hour_out * utilization) * 1_000_000
-    return float(price_in), float(price_out)
+    derived = {}
+    for name, share, tokens in (("price_in", input_cost_share, tokens_per_hour_in),
+                                ("price_out", 1 - input_cost_share, tokens_per_hour_out)):
+        try:
+            price = float(usd_per_hour) * share / (float(tokens) * utilization) * 1_000_000
+        except ZeroDivisionError:  # the product underflowed to 0
+            price = math.inf
+        if not math.isfinite(price):  # review iter-428 must-fix 2: a price that could never rank
+            raise ValueError(f"the derived {name} is not a finite number: the hour, throughput and "
+                             "utilization leave a float's range")
+        derived[name] = price
+    return derived["price_in"], derived["price_out"]
 
 
 def _tier_prices(model, input_tokens) -> Tuple[float, float]:
@@ -337,13 +350,18 @@ class Registry:
 
     @classmethod
     def load(cls, path: PathLike) -> "Registry":
-        """Load a registry from a models.json file; extra keys are ignored."""
+        """Load a registry from a models.json file.
+
+        Extra keys of a row are ignored, but for an hourly key on a list row (DESIGN 4.1 v1.581).
+        """
         raw = json.loads(Path(path).read_text(encoding="utf-8"))
         if not isinstance(raw, dict) or not isinstance(raw.get("models"), list):
             raise ValueError(f"{path}: expected an object with a 'models' list")
         models = []
         for row in raw["models"]:
             try:
+                if not isinstance(row, dict):  # review iter-428 must-fix 1: before any row.get
+                    raise TypeError(f"a model row must be an object, got {type(row).__name__}")
                 basis, price_in, price_out = _load_prices(row)
                 base = Model(
                     id=str(row["id"]),
