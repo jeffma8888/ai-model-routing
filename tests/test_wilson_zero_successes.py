@@ -19,7 +19,6 @@ from model_routing.cli import main
 
 A, B = "fiction/a", "fiction/b"
 CONFIDENCES = (0.5, 0.8, 0.9, 0.95, 0.99)
-RED = pytest.mark.xfail(strict=True, reason="row CI29: held red until the implementing commit")
 
 
 def _formula(successes, trials, confidence):
@@ -31,7 +30,6 @@ def _formula(successes, trials, confidence):
     return max(0.0, lb)
 
 
-@RED
 def test_the_bound_at_0_successes_is_exactly_0_for_every_count_and_confidence():
     residues = [(n, c, wilson_lower_bound(0, n, c))
                 for c in CONFIDENCES for n in range(1, 201)
@@ -39,7 +37,6 @@ def test_the_bound_at_0_successes_is_exactly_0_for_every_count_and_confidence():
     assert residues == []
 
 
-@RED
 def test_the_bound_at_0_successes_is_a_float_zero():
     value = wilson_lower_bound(0, 15)
     assert type(value) is float and value == 0.0
@@ -87,7 +84,6 @@ def _stats():
     return stats
 
 
-@RED
 def test_a_route_passing_on_0_of_15_has_no_per_success_estimate():
     # 0 of 15 at 0.95 is a count whose formula leaves a residue here (2.2e-17)
     assert _formula(0, 15, 0.95) > 0.0
@@ -101,7 +97,6 @@ def test_a_route_passing_on_0_of_15_has_no_per_success_estimate():
     assert (both.primary, both.fallbacks, both.pick_reason) == (B, (A,), "cheaper_per_success")
 
 
-@RED
 def test_select_prints_n_a_at_0_of_15(tmp_path, capsys):
     models = [{"id": m.id, "family": m.family, "price_in": m.price_in, "price_out": m.price_out,
                "context_window": m.context_window, "source": "https://example.org/prices"}

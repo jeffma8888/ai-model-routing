@@ -72,13 +72,16 @@ def _check_tokens(trials: int, input_tokens: Optional[int], output_tokens: Optio
 def wilson_lower_bound(successes: int, trials: int, confidence: float = 0.95) -> float:
     """Return the lower end of the two-sided Wilson score interval.
 
-    Returns 0.0 when ``trials`` is 0. Raises ``ValueError`` for negative
-    counts or ``successes > trials``.
+    Returns 0.0 when ``trials`` is 0, and exactly 0.0 when ``successes`` is 0, where the
+    formula is 0 but floating point can leave a residue that differs by platform (DESIGN 4.3
+    v1.568). Raises ``ValueError`` for negative counts or ``successes > trials``.
     """
     _check_counts(successes, trials)
     if trials == 0:
         return 0.0
     z = NormalDist().inv_cdf(1 - (1 - confidence) / 2)
+    if successes == 0:
+        return 0.0
     n = trials
     p = successes / n
     lb = (p + z * z / (2 * n) - z * sqrt(p * (1 - p) / n + z * z / (4 * n * n))) / (1 + z * z / n)
