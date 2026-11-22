@@ -359,6 +359,13 @@ def test_validate_applies_to_the_output_and_an_invalid_one_falls_back_at_its_too
         closing(1, False, "invalid", "validation failed"),
         record(BEST, 2, True, "ok", (55, 12)),
     ]
+    # as the last entry an invalid run is final, at its tool cost (review iter-425 nit 3)
+    h = Harness()
+    with pytest.raises(AllModelsFailed) as info:
+        h.call(procedures=[POLL], validate=validate, exclude_models=[BEST])
+    assert info.value.attempts[-1] == Attempt(PID, "invalid", "validation failed", 1500.0, 0, 0,
+                                              0.0005)
+    assert h.monitor.records == [model_call(0), closing(1, True, "invalid", "validation failed")]
 
 
 def test_a_procedure_as_the_last_entry_ends_in_all_models_failed():
@@ -438,6 +445,20 @@ def test_messages_that_cannot_be_copied_raise_before_the_run_with_no_record():
     with pytest.raises(TypeError):
         h.call(messages, procedures=[proc(lambda value, call: ran.append(value))])
     assert (ran, h.provider.calls, h.monitor.records) == ([], [], [])
+
+
+def test_on_a_retry_same_task_the_procedure_keys_come_before_the_per_success_estimate():
+    # review iter-425 should-fix 1: the 8.1 v1.567 key stays last, on both records
+    h = Harness(task=Task("t", bar=0.8, min_samples=10, failure_policy="retry_same"))
+    result = h.call(procedures=[POLL])
+    assert result.model == PID
+    lb = next(c.quality_lb for c in result.decision.candidates if c.model_id == PID)
+    estimate = result.decision.expected_cost_per_success_usd
+    assert estimate == (0.02 / 100) / lb
+    first, last = h.monitor.records
+    assert list(first) == CALL_KEYS + ["expected_cost_per_success_usd"]
+    assert list(last) == CLOSING_KEYS + ["expected_cost_per_success_usd"]
+    assert first["expected_cost_per_success_usd"] == last["expected_cost_per_success_usd"] == estimate
 
 
 # --- below-bar fallback and the report (8.1 and 8.3 v1.578) -----------------------------------

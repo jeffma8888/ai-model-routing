@@ -130,7 +130,8 @@ class Executor:
         ``ProviderError``, and its records carry ``cascade`` and ``escalated`` (DESIGN 7 and
         8.1 v1.537). A ``signals`` that is not a mapping, or a routed cascade whose signal is
         no callable in it, raises ``ValueError`` before any call.
-        ``procedures`` is passed to ``select``, which checks it before any call: a routed procedure
+        ``procedures`` (a list or tuple of :class:`Procedure`, ``()`` by default; ``None`` is
+        refused) is passed to ``select``, which checks it before any call: a routed procedure
         entry runs by ``Procedure.run`` on a deep copy of ``messages``, each model call of its
         handle an attempt of its named model, then one closing attempt under its ID, ``error``
         when the run raises, else ``validate`` on its output; an ``error`` or ``invalid`` entry
@@ -249,7 +250,7 @@ class Executor:
         Each model call of the handle is an attempt of the procedure's model, a ``ProviderError``
         raised into ``fn`` after its record; then one closing attempt under the procedure's ID.
         A provider exception other than ``ProviderError`` propagates once the run has ended, and a
-        later call of the handle raises it again without reaching the provider.
+        later call of the handle within its bound raises it again without reaching the provider.
         """
         names = {"procedure": proc.name, "procedure_version": proc.version}
         state = {"calls": 0, "bug": None}
@@ -257,13 +258,13 @@ class Executor:
         def call(call_messages: List[dict]) -> str:
             if state["bug"] is not None:
                 raise state["bug"]
-            state["calls"] += 1
             try:
                 attempt, completion, exc = self._attempt(proc.model, call_messages, task,
                                                          registry)
             except Exception as bug:  # a bug, not an outage: it leaves .call (7 step 2)
                 state["bug"] = bug
                 raise
+            state["calls"] += 1  # a call that reached the provider and has a record
             log(attempt, False, proc.id, keys=dict(names))
             if completion is None:
                 raise exc
