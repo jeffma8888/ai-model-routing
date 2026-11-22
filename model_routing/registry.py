@@ -16,6 +16,7 @@ _VARIANT_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
 _VARIANT_KEYS = ("reasoning_effort", "harness", "context_policy", "items_per_call",
                  "provider_options")
 _PRICING_BASES = ("list", "self_hosted")
+_DEPLOYMENTS = ("api", "self_hosted")
 _HOUR_KEYS = ("usd_per_hour", "tokens_per_hour_in", "tokens_per_hour_out", "utilization",
               "input_cost_share")
 
@@ -184,6 +185,9 @@ class Model:
     ``variant`` names a setup of the model, whose ``id`` is then ``<base>@<name>`` (4.1 v1.572).
     ``pricing_basis`` is ``"list"`` (a vendor's page) or ``"self_hosted"`` (prices derived from an
     hour of your own serving by ``self_hosted_prices``; 4.1 v1.581).
+    ``deployment`` is where it runs, ``"api"`` or ``"self_hosted"``, ``None`` meaning ``"self_hosted"``
+    for a self-hosted-priced model and ``"api"`` otherwise; ``base_model`` names a fine-tune's base,
+    whose family a ``Registry`` requires it to have (4.1 v1.582).
     """
 
     id: str
@@ -196,6 +200,8 @@ class Model:
     price_tiers: Tuple[PriceTier, ...] = ()
     variant: Optional[Variant] = None
     pricing_basis: str = "list"
+    deployment: Optional[str] = None
+    base_model: Optional[str] = None
 
     def __post_init__(self):
         if not isinstance(self.pricing_basis, str) or self.pricing_basis not in _PRICING_BASES:
@@ -203,6 +209,15 @@ class Model:
         if self.pricing_basis == "self_hosted" and self.price_tiers:  # DESIGN 4.1 v1.581
             raise ValueError("a self_hosted model holds no price tiers: an hour costs the same "
                              "whatever a prompt's length")
+        deployment = self.deployment
+        if deployment is None:  # DESIGN 4.1 v1.582: a self-hosted-priced model is served by its owner
+            deployment = "self_hosted" if self.pricing_basis == "self_hosted" else "api"
+            object.__setattr__(self, "deployment", deployment)
+        if not isinstance(deployment, str) or deployment not in _DEPLOYMENTS:
+            raise ValueError(f"deployment must be 'api' or 'self_hosted', got {deployment!r}")
+        base = self.base_model
+        if base is not None and (not isinstance(base, str) or not base):
+            raise ValueError(f"base_model must be None or a non-empty string, got {base!r}")
         variant = self.variant
         if variant is not None:  # DESIGN 4.1 v1.572; an id without a variant is v1.571's
             if not isinstance(variant, Variant):
@@ -316,6 +331,39 @@ def _load_prices(row) -> Tuple[str, float, float]:
     return basis, price_in, price_out
 
 
+def _load_family(row, rows_by_id) -> str:
+    """A row's family: its own, or a fine-tune row's base row's when it leaves it out (DESIGN 4.1 v1.582)."""
+    name = row.get("base_model")
+    if row.get("family") is not None or name is None:
+        return str(row["family"])  # as before v1.582: absent is a KeyError, null the string "None"
+    if not isinstance(name, str):
+        raise ValueError(f"base_model must be None or a non-empty string, got {name!r}")
+    base = rows_by_id.get(name)
+    if base is None:
+        raise ValueError(f"base_model {name!r} is not a row of this file, so the row has no family")
+    if base.get("family") is None:
+        raise ValueError(f"the row of base_model {name!r} states no family, so this row has none")
+    return str(base["family"])
+
+
+def _check_base(model: "Model", by_id: Mapping[str, "Model"]) -> None:
+    """A fine-tune's base is a registry model, no variant, naming no base, of its family (DESIGN 4.1 v1.582)."""
+    name = model.base_model
+    if name == model.base_id:
+        raise ValueError(f"model {model.id!r} names itself as its base_model")
+    base = by_id.get(name)
+    if base is None:
+        raise ValueError(f"base_model {name!r} of {model.id!r} is not a model of this registry")
+    if base.variant is not None:
+        raise ValueError(f"base_model {name!r} of {model.id!r} is a variant; name its base's row")
+    if base.base_model is not None:
+        raise ValueError(f"base_model {name!r} of {model.id!r} names a base_model itself; name the "
+                         "model it was trained from")
+    if model.family != base.family:
+        raise ValueError(f"model {model.id!r} has family {model.family!r}, but a fine-tune has its "
+                         f"base's family {base.family!r}")
+
+
 def _load_variants(value) -> Tuple[Variant, ...]:
     """The ``variants`` of a models.json row, in its order: absent or null is none (DESIGN 4.1)."""
     if value is None:
@@ -345,6 +393,9 @@ class Registry:
             if model.id in by_id:
                 raise ValueError(f"duplicate model id: {model.id!r}")
             by_id[model.id] = model
+        for model in ordered:  # DESIGN 4.1 v1.582, after the duplicate check
+            if model.base_model is not None:
+                _check_base(model, by_id)
         self._models = ordered
         self._by_id = by_id
 
@@ -353,10 +404,15 @@ class Registry:
         """Load a registry from a models.json file.
 
         Extra keys of a row are ignored, but for an hourly key on a list row (DESIGN 4.1 v1.581).
+        A fine-tune row may leave out its family, taking its base row's (4.1 v1.582).
         """
         raw = json.loads(Path(path).read_text(encoding="utf-8"))
         if not isinstance(raw, dict) or not isinstance(raw.get("models"), list):
             raise ValueError(f"{path}: expected an object with a 'models' list")
+        rows_by_id = {}
+        for row in raw["models"]:  # a fine-tune row's base may come after it (DESIGN 4.1 v1.582)
+            if isinstance(row, dict) and "id" in row:
+                rows_by_id.setdefault(str(row["id"]), row)
         models = []
         for row in raw["models"]:
             try:
@@ -365,7 +421,7 @@ class Registry:
                 basis, price_in, price_out = _load_prices(row)
                 base = Model(
                     id=str(row["id"]),
-                    family=str(row["family"]),
+                    family=_load_family(row, rows_by_id),
                     price_in=price_in,
                     price_out=price_out,
                     context_window=int(row["context_window"]),
@@ -373,6 +429,8 @@ class Registry:
                     price_valid_until=row.get("price_valid_until"),
                     price_tiers=_load_tiers(row.get("price_tiers")),
                     pricing_basis=basis,
+                    deployment=row.get("deployment"),
+                    base_model=row.get("base_model"),
                 )
                 if "@" in base.id:
                     raise ValueError("a row id must not hold '@', which joins a model and "
@@ -383,7 +441,10 @@ class Registry:
                               for variant in _load_variants(row.get("variants")))
             except (KeyError, TypeError, ValueError) as exc:
                 raise ValueError(f"{path}: invalid model row {row!r}: {exc}") from exc
-        return cls(models)
+        try:
+            return cls(models)
+        except ValueError as exc:  # DESIGN 4.1 v1.582: a registry check names the file too
+            raise ValueError(f"{path}: {exc}") from exc
 
     @property
     def models(self) -> Tuple[Model, ...]:

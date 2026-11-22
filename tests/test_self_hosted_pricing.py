@@ -120,11 +120,13 @@ def test_a_row_that_is_not_an_object_names_the_file(tmp_path, row):
         load(tmp_path, [list_row(), row])
 
 
-def test_a_model_is_list_priced_by_default_and_the_field_is_last():
+def test_a_model_is_list_priced_by_default_and_the_field_follows_variant():
     model = Model("v/m", "v", 1.0, 2.0, 100_000)
     assert model.pricing_basis == "list"
-    assert [f.name for f in dataclasses.fields(Model)][-2:] == ["variant", "pricing_basis"]
-    assert list(dataclasses.asdict(model))[-1] == "pricing_basis"
+    # the last field until v1.582 adds `deployment` and `base_model` after it (DESIGN 4.1)
+    assert [f.name for f in dataclasses.fields(Model)][-4:] == ["variant", "pricing_basis", "deployment",
+                                                                "base_model"]
+    assert list(dataclasses.asdict(model))[-3] == "pricing_basis"
     assert dataclasses.asdict(model)["pricing_basis"] == "list"
 
 
