@@ -235,3 +235,28 @@ def test_cli_json_keeps_the_key_in_summary_and_per_task(capsys, tmp_path):
     assert eff["routed"]["cost_per_correct_usd"] == 70 / 15
     assert [list(r)[-1] for r in result["per_task"]] == (
         ["cost_per_correct_usd"] * len(result["per_task"]))
+
+
+def test_a_ratio_of_totals_over_seeds_bar_by_bar():
+    # review iter-416 should-fix 1: per-seed rates differ, one seed has 0 correct, two bars
+    # route differently. fiction/cheap is right on the odd items and on i04, so held out it is
+    # right on 4 of 6 (seed 0) and 3 of 4 (seed 1), 18 / 4 and 12 / 3, a mean of per-seed ratios
+    # of 4.25 against the ratio of totals 30 / 7; its calibration counts (3 of 6, 4 of 8) clear
+    # bar 0.1 and not 0.5. fiction/rare costs 1 and is right on i03 alone, held out on seed 0
+    # only, so its seed 1 costs 4 with 0 right: (6 + 4) / 1. fiction/strong is right everywhere.
+    rare = "fiction/rare"
+    rows = []
+    for item in ITEMS:
+        rows.append(Outcome("w", item, CHEAP, odd(item) or item == "i04", 3.0))
+        rows.append(Outcome("w", item, STRONG, True, 4.0))
+        rows.append(Outcome("w", item, rare, item == "i03", 1.0))
+    result = evaluate(rows, bars=[0.1, 0.5], seeds=SEEDS, min_samples=1,
+                      flavors=["cost_effective"], cost_per_correct=True)
+    got = {(r["bar"], r["strategy"]): r["cost_per_correct_usd"] for r in result["summary"]}
+    assert got[0.1, "routed"] == 30 / 7 and got[0.5, "routed"] == 4.0
+    assert got[0.1, f"model:{CHEAP}"] == got[0.5, f"model:{CHEAP}"] == 30 / 7
+    assert got[0.1, f"model:{rare}"] == got[0.1, "cheapest"] == 10.0
+    routed = {r["bar"]: r["routed_models"] for r in result["per_task"] if r["strategy"] == "routed"}
+    assert routed == {0.1: {CHEAP: 2}, 0.5: {STRONG: 2}}
+    assert [r["cost_per_correct_usd"] for r in result["per_task"]] == [
+        r["cost_per_correct_usd"] for r in result["summary"]]
