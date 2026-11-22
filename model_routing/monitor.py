@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import json
-from math import ceil
+from math import ceil, fsum
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Union
+from typing import Dict, Iterable, List, Mapping, Optional, Union
 
 PathLike = Union[str, Path]
 
@@ -34,7 +34,11 @@ def load_records(path: PathLike) -> List[dict]:
     A line that is not valid JSON, or not a JSON object, raises ``ValueError``
     naming ``<path>:<line number>``.
     """
-    records = []
+    return [value for _, value in _numbered_objects(path)]
+
+
+def _numbered_objects(path: PathLike):
+    """Yield ``(line number, object)`` for each non-blank line of a JSONL file of objects."""
     with Path(path).open(encoding="utf-8") as handle:
         for number, line in enumerate(handle, start=1):
             if not line.strip():
@@ -46,8 +50,27 @@ def load_records(path: PathLike) -> List[dict]:
             if not isinstance(value, dict):
                 raise ValueError(f"{path}:{number}: expected a JSON object, "
                                  f"got {type(value).__name__}")
-            records.append(value)
-    return records
+            yield number, value
+
+
+def load_audits(path: PathLike) -> Dict[str, bool]:
+    """Read a JSONL file of audits into ``{call_id: correct}``, in file order (DESIGN 8.2, v1.569).
+
+    Each non-blank line is an object with ``call_id`` (a non-empty string) and ``correct`` (a JSON
+    boolean); other keys are ignored. A bad line, or a ``call_id`` an earlier line gave, raises
+    ``ValueError`` naming ``<path>:<line number>``.
+    """
+    audits: Dict[str, bool] = {}
+    for number, value in _numbered_objects(path):
+        call_id, correct = value.get("call_id"), value.get("correct")
+        if not isinstance(call_id, str) or not call_id:
+            raise ValueError(f"{path}:{number}: call_id must be a non-empty string, got {call_id!r}")
+        if not isinstance(correct, bool):
+            raise ValueError(f"{path}:{number}: correct must be true or false, got {correct!r}")
+        if call_id in audits:
+            raise ValueError(f"{path}:{number}: call_id {call_id!r} is audited twice")
+        audits[call_id] = correct
+    return audits
 
 
 def _grouper(by: str):
@@ -66,7 +89,8 @@ def _nearest_rank(sorted_values: List[float], q: float) -> Optional[float]:
     return sorted_values[index]
 
 
-def report(records: Iterable[dict], by: str = "model") -> List[dict]:
+def report(records: Iterable[dict], by: str = "model",
+           audits: Optional[Mapping[str, bool]] = None) -> List[dict]:
     """Aggregate attempt records by ``by``.
 
     Attempt-level sums use each attempt; call-level counts (``calls``,
@@ -75,8 +99,15 @@ def report(records: Iterable[dict], by: str = "model") -> List[dict]:
     attempt is ``ok`` on a model under the bar: its record's ``below_bar`` or
     ``below_bar_fallback`` is true (DESIGN 8.1, 8.3, v1.203). Rows are sorted
     by descending ``cost_usd``, then ``group``.
+
+    With ``audits`` (``{call_id: correct}``, ``load_audits``) each row also gains
+    ``audited_calls``, ``correct_calls``, ``cost_per_success_usd`` and
+    ``successes_per_100k_tokens`` (DESIGN 8.3, v1.569): every attempt of the group's calls over
+    the calls whose final attempt is ``ok`` and audited ``True``, ``None`` until every call of the
+    group is audited.
     """
     group_of = _grouper(by)
+    records = list(records)
     groups: Dict[str, dict] = {}
     latencies: Dict[str, List[float]] = {}
     under: Dict[str, int] = {}
@@ -124,5 +155,41 @@ def report(records: Iterable[dict], by: str = "model") -> List[dict]:
         row["p95_latency_ms"] = _nearest_rank(values, 0.95)
         row["below_bar_calls"] = under[group]
         rows.append(row)
+    if audits is not None:
+        _add_audit_keys(records, groups, group_of, audits)
     rows.sort(key=lambda r: (-r["cost_usd"], r["group"]))
     return rows
+
+
+def _add_audit_keys(records: List[dict], groups: Dict[str, dict], group_of,
+                    audits: Mapping[str, bool]) -> None:
+    """Add the four v1.569 keys to each row of ``groups`` (DESIGN 8.3)."""
+    attempts: Dict[object, List[dict]] = {}
+    finals: Dict[object, dict] = {}
+    for rec in records:
+        call_id = rec.get("call_id")
+        attempts.setdefault(call_id, []).append(rec)
+        if rec.get("final"):
+            if call_id in finals:
+                raise ValueError(f"call_id {call_id!r} has more than one final record, "
+                                 "so its audit cannot be joined")
+            finals[call_id] = rec
+    calls: Dict[str, List[object]] = {group: [] for group in groups}
+    for call_id, rec in finals.items():
+        calls[group_of(rec)].append(call_id)
+    for group, row in groups.items():
+        audited = [c for c in calls[group] if isinstance(c, str) and c in audits]
+        correct = sum(1 for c in audited
+                      if finals[c].get("outcome") == "ok" and audits[c] is True)
+        charged = [rec for c in calls[group] for rec in attempts[c]]
+        complete = len(audited) == row["calls"]
+        cost = fsum(float(rec.get("cost_usd", 0.0)) for rec in charged)
+        counted = all("input_tokens" in rec and "output_tokens" in rec for rec in charged)
+        tokens = sum(int(rec["input_tokens"]) + int(rec["output_tokens"])
+                     for rec in charged) if counted else 0
+        row["audited_calls"] = len(audited)
+        row["correct_calls"] = correct
+        row["cost_per_success_usd"] = (round(cost / correct, 6)
+                                       if complete and correct else None)
+        row["successes_per_100k_tokens"] = (round(correct * 100000 / tokens, 6)
+                                            if complete and counted and tokens else None)

@@ -466,6 +466,7 @@ for row in report(monitor.records, by="tag:team"):
 - Call counts, failures and the fallback rate are attributed by each call's final attempt
 - `below_bar_calls` counts the calls a model under the bar answered: those whose final attempt is `ok` and has `below_bar: true` (no model cleared, so the route was the best available) or `below_bar_fallback: true`. The text table shows that column only when some group has one
 - Latency percentiles are nearest-rank over successful attempts
+- `--audits audits.jsonl`, one `{"call_id": ..., "correct": true}` line per audited call, adds `audited_calls`, `correct_calls`, `cost_per_success_usd` (every attempt of the group's calls, fallbacks included, over the calls an audit marked correct) and `successes_per_100k_tokens`; both are `n/a` until every call of the group is audited, and an `ok` with no audit never counts as a success
 
 ## Evidence: held-out results on public data
 

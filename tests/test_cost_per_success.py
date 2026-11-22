@@ -279,7 +279,6 @@ def test_select_prints_n_a_when_the_primarys_bound_is_0(tmp_path, capsys):
 
 # ---- the note ---------------------------------------------------------------------------------
 
-@pytest.mark.xfail(strict=True, reason="v1.569 lands in the implementing commit (row CPS1b)")
 def test_the_harvey_line_names_the_shipped_policy_and_the_report_column():
     # v1.569 (row CPS1b): the report column ships, so the line no longer calls it to come
     text = NOTE.read_text(encoding="utf-8")

@@ -11,7 +11,7 @@ from typing import List, Optional
 
 from . import DATA_DIR
 from .demo import run_demo
-from .monitor import load_records, report
+from .monitor import load_audits, load_records, report
 from .priors import Priors
 from .registry import Registry
 from .router import FLAVORS, NoModelClearsBar, Router
@@ -92,6 +92,8 @@ def _build_parser() -> argparse.ArgumentParser:
     rep.add_argument("--log", required=True)
     rep.add_argument("--by", default="model")
     rep.add_argument("--json", action="store_true")
+    rep.add_argument("--audits", default=None, metavar="PATH",
+                     help="a JSONL file of {call_id, correct} audits: adds cost per success")
 
     demo = sub.add_parser("demo", help="run the offline demo with fictional models")
     demo.add_argument("--out", default="model-routing-demo")
@@ -253,23 +255,33 @@ def _cmd_calibrate(args) -> int:
 
 
 def _cmd_report(args) -> int:
-    rows = report(load_records(args.log), by=args.by)
+    audits = None if args.audits is None else load_audits(args.audits)
+    rows = report(load_records(args.log), by=args.by, audits=audits)
     if args.json:
         print(json.dumps(rows, indent=2))
         return EXIT_OK
 
     def fmt(value):
         return "-" if value is None else f"{value:.1f}"
+
+    def na(value, places):
+        return "n/a" if value is None else f"{value:.{places}f}"
+    # DESIGN 10 v1.569: four columns after p95_ms only with --audits
+    audited = audits is not None
     # DESIGN 10 v1.203: the below_bar_calls column only when some row counts one
     under = any(r["below_bar_calls"] > 0 for r in rows)
     table = [[r["group"], r["calls"], r["attempts"], r["errors"], r["invalid"],
               r["fallback_calls"], f"{r['fallback_rate']:.3f}"]
              + ([r["below_bar_calls"]] if under else [])
              + [f"{r['cost_usd']:.6f}", f"{r['routing_cost_usd']:.6f}",
-                fmt(r["p50_latency_ms"]), fmt(r["p95_latency_ms"])] for r in rows]
+                fmt(r["p50_latency_ms"]), fmt(r["p95_latency_ms"])]
+             + ([r["audited_calls"], r["correct_calls"], na(r["cost_per_success_usd"], 6),
+                 na(r["successes_per_100k_tokens"], 3)] if audited else []) for r in rows]
     print(_table([args.by, "calls", "attempts", "errors", "invalid", "fallback_calls",
                   "fallback_rate"] + (["below_bar_calls"] if under else [])
-                 + ["cost_usd", "routing_cost_usd", "p50_ms", "p95_ms"], table))
+                 + ["cost_usd", "routing_cost_usd", "p50_ms", "p95_ms"]
+                 + (["audited_calls", "correct_calls", "cost_per_success_usd",
+                     "successes_per_100k_tokens"] if audited else []), table))
     return EXIT_OK
 
 

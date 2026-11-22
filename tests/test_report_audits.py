@@ -18,7 +18,6 @@ import model_routing
 from model_routing import monitor, report
 from model_routing.cli import main
 
-RED = pytest.mark.xfail(strict=True, reason="v1.569 lands in the implementing commit (row CPS1b)")
 A, B = "fiction/a", "fiction/b"
 NOTE = Path(__file__).resolve().parent.parent / "research" / "production-lessons.md"
 V1_568_KEYS = ["group", "attempts", "ok", "errors", "invalid", "input_tokens", "output_tokens",
@@ -64,12 +63,10 @@ def test_without_audits_every_row_keeps_the_v1_568_keys():
     assert [list(row) for row in report(_records())] == [V1_568_KEYS, V1_568_KEYS]
 
 
-@RED
 def test_audits_none_is_the_default():
     assert report(_records(), audits=None) == report(_records())
 
 
-@RED
 def test_the_hand_computed_case_by_model():
     rows = report(_records(), audits=AUDITS)
     assert [list(row) for row in rows] == [V1_568_KEYS + NEW_KEYS] * 2
@@ -81,70 +78,65 @@ def test_the_hand_computed_case_by_model():
     assert rows[1]["cost_usd"] == 0.25  # the attempt sums are unchanged: c2's 0.05 stays on A
 
 
-@RED
 def test_the_hand_computed_case_by_task():
     (row,) = report(_records(), by="task", audits=AUDITS)
     # 0.75 over 2 correct calls (c1, c2); 2 * 100000 / 595 tokens.
     assert _tail(row) == (4, 2, 0.375, 336.134454)
 
 
-@RED
 def test_incomplete_coverage_gives_none_never_zero():
     audits = {key: value for key, value in AUDITS.items() if key != "c3"}
     assert _by_group(report(_records(), audits=audits)) == {
         B: (2, 1, 0.55, 266.666667), A: (1, 1, None, None)}
 
 
-@RED
 def test_no_success_gives_no_cost_per_success_and_zero_successes_per_tokens():
     audits = dict(AUDITS, c1=False)
     assert _by_group(report(_records(), audits=audits))[A] == (2, 0, None, 0.0)
 
 
-@RED
 def test_an_unaudited_ok_never_counts():
     assert _by_group(report(_records(), audits={})) == {
         B: (0, 0, None, None), A: (0, 0, None, None)}
 
 
-@RED
 @pytest.mark.parametrize("value", [1, "true", None, 1.0])
 def test_only_true_counts_as_correct(value):
     audits = dict(AUDITS, c1=value)
     assert _by_group(report(_records(), audits=audits))[A] == (2, 0, None, 0.0)
 
 
-@RED
 def test_a_failed_call_never_counts_whatever_its_audit():
     records = [_rec("c4", B, 0, True, "invalid", 0.2, 100, 5),
                _rec("c5", B, 0, True, "error", 0.0, 0, 0, error="ProviderError: outage")]
     assert _by_group(report(records, audits={"c4": True, "c5": True})) == {B: (2, 0, None, 0.0)}
 
 
-@RED
-@pytest.mark.parametrize("change", [
-    lambda r: r.pop("output_tokens"), lambda r: r.pop("input_tokens"),
-    lambda r: r.update(output_tokens=None),
-])
-def test_a_missing_token_count_gives_no_successes_per_tokens(change):
+@pytest.mark.parametrize("key", ["input_tokens", "output_tokens"])
+def test_a_missing_token_count_gives_no_successes_per_tokens(key):
     records = _records()
-    change(records[3])  # c3, an attempt of a call of group A
+    records[3].pop(key)  # c3, an attempt of a call of group A
     assert _by_group(report(records, audits=AUDITS))[A] == (2, 1, 0.2, None)
 
 
-@RED
+def test_a_null_token_count_still_raises_in_the_attempt_sums():
+    records = _records()
+    records[3]["output_tokens"] = None
+    for audits in (None, AUDITS):
+        with pytest.raises(TypeError):
+            report(records, audits=audits)
+
+
 def test_zero_tokens_gives_no_successes_per_tokens():
     records = [_rec("c1", A, 0, True, "ok", 0.1, 0, 0)]
     assert _by_group(report(records, audits={"c1": True})) == {A: (1, 1, 0.1, None)}
 
 
-@RED
 def test_audits_of_unknown_calls_are_ignored():
     audits = dict(AUDITS, elsewhere=True)
     assert report(_records(), audits=audits) == report(_records(), audits=AUDITS)
 
 
-@RED
 def test_attempts_of_a_call_with_no_final_record_belong_to_no_call():
     records = _records() + [_rec("c5", A, 0, False, "error", 1.0, 10, 10)]
     rows = {row["group"]: row for row in report(records, audits=dict(AUDITS, c5=True))}
@@ -152,7 +144,6 @@ def test_attempts_of_a_call_with_no_final_record_belong_to_no_call():
     assert rows[A]["cost_usd"] == 1.25
 
 
-@RED
 def test_a_group_with_no_calls():
     records = [_rec("c2", A, 0, False, "error", 0.05, 50, 0), _rec("c2", B, 1, True, "ok", 0.3, 200, 20)]
     # B: (0.05 + 0.3) / 1 and 100000 / 270
@@ -160,7 +151,6 @@ def test_a_group_with_no_calls():
         B: (1, 1, 0.35, 370.37037), A: (0, 0, None, None)}
 
 
-@RED
 def test_two_final_records_with_one_call_id_raise_with_audits_only():
     records = _records() + [_rec("c1", B, 0, True, "ok", 0.1, 100, 10)]
     assert len(report(records)) == 2
@@ -176,7 +166,6 @@ def _write(tmp_path, lines, name="audits.jsonl"):
     return path
 
 
-@RED
 def test_load_audits_reads_each_line_skips_blanks_and_ignores_other_keys(tmp_path):
     path = _write(tmp_path, [json.dumps({"call_id": "c1", "correct": True, "grader": "x"}), "",
                              "   ", json.dumps({"correct": False, "call_id": "c3"})])
@@ -185,7 +174,6 @@ def test_load_audits_reads_each_line_skips_blanks_and_ignores_other_keys(tmp_pat
     assert monitor.load_audits(str(path)) == audits
 
 
-@RED
 @pytest.mark.parametrize("bad", [
     "not json", "[1, 2]", '{"correct": true}', '{"call_id": "c2"}', '{"call_id": "", "correct": true}',
     '{"call_id": 7, "correct": true}', '{"call_id": "c2", "correct": 1}',
@@ -198,7 +186,6 @@ def test_load_audits_rejects_a_bad_line_with_path_and_number(tmp_path, bad):
         monitor.load_audits(path)
 
 
-@RED
 def test_load_audits_is_exported_right_after_load_records():
     names = model_routing.__all__
     assert names[names.index("load_records") + 1] == "load_audits"
@@ -238,7 +225,6 @@ def test_the_cli_without_audits_prints_v1_568_bytes(tmp_path):
     assert _run(["report", "--log", str(_log(tmp_path))]) == (0, V1_568_TEXT, "")
 
 
-@RED
 def test_the_cli_table_gains_four_columns_after_p95_with_n_a(tmp_path):
     audits = _write(tmp_path, [json.dumps({"call_id": k, "correct": v})
                                for k, v in AUDITS.items() if k != "c3"])
@@ -259,7 +245,6 @@ def test_the_cli_table_gains_four_columns_after_p95_with_n_a(tmp_path):
         "n/a\n")
 
 
-@RED
 def test_the_cli_json_has_the_four_keys_with_null(tmp_path):
     audits = _write(tmp_path, [json.dumps({"call_id": k, "correct": v})
                                for k, v in AUDITS.items() if k != "c3"])
@@ -270,7 +255,6 @@ def test_the_cli_json_has_the_four_keys_with_null(tmp_path):
     assert _by_group(rows) == {B: (2, 1, 0.55, 266.666667), A: (1, 1, None, None)}
 
 
-@RED
 @pytest.mark.parametrize("lines,where", [
     (['{"call_id": "c1", "correct": true}', '{"call_id": "c2", "correct": "yes"}'], "audits.jsonl:2"),
     (None, "audits.jsonl"),
@@ -284,7 +268,6 @@ def test_a_bad_or_missing_audits_file_exits_2_with_one_error_line(tmp_path, line
 
 # ---- the note ---------------------------------------------------------------------------------
 
-@RED
 def test_the_uber_line_names_the_shipped_report_columns():
     text = NOTE.read_text(encoding="utf-8")
     uber = text[text.index("### Hold the model fixed, and count cost per finished outcome"):]
