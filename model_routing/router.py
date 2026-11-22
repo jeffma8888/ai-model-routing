@@ -7,6 +7,7 @@ from dataclasses import asdict, dataclass, replace
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 from .priors import Priors
+from .procedures import Procedure
 from .registry import Registry
 from .stats import Stats, wilson_lower_bound
 from .tasks import Cascade, Task, is_slice_name
@@ -21,6 +22,7 @@ BELOW_BAR = "below_bar"
 PASSES = "passes"
 CASCADE_UNKNOWN_MODEL = "cascade_unknown_model"
 CHEAPER_PER_SUCCESS = "cheaper_per_success"  # a decision's reason, never a candidate's
+PROCEDURE_UNKNOWN_MODEL = "procedure_unknown_model"
 
 FLAVORS = ("cost_effective", "cost_blind")
 
@@ -56,7 +58,7 @@ def _sizes(stats: Stats, task: Task, model_id: str) -> Tuple[int, int]:
 
 @dataclass(frozen=True)
 class Candidate:
-    """One registry model, or one cascade (DESIGN 7 v1.536), as evaluated for a task.
+    """One registry model, cascade (DESIGN 7 v1.536) or procedure (5.2 v1.577) for a task.
 
     ``reason`` names the rule that decided it.
     """
@@ -78,7 +80,8 @@ class RouteDecision:
     """The chosen primary model, ordered fallbacks, and every candidate considered.
 
     ``candidates`` holds one per registry model, in registry order, then, for a decision made
-    with ``cascades=True``, one per cascade of the task, in task order (DESIGN 5.1 v1.536).
+    with ``cascades=True``, one per cascade of the task, in task order (DESIGN 5.1 v1.536), and
+    then one per procedure the call names, in its order (5.1 v1.577).
     """
 
     task: str
@@ -142,7 +145,8 @@ class Router:
                generator_model: Optional[str] = None,
                exclude_models: Iterable[str] = (), *,
                prompt_tokens: Optional[int] = None,
-               slice: Optional[str] = None, cascades: bool = False) -> RouteDecision:
+               slice: Optional[str] = None, cascades: bool = False,
+               procedures: Sequence[Procedure] = ()) -> RouteDecision:
         """Route ``task_name`` and return a :class:`RouteDecision`.
 
         ``prompt_tokens`` is the size of the one request being routed: when given, the
@@ -153,12 +157,17 @@ class Router:
         slice's ``bar``, ``min_samples`` and sizes (DESIGN 5.2 v1.511). With ``cascades``
         True each cascade of the task is a candidate too, after the registry models, judged
         on its own trials and priced at its cheap model's call plus its share of hand-ups to
-        its strong model, never on a prior (DESIGN 7 v1.532 and v1.536). Raises ``KeyError``
+        its strong model, never on a prior (DESIGN 7 v1.532 and v1.536). Each of
+        ``procedures`` is a candidate after those, judged by rules 1 to 5 on its named model
+        and by its own trials under its ``proc:`` ID, at its measured mean cost per trial,
+        never on a prior (DESIGN 5.2 v1.577). Raises ``KeyError``
         for an unknown task or generator, ``ValueError`` for an unknown flavor, a
         ``prompt_tokens`` that is not an integer >= 0, a ``slice`` that is not a non-empty
         string without '@', a sliced task whose name holds '@' or whose slice key is
         another task, a ``cascades`` that is not a bool, or, with ``cascades`` True, a
-        registry ID equal to a cascade's ``id``, and :class:`NoModelClearsBar` when nothing
+        registry ID equal to a cascade's ``id``, ``procedures`` that is not a list or tuple of
+        ``Procedure``, two of them with one ``id`` or a registry ID equal to one's ``id``,
+        and :class:`NoModelClearsBar` when nothing
         can be chosen under the task's ``on_no_model`` policy.
         """
         if flavor not in FLAVORS:
@@ -168,6 +177,10 @@ class Router:
             raise ValueError(f"slice must be a non-empty string without '@', got {slice!r}")
         if not isinstance(cascades, bool):
             raise ValueError(f"cascades must be a bool, got {cascades!r}")
+        if not isinstance(procedures, (list, tuple)) \
+                or not all(isinstance(proc, Procedure) for proc in procedures):
+            raise ValueError("procedures must be a list or tuple of Procedure, "
+                             f"got {type(procedures).__name__}")
         if task_name not in self.tasks:
             raise KeyError(f"unknown task: {task_name!r}")
         base = self.tasks[task_name]
@@ -184,6 +197,13 @@ class Router:
             if cascade.id in self.registry:
                 raise ValueError(f"registry model {cascade.id!r} has the id of a cascade "
                                  f"of task {base.name!r}")
+        seen = set()
+        for proc in procedures:  # DESIGN 5.2 v1.577: one stats key per route
+            if proc.id in seen:
+                raise ValueError(f"two procedures have the id {proc.id!r}")
+            seen.add(proc.id)
+            if proc.id in self.registry:
+                raise ValueError(f"registry model {proc.id!r} has the id of a procedure")
         excluded = set(exclude_models)
         generator_base = generator_family = None
         if generator_model is not None:
@@ -197,6 +217,9 @@ class Router:
         candidates += tuple(self._cascade_candidate(task, cascade, flavor, excluded,
                                                     generator_base, generator_family, fit_input)
                             for cascade in routed)
+        candidates += tuple(self._procedure_candidate(task, proc, flavor, excluded,
+                                                      generator_base, generator_family, fit_input)
+                            for proc in procedures)
 
         passing = [c for c in candidates if c.passes]
         if passing:
@@ -230,9 +253,9 @@ class Router:
 
         if self.priors is not None and task.prior_category is not None:
             scored = []
-            cascade_ids = {cascade.id for cascade in routed}
+            no_prior = {cascade.id for cascade in routed} | seen
             for c in eligible:
-                if c.model_id in cascade_ids:  # a cascade has no prior (DESIGN 7 v1.532)
+                if c.model_id in no_prior:  # no cascade or procedure has one (7 v1.532, 5.2 v1.577)
                     continue
                 score = self.priors.score(task.prior_category, c.model_id)
                 if score is not None:
@@ -372,6 +395,49 @@ class Router:
         return Candidate(
             model_id=cascade.id,
             family=strong.family,
+            successes=successes,
+            trials=trials,
+            quality_lb=quality_lb,
+            routing_cost=list_cost if flavor == "cost_effective" else 0.0,
+            list_cost=list_cost,
+            eligible=reason in _ELIGIBLE_REASONS,
+            passes=reason == PASSES,
+            reason=reason,
+        )
+
+    def _procedure_candidate(self, task: Task, proc: Procedure, flavor: str, excluded: set,
+                             generator_base: Optional[str],
+                             generator_family: Optional[str], fit_input: int) -> Candidate:
+        """A procedure as one candidate (DESIGN 5.2 v1.577).
+
+        ``procedure_unknown_model`` when the registry lacks its named model; else rule 1 on its
+        own ``id``, then rules 1 to 5 on its named model, if any, then rules 6 to 8 on its own
+        counts. Its cost is its mean cost per trial once measured, before that one call of its
+        model at the task's sizes, or 0.0 without a model.
+        """
+        successes, trials = self.stats.get(task.name, proc.id)
+        quality_lb = wilson_lower_bound(successes, trials, task.confidence)
+        model = None
+        if proc.model is not None:
+            if proc.model not in self.registry:
+                return Candidate(model_id=proc.id, family="", successes=successes,
+                                 trials=trials, quality_lb=quality_lb, routing_cost=0.0,
+                                 list_cost=0.0, eligible=False, passes=False,
+                                 reason=PROCEDURE_UNKNOWN_MODEL)
+            model = self.registry.get(proc.model)
+        reason = EXCLUDED_MODEL if proc.id in excluded else None
+        if reason is None and model is not None:
+            reason = self._model_rule(task, model, excluded, generator_base, generator_family,
+                                      fit_input)
+        if reason is None:
+            reason = self._measured_rule(task, successes, trials)
+        list_cost = self.stats.mean_cost(task.name, proc.id)
+        if list_cost is None:
+            list_cost = 0.0 if model is None else model.cost(task.expected_input_tokens,
+                                                             task.expected_output_tokens)
+        return Candidate(
+            model_id=proc.id,
+            family="" if model is None else model.family,
             successes=successes,
             trials=trials,
             quality_lb=quality_lb,

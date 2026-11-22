@@ -20,6 +20,22 @@ def _is_count(value: object) -> bool:
     return isinstance(value, int) and not isinstance(value, bool) and value >= 0
 
 
+def _model_ok(model: object) -> bool:
+    """A procedure's model: a non-empty str without '+' or whitespace, never a 'proc:' ID."""
+    return (isinstance(model, str) and bool(model) and "+" not in model
+            and not any(ch.isspace() for ch in model) and not model.startswith("proc:"))
+
+
+def is_procedure_id(value: object) -> bool:
+    """True when ``value`` is a route ID a :class:`Procedure` can have (DESIGN 4.3 v1.577)."""
+    if not isinstance(value, str) or not value.startswith("proc:"):
+        return False
+    head, plus, model = value[len("proc:"):].partition("+")
+    name, at, version = head.partition("@")
+    return (bool(at) and bool(_NAME.fullmatch(name)) and bool(_NAME.fullmatch(version))
+            and (not plus or _model_ok(model)))
+
+
 class ProcedureLimitError(Exception):
     """A procedure's run went past one of its declared bounds, or used a dead call handle."""
 
@@ -83,9 +99,7 @@ class Procedure:
             if not _is_count(value):
                 raise ValueError(f"{label} must be an integer >= 0, got {value!r}")
         model = self.model
-        if model is not None and (not isinstance(model, str) or not model or "+" in model
-                                  or any(ch.isspace() for ch in model)
-                                  or model.startswith("proc:")):
+        if model is not None and not _model_ok(model):
             raise ValueError(f"procedure model must be None or a registry route ID without '+', "
                              f"whitespace or a 'proc:' start, got {model!r}")
         if (model is None) != (self.max_model_calls == 0):

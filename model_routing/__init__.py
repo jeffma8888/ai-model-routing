@@ -15,7 +15,8 @@ from .stats import Stats, calibrate_from_results, items_needed, wilson_lower_bou
 from .priors import Priors  # noqa: E402
 from .router import (  # noqa: E402
     BELOW_BAR, CASCADE_UNKNOWN_MODEL, CHEAPER_PER_SUCCESS, CONTEXT_TOO_SMALL, EXCLUDED_FAMILY, EXCLUDED_MODEL,
-    GENERATOR, GENERATOR_FAMILY, INSUFFICIENT_SAMPLES, PASSES, Candidate, NoModelClearsBar,
+    GENERATOR, GENERATOR_FAMILY, INSUFFICIENT_SAMPLES, PASSES, PROCEDURE_UNKNOWN_MODEL, Candidate,
+    NoModelClearsBar,
     RouteDecision, Router,
 )
 from .providers import (  # noqa: E402
@@ -38,7 +39,7 @@ __all__ = [
     "calibrate_from_results", "wilson_lower_bound", "items_needed", "Priors", "Candidate",
     "RouteDecision", "Router", "NoModelClearsBar", "EXCLUDED_MODEL", "EXCLUDED_FAMILY",
     "GENERATOR", "GENERATOR_FAMILY", "CONTEXT_TOO_SMALL", "INSUFFICIENT_SAMPLES",
-    "BELOW_BAR", "PASSES", "CASCADE_UNKNOWN_MODEL", "CHEAPER_PER_SUCCESS", "Completion", "ProviderError", "Provider", "FakeProvider",
+    "BELOW_BAR", "PASSES", "CASCADE_UNKNOWN_MODEL", "CHEAPER_PER_SUCCESS", "PROCEDURE_UNKNOWN_MODEL", "Completion", "ProviderError", "Provider", "FakeProvider",
     "OpenAICompatibleProvider", "Attempt", "CallResult", "Executor", "AllModelsFailed",
     "json_validator", "estimate_prompt_tokens", "Monitor", "load_records", "load_audits", "report",
     "run_demo",
