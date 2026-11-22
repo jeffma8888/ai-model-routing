@@ -336,7 +336,7 @@ def _load_family(row, rows_by_id) -> str:
     name = row.get("base_model")
     if row.get("family") is not None or name is None:
         return str(row["family"])  # as before v1.582: absent is a KeyError, null the string "None"
-    if not isinstance(name, str):
+    if not isinstance(name, str) or not name:  # Model's message, with or without a family (review iter-429 nit 1)
         raise ValueError(f"base_model must be None or a non-empty string, got {name!r}")
     base = rows_by_id.get(name)
     if base is None:

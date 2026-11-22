@@ -94,7 +94,9 @@ def test_a_fine_tune_of_a_registry_model_is_accepted_before_or_after_its_base():
     (lambda: [base(), Model("acme/mid", "v", 0.5, 1.0, 100_000, base_model="v/base"),
               tune(base_model="acme/mid")], "names a base_model itself"),
     (lambda: [base(), tune(family="acme")], "its base's family"),
-], ids=["missing", "itself", "variant", "chained", "other-family"])
+    # review iter-429 should-fix 3: the duplicate check comes first
+    (lambda: [tune(), tune()], "duplicate model id: 'acme/ft'"),
+], ids=["missing", "itself", "variant", "chained", "other-family", "duplicate-first"])
 def test_a_missing_own_variant_chained_or_other_family_base_is_refused(models, message):
     built = models()  # built inside the test, so the red run collects
     with pytest.raises(ValueError, match=message):
@@ -162,6 +164,15 @@ def test_a_fine_tune_row_may_leave_out_its_family_and_gets_its_bases(tmp_path):
         assert registry.get("v/base").deployment == "api"
 
 
+@pytest.mark.parametrize("order", ["tune-decoy-base", "base-decoy-tune", "decoy-tune-base"])
+def test_the_family_comes_from_the_base_row_not_a_neighbour(tmp_path, order):
+    # review iter-429 should-fix 2: a decoy row of another family beside the fine-tune
+    rows = {"tune": row("acme/ft", family=None, base_model="v/base"), "decoy": row("w/judge", family="w"),
+            "base": row("v/base")}
+    registry = load(tmp_path, [rows[name] for name in order.split("-")])
+    assert {m.id: m.family for m in registry.models} == {"acme/ft": "v", "w/judge": "w", "v/base": "v"}
+
+
 @pytest.mark.parametrize("rows, message", [
     ([row("acme/ft", family=None, base_model="v/nope")], "models.json.*is not a row of this file"),
     ([row("acme/mid", family=None, base_model="acme/ft"), row("acme/ft", family=None, base_model="acme/mid")],
@@ -170,6 +181,7 @@ def test_a_fine_tune_row_may_leave_out_its_family_and_gets_its_bases(tmp_path):
     ([row("acme/ft", base_model="v/nope")], "models.json.*is not a model of this registry"),
     ([row("v/base"), row("v/base")], "models.json.*duplicate model id"),
     ([row("v/base", deployment="cloud")], "models.json.*deployment"),
+    ([row("acme/ft", family=None, base_model="")], "models.json.*base_model must be None or a non-empty string"),
 ])
 def test_a_refused_row_or_registry_names_the_file(tmp_path, rows, message):
     with pytest.raises(ValueError, match=message):
