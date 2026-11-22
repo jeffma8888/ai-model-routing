@@ -76,7 +76,8 @@ def test_model_variant_is_the_last_field_and_names_the_route():
     assert list(dataclasses.asdict(plain))[-1] == "variant"
     assert dataclasses.asdict(plain)["variant"] is None
     assert dataclasses.asdict(lean)["variant"] == {
-        "name": "lean", "reasoning_effort": None, "harness": "agent 2", "context_policy": {}}
+        "name": "lean", "reasoning_effort": None, "harness": "agent 2", "context_policy": {},
+        "items_per_call": 1}  # v1.573
 
 
 @pytest.mark.parametrize("model_id, variant", [
@@ -124,7 +125,7 @@ def test_load_puts_each_variant_right_after_its_base(tmp_path):
 
 
 @pytest.mark.parametrize("variants", [
-    [], "lean", {"lean": "x"}, {"lean": None}, {"lean": {"items_per_call": 4}},
+    [], "lean", {"lean": "x"}, {"lean": None}, {"lean": {"items_per_call": 0}},
     {"lean": {"provider_options": {"effort": "low"}}}, {"lean": {"harnes": "x"}},
     {"a@b": {}}, {"": {}}, {"lean": {"harness": ""}}, {"lean": {"context_policy": [1]}},
 ])
@@ -304,6 +305,5 @@ def test_the_production_note_states_the_shipped_part_of_measured_setups():
             "or a harness, and each is a route of its own, `vendor/model@variant`, with its own "
             "stats, so today the runs of one model at two efforts or in two harnesses no longer "
             "pool into one success rate and one mean cost.") in text
-    assert ("The changes still planned: the number of criteria per call as a setting of a "
-            "variant, priced per item, and the provider options a variant passes on each call."
-            ) in text
+    assert ("The change still planned: the provider options a variant passes on each call."
+            ) in text  # v1.573: items per call shipped (tests/test_items_per_call.py)
