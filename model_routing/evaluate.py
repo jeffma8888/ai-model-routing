@@ -191,20 +191,25 @@ def _strategies(models: Sequence[str]) -> List[str]:
 
 
 def evaluate(outcomes, bars, seeds=range(10), flavors=("cost_effective", "cost_blind"),
-             calibration_fraction=0.5, min_samples=30, confidence=0.95) -> dict:
+             calibration_fraction=0.5, min_samples=30, confidence=0.95,
+             cost_per_correct=False) -> dict:
     """Calibrate on one split, route each flavor at each bar, score on the other (DESIGN 12.3).
 
     Returns ``config``, ``tasks``, ``cells``, ``summary`` and ``per_task``; the
     routed choice comes from ``Router.select`` so the shipped rules are what is
     measured. Deterministic for the same outcomes in any order. When outcomes name
     slices (v1.514), each cell of a sliced task also scores the pooled and the sliced
-    route per slice, and ``per_slice`` and ``slice_summary`` follow ``per_task``.
+    route per slice, and ``per_slice`` and ``slice_summary`` follow ``per_task``. With
+    ``cost_per_correct=True`` (v1.570) each ``summary`` and ``per_task`` row gains a last key,
+    ``cost_per_correct_usd``, its held-out cost over its held-out correct items.
     """
     outcomes = tuple(outcomes)
     bars, seeds, flavors = list(bars), list(seeds), list(flavors)
     if not outcomes:
         raise ValueError("no outcomes")
     _check_run_options(bars, seeds, flavors, min_samples, confidence, calibration_fraction)
+    if type(cost_per_correct) is not bool:
+        raise ValueError(f"cost_per_correct must be True or False, got {cost_per_correct!r}")
     for o in outcomes:
         _check_cascade_outcome(o)
 
@@ -287,6 +292,9 @@ def evaluate(outcomes, bars, seeds=range(10), flavors=("cost_effective", "cost_b
         "summary": _summary(cells, sums, bars, flavors, seeds, tasks, strategies),
         "per_task": _per_task(cells, bars, flavors, seeds, tasks, strategies, sums),
     }
+    if cost_per_correct:
+        _add_cost_per_correct(result["summary"], cells, sums, ("bar", "flavor"))
+        _add_cost_per_correct(result["per_task"], cells, sums, ("bar", "flavor", "task"))
     if groups:
         result["per_slice"] = _per_slice(cells, bars, flavors, groups)
         result["slice_summary"] = _slice_summary(cells, table, splits, groups, slice_sums, bars,
@@ -430,6 +438,20 @@ def _held_correct(split, cell, strategy) -> int:
         return split["oracle_correct"]
     m = cell["models"][strategy] if strategy in cell["models"] else strategy[len("model:"):]
     return split["held_correct"][m]
+
+
+def _add_cost_per_correct(rows, cells, sums, keys) -> None:
+    """v1.570 (12.3): give each row a last key, ``cost_per_correct_usd``, one ``fsum`` of the
+    held-out ``cost_usd`` of its cells (those matching it on ``keys``) over the sum of their
+    held-out correct counts, integers from the (task, seed) sums; None at 0 correct."""
+    groups: Dict[tuple, list] = {}
+    for c in cells:
+        groups.setdefault(tuple(c[k] for k in keys), []).append(c)
+    for row in rows:
+        group, s = groups[tuple(row[k] for k in keys)], row["strategy"]
+        correct = sum(_held_correct(sums[c["task"], c["seed"]], c, s) for c in group)
+        row["cost_per_correct_usd"] = (fsum(c["cost_usd"][s] for c in group) / correct
+                                       if correct else None)
 
 
 def _summary(cells, sums, bars, flavors, seeds, tasks, strategies):

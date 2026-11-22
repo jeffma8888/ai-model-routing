@@ -194,6 +194,7 @@ Reading it:
 - `cheapest` (`birch-nano`) is below the bar on every split. `oracle` is right whenever any judge is right and pays the cheapest right judge's price, so it is a bound that per-prompt routing could at most approach, not something task-level routing can reach
 - The routed `cost_effective` success (0.910) is below both judges it mostly picks between (0.916 and 0.913). The two halves are complementary, so a judge that drew a lucky calibration half drew an unlucky held-out half, and the router picks the lucky one. That selection effect is why the bar is a lower bound and why `bar_violation_rate` should be read next to the held-out size, never against zero (`DESIGN.md` 12.3)
 - `success` and `cost_usd` are means over seeds; `below_bar_rate` is the share of (task, seed) cells under the bar; `cleared_rate` and `bar_violation_rate` apply to `routed` only. `--json` prints the full result without per-cell rows, small enough to commit next to the data it came from
+- `--cost-per-correct` adds a last column, `cost_per_correct_usd`: each strategy's held-out cost over the held-out items it got right (`-` when it got none right), so a model that is cheaper per call but fails more often shows what each right answer costs (`DESIGN.md` 12.3). A task whose failed calls are retried can set `"failure_policy": "retry_same"` in its tasks file, and `cost_effective` then ranks the models that clear the bar by expected cost per success, a call's cost over its Wilson lower bound (`DESIGN.md` 5.3)
 
 ### Inline or sub-agent
 

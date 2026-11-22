@@ -24,7 +24,6 @@ import pytest
 from model_routing import Outcome, evaluate, split_items
 from model_routing.cli import main
 
-RED = pytest.mark.xfail(strict=True, reason="v1.570 lands in the implementing commit (row CPS1c)")
 CHEAP, STRONG = "fiction/cheap", "fiction/strong"
 CASCADE = f"{CHEAP}>{STRONG}@sig"
 ITEMS = [f"i{n:02d}" for n in range(12)]
@@ -120,13 +119,11 @@ def test_cli_json_without_the_option_has_no_new_key(capsys, tmp_path):
 # the v1.570 contract
 
 
-@RED
 def test_false_is_the_default_bit_for_bit():
     assert json.dumps(run(cost_per_correct=False), sort_keys=True) == json.dumps(run(),
                                                                                  sort_keys=True)
 
 
-@RED
 def test_true_adds_one_last_key_and_changes_nothing_else():
     plain, priced = run(), run(cost_per_correct=True)
     for key in ("summary", "per_task"):
@@ -136,7 +133,6 @@ def test_true_adds_one_last_key_and_changes_nothing_else():
     assert priced["cells"] == plain["cells"] and priced["config"] == plain["config"]
 
 
-@RED
 def test_summary_cost_per_correct_is_held_out_cost_over_held_out_correct():
     eff = by_strategy(run(cost_per_correct=True)["summary"], "cost_effective")
     got = {s: eff[s]["cost_per_correct_usd"] for s in STRATEGIES}
@@ -147,7 +143,6 @@ def test_summary_cost_per_correct_is_held_out_cost_over_held_out_correct():
     assert blind["routed"]["cost_per_correct_usd"] == 4.0
 
 
-@RED
 def test_per_task_cost_per_correct_and_none_at_zero_correct():
     rows = run(cost_per_correct=True)["per_task"]
     t, u = by_strategy(rows, "cost_effective", "t"), by_strategy(rows, "cost_effective", "u")
@@ -161,28 +156,24 @@ def test_per_task_cost_per_correct_and_none_at_zero_correct():
     assert t["routed"]["cost_usd"] / t[f"model:{STRONG}"]["cost_usd"] == 0.75
 
 
-@RED
 def test_a_free_correct_strategy_costs_zero_not_none():
     rows = [Outcome("t", i, m, True, 0.0) for i in ITEMS for m in (CHEAP, STRONG)]
     result = evaluate(rows, bars=[0.5], seeds=SEEDS, min_samples=1, cost_per_correct=True)
     assert {r["cost_per_correct_usd"] for r in result["summary"]} == {0.0}
 
 
-@RED
 @pytest.mark.parametrize("value", [1, 0, "yes", None, 1.0])
 def test_a_value_that_is_not_a_bool_is_refused(value):
     with pytest.raises(ValueError, match="cost_per_correct must be True or False"):
         run(cost_per_correct=value)
 
 
-@RED
 def test_the_bool_is_checked_before_any_work():
     with pytest.raises(ValueError, match="cost_per_correct must be True or False"):
         evaluate([Outcome("t", "i00", CHEAP, True, 1.0)], bars=[0.5], seeds=[0],
                  cost_per_correct="yes")
 
 
-@RED
 def test_cascade_rows_put_it_after_escalation_share():
     rows = []
     for item in ITEMS:
@@ -198,7 +189,6 @@ def test_cascade_rows_put_it_after_escalation_share():
     assert eff[f"model:{CASCADE}"]["cost_per_correct_usd"] == 5.0
 
 
-@RED
 def test_slices_never_gain_the_key():
     rows = [Outcome(o.task, o.item, o.model, o.correct, o.cost_usd,
                     "odd" if odd(o.item) else "even") for o in outcomes()]
@@ -209,22 +199,21 @@ def test_slices_never_gain_the_key():
         ["cost_per_correct_usd"] * len(result["per_task"]))
 
 
-@RED
 def test_cli_text_gains_a_last_column_to_six_decimals(capsys, tmp_path):
     code, out, err = cli(capsys, tmp_path, "--cost-per-correct")
     assert code == 0 and err == ""
     lines = out.splitlines()
     assert lines[0] == "bar 0.1, cost_effective"
     assert lines[1].split() == HEADER.split() + ["cost_per_correct_usd"]
-    rows = {line.split()[0]: line.split() for line in lines[2:8]}
+    rows = {line.split()[0]: line.split() for line in lines[3:9]}
     assert rows["routed"][-1] == "4.666667"
     assert rows["oracle"][-1] == "3.750000"
     assert rows[f"model:{CHEAP}"][-1] == "12.000000"
     blind = out.split("\n\n")[1].splitlines()
-    assert blind[0] == "bar 0.1, cost_blind" and blind[2].split()[-1] == "4.000000"
+    assert blind[0] == "bar 0.1, cost_blind" and blind[3].split()[:1] == ["routed"]
+    assert blind[3].split()[-1] == "4.000000"
 
 
-@RED
 def test_cli_text_prints_a_dash_for_none(capsys, tmp_path):
     rows = [r for r in matrix_rows() if r["task"] == "u"]
     path = write_matrix(tmp_path, rows)
@@ -232,12 +221,11 @@ def test_cli_text_prints_a_dash_for_none(capsys, tmp_path):
                  "--min-samples", "1", "--flavor", "cost_effective", "--cost-per-correct"])
     out = capsys.readouterr().out
     assert code == 0
-    table = {line.split()[0]: line.split() for line in out.splitlines()[2:]}
+    table = {line.split()[0]: line.split() for line in out.splitlines()[3:]}
     assert table["cheapest"][-1] == "-" and table[f"model:{CHEAP}"][-1] == "-"
     assert table["routed"][-1] == "4.000000"
 
 
-@RED
 def test_cli_json_keeps_the_key_in_summary_and_per_task(capsys, tmp_path):
     code, out, _ = cli(capsys, tmp_path, "--cost-per-correct", "--json")
     assert code == 0

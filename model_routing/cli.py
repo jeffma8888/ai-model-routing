@@ -112,6 +112,8 @@ def _build_parser() -> argparse.ArgumentParser:
     ev.add_argument("--registry", default=str(DATA_DIR / "models.json"))
     ev.add_argument("--slice-by", default=None, metavar="FIELD",
                     help="the outcome-row key that names each row's slice (DESIGN 12.4 v1.514)")
+    ev.add_argument("--cost-per-correct", action="store_true",
+                    help="add each strategy's held-out cost per correct item (DESIGN 12.4 v1.570)")
     ev.add_argument("--json", action="store_true")
 
     dg = sub.add_parser("delegate",
@@ -324,7 +326,8 @@ def _cmd_evaluate(args) -> int:
     result = evaluate(outcomes, bars=args.bar or [0.8],
                       seeds=range(args.seeds), flavors=args.flavor or FLAVORS,
                       calibration_fraction=args.calibration_fraction,
-                      min_samples=args.min_samples, confidence=args.confidence)
+                      min_samples=args.min_samples, confidence=args.confidence,
+                      cost_per_correct=args.cost_per_correct)
     result.pop("cells")
     if args.json:
         print(json.dumps(result, indent=2))
@@ -335,16 +338,22 @@ def _cmd_evaluate(args) -> int:
         return "-" if value is None else f"{value:.3f}"
     # v1.538: an escalation_share column only when the outcomes hold a cascade row
     escalation = ["escalation_share"] if "escalation_share" in result["summary"][0] else []
+    # v1.570: a cost_per_correct_usd column last, to 6 decimals, only with --cost-per-correct
+    per_correct = ["cost_per_correct_usd"] if args.cost_per_correct else []
+
+    def fmt6(value):
+        return "-" if value is None else f"{value:.6f}"
     blocks = []
     for bar in result["config"]["bars"]:
         for flavor in result["config"]["flavors"]:
             rows = [[r["strategy"], fmt(r["success"]), f"{r['cost_usd']:.4f}",
                      fmt(r["below_bar_rate"]), fmt(r["cleared_rate"]),
                      fmt(r["bar_violation_rate"])] + [fmt(r[k]) for k in escalation]
+                    + [fmt6(r[k]) for k in per_correct]
                     for r in result["summary"] if r["bar"] == bar and r["flavor"] == flavor]
             blocks.append(f"bar {bar}, {flavor}\n" + _table(
                 ["strategy", "success", "cost_usd", "below_bar_rate", "cleared_rate",
-                 "bar_violation_rate"] + escalation, rows))
+                 "bar_violation_rate"] + escalation + per_correct, rows))
             if "slice_summary" in result:
                 # v1.514: the (bar, flavor)'s slice_summary rows, slice_miss_rate last
                 rows = [[r["strategy"], fmt(r["success"]), f"{r['cost_usd']:.4f}",
