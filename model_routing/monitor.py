@@ -82,6 +82,36 @@ def _grouper(by: str):
     raise ValueError(f"unknown report key {by!r}; use model, task, flavor, family or tag:<key>")
 
 
+def _entry(rec: dict) -> object:
+    """The route entry a record belongs to, read from the record alone (DESIGN 8.3 v1.579)."""
+    if "cascade" in rec:
+        return rec.get("cascade")
+    if "procedure" in rec and "model_calls" not in rec:   # a model call of the procedure
+        return f"proc:{rec.get('procedure')}@{rec.get('procedure_version')}+{rec.get('model')}"
+    return rec.get("model")               # a closing record's model is the procedure's .id
+
+
+def _key(rec: dict) -> object:
+    """The record's ``call_id`` in a tuple, or ``None`` when it cannot be a dict key (a JSON
+    array or object), so that record matches no other (DESIGN 8.3 v1.579)."""
+    call_id = rec.get("call_id")
+    try:
+        hash(call_id)
+    except TypeError:
+        return None
+    return (call_id,)
+
+
+def _is_fallback(rec: dict, first: Dict[object, object]) -> bool:
+    """Whether a final record ends its call on another route entry than its first record."""
+    if int(rec.get("attempt", 0)) <= 0:
+        return False
+    if "cascade" not in rec and "procedure" not in rec:
+        return True                       # a plain entry writes one record (v1.577's count)
+    key = _key(rec)
+    return key is None or key not in first or first[key] != _entry(rec)
+
+
 def _nearest_rank(sorted_values: List[float], q: float) -> Optional[float]:
     if not sorted_values:
         return None
@@ -100,6 +130,11 @@ def report(records: Iterable[dict], by: str = "model",
     ``below_bar_fallback`` is true (DESIGN 8.1, 8.3, v1.203). Rows are sorted
     by descending ``cost_usd``, then ``group``.
 
+    A call counts in ``fallback_calls`` when its final record belongs to another
+    route entry than its first record, the latest record with its ``call_id`` and
+    ``attempt`` 0 at or before it, so a cascade that handed up or a procedure that
+    made model calls is no fallback as the first entry (DESIGN 8.3 v1.579).
+
     With ``audits`` (``{call_id: correct}``, ``load_audits``) each row also gains
     ``audited_calls``, ``correct_calls``, ``cost_per_success_usd`` and
     ``successes_per_100k_tokens`` (DESIGN 8.3, v1.569): every attempt of the group's calls over
@@ -111,7 +146,10 @@ def report(records: Iterable[dict], by: str = "model",
     groups: Dict[str, dict] = {}
     latencies: Dict[str, List[float]] = {}
     under: Dict[str, int] = {}
+    first: Dict[object, object] = {}
     for rec in records:
+        if rec.get("attempt", 0) == 0 and _key(rec) is not None:
+            first[_key(rec)] = _entry(rec)
         group = group_of(rec)
         row = groups.get(group)
         if row is None:
@@ -140,7 +178,7 @@ def report(records: Iterable[dict], by: str = "model",
             row["calls"] += 1
             if outcome != "ok":
                 row["failed_calls"] += 1
-            if int(rec.get("attempt", 0)) > 0:
+            if _is_fallback(rec, first):
                 row["fallback_calls"] += 1
             if outcome == "ok" and (rec.get("below_bar") is True
                                     or rec.get("below_bar_fallback") is True):

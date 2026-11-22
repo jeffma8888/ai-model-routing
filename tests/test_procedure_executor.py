@@ -487,8 +487,8 @@ def test_report_charges_the_tool_cost_to_the_procedure_and_the_model_call_to_its
     assert rows[PID]["cost_usd"] == 0.0005 and rows[PID]["attempts"] == 1
     assert rows[CHEAP]["cost_usd"] == round(cost(CHEAP, 4000, 1000), 6)
     assert rows[CHEAP]["calls"] == 0 and rows[PID]["calls"] == 1
-    # the stated limit (8.3 v1.578, row RPT2): the closing record is attempt 1, so the call
-    # counts as a fallback call although the procedure was the primary
-    assert rows[PID]["fallback_calls"] == 1 and rows[PID]["fallback_rate"] == 1.0
+    # 8.3 v1.579 (row RPT2) lifts v1.578's limit: the closing record is attempt 1 but belongs to
+    # the call's first entry, so the call is no fallback call
+    assert rows[PID]["fallback_calls"] == 0 and rows[PID]["fallback_rate"] == 0.0
     (task_row,) = report(h.monitor.records, by="task")
     assert task_row["cost_usd"] == round(cost(CHEAP, 4000, 1000) + 0.0005, 6)

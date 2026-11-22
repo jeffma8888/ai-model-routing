@@ -466,7 +466,7 @@ for row in report(monitor.records, by="tag:team"):
 ```
 
 - Costs and token counts are summed per attempt, so a failed attempt that still burned tokens is charged to the model that burned them
-- Call counts, failures and the fallback rate are attributed by each call's final attempt
+- Call counts, failures and the fallback rate are attributed by each call's final attempt. A call is a fallback call when that attempt belongs to another route entry than its first, so a cascade that handed up to its strong model, or a procedure whose model calls came before its closing record, is no fallback when it was the call's first choice
 - `below_bar_calls` counts the calls a model under the bar answered: those whose final attempt is `ok` and has `below_bar: true` (no model cleared, so the route was the best available) or `below_bar_fallback: true`. The text table shows that column only when some group has one
 - Latency percentiles are nearest-rank over successful attempts
 - `--audits audits.jsonl`, one `{"call_id": ..., "correct": true}` line per audited call, adds `audited_calls`, `correct_calls`, `cost_per_success_usd` (every attempt of the group's calls, fallbacks included, over the calls an audit marked correct) and `successes_per_100k_tokens`; both are `n/a` until every call of the group is audited, and an `ok` with no audit never counts as a success

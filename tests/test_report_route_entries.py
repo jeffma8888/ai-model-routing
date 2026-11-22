@@ -22,8 +22,6 @@ from model_routing import (
     ProviderError, Registry, Router, Stats, Task, load_records, report, run_demo,
 )
 
-contract = pytest.mark.xfail(strict=True, reason="DESIGN v1.579 is not implemented yet (RPT2)")
-
 CHEAP, MID, BEST = "fiction/cheap", "fiction/mid", "fiction/best"
 REGISTRY = Registry([
     Model(CHEAP, "fam-a", 1.0, 2.0, 10_000),
@@ -202,6 +200,13 @@ def test_guard_a_cascade_or_procedure_final_with_no_first_record_before_it_count
     assert fallbacks(records) == {BEST: (1, 1, 1.0), PID: (1, 1, 1.0), CHEAP: (0, 0, 0.0)}
 
 
+def test_guard_a_call_id_that_is_a_json_array_or_object_matches_no_record():
+    records = [rec(CHEAP, 0, False, cascade=CID, escalated=True, call_id=["x"]),
+               strong(1, call_id=["x"]),
+               rec(MID, 0, False, "error", call_id={"x": 1}), rec(MID, 1, True, call_id={"x": 1})]
+    assert fallbacks(records) == {BEST: (1, 1, 1.0), CHEAP: (0, 0, 0.0), MID: (1, 1, 1.0)}
+
+
 def test_guard_a_first_entry_at_attempt_0_is_no_fallback_as_before():
     records = [rec(CHEAP, 0, True, cascade=CID, escalated=False),
                closing(0, True, model="proc:shape@v2", version="v2", name="shape",
@@ -211,7 +216,6 @@ def test_guard_a_first_entry_at_attempt_0_is_no_fallback_as_before():
 
 # --- end to end: the executor's records (7 v1.537, 8.1 v1.578) --------------------------------
 
-@contract
 @pytest.mark.parametrize("cheap", [ok("cheap answer", 40, 9), fail()], ids=["signal", "error"])
 def test_a_cascade_that_hands_up_as_the_first_entry_is_no_fallback_call(cheap):
     h = Harness({CHEAP: cheap, BEST: ok("strong answer", 55, 12)}, cascade_stats())
@@ -226,7 +230,6 @@ def test_a_cascade_that_hands_up_as_the_first_entry_is_no_fallback_call(cheap):
                 if row["calls"]] == [(0, 0.0)], by
 
 
-@contract
 def test_a_procedure_primary_that_made_model_calls_is_no_fallback_call():
     h = Harness({CHEAP: ok("cheap answer", 4000, 1000)}, procedure_stats())
     result = h.call(procedures=[proc(poll_twice)])
@@ -274,7 +277,6 @@ def test_a_fallback_after_a_cascade_or_a_procedure_is_a_fallback_call():
 
 # --- the entry of each record, read from the record alone (8.3 v1.579) ------------------------
 
-@contract
 def test_a_model_call_record_belongs_to_proc_name_at_version_plus_its_model():
     # the closing record's model is the procedure's .id; any other closing model is another entry
     assert fallbacks([model_call(0), closing(1, True)]) == {CHEAP: (0, 0, 0.0), PID: (1, 0, 0.0)}
@@ -286,7 +288,6 @@ def test_a_model_call_record_belongs_to_proc_name_at_version_plus_its_model():
     assert fallbacks([model_call(0, model=MID), closing(1, True)])[PID] == (1, 1, 1.0)
 
 
-@contract
 def test_a_procedure_after_a_failed_procedure_is_a_fallback_and_its_own_calls_are_not():
     v2 = "proc:poll@v2+fiction/cheap"
     records = [model_call(0), closing(1, False, "invalid"),
@@ -296,7 +297,6 @@ def test_a_procedure_after_a_failed_procedure_is_a_fallback_and_its_own_calls_ar
     assert fallbacks(records) == {PID: (1, 0, 0.0), v2: (1, 1, 1.0), CHEAP: (0, 0, 0.0)}
 
 
-@contract
 def test_a_cascade_record_belongs_to_its_cascade_key_whatever_its_model():
     other = "fiction/mid>fiction/best@sig"
     records = [rec(CHEAP, 0, False, cascade=CID, escalated=True), strong(1),
@@ -307,7 +307,6 @@ def test_a_cascade_record_belongs_to_its_cascade_key_whatever_its_model():
 
 # --- a call's first record: the latest at attempt 0 with its call_id before its final -------
 
-@contract
 def test_interleaved_calls_are_matched_by_call_id():
     records = [rec(CHEAP, 0, False, cascade=CID, escalated=True),
                rec(MID, 0, False, "error", call_id="call-2"),
@@ -316,7 +315,6 @@ def test_interleaved_calls_are_matched_by_call_id():
     assert fallbacks(records) == {BEST: (2, 1, 0.5), CHEAP: (0, 0, 0.0), MID: (0, 0, 0.0)}
 
 
-@contract
 def test_logs_appended_one_after_another_keep_a_reused_call_id_apart():
     first_log = [rec(MID, 0, True)]
     second_log = [rec(CHEAP, 0, False, cascade=CID, escalated=True), strong(1)]
@@ -327,7 +325,6 @@ def test_logs_appended_one_after_another_keep_a_reused_call_id_apart():
         MID: (1, 0, 0.0), CHEAP: (0, 0, 0.0), BEST: (1, 0, 0.0)}
 
 
-@contract
 def test_the_rule_holds_under_every_report_key_and_with_audits():
     records = [rec(CHEAP, 0, False, cascade=CID, escalated=True, tags={"team": "a"}),
                strong(1, tags={"team": "a"})]
