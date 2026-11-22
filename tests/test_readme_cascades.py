@@ -350,7 +350,7 @@ def test_design_names_the_livecodebench_bullet():
                   "no cost is recorded, so the bullet makes no cost claim", "the strong row restarts the problem",
                   "a wrong answer only a private case finds stays on the cheap model"):
         assert words in line, words
-    lines = text.split("\n### 12.30 ", 1)[1].split("\n## ", 1)[0].split("\n")
+    lines = text.split("\n### 12.30 ", 1)[1].split("\n## ", 1)[0].split("\n### ", 1)[0].split("\n")  # 12.30 alone, v1.575
     readme = [k for k, x in enumerate(lines)
               if x.startswith("- README (v1.557, 7): README `## Start cheap, escalate on a signal` (row ESC3r)")]
     closing = [k for k, x in enumerate(lines) if x.startswith("- Not in this version:")]

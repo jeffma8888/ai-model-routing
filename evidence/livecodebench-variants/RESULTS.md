@@ -44,20 +44,22 @@ model:openai/o3-mini-2025-01-31@low       0.776    0.0000
 model:openai/o3-mini-2025-01-31@medium    0.822    0.0000
 model:openai/o4-mini@high                 0.909    0.0000
 model:openai/o4-mini@low                  0.833    0.0000
-model:openai/o4-mini@medium               0.893    0.0000```
+model:openai/o4-mini@medium               0.893    0.0000
+```
 
 ## Reading it
 
 - Each model's routes, from the lowest held-out success to the highest, the same at every bar: `anthropic/claude-opus-4` base 0.701, `@thinking` 0.765, a gap of 0.064; `anthropic/claude-sonnet-4` base 0.654, `@thinking` 0.742, a gap of 0.088; `openai/o1-2024-12-17` `@low` 0.798, `@medium` 0.819, `@high` 0.857, a gap of 0.059; `openai/o3-mini-2025-01-31` `@low` 0.776, `@high` 0.819, `@medium` 0.822, a gap of 0.046; `openai/o4-mini` `@low` 0.833, `@medium` 0.893, `@high` 0.909, a gap of 0.076. The widest gap is `anthropic/claude-sonnet-4`'s.
 - The highest setting is not the best route of `openai/o3-mini-2025-01-31`: `@medium` 0.822 against `@high` 0.819.
-- Routed, held-out success is 0.909 at every bar, with all 50 seeds routed to `openai/o4-mini@high` at each bar, against 0.902 for the routed row of the 67 runs in [results.json](../livecodebench/results.json); at bar 0.9 the `cleared_rate` is 0.180 here and 0.180 there.
+- Routed, held-out success is 0.909 at every bar, with all 50 seeds routed to `openai/o4-mini@high` at each bar, against 0.902 for the routed row of the 67 runs in [results.json](../livecodebench/results.json). At bar 0.9 a route clears on the calibration half in 0.180 of the seeds here and 0.180 there, and the `bar_violation_rate` is 1.000 here and 1.000 there: on every seed that cleared, held-out success fell below 0.9, so the bar is not met there though the mean over all 50 seeds is above it.
 - One success rate keyed by the model's name, with its calls spread evenly over its settings, would read the mean of its routes: `anthropic/claude-opus-4` 0.733, 0.032 over its lowest route and 0.032 under its highest; `anthropic/claude-sonnet-4` 0.698, 0.044 over its lowest route and 0.044 under its highest; `openai/o1-2024-12-17` 0.825, 0.027 over its lowest route and 0.032 under its highest; `openai/o3-mini-2025-01-31` 0.806, 0.030 over its lowest route and 0.016 under its highest; `openai/o4-mini` 0.878, 0.045 over its lowest route and 0.031 under its highest.
 
 ## Limits
 
 - No cost or token count is recorded, so this file makes no cost claim and cannot show a lower setting as the cheaper route.
-- Each setting is one run, under its submission folder's label, so a gap between two settings is one run's, not a mean over reruns.
+- Each setting is one run, named by its submission folder's label; the two Claude base routes are the folders with no label, taken as the runs without thinking from their names alone. A gap between two settings is one run's, not a mean over reruns.
 - The routes are 13 of the 67 runs of the LiveCodeBench results, so the `routed`, `oracle`, `best_on_calibration` and `cheapest` rows are not those of their results.json; each `model:` row is, under its route ID.
+- The `evidence` workflow does not regenerate this file yet; where the 67 kept files are cached, tests/test_evidence_livecodebench_variants.py rebuilds it byte for byte.
 
 ## Regenerate
 

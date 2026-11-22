@@ -76,11 +76,14 @@ SOURCE = [
 LIMITS = [
     "- No cost or token count is recorded, so this file makes no cost claim and cannot show a lower setting as the "
     "cheaper route.",
-    "- Each setting is one run, under its submission folder's label, so a gap between two settings is one run's, "
-    "not a mean over reruns.",
+    "- Each setting is one run, named by its submission folder's label; the two Claude base routes are the folders "
+    "with no label, taken as the runs without thinking from their names alone. A gap between two settings is one "
+    "run's, not a mean over reruns.",
     "- The routes are 13 of the 67 runs of the LiveCodeBench results, so the `routed`, `oracle`, "
     "`best_on_calibration` and `cheapest` rows are not those of their results.json; each `model:` row is, under "
     "its route ID.",
+    "- The `evidence` workflow does not regenerate this file yet; where the 67 kept files are cached, "
+    "tests/test_evidence_livecodebench_variants.py rebuilds it byte for byte.",
 ]
 _loaded = []
 
@@ -170,10 +173,14 @@ def reading(data, base):
     at_top = [r for r in data["summary"] if r["strategy"] == "routed" and r["bar"] == BARS[-1]][0]
     base_top = [r for r in base["summary"] if r["strategy"] == "routed" and r["bar"] == BARS[-1]][0]
     names = " and ".join(f"`{m}`" for m in sorted(chosen))
+    assert rows[0]["success"] > BARS[-1] and base_rows[0]["success"] > BARS[-1]  # the mean above 0.9, as said
     three = (f"- Routed, held-out success is {r3(rows[0]['success'])} at every bar, with all 50 seeds routed to "
              f"{names} at each bar, against {r3(base_rows[0]['success'])} for the routed row of the "
-             f"67 runs in [results.json](../livecodebench/results.json); at bar 0.9 the `cleared_rate` is "
-             f"{r3(at_top['cleared_rate'])} here and {r3(base_top['cleared_rate'])} there.")
+             f"67 runs in [results.json](../livecodebench/results.json). At bar 0.9 a route clears on the calibration "
+             f"half in {r3(at_top['cleared_rate'])} of the seeds here and {r3(base_top['cleared_rate'])} there, and "
+             f"the `bar_violation_rate` is {r3(at_top['bar_violation_rate'])} here and "
+             f"{r3(base_top['bar_violation_rate'])} there: on every seed that cleared, held-out success fell "
+             f"below 0.9, so the bar is not met there though the mean over all 50 seeds is above it.")
     parts = []
     for m, routes_ in models.items():
         mean = sum(success[r] for r in routes_) / len(routes_)
@@ -254,7 +261,8 @@ def test_variant_rows_keeps_the_runs_of_the_routes_in_order_as_new_dicts():
     rows = [{"task": "t", "item": "1", "model": "openai/o4-mini-low", "correct": True, "cost_usd": 0.0},
             {"task": "t", "item": "1", "model": "openai/gpt-4o-2024-08-06", "correct": True, "cost_usd": 0.0},
             {"task": "t", "item": "2", "model": "openai/o4-mini-high", "correct": False, "cost_usd": 0.0,
-             "difficulty": "1-easy"}]
+             "difficulty": "1-easy"},
+            {"task": "t", "item": "3", "model": ["openai/o4-mini-low"], "correct": True}]
     before = copy.deepcopy(rows)
     got = script().variant_rows(rows, ROUTES)
     assert got == [dict(rows[0], model="openai/o4-mini@low"), dict(rows[2], model="openai/o4-mini@high")]
@@ -333,7 +341,8 @@ def test_the_results_md_holds_its_sections_in_order():
 
 def test_the_results_section_is_the_table_as_table_prints_it(rs):
     body = section(RESULTS_MD.read_text(encoding="utf-8"), "Results")
-    assert f"```text\n$ {TABLE}\n{rs.table(committed())}```\n" in body
+    assert f"```text\n$ {TABLE}\n{rs.table(committed())}\n```\n" in body
+    assert "0000```" not in RESULTS_MD.read_text(encoding="utf-8")  # review iter-422 must-fix 1
 
 
 def test_the_reading_bullets_are_built_from_the_file():

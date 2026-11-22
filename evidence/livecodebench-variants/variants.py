@@ -75,7 +75,8 @@ def routes(folders) -> dict:
 
 def variant_rows(rows, table) -> list:
     """The rows whose ``model`` is a run of ``table``, in input order, each a new dict naming its route."""
-    return [dict(row, model=table[row["model"]]) for row in rows if row.get("model") in table]
+    return [dict(row, model=table[row["model"]]) for row in rows
+            if isinstance(row.get("model"), str) and row["model"] in table]
 
 
 def read_matrix(path) -> list:
