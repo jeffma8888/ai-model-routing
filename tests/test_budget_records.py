@@ -398,8 +398,8 @@ def test_design_and_the_note_state_the_records_as_shipped():
     text = (ROOT / "DESIGN.md").read_text(encoding="utf-8")
     four6 = text[text.index("### 4.6 Budgets"):text.index("## 5. ")]
     assert four6.count("  - v1.598 records (row B1e): ") == 1
-    assert "- Not in this version: the README paragraph (row B1d); the crossings and refusals " \
-        "in the monitor log and `budget_used_pct` are v1.598's (7 and 8, row B1e)," in four6  # v1.599
+    assert "; the crossings and refusals " \
+        "in the monitor log and `budget_used_pct` are v1.598's (7 and 8, row B1e)," in four6  # v1.599, v1.600
     assert text[text.index("## 7. "):text.index("## 8. ")].count("- v1.598 budget records (row B1e): ") == 1
     eight = text[text.index("## 8. "):text.index("## 9. ")]
     assert eight.count("- v1.598 budget records (row B1e") == 2

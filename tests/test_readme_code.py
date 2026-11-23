@@ -8,7 +8,11 @@ one namespace, as one script would hold them, in a temporary directory with a
 `faithfulness_judge`, `GATEWAY_API_KEY` set to a fake key, and `urllib.request.urlopen`
 replaced by a fake that records each request and answers with a reply that passes the
 first block's `json_validator`. So the real `OpenAICompatibleProvider` builds and sends
-every request, and nothing reaches the network."""
+every request, and nothing reaches the network.
+
+DESIGN 3 v1.600 (row B1d): a fourth block, at the end of `## Monitoring and cost attribution`,
+makes three judge calls under a `BudgetLedger`; two reach the fake, the second's settle writes
+a `warn` record and the third is refused before it is sent."""
 
 import io
 import json
@@ -26,6 +30,7 @@ FIRST_LINES = (
     "from model_routing import (",
     "decision = router.decide_delegation(",
     'for row in report(monitor.records, by="tag:team"):',
+    "from model_routing import Budget, BudgetExceeded, BudgetLedger, budget_report",
 )
 URL = "https://your-gateway.example/v1/chat/completions"
 PARENT = "openai/gpt-6.1-sol"
@@ -78,7 +83,7 @@ def run_blocks(text, folder, monkeypatch, capsys):
 def check(after, sent, printed, folder):
     """What the README says each block does, and its bullets say of the second."""
     assert len(after) == len(FIRST_LINES)
-    first, second, third = after
+    first, second, third, fourth = after
     request = {"url": URL, "auth": "Bearer fake_key", "timeout": 60.0,
                "body": {"model": "claude-haiku-5-5",
                         "messages": [{"role": "user", "content": "..."}]}}
@@ -98,7 +103,7 @@ def check(after, sent, printed, folder):
     assert decision.parent == PARENT
     assert registry.get(decision.model).family != registry.get(PARENT).family
     assert second["result"].model == decision.model == JUDGE
-    assert len(sent) == 2 and sent[1] == request
+    assert len(sent) == 4 and sent[1] == request  # v1.600: blocks 1 and 2 send the first two
     assert printed[1] == []
 
     # every attempt logged, the hand-off tagged `delegated` and `parent`
@@ -117,6 +122,33 @@ def check(after, sent, printed, folder):
     row = rows[0]
     assert printed[2] == [" ".join(str(row[k]) for k in (
         "group", "calls", "fallback_rate", "cost_usd", "p95_latency_ms"))]
+
+    # block 4 (v1.600, row B1d): what its bullets say. Each call is held at the judge's list price
+    # for 3,000 input and the task's 150 output tokens, and the fake's reply costs 0.00031
+    judge = registry.get(JUDGE)
+    assert judge.cost(3000, 150) == pytest.approx(0.000375)
+    assert judge.cost(3000, 20) == pytest.approx(0.00031)
+    assert sent[2:] == [request, request]  # the third call is never sent
+    ledger, log = fourth["ledger"], fourth["budget_log"].records
+    attempts = [r for r in log if "budget_event" not in r]
+    events = [r for r in log if "budget_event" in r]
+    assert [(r["model"], r["outcome"]) for r in attempts] == [(JUDGE, "ok"), (JUDGE, "ok")]
+    assert [r["cost_usd"] for r in attempts] == [pytest.approx(0.00031)] * 2
+    assert [(r["budget"], r["budget_event"]) for r in events] == [("search-quality", "warn"),
+                                                                ("judge", "refused")]
+    assert [r.get("budget_event") for r in log] == [None, "warn", None, "refused"]
+    assert events[0]["share"] == 0.5  # 0.00062 is 62% of the team's 0.001
+    assert ledger.spent_usd("judge") == pytest.approx(0.00062)
+    assert ledger.spent_usd("judge") + judge.cost(3000, 150) > 0.0009
+    rows = model_routing.budget_report(log, ledger.budgets)
+    assert [(r["budget"], r["spent_usd"], r["budget_used_pct"], r["warn_records"], r["refused_records"])
+            for r in rows] == [("search-quality", 0.00062, 62.0, 1, 0), ("judge", 0.00062, 68.888889, 0, 1)]
+    day = rows[1]["window"]
+    assert re.fullmatch(r"\d{4}-\d{2}-\d{2}", day) and rows[0]["window"] == day[:7]
+    assert printed[3] == [f"refused by judge {day}"] + [" ".join(str(r[k]) for k in (
+        "budget", "window", "budget_used_pct", "warn_records", "refused_records")) for r in rows]
+    # `report` reads the same log as before: two calls, the budget records skipped
+    assert [(r["group"], r["calls"]) for r in model_routing.report(log, by="model")] == [(JUDGE, 2)]
 
 
 def test_readme_python_blocks_are_the_ones_this_file_runs():
@@ -145,11 +177,15 @@ MUTANTS = [
      TypeError),
     ('    generator_model="openai/gpt-6.1-sol",\n)\nif decision.mode',
      ")\nif decision.mode", AssertionError),
+    # v1.600 (row B1d): the fourth block's keyword and its premise, a limit that refuses the third call
+    ("monitor=budget_log, ledger=ledger)", "monitor=budget_log, budget=ledger)", TypeError),
+    ('Budget("judge", 0.0009, "refuse",', 'Budget("judge", 0.002, "refuse",', AssertionError),
 ]
 
 
 @pytest.mark.parametrize("old, new, error", MUTANTS, ids=[
-    "import", "api_key_env", "validate", "brief_tokens", "messages", "by", "generator_model"])
+    "import", "api_key_env", "validate", "brief_tokens", "messages", "by", "generator_model",
+    "ledger", "refuse_limit"])
 def test_a_changed_name_or_keyword_fails_the_run(old, new, error, tmp_path, monkeypatch,
                                                   capsys):
     text = readme_text()

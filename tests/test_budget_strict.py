@@ -381,10 +381,10 @@ def test_design_specifies_strict_budgets_and_defers_rows_b1e_and_b1f():
     four = text[text.index("### 4.6 Budgets"):text.index("## 5. ")]
     assert four.count("  - v1.597 strict (row B1c): ") == 1
     assert "`max_tokens`, `max_completion_tokens` and `max_output_tokens`" in four
-    assert ("- Not in this version: the README paragraph (row B1d); the crossings and refusals in "
+    assert ("; the crossings and refusals in "
             "the monitor log and `budget_used_pct` are v1.598's (7 and 8, row B1e), and the "
             "`demo --budgets FILE` option with exit code 4 on a refusal v1.599's (10 and 11, row "
-            "B1f).") in four   # v1.598 and v1.599 restate it
+            "B1f).") in four   # v1.598, v1.599 and v1.600 restate it
     seven = text[text.index("## 7. "):text.index("## 8. ")]
     assert seven.count("- v1.597 strict (row B1c): ") == 1
     fourteen = text[text.index("## 14. "):text.index("## 15. ")]

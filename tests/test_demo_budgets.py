@@ -64,10 +64,10 @@ def test_design_states_the_option_the_exit_code_and_the_ledger():
     eleven = text[text.index("## 11. Demo"):text.index("## 12. ")]
     assert eleven.count("- v1.599 (row B1f): `run_demo(out_dir, seed=7, budgets=None)`. ") == 1
     four6 = text[text.index("### 4.6 Budgets"):text.index("## 5. ")]
-    assert ("- Not in this version: the README paragraph (row B1d); the crossings and refusals in "
+    assert ("; the crossings and refusals in "
             "the monitor log and `budget_used_pct` are v1.598's (7 and 8, row B1e), and the "
             "`demo --budgets FILE` option with exit code 4 on a refusal v1.599's (10 and 11, row "
-            "B1f).") in four6
+            "B1f).") in four6  # v1.600 restates its head (row B1d)
     fourteen = text[text.index("## 14. "):text.index("## 15. ")]
     assert "row B1f" not in fourteen
     assert fourteen.count("v1.599's `demo --budgets` with exit code 4") == 1
