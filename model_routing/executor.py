@@ -161,7 +161,8 @@ class Executor:
         falls back, and its records carry the procedure keys (DESIGN 7 and 8.1 v1.578).
         A task with a ``shadow_rate`` above 0 may shadow the call: once the routed call has
         returned, one call of the shadow route on the same messages, whose failure never fails
-        the routed call, both calls' records paired by ``pair_id`` (DESIGN 7 and 8.1 v1.607).
+        the routed call, both calls' records paired by ``pair_id`` (DESIGN 7 and 8.1 v1.607);
+        none when the routed answer came from the shadow route's model (7 and 8.1 v1.609).
         """
         _check_prompt_tokens(prompt_tokens)
         if signals is not None and not isinstance(signals, Mapping):
@@ -292,7 +293,9 @@ class Executor:
         except BudgetExceeded as exc:
             exc.attempts, exc.decision = tuple(attempts), decision
             raise
-        if shadow is not None:  # DESIGN 7 v1.607: only once the routed call has returned
+        # DESIGN 7 v1.607: only once the routed call has returned; v1.609: and never on an
+        # answer of the shadow route's own model, a fallback or a cascade leg onto it
+        if shadow is not None and result.model != shadow:
             self._shadow(shadow, task_name, task, decision, messages, call_tags, validate, size,
                          call_id, shadow_id)
         return result

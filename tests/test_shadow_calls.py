@@ -758,7 +758,7 @@ def test_a_fallback_onto_the_named_shadow_route_sends_no_shadow():
             for r in monitor.records] == [("call-0", CHEAP, 0, "error", "call-0", False),
                                           ("call-0", MID, 1, "ok", "call-0", False)]
     calls = {row["group"]: row["calls"] for row in report(monitor.records)}
-    assert calls == {CHEAP: 1, MID: 1}
+    assert calls == {CHEAP: 0, MID: 1}  # one call, counted under the model that answered
 
 
 def test_a_below_bar_fallback_onto_the_named_shadow_route_sends_no_shadow():
