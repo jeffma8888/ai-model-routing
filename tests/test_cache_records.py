@@ -126,6 +126,16 @@ def test_a_malformed_count_or_details_is_a_bad_response(details):
     assert caught.value.status is None
 
 
+@pytest.mark.parametrize("prompt_tokens", ["13", -1, None])
+def test_a_bad_prompt_count_beside_a_cached_one_is_a_bad_shape(prompt_tokens):
+    # review iter-437 nit 4: the cached check runs only on a good prompt count, so a bad one
+    # stays the shape error and never reaches the comparison
+    usage = {"prompt_tokens": prompt_tokens, "completion_tokens": 5,
+             "prompt_tokens_details": {"cached_tokens": 9}}
+    with pytest.raises(ProviderError, match="unexpected response shape"):
+        adapter(usage).complete("fiction/a", MSGS, 5)
+
+
 # --- 7 and 8.1: the attempt, its cost and its record -----------------------------------------
 
 def test_attempt_gains_the_two_counts_last_both_unknown_by_default():
@@ -333,7 +343,7 @@ def test_the_production_note_says_the_records_carry_the_counts():
         assert gone not in note, gone
     for kept in ("The attempt records carry the cached and written tokens a provider returns, each "
                  "attempt priced at them. A cascade's legs, a procedure's model and the delegation "
-                 "decision pass none yet",
+                 "decision pass none to model choice yet",
                  "a record prices the cache writes its provider returns, as a route prices its "
                  "measured ones",
                  "the monitor records each attempt's input and output tokens, the cached and "

@@ -240,7 +240,7 @@ def test_the_production_note_states_registry_cache_prices_as_shipped():
     # v1.589 (row CACHE1c): the attempt records carry the counts a provider returns
     assert ("The attempt records carry the cached and written tokens a provider returns, each attempt "
             "priced at them. A cascade's legs, a procedure's model and the delegation decision pass "
-            "none yet") in line[0]
+            "none to model choice yet") in line[0]
     rate = note.split("\n### The cache hit rate is a cost number\n", 1)[1]
     rate_line = [x for x in rate.split("\n### ", 1)[0].splitlines() if x.startswith("- In this library: ")]
     assert len(rate_line) == 1
