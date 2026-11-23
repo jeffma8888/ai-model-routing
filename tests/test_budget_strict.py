@@ -282,6 +282,8 @@ def test_a_strict_refuse_budget_refuses_a_procedure_entry_before_its_run():
         make(_procedure_route(proc), FakeProvider({CAPPED: ok(), BEST_CAPPED: ok()}),
              ledger).call("t", MESSAGES, procedures=[proc])
     assert caught.value.unbounded is True and caught.value.model == proc.id
+    assert caught.value.estimate_usd == 0.0 and caught.value.attempts == ()
+    assert caught.value.decision is not None and caught.value.decision.primary == proc.id
     assert seen == [] and ledger.spent_usd("s") == 0.0
 
 
@@ -289,9 +291,25 @@ def test_a_strict_downgrade_budget_moves_a_procedure_entry_on():
     seen = []
     proc = _poll(seen)
     ledger = BudgetLedger([Budget("s", 1.0, "downgrade", strict=True)])
+    monitor = Monitor()
     result = make(_procedure_route(proc), FakeProvider({CAPPED: ok(), BEST_CAPPED: ok()}),
-                  ledger).call("t", MESSAGES, procedures=[proc])
+                  ledger, monitor).call("t", MESSAGES, procedures=[proc])
     assert result.model == BEST_CAPPED and seen == []
+    assert [r["budget_moves"] for r in monitor.records] == [
+        [{"entry": proc.id, "model": proc.id, "budget": "s"}]]
+
+
+def test_a_budget_that_is_not_strict_meets_a_procedure_entry_as_in_v1_596():
+    seen = []
+    proc = _poll(seen)
+    ledger = BudgetLedger([Budget("s", 1.0, "refuse", task="other", strict=True),
+                           Budget("r", 0.001, "refuse")])
+    ledger.charge("t", {}, 0.002)  # past its limit before the call
+    with pytest.raises(BudgetExceeded) as caught:
+        make(_procedure_route(proc), FakeProvider({CAPPED: ok(), BEST_CAPPED: ok()}),
+             ledger).call("t", MESSAGES, procedures=[proc])
+    assert caught.value.budget.name == "r" and caught.value.unbounded is False
+    assert len(seen) == 1  # the run started, as in v1.596, and its model call was refused
 
 
 class _OddCompletion:

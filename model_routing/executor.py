@@ -251,14 +251,13 @@ class Executor:
                 moving = None
             proc = (procedures or {}).get(entry)
             if proc is not None and scope is not None and self._strict:
-                try:  # DESIGN 7 v1.597: a strict budget cannot bound a procedure's tool cost
-                    self.ledger.settle(self.ledger.reserve(scope[0], scope[1], 0.0, proc.id,
-                                                           **self._at()), 0.0)
-                except BudgetExceeded as exc:
-                    if exc.budget.mode != "downgrade":
-                        raise
-                    moving = exc
-                    moves.append({"entry": entry, "model": exc.model, "budget": exc.budget.name})
+                refusal = self._strict_refusal(scope, proc.id)  # DESIGN 7 v1.597
+                if refusal is not None:
+                    if refusal.budget.mode != "downgrade":
+                        raise refusal
+                    moving = refusal
+                    moves.append({"entry": entry, "model": proc.id,
+                                  "budget": refusal.budget.name})
                     continue
             if proc is not None:  # a downgrade refusal inside the run ends the call (7 v1.596)
                 text = self._procedure(proc, messages, task, registry, validate, log, last,
@@ -309,6 +308,21 @@ class Executor:
         log(attempt, text is not None or last, entry, cascade, True)
         if text is not None:
             return CallResult(call_id, text, cascade.strong, tuple(attempts), decision)
+        return None
+
+    def _strict_refusal(self, scope, model: str) -> Optional[BudgetExceeded]:
+        """The refusal of a procedure entry by a strict budget that applies, whose tool cost has
+        no bound: the first strict ``refuse`` budget, else ``downgrade``; no other budget is read
+        (DESIGN 7 v1.597, review iter-445 should-fix 1)."""
+        applying = [budget for budget in self.ledger.budgets
+                    if budget.strict and budget.applies(scope[0], scope[1])]
+        for mode in ("refuse", "downgrade"):
+            for budget in applying:
+                if budget.mode == mode:
+                    at = self._at().get("at")
+                    return BudgetExceeded(budget, self.ledger.spent_usd(budget.name, at),
+                                          self.ledger.held_usd(budget.name, at), 0.0, model,
+                                          unbounded=True)
         return None
 
     def _at(self) -> dict:
