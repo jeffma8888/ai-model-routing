@@ -101,9 +101,11 @@ def test_a_bad_cascade_is_a_value_error(args):
 # --- Task.cascades and load_tasks ----------------------------------------------------------
 
 def test_cascades_follows_slices_and_defaults_to_an_empty_tuple():
-    # v1.567 (row CPS1a): `failure_policy` comes after it, the last field
-    assert [f.name for f in dataclasses.fields(Task)][-3:] == [
-        "slices", "cascades", "failure_policy"]
+    # v1.567 (row CPS1a): `failure_policy` comes after it; v1.607 (row CANARY1a): the two
+    # shadow fields after that
+    names = [f.name for f in dataclasses.fields(Task)]
+    at = names.index("slices")
+    assert names[at:at + 3] == ["slices", "cascades", "failure_policy"]
     assert Task("t", 0.8).cascades == ()
 
 

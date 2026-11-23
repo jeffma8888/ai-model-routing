@@ -59,8 +59,11 @@ def _by_id(decision):
 
 # ---- 4.2 the field ------------------------------------------------------------------------
 
-def test_the_field_is_last_and_none_by_default():
-    assert [f.name for f in dataclasses.fields(Task)][-2:] == ["cascades", "failure_policy"]
+def test_the_field_follows_cascades_and_is_none_by_default():
+    # v1.607 (row CANARY1a): the two shadow fields follow it, so it is no longer the last
+    names = [f.name for f in dataclasses.fields(Task)]
+    assert names[names.index("cascades"):][:2] == ["cascades", "failure_policy"]
+    assert names[-2:] == ["shadow_rate", "shadow_route"]
     assert Task("t", 0.5).failure_policy == "none"
     assert Task("t", 0.5, failure_policy="retry_same").failure_policy == "retry_same"
 

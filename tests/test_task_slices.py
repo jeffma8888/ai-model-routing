@@ -123,8 +123,9 @@ def test_rows_without_a_slice_count_once_under_the_task():
 
 def test_slices_follows_fallback_below_bar_and_is_empty_by_default():
     names = [f.name for f in dataclasses.fields(Task)]
-    # cascades: v1.535; failure_policy: v1.567
-    assert names[-4:] == ["fallback_below_bar", "slices", "cascades", "failure_policy"]
+    # cascades: v1.535; failure_policy: v1.567; shadow_rate and shadow_route: v1.607
+    at = names.index("fallback_below_bar")
+    assert names[at:at + 4] == ["fallback_below_bar", "slices", "cascades", "failure_policy"]
     assert Task("t", 0.5).slices == {}
 
 
