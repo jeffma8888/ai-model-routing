@@ -43,7 +43,8 @@ def read(name):
 
 
 def chosen_paragraphs():
-    section = read("README.md").split("\n## How a model is chosen\n", 1)[1].split("\n## ", 1)[0]
+    # v1.604 (row PROD1a): the paragraphs moved to `## Running it in production`, word for word
+    section = read("README.md").split("\n## Running it in production\n", 1)[1].split("\n## ", 1)[0]
     return section.split("\n### ", 1)[0].strip().split("\n\n")
 
 

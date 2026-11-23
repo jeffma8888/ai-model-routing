@@ -372,7 +372,7 @@ def test_a_hand_built_route_of_an_unknown_model_calls_the_provider_before_the_co
 
 def test_the_readme_says_provider_options_are_sent():
     text = (ROOT / "README.md").read_text(encoding="utf-8")
-    part = text.split("## How a model is chosen", 1)[1].split("\n## ", 1)[0]
+    part = text.split("\n## Running it in production\n", 1)[1].split("\n## ", 1)[0]  # v1.604, row PROD1a
     assert ("A variant's `provider_options`, for example `{\"reasoning_effort\": \"high\"}`, are "
             "sent: the executor passes them to the provider on each call of that route, and "
             "`OpenAICompatibleProvider` adds them to the request body after `model` and `messages`, "

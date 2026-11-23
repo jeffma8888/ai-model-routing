@@ -335,7 +335,7 @@ def test_select_json_keeps_its_keys(tmp_path, capsys):
 
 def test_the_readme_names_items_per_call():
     text = (ROOT / "README.md").read_text(encoding="utf-8")
-    part = text.split("## How a model is chosen", 1)[1].split("\n## ", 1)[0]
+    part = text.split("\n## Running it in production\n", 1)[1].split("\n## ", 1)[0]  # v1.604, row PROD1a
     assert ('A variant whose calls each handle several items, a judge grading four answers in one call '
             'for example, sets `"items_per_call": 4`') in part
     assert "priced per item, its mean call over 4, and `select` shows an `items` column" in part

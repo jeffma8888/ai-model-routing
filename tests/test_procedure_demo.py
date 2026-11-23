@@ -38,9 +38,9 @@ def run():
 
 
 def readme_part():
+    # v1.604 (row PROD1a): the paragraph moved to `## Running it in production`, word for word
     text = (ROOT / "README.md").read_text(encoding="utf-8")
-    part = text.split("\n## How a model is chosen\n", 1)[1].split("\n## ", 1)[0]
-    return part.split("\n### The quality bar", 1)[0]
+    return text.split("\n## Running it in production\n", 1)[1].split("\n## ", 1)[0]
 
 
 def test_the_summary_keys_and_task():

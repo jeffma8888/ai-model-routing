@@ -291,9 +291,14 @@ def test_only_the_registry_and_the_router_read_the_field():
     assert naming == {"registry.py", "router.py"}
 
 
-def _readme_part():
+def _section(heading):
     text = (ROOT / "README.md").read_text(encoding="utf-8")
-    return text.split("\n## How a model is chosen\n", 1)[1].split("\n## ", 1)[0]
+    return text.split(f"\n## {heading}\n", 1)[1].split("\n## ", 1)[0]
+
+
+def _readme_part():
+    # v1.604 (row PROD1a): the scope paragraph moved to `## Running it in production`, word for word
+    return _section("Running it in production")
 
 
 def test_the_readme_names_the_rule_and_the_reason():
@@ -311,8 +316,9 @@ def test_the_readme_names_the_rule_and_the_reason():
                       "sub-agents that our model can route to in order to tackle specific tasks."]
     assert all(f'"{q}"' in note for q in quotes)
     assert part.index("A model you train or serve yourself") < part.index(text)
-    assert "`context_too_small`, `out_of_scope`, `insufficient_samples`" in part
-    assert "Outside the model's scope_tasks?" in part.split("```mermaid", 1)[1].split("```", 1)[0]
+    chosen = _section("How a model is chosen")  # the reason list and the flowchart stay there
+    assert "`context_too_small`, `out_of_scope`, `insufficient_samples`" in chosen
+    assert "Outside the model's scope_tasks?" in chosen.split("```mermaid", 1)[1].split("```", 1)[0]
 
 
 def test_the_production_note_states_the_scope_as_shipped():

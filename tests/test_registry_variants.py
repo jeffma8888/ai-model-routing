@@ -295,7 +295,7 @@ def test_the_executor_calls_and_logs_the_route_id(tmp_path):
 
 def test_the_readme_names_the_variants_key():
     text = (ROOT / "README.md").read_text(encoding="utf-8")
-    part = text.split("## How a model is chosen", 1)[1].split("\n## ", 1)[0]
+    part = text.split("\n## Running it in production\n", 1)[1].split("\n## ", 1)[0]  # v1.604, row PROD1a
     assert '"variants": {"lean": {"harness": "lean-agent 2.0", "reasoning_effort": "low"}}' in part
     assert "`vendor/model@lean`" in part and "`DESIGN.md` 4.1 and 5.2" in part
     assert "map each route in `OpenAICompatibleProvider(model_map=...)`" in part

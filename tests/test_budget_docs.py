@@ -40,7 +40,8 @@ def section(text, heading):
 
 
 def chosen_paragraphs():
-    part = section(read("README.md"), "How a model is chosen").split("\n### ", 1)[0]
+    # v1.604 (row PROD1a): the paragraphs moved to `## Running it in production`, word for word
+    part = section(read("README.md"), "Running it in production").split("\n### ", 1)[0]
     return part.strip().split("\n\n")
 
 
@@ -165,7 +166,7 @@ def test_the_uber_quotes_are_the_notes_word_for_word_and_the_link_resolves():
 
 def test_monitoring_ends_with_the_budget_block_and_its_bullets():
     monitoring = section(read("README.md"), "Monitoring and cost attribution")
-    lead = ("Under a [budget](#how-a-model-is-chosen) the executor logs each warn crossing and each refusal "
+    lead = ("Under a [budget](#running-it-in-production) the executor logs each warn crossing and each refusal "
             "as well, and `budget_report` reads each budget's spend back from the log:\n\n```python\n"
             "from model_routing import Budget, BudgetExceeded, BudgetLedger, budget_report\n")
     assert monitoring.count(lead) == 1
@@ -183,7 +184,8 @@ def test_the_limitations_no_longer_say_there_are_no_budgets():
     assert "No budgets" not in limits
     assert limits.count("- Budgets hold inside one process, and a `warn` budget writes a log record, not an "
                         "alert: a limit shared by many processes needs a gateway or the provider's own "
-                        "([How a model is chosen](#how-a-model-is-chosen)). No async execution or streaming. ") == 1
+                        "([Running it in production](#running-it-in-production)). No async execution or "
+                        "streaming. ") == 1  # v1.604, row PROD1a
 
 
 def test_the_layout_names_the_three_modes():
