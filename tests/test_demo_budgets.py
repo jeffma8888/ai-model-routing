@@ -104,6 +104,11 @@ def test_warn_budgets_keep_the_summary_and_attempt_lines_and_add_the_block(tmp_p
     assert attempt_lines(out / "calls.jsonl") == baseline["calls"].splitlines()
     warns = [r for r in log if r.get("budget_event") == "warn"]
     assert len(warns) == 8 and all(r["ts"].startswith("2026-01-01T") for r in warns)
+    # each record names its own budget (review iter-447 nit 2): the hand-off's three are its own
+    assert sorted(r["budget"] for r in warns) == ["demo-total"] * 2 + ["hand-offs"] * 3 + [
+        "judge-day"] * 3
+    assert {r["call_id"] for r in warns if r["budget"] == "hand-offs"} == {
+        "cost_effective-delegated-0001"}
     spend = math.fsum(r["cost_usd"] for r in log if "budget_event" not in r)
     assert rows[0]["spent_usd"] == round(spend, 6) and 0.8 * 5.0 <= spend < 5.0
 
@@ -155,7 +160,10 @@ def test_a_refusal_ends_the_demo_with_exit_4_and_one_stderr_line(tmp_path, capsy
 
 
 def test_a_downgrade_budget_moves_calls_and_records_the_moves(tmp_path, capsys):
-    # at 0.98 USD two cost_blind calls move off demo/atlas-max before every entry refuses
+    # at 0.98 USD (review iter-447 nit 1): before cost_blind-0010 and -0011 the settled spend,
+    # 0.97109 and 0.975586, plus demo/atlas-max's 0.01025 estimate passes the limit and plus
+    # demo/atlas-mid's 0.00205 does not, so each moves; before -0012 it is 0.978954 and every
+    # entry refuses, the last demo/birch-pro at 0.0041
     path = write_budgets(tmp_path / "budgets.json", [
         {"name": "blind", "limit_usd": 0.98, "mode": "downgrade"}])
     out = tmp_path / "demo"
@@ -164,13 +172,36 @@ def test_a_downgrade_budget_moves_calls_and_records_the_moves(tmp_path, capsys):
     assert stderr.startswith("error: budget 'blind' (0.98 USD) refuses a call of ")
     log = load_records(out / "calls.jsonl")
     moved = [r for r in log if "budget_moves" in r]
-    assert len({r["call_id"] for r in moved}) == 2
+    assert sorted({r["call_id"] for r in moved}) == ["cost_blind-0010", "cost_blind-0011"]
     assert all(r["flavor"] == "cost_blind" and r["model"] != "demo/atlas-max" for r in moved)
     assert [m for r in moved for m in r["budget_moves"]] == [
         {"entry": "demo/atlas-max", "model": "demo/atlas-max", "budget": "blind"}] * len(moved)
     refused = [r for r in log if r.get("budget_event") == "refused"]
     assert all(r["mode"] == "downgrade" for r in refused) and log[-1] is refused[-1]
-    assert len({r["call_id"] for r in refused}) == 3  # the two moved calls and the last one
+    assert [(r["call_id"], r["model"]) for r in refused] == [
+        ("cost_blind-0010", "demo/atlas-max"), ("cost_blind-0011", "demo/atlas-max"),
+        ("cost_blind-0012", "demo/atlas-max"), ("cost_blind-0012", "demo/atlas-mid"),
+        ("cost_blind-0012", "demo/birch-pro")]
+    assert refused[-1]["spent_usd"] == pytest.approx(0.978954, abs=1e-9)
+
+
+def test_a_refusal_of_the_hand_off_ends_the_demo_after_the_judge_calls(tmp_path, capsys,
+                                                                       baseline):
+    # review iter-447 nit 4: the hand-off's estimate, 0.002062 USD, passes a 0.001 USD limit
+    path = write_budgets(tmp_path / "budgets.json", [
+        {"name": "hand-offs", "limit_usd": 0.001, "mode": "refuse", "tags": {"delegated": "true"}}])
+    out = tmp_path / "demo"
+    code, stdout, stderr = run_cli(capsys, "--out", str(out), "--budgets", str(path))
+    assert (code, stdout) == (4, "")
+    assert stderr.startswith("error: budget 'hand-offs' (0.001 USD) refuses a call of "
+                             "'demo/atlas-mid': 0.0 spent, ") and stderr.count("\n") == 1
+    log = load_records(out / "calls.jsonl")
+    assert sum("budget_event" in r for r in log) == 1
+    assert (log[-1]["call_id"], log[-1]["budget_event"]) == ("cost_effective-delegated-0001",
+                                                             "refused")
+    judge = [line for line in baseline["calls"].splitlines()
+             if json.loads(line)["tags"].get("delegated") != "true"]
+    assert attempt_lines(out / "calls.jsonl") == judge
 
 
 def test_an_empty_budgets_list_prints_the_header_and_rule(tmp_path, capsys, baseline):
