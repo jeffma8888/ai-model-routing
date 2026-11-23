@@ -318,3 +318,16 @@ def test_the_changelog_line_names_the_row():
     mine = [line for line in last if line.startswith("- v1.601 (2026-11-23): ")]
     assert len(mine) == 1
     assert "(3, 4.7, row GATE1a)" in mine[0]
+
+
+def test_the_note_names_the_check_as_shipped_and_the_rest_as_planned():
+    note = (ROOT / "research" / "production-lessons.md").read_text(encoding="utf-8")
+    locked = note[note.index("### Switch models only on locked data and a significant result"):]
+    line = [x for x in locked.splitlines() if x.startswith("- In this library: ")][0]
+    assert "From v1.601 `paired_promotion` compares a challenger with the current route on the items both were graded on" in line
+    assert line.endswith("The change still planned: record the labeled file's hash with the stats, and a `promote` command "
+                         "that pairs the two routes' outcomes on it before a route changes.")
+    assert "an advisory paired check of a challenger" not in note
+    assert note.count("its comparison `paired_promotion` from v1.601 and the command that runs it planned.") == 1
+    layout = (ROOT / "README.md").read_text(encoding="utf-8")
+    assert layout.count("\n  promotion.py  a challenger route against the current one on the same items (advisory)\n") == 1

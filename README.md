@@ -1179,6 +1179,7 @@ model_routing/
   priors.py     leaderboard priors (order only, never admit)
   procedures.py a job's fixed steps as code, its calls bounded
   budget.py     in-process spend limits per task or tag: warn, refuse or downgrade
+  promotion.py  a challenger route against the current one on the same items (advisory)
   router.py     the routing rules and both flavors
   providers.py  provider protocol, fake provider, OpenAI-compatible HTTP provider
   executor.py   fallback execution and output validation
