@@ -78,10 +78,11 @@ def answer(text="ok"):
 MSGS = [{"role": "user", "content": "hi"}]
 
 
-def test_the_candidate_field_is_last_and_none_by_default():
-    last = dataclasses.fields(Candidate)[-1]
-    assert [f.name for f in dataclasses.fields(Candidate)] == TEN + ["pricing_basis"]
-    assert last.default is None
+def test_the_candidate_field_is_after_the_ten_and_none_by_default():
+    fields = {f.name: f for f in dataclasses.fields(Candidate)}
+    # v1.588 (row CACHE1b) added the two cache fields after it, so it is the eleventh of thirteen
+    assert list(fields)[:11] == TEN + ["pricing_basis"]
+    assert fields["pricing_basis"].default is None
 
 
 def test_a_model_candidate_holds_its_models_basis():

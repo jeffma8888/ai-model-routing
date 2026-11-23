@@ -9,7 +9,7 @@ from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 from .priors import Priors
 from .procedures import Procedure
-from .registry import Registry
+from .registry import Registry, _tier_prices
 from .stats import Stats, wilson_lower_bound
 from .tasks import Cascade, Task, is_slice_name
 
@@ -27,6 +27,7 @@ PROCEDURE_UNKNOWN_MODEL = "procedure_unknown_model"
 OUT_OF_SCOPE = "out_of_scope"
 
 FLAVORS = ("cost_effective", "cost_blind")
+_BREAKDOWN_KEYS = ("uncached_input_usd", "cached_read_usd", "cache_write_usd", "output_usd")
 
 _ELIGIBLE_REASONS = (INSUFFICIENT_SAMPLES, BELOW_BAR, PASSES)
 
@@ -64,12 +65,41 @@ def _sizes(stats: Stats, task: Task, model_id: str) -> Tuple[int, int]:
     return mean
 
 
+def _breakdown(model, size_in: int, size_out: int, cached: int,
+               write: int) -> Tuple[float, float, float, float]:
+    """The USD parts of a candidate's list cost, per item (DESIGN 5.1 v1.588).
+
+    Uncached input, cached reads, cache writes and output, each at the call's tier prices with
+    an unknown cache price read as the input price, so the parts' ``math.fsum`` is the
+    ``list_cost`` that 5.3 orders by within a relative 1e-12.
+    """
+    price_in, price_out = _tier_prices(model, size_in)
+    read = price_in if model.price_cached_in is None else model.price_cached_in
+    written = price_in if model.price_cache_write is None else model.price_cache_write
+    per = 1_000_000 * model.items_per_call
+    return ((size_in - cached - write) * price_in / per, cached * read / per,
+            write * written / per, size_out * price_out / per)
+
+
+def _unknown_cache_prices(model, cached: int, write: int) -> Tuple[str, ...]:
+    """The registry cache prices a route's own counts needed and the model leaves unknown (5.1)."""
+    names = []
+    if cached and model.price_cached_in is None:
+        names.append("price_cached_in")
+    if write and model.price_cache_write is None:
+        names.append("price_cache_write")
+    return tuple(names)
+
+
 @dataclass(frozen=True)
 class Candidate:
     """One registry model, cascade (DESIGN 7 v1.536) or procedure (5.2 v1.577) for a task.
 
     ``reason`` names the rule that decided it. ``pricing_basis`` is a registry model's own
     (``"list"`` or ``"self_hosted"``) and None for a cascade or a procedure (5.1 v1.584).
+    ``cost_breakdown`` holds the four USD parts of ``list_cost`` when the route has measured
+    cache counts, and ``cache_price_unknown`` the cache prices those counts needed and the model
+    leaves unknown, so they were read at the call's input price (5.1 v1.588).
     """
 
     model_id: str
@@ -83,6 +113,8 @@ class Candidate:
     passes: bool
     reason: str
     pricing_basis: Optional[str] = None
+    cost_breakdown: Optional[Tuple[float, float, float, float]] = None
+    cache_price_unknown: Tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -112,7 +144,9 @@ class RouteDecision:
 
         ``below_bar_fallbacks`` is a key only when it is not empty (DESIGN 5.1); the cost per
         success keys only when ``failure_policy`` is not ``"none"`` (v1.567); a candidate's
-        ``pricing_basis`` only when it is ``"self_hosted"`` (v1.584).
+        ``pricing_basis`` only when it is ``"self_hosted"`` (v1.584), its ``cost_breakdown``
+        only with measured cache counts and its ``cache_price_unknown`` only when that list is
+        not empty (v1.588).
         """
         data = {"task": self.task}
         if self.slice is not None:
@@ -135,10 +169,20 @@ class RouteDecision:
 
 
 def _candidate_dict(candidate: Candidate) -> dict:
-    """A candidate's dict, its ``pricing_basis`` key only for a self-hosted model (5.1 v1.584)."""
+    """A candidate's dict, its ``pricing_basis`` key only for a self-hosted model (5.1 v1.584).
+
+    Its last two fields, the cache ones of v1.588, are keys only when they hold something: the
+    breakdown as an object of the four USD parts, then the unknown cache prices as a list.
+    """
     data = asdict(candidate)
     if data["pricing_basis"] != "self_hosted":
         del data["pricing_basis"]
+    parts = data.pop("cost_breakdown")
+    unknown = data.pop("cache_price_unknown")
+    if parts is not None:
+        data["cost_breakdown"] = dict(zip(_BREAKDOWN_KEYS, parts))
+        if unknown:
+            data["cache_price_unknown"] = list(unknown)
     return data
 
 
@@ -376,6 +420,8 @@ class Router:
         reason = self._model_rule(task, model, excluded, generator_base, generator_family,
                                   fit_input, names) or self._measured_rule(task, successes, trials)
         list_cost = self._list_cost(task, model)
+        counts = self._cache_counts(task, model)
+        mean = self.stats.mean_tokens(task.name, model.id)
         return Candidate(
             model_id=model.id,
             family=model.family,
@@ -388,6 +434,8 @@ class Router:
             passes=reason == PASSES,
             reason=reason,
             pricing_basis=model.pricing_basis,
+            cost_breakdown=None if counts is None else _breakdown(model, *mean, *counts),
+            cache_price_unknown=() if counts is None else _unknown_cache_prices(model, *counts),
         )
 
     def _cascade_candidate(self, task: Task, cascade: Cascade, flavor: str, excluded: set,
@@ -478,16 +526,39 @@ class Router:
             reason=reason,
         )
 
+    def _cache_counts(self, task: Task, model) -> Optional[Tuple[int, int]]:
+        """The measured cached reads and cache writes a route is priced at (DESIGN 5.2 v1.588).
+
+        Each the rounded-down mean over the calls that reported it, 0 when none did, fitted
+        inside the route's mean input with the write first, since a capped write would move its
+        tokens to the input price and under-state a write premium. ``None`` when the stats hold
+        no token totals, so no cache count either, or no cache count for the route: its price is
+        then v1.587's. The delegation routers of 13.3 return ``None``.
+        """
+        mean = self.stats.mean_tokens(task.name, model.id)
+        if mean is None:
+            return None
+        cached, write = self.stats.mean_cache_tokens(task.name, model.id)
+        if cached is None and write is None:
+            return None
+        write = min(0 if write is None else write, mean[0])
+        return min(0 if cached is None else cached, mean[0] - write), write
+
     def _list_cost(self, task: Task, model) -> float:
         """A candidate's list-price cost at its 5.2 sizes, per item (DESIGN 5.2 v1.573).
 
         At its measured mean, one call, the cost is over the route's ``items_per_call``; at the
-        task's expected sizes, one call of one item, it is that call's cost, undivided.
+        task's expected sizes, one call of one item, it is that call's cost, undivided. A route
+        with measured cache counts is priced at them through ``Model.cost`` (v1.588).
         """
         mean = self.stats.mean_tokens(task.name, model.id)
         if mean is None:
             return model.cost(task.expected_input_tokens, task.expected_output_tokens)
-        return model.cost(*mean) / model.items_per_call
+        counts = self._cache_counts(task, model)
+        if counts is None:
+            return model.cost(*mean) / model.items_per_call
+        return model.cost(*mean, cached_input_tokens=counts[0],
+                          cache_write_tokens=counts[1]) / model.items_per_call
 
     @staticmethod
     def _decision(task: Task, flavor: str, ordered: Sequence[Candidate], below_bar: bool,

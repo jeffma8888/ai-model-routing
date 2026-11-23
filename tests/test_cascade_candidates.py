@@ -316,9 +316,11 @@ def test_no_model_clears_bar_carries_the_cascade_candidates():
 
 def test_a_cascade_candidate_dict_has_the_ten_candidate_keys():
     data = router().select("t", cascades=True).to_dict()
-    # v1.584 (row SELF1c): the eleventh field, pricing_basis, is None on a cascade, so no key
+    # v1.584 (row SELF1c): the eleventh field, pricing_basis, is None on a cascade, so no key,
+    # and v1.588 (row CACHE1b) adds two more a cascade leaves at their defaults
     keys = [f.name for f in dataclasses.fields(model_routing.Candidate)]
-    assert len(keys) == 11 and keys[-1] == "pricing_basis"
+    assert len(keys) == 13 and keys[10:] == ["pricing_basis", "cost_breakdown",
+                                             "cache_price_unknown"]
     keys = keys[:10]
     assert list(data["candidates"][-1]) == keys
     assert data["candidates"][-1]["model_id"] == CID

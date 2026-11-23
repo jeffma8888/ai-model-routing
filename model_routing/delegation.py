@@ -148,6 +148,10 @@ class _PerCallRouter(Router):
     def _list_cost(self, task: Task, model) -> float:
         return model.cost(*_sizes(self.stats, task, model.id))
 
+    def _cache_counts(self, task: Task, model) -> None:
+        """No measured cache count: 13.2's costs are v1.587's (5.2 v1.588)."""
+        return None
+
 
 class _WorkCallsRouter(Router):
     """The delegate's ``select`` for K > 1 work calls on the brief (13.3, v1.38).
@@ -175,6 +179,10 @@ class _WorkCallsRouter(Router):
         d_in, d_out = _sizes(self.stats, self._task, model.id)
         k, b = self._work_calls, self._brief_tokens
         return _work_cost(model, k, k * b, d_in, d_out, b, b, self._share)
+
+    def _cache_counts(self, task: Task, model) -> None:
+        """No measured cache count: 13.2's costs are v1.587's (5.2 v1.588)."""
+        return None
 
 
 def _briefed_stats(stats: Stats, task_name: str, brief_tokens: int) -> Stats:

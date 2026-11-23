@@ -212,28 +212,38 @@ def test_no_packaged_row_or_evidence_file_names_a_cache_price():
 
 
 def test_only_the_registry_names_the_prices_and_the_counts():
-    # so no route, record, report, delegation decision, evidence file or README transcript changes yet
+    # v1.588 (row CACHE1b): the stats hold the measured counts and the router prices a route at
+    # them, so no record, report, delegation decision, evidence file or README transcript changes
     naming = {path.name for path in PACKAGE.glob("*.py")
               if any(key in path.read_text(encoding="utf-8") for key in NAMES)}
-    assert naming == {"registry.py"}
+    assert naming == {"registry.py", "stats.py", "router.py"}
 
 
 def test_the_production_note_states_registry_cache_prices_as_shipped():
+    # v1.588 (row CACHE1b) restated its planned measured counts in routing as shipped
     note = (ROOT / "research" / "production-lessons.md").read_text(encoding="utf-8")
     for gone in ("registry prices for cached reads", "planned cache prices", "no cache write is priced",
-                 "the one cache price it reads", "as planned for cache prices"):
+                 "the one cache price it reads", "as planned for cache prices",
+                 # v1.588 (row CACHE1b): routing passes the measured counts, so nothing plans them
+                 "No caller passes the counts yet", "but model choice passes none yet",
+                 "The change: measured cached and written tokens per task and model",
+                 "the planned measured cached and written tokens", "as planned, and priced at",
+                 "as planned for routing at the registry's cache prices"):
         assert gone not in note, gone
     uber = note.split("\n### Price cache writes, and set the cache's life by how the work pauses\n", 1)[1]
     line = [x for x in uber.split("\n### ", 1)[0].splitlines() if x.startswith("- In this library: ")]
     assert len(line) == 1
     assert line[0].startswith("- In this library: a registry row may state `price_cached_in` and "
                               "`price_cache_write`, and `Model.cost` prices a call's cached reads and cache writes")
-    assert "The change: measured cached and written tokens per task and model" in line[0]
+    assert "Model choice now passes those counts" in line[0]
+    assert ("A cascade's legs, a procedure's model, the delegation decision and the attempt records "
+            "pass none yet") in line[0]
     rate = note.split("\n### The cache hit rate is a cost number\n", 1)[1]
     rate_line = [x for x in rate.split("\n### ", 1)[0].splitlines() if x.startswith("- In this library: ")]
     assert len(rate_line) == 1
     assert "a registry row may state a cached-read and a cache-write price" in rate_line[0]
-    assert "but model choice passes none yet" in rate_line[0]
+    assert ("model choice measures those tokens per task and route and prices a model at their "
+            "means") in rate_line[0]
 
 
 def test_design_and_the_changelog_state_the_version():
@@ -248,5 +258,5 @@ def test_design_and_the_changelog_state_the_version():
     assert nine.count("- v1.587 `price_cached_in` and `price_cache_write` (format in 4.1, row CACHE1a)") == 1
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").splitlines()
     mine = [line for line in changelog if line.startswith("- v1.587 (")]
-    assert len(mine) == 1 and changelog[-1] == mine[0]
+    assert len(mine) == 1  # v1.588 (row CACHE1b) appended the next line
     assert len(mine[0].encode("utf-8")) <= 600

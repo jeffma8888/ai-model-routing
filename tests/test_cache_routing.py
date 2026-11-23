@@ -21,8 +21,6 @@ from model_routing import (
     Cascade, Model, Registry, Router, Stats, Task, Variant, calibrate_from_results,
 )
 
-RED = pytest.mark.xfail(strict=True, reason="v1.588 (row CACHE1b) is not implemented yet")
-
 PRICEY, CHEAP = "fiction/pricey", "fiction/cheap"
 # the 4.1 v1.587 worked example: 3.0 in, 0.3 cached, 3.75 written, 15.0 out, against 2.0 in
 REGISTRY = Registry([
@@ -56,7 +54,6 @@ def _dicts(decision):
 
 # --- 4.3: the totals, their trials and their means ------------------------------------------
 
-@RED
 def test_nothing_is_recorded_until_a_count_is_given():
     stats = Stats()
     stats.add("t", PRICEY, 1, 1, input_tokens=100, output_tokens=10)
@@ -65,7 +62,6 @@ def test_nothing_is_recorded_until_a_count_is_given():
     assert stats.cache_tokens("t", "fiction/absent") == (0, 0, 0, 0)
 
 
-@RED
 def test_the_totals_accumulate_with_their_own_trial_counts():
     stats = Stats()
     stats.add("t", PRICEY, 2, 2, input_tokens=200, output_tokens=20,
@@ -75,7 +71,6 @@ def test_the_totals_accumulate_with_their_own_trial_counts():
     assert stats.mean_cache_tokens("t", PRICEY) == (50, 10)
 
 
-@RED
 def test_a_mean_is_rounded_down_and_a_count_no_trial_reported_is_unknown():
     stats = Stats()
     stats.add("t", PRICEY, 2, 2, input_tokens=2001, output_tokens=200,
@@ -84,7 +79,6 @@ def test_a_mean_is_rounded_down_and_a_count_no_trial_reported_is_unknown():
     assert stats.mean_cache_tokens("t", PRICEY) == (1000, None)  # rounded down, write unknown
 
 
-@RED
 def test_a_count_covers_the_trials_it_is_given_not_every_token_trial():
     stats = Stats()
     stats.add("t", PRICEY, 4, 4, input_tokens=400, output_tokens=40,
@@ -93,7 +87,6 @@ def test_a_count_covers_the_trials_it_is_given_not_every_token_trial():
     assert stats.mean_cache_tokens("t", PRICEY) == (30, None)
 
 
-@RED
 @pytest.mark.parametrize("kwargs, named", [
     ({"cached_input_tokens": 1.0}, "cached_input_tokens"),
     ({"cached_input_tokens": True}, "cached_input_tokens"),
@@ -114,7 +107,6 @@ def test_a_bad_count_or_trial_raises_and_adds_nothing(kwargs, named):
     assert stats.cache_tokens("t", PRICEY) == (0, 0, 0, 0)
 
 
-@RED
 def test_a_cache_count_needs_the_token_totals():
     stats = Stats()
     with pytest.raises(ValueError) as exc:
@@ -123,7 +115,6 @@ def test_a_cache_count_needs_the_token_totals():
     assert stats.cache_tokens("t", PRICEY) == (0, 0, 0, 0)
 
 
-@RED
 def test_the_counts_given_fit_inside_the_input_tokens():
     stats = Stats()
     with pytest.raises(ValueError) as exc:
@@ -135,7 +126,6 @@ def test_the_counts_given_fit_inside_the_input_tokens():
     assert stats.cache_tokens("t", PRICEY) == (60, 1, 40, 1)
 
 
-@RED
 @pytest.mark.parametrize("model_id", ["fiction/cheap>fiction/pricey@sig", "proc:p@1"])
 def test_a_cascade_or_procedure_key_takes_no_cache_count(model_id):
     stats = Stats()
@@ -146,7 +136,6 @@ def test_a_cascade_or_procedure_key_takes_no_cache_count(model_id):
     assert stats.cache_tokens("t", model_id) == (0, 0, 0, 0)
 
 
-@RED
 def test_save_and_load_round_trip_the_four_values(tmp_path):
     stats = Stats()
     stats.add("t", PRICEY, 4, 4, input_tokens=400, output_tokens=40,
@@ -166,7 +155,6 @@ def test_save_and_load_round_trip_the_four_values(tmp_path):
     assert back.items() == stats.items()
 
 
-@RED
 @pytest.mark.parametrize("row", [
     {"cached_input_tokens": 10},
     {"cached_trials": 1},
@@ -186,7 +174,6 @@ def test_load_refuses_a_half_pair_a_bad_value_or_no_token_keys(tmp_path, row):
     assert "stats.json" in str(exc.value)
 
 
-@RED
 def test_merge_sums_the_cache_totals():
     a = Stats()
     a.add("t", PRICEY, 1, 1, input_tokens=100, output_tokens=10, cached_input_tokens=40)
@@ -199,7 +186,6 @@ def test_merge_sums_the_cache_totals():
     assert a.cache_tokens("t", PRICEY) == (40, 1, 0, 0)
 
 
-@RED
 def test_calibrate_from_results_reads_a_rows_own_counts():
     stats = calibrate_from_results([
         {"task": "t", "model": PRICEY, "correct": True, "input_tokens": 100,
@@ -217,7 +203,6 @@ def test_calibrate_from_results_reads_a_rows_own_counts():
 
 # --- 5.2: the price of a route, and 5.1: the record ------------------------------------------
 
-@RED
 def test_a_pricier_model_at_90_percent_reads_beats_a_cheaper_one_that_misses():
     stats = _stats(fiction_pricey=(10_000, 500, 100, {"cached_input_tokens": 900_000}),
                    fiction_cheap=(10_000, 500, 100, {"cached_input_tokens": 0}))
@@ -229,7 +214,6 @@ def test_a_pricier_model_at_90_percent_reads_beats_a_cheaper_one_that_misses():
     assert priced[CHEAP].cost_breakdown is not None  # a measured 0 is a 0% hit rate, not unknown
 
 
-@RED
 def test_a_write_premium_makes_caching_lose_on_a_one_shot_task():
     stats = _stats(fiction_pricey=(10_000, 500, 100, {"cache_write_tokens": 900_000}),
                    fiction_cheap=(10_000, 500, 100, {}))
@@ -241,10 +225,9 @@ def test_a_write_premium_makes_caching_lose_on_a_one_shot_task():
     assert priced[CHEAP].cost_breakdown is None  # no count on either side: v1.587's price
 
 
-@RED
 def test_the_route_is_priced_at_the_rounded_down_means_inside_the_rounded_up_input():
     stats = Stats()
-    stats.add("t", PRICEY, 2, 2, input_tokens=2004, output_tokens=1000,
+    stats.add("t", PRICEY, 10, 10, input_tokens=2004, output_tokens=1000, token_trials=2,
               cached_input_tokens=2001, cache_write_tokens=3)
     candidate = _by_id(_router(stats).select("t"))[PRICEY]
     # mean input 1002 (up), cached 1000 and written 1 (down), so 1 token at the input price
@@ -254,10 +237,9 @@ def test_the_route_is_priced_at_the_rounded_down_means_inside_the_rounded_up_inp
         (1 * 3.0 + 1000 * 0.3 + 1 * 3.75 + 500 * 15.0) / 1e6, abs=1e-15)
 
 
-@RED
 def test_the_write_is_fitted_first_when_the_means_do_not_fit():
     stats = Stats()
-    stats.add("t", PRICEY, 2, 2, input_tokens=24, output_tokens=2,
+    stats.add("t", PRICEY, 10, 10, input_tokens=24, output_tokens=2, token_trials=2,
               cached_input_tokens=8, cached_trials=1, cache_write_tokens=10,
               cache_write_trials=1)
     candidate = _by_id(_router(stats).select("t"))[PRICEY]
@@ -266,7 +248,6 @@ def test_the_write_is_fitted_first_when_the_means_do_not_fit():
         (0.0, 2 * 0.3 / 1e6, 10 * 3.75 / 1e6, 1 * 15.0 / 1e6))
 
 
-@RED
 def test_the_candidate_dict_holds_the_four_parts_after_its_reason():
     stats = _stats(fiction_pricey=(10_000, 500, 100, {"cached_input_tokens": 900_000}),
                    fiction_cheap=(10_000, 500, 100, {}))
@@ -285,7 +266,6 @@ def test_the_candidate_dict_holds_the_four_parts_after_its_reason():
     assert "cost_breakdown" not in _dicts(decision)[CHEAP]
 
 
-@RED
 def test_an_unknown_cache_price_is_named_and_read_at_the_input_price():
     registry = Registry([Model(PRICEY, "fam-a", 3.0, 15.0, 200_000, price_cache_write=3.75),
                          Model(CHEAP, "fam-b", 2.0, 15.0, 200_000)])
@@ -299,7 +279,6 @@ def test_an_unknown_cache_price_is_named_and_read_at_the_input_price():
     assert _dicts(decision)[PRICEY]["cache_price_unknown"] == ["price_cached_in"]
 
 
-@RED
 def test_cost_blind_keeps_the_routing_cost_zero_and_the_breakdown():
     stats = _stats(fiction_pricey=(10_000, 500, 100, {"cached_input_tokens": 900_000}),
                    fiction_cheap=(10_000, 500, 100, {}))
@@ -309,7 +288,6 @@ def test_cost_blind_keeps_the_routing_cost_zero_and_the_breakdown():
     assert candidate.cost_breakdown is not None
 
 
-@RED
 def test_a_variants_breakdown_is_per_item():
     route = f"{PRICEY}@batch"
     registry = Registry([Model(route, "fam-a", 3.0, 15.0, 200_000, price_cached_in=0.3,
@@ -324,7 +302,6 @@ def test_a_variants_breakdown_is_per_item():
         (1000 * 3.0 / 4e6, 9000 * 0.3 / 4e6, 0.0, 500 * 15.0 / 4e6))
 
 
-@RED
 def test_a_cascades_legs_are_not_priced_at_their_cache_counts():
     cascade = Cascade(CHEAP, PRICEY, "sig")
     task = Task("t", bar=0.7, min_samples=10, independent_of_generator=False,

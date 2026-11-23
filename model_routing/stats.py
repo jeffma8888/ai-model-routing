@@ -1,5 +1,5 @@
-"""Measured quality: Wilson lower bounds, the items a bar needs, and per (task, model) counts
-and token totals."""
+"""Measured quality: Wilson lower bounds, the items a bar needs, and per (task, model) counts,
+token totals and cache totals."""
 
 from __future__ import annotations
 
@@ -16,6 +16,8 @@ from .tasks import is_slice_name, parse_cascade_id
 PathLike = Union[str, Path]
 
 _TOKEN_KEYS = ("input_tokens", "output_tokens", "token_trials")
+_CACHE_PAIRS = (("cached_input_tokens", "cached_trials"),
+                ("cache_write_tokens", "cache_write_trials"))
 
 
 def _is_int(value: object) -> bool:
@@ -106,6 +108,40 @@ def _check_tokens(trials: int, input_tokens: Optional[int], output_tokens: Optio
     return n
 
 
+def _check_cache(n: int, input_tokens: Optional[int], cached: Optional[int],
+                 cached_trials: Optional[int], write: Optional[int],
+                 write_trials: Optional[int]) -> Tuple[int, int, int, int]:
+    """Validate the optional cache totals of one ``add``; return them with their trial counts.
+
+    Each count is a total over its own trials, from 1 to this call's ``n`` token trials and
+    defaulting to it, and the counts given sum to at most ``input_tokens``, since a call's
+    cached reads and cache writes are input tokens of it (DESIGN 4.3 v1.588). Zeros when
+    neither count is given.
+    """
+    out = []
+    for name, count, trials_name, trials in (
+            ("cached_input_tokens", cached, "cached_trials", cached_trials),
+            ("cache_write_tokens", write, "cache_write_trials", write_trials)):
+        if count is None:
+            if trials is not None:
+                raise ValueError(f"{trials_name} needs {name}")
+            out += [0, 0]
+            continue
+        if n == 0:
+            raise ValueError(f"{name} needs input_tokens and output_tokens")
+        if not _is_int(count) or count < 0:
+            raise ValueError(f"{name} must be an integer >= 0, got {count!r}")
+        k = n if trials is None else trials
+        if not _is_int(k) or not 1 <= k <= n:
+            raise ValueError(f"{trials_name} must be an integer from 1 to token_trials={n}, "
+                             f"got {k!r}")
+        out += [count, k]
+    if out[0] + out[2] > (input_tokens or 0):
+        raise ValueError(f"cached_input_tokens {out[0]} plus cache_write_tokens {out[2]} is over "
+                         f"input_tokens {input_tokens!r}, which counts every input token")
+    return out[0], out[1], out[2], out[3]
+
+
 def wilson_lower_bound(successes: int, trials: int, confidence: float = 0.95) -> float:
     """Return the lower end of the two-sided Wilson score interval.
 
@@ -176,6 +212,7 @@ class Stats:
         self._tokens: Dict[Tuple[str, str], Tuple[int, int, int]] = {}
         self._escalated: Dict[Tuple[str, str], int] = {}
         self._cost: Dict[Tuple[str, str], float] = {}
+        self._cache: Dict[Tuple[str, str], Tuple[int, int, int, int]] = {}
 
     def get(self, task: str, model_id: str) -> Tuple[int, int]:
         """Return ``(successes, trials)``, or ``(0, 0)`` when nothing is recorded."""
@@ -184,19 +221,26 @@ class Stats:
     def add(self, task: str, model_id: str, successes: int, trials: int, *,
             input_tokens: Optional[int] = None, output_tokens: Optional[int] = None,
             token_trials: Optional[int] = None, escalated: Optional[int] = None,
-            cost_usd: Optional[float] = None) -> None:
+            cost_usd: Optional[float] = None, cached_input_tokens: Optional[int] = None,
+            cached_trials: Optional[int] = None, cache_write_tokens: Optional[int] = None,
+            cache_write_trials: Optional[int] = None) -> None:
         """Add these counts, and any token totals, to the existing ones for the key.
 
         ``input_tokens`` and ``output_tokens`` go together and are totals over
         ``token_trials`` of these ``trials`` (default: all of them). ``escalated``, how many
         of these trials escalated, is required for a cascade key and refused for any other;
         ``cost_usd``, these trials' summed cost, likewise for a procedure key (DESIGN 4.3
-        v1.577). Raises ``ValueError`` and adds nothing when any argument is invalid.
+        v1.577). ``cached_input_tokens`` and ``cache_write_tokens``, the cached reads and the
+        cache writes of these calls, each need the token totals and are totals over their own
+        trials, ``cached_trials`` and ``cache_write_trials`` of these token trials (DESIGN 4.3
+        v1.588). Raises ``ValueError`` and adds nothing when any argument is invalid.
         """
         _check_counts(successes, trials)
         n = _check_tokens(trials, input_tokens, output_tokens, token_trials)
         e = _check_escalated(model_id, trials, escalated, input_tokens is not None)
         c = _check_cost(model_id, trials, cost_usd, input_tokens is not None)
+        cache = _check_cache(n, input_tokens, cached_input_tokens, cached_trials,
+                             cache_write_tokens, cache_write_trials)
         key = (task, model_id)
         if c is not None and not isfinite(self._cost.get(key, 0.0) + c):  # review iter-424 must-fix 1
             raise ValueError(f"cost_usd {c!r} would take the summed cost of {model_id!r} on "
@@ -210,10 +254,30 @@ class Stats:
         if n:
             i, o, k = self.tokens(task, model_id)
             self._tokens[key] = (i + input_tokens, o + output_tokens, k + n)
+        if any(cache):  # a count given has at least one trial, so only no count is all zeros
+            held = self.cache_tokens(task, model_id)
+            self._cache[key] = (held[0] + cache[0], held[1] + cache[1],
+                                held[2] + cache[2], held[3] + cache[3])
 
     def tokens(self, task: str, model_id: str) -> Tuple[int, int, int]:
         """Return ``(input_tokens, output_tokens, token_trials)``, ``(0, 0, 0)`` when none."""
         return self._tokens.get((task, model_id), (0, 0, 0))
+
+    def cache_tokens(self, task: str, model_id: str) -> Tuple[int, int, int, int]:
+        """Return ``(cached_input_tokens, cached_trials, cache_write_tokens,
+        cache_write_trials)``, ``(0, 0, 0, 0)`` when none are recorded (DESIGN 4.3 v1.588)."""
+        return self._cache.get((task, model_id), (0, 0, 0, 0))
+
+    def mean_cache_tokens(self, task: str, model_id: str) -> Tuple[Optional[int], Optional[int]]:
+        """Return the mean cached reads and cache writes per reporting call, each rounded down.
+
+        Integer arithmetic; ``None`` for a count no trial reported, so it is unknown and never
+        0. Rounded down a mean never over-states the cached share, and so never prices a route
+        below what its trials support (DESIGN 4.3 v1.588).
+        """
+        cached, cached_trials, write, write_trials = self.cache_tokens(task, model_id)
+        return (cached // cached_trials if cached_trials else None,
+                write // write_trials if write_trials else None)
 
     def escalations(self, task: str, cascade_id: str) -> int:
         """Return how many of a cascade's trials escalated, 0 when nothing is recorded."""
@@ -242,7 +306,8 @@ class Stats:
         return -(-i // k), -(-o // k)
 
     def merge(self, other: "Stats") -> "Stats":
-        """Return a new Stats holding the summed counts, token totals, escalations and costs."""
+        """Return a new Stats with the summed counts, token totals, cache totals, escalations
+        and costs."""
         merged = Stats()
         for source in (self, other):
             for key, (s, t) in source._counts.items():
@@ -251,6 +316,9 @@ class Stats:
             for key, (i, o, k) in source._tokens.items():
                 a, b, n = merged._tokens.get(key, (0, 0, 0))
                 merged._tokens[key] = (a + i, b + o, n + k)
+            for key, values in source._cache.items():  # DESIGN 4.3 v1.588
+                held = merged._cache.get(key, (0, 0, 0, 0))
+                merged._cache[key] = tuple(x + y for x, y in zip(held, values))
         return merged
 
     def items(self):
@@ -262,7 +330,9 @@ class Stats:
         """Load stats from ``{"stats": [{"task", "model", "successes", "trials"}]}``.
 
         A row may also carry ``input_tokens``, ``output_tokens`` and ``token_trials``,
-        all three or none. A cascade row (its ``model`` holds ``>``) carries ``escalated``
+        all three or none, and then ``cached_input_tokens`` with ``cached_trials``, and
+        ``cache_write_tokens`` with ``cache_write_trials``, each pair both keys or neither
+        (DESIGN 4.3 v1.588). A cascade row (its ``model`` holds ``>``) carries ``escalated``
         and no token keys, and no other row carries ``escalated``. A procedure row (its
         ``model`` starts with ``proc:``) carries ``cost_usd`` and no token keys; any other
         row's ``cost_usd`` is ignored (DESIGN 4.3 v1.577).
@@ -288,6 +358,16 @@ class Stats:
             if present and not all(_is_int(row[k]) for k in _TOKEN_KEYS):
                 raise ValueError(f"{path}: token keys must be integers: {row!r}")
             tokens = {k: row[k] for k in present}
+            for count_key, trials_key in _CACHE_PAIRS:  # DESIGN 4.3 v1.588
+                if count_key not in row and trials_key not in row:
+                    continue
+                if count_key not in row or trials_key not in row:
+                    raise ValueError(f"{path}: a stats row carries {count_key} and {trials_key} "
+                                     f"together or neither: {row!r}")
+                if not present:
+                    raise ValueError(f"{path}: {count_key} needs {', '.join(_TOKEN_KEYS)}: {row!r}")
+                tokens[count_key] = row[count_key]
+                tokens[trials_key] = row[trials_key]
             if "escalated" in row:
                 if not _is_cascade_key(model_id):
                     raise ValueError(f"{path}: only a cascade row carries escalated: {row!r}")
@@ -314,6 +394,11 @@ class Stats:
             i, o, k = self.tokens(task, model_id)
             if k:
                 row.update(input_tokens=i, output_tokens=o, token_trials=k)
+            cached, cached_trials, write, write_trials = self.cache_tokens(task, model_id)
+            if cached_trials:  # DESIGN 4.3 v1.588, after the token keys
+                row.update(cached_input_tokens=cached, cached_trials=cached_trials)
+            if write_trials:
+                row.update(cache_write_tokens=write, cache_write_trials=write_trials)
             rows.append(row)
         Path(path).write_text(json.dumps({"stats": rows}, indent=2) + "\n", encoding="utf-8")
 
@@ -322,7 +407,9 @@ def calibrate_from_results(rows: Iterable[dict]) -> Stats:
     """Count one trial per row; a row is correct by ``correct`` or ``prediction == gold``.
 
     ``correct`` must be a real boolean. A row may carry ``input_tokens`` and
-    ``output_tokens``, both or neither, and then adds one token trial with those counts.
+    ``output_tokens``, both or neither, and then adds one token trial with those counts, and
+    beside them ``cached_input_tokens`` and ``cache_write_tokens``, either or both, that call's
+    own cache counts (DESIGN 4.3 v1.588).
     A row with a ``slice`` adds its trial under ``<task>`` and ``<task>@<slice>``
     (DESIGN 4.3 v1.511). A cascade row (its ``model`` holds ``>``) carries a boolean
     ``escalated`` and no token counts, and no other row carries ``escalated`` (DESIGN 7). A
@@ -355,6 +442,11 @@ def calibrate_from_results(rows: Iterable[dict]) -> Stats:
             tokens = {"input_tokens": row["input_tokens"], "output_tokens": row["output_tokens"]}
             if not all(_is_int(v) and v >= 0 for v in tokens.values()):
                 raise ValueError(f"token counts must be integers >= 0: {row!r}")
+        for count_key, _ in _CACHE_PAIRS:  # DESIGN 4.3 v1.588: this one trial's own counts
+            if count_key in row:
+                if not has_in:
+                    raise ValueError(f"{count_key} needs input_tokens and output_tokens: {row!r}")
+                tokens[count_key] = row[count_key]
         if _is_procedure_key(model_id):
             if has_in:
                 raise ValueError(f"a procedure row carries no token counts: {row!r}")
