@@ -457,17 +457,17 @@ def test_design_specifies_windows_and_downgrade_and_defers_only_row_b1c():
     text = (ROOT / "DESIGN.md").read_text(encoding="utf-8")
     four = text[text.index("### 4.6 Budgets"):text.index("## 5. ")]
     assert four.count("  - v1.596 windows (row B1b): ") == 1
-    assert "(row B1b); a strict mode" not in four and "- Not in this version: a strict mode" in four
+    assert "(row B1b); a strict mode" not in four and "- Not in this version: " in four
     seven = text[text.index("## 7. "):text.index("## 8. ")]
     assert seven.count("- v1.596 windows and downgrade (row B1b): ") == 1
     eight = text[text.index("### 8.1 "):text.index("### 8.2 ")]
     assert eight.count("- v1.596 `budget_moves` (row B1b, 7 v1.596): ") == 1
     fourteen = text[text.index("## 14. "):text.index("## 15. ")]
     assert "rows B1b and B1c" not in fourteen
-    assert fourteen.count("and v1.596's windows and `downgrade` mode, whose strict caps and "
-                          "logged crossings are row B1c") == 1
-    last = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").splitlines()[-1]
-    assert last.startswith("- v1.596 (2026-11-22): ") and "row B1b" in last
+    assert fourteen.count("v1.596's windows and `downgrade` mode") == 1  # v1.597 names row B1e
+    lines = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").splitlines()
+    [last] = [line for line in lines if line.startswith("- v1.596 (2026-11-22): ")]
+    assert "row B1b" in last
 
 
 def test_the_note_states_windows_and_downgrade_as_shipped():
