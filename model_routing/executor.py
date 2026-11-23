@@ -213,7 +213,11 @@ class Executor:
             target = passing[0].model_id
         if target == decision.primary or not models[target].eligible:
             return None
-        return target if self.random() < task.shadow_rate else None
+        value = self.random()
+        if isinstance(value, bool) or not isinstance(value, (int, float)) \
+                or not 0.0 <= value < 1.0:  # review iter-456 must-fix 2
+            raise ValueError(f"random() must return a real number in [0, 1), got {value!r}")
+        return target if value < task.shadow_rate else None
 
     def call_delegated(self, decision, messages: List[dict],
                        tags: Optional[Dict[str, str]] = None,
@@ -250,7 +254,12 @@ class Executor:
         task = self.router.tasks[task_name]
         registry = self.router.registry
         call_id = self.id_factory()
-        pair = None if shadow is None else {"pair_id": call_id, "shadow": False}  # 8.1 v1.607
+        pair = shadow_id = None
+        if shadow is not None:  # DESIGN 7 and 8.1 v1.607: both IDs before any provider call
+            shadow_id = self.id_factory()
+            if shadow_id == call_id:  # review iter-456 must-fix 1
+                raise ValueError(f"id_factory returned {call_id!r} again for the call's shadow")
+            pair = {"pair_id": call_id, "shadow": False}
         order = (decision.primary, *decision.fallbacks)
         attempts: List[Attempt] = []
         moves: List[dict] = []  # DESIGN 7 v1.596: each downgrade move so far, in order
@@ -285,19 +294,18 @@ class Executor:
             raise
         if shadow is not None:  # DESIGN 7 v1.607: only once the routed call has returned
             self._shadow(shadow, task_name, task, decision, messages, call_tags, validate, size,
-                         call_id)
+                         call_id, shadow_id)
         return result
 
     def _shadow(self, model_id: str, task_name: str, task, decision: RouteDecision,
                 messages: List[dict],
-                call_tags: Dict[str, str], validate, size, pair_id: str) -> None:
+                call_tags: Dict[str, str], validate, size, pair_id: str, call_id: str) -> None:
         """One provider call of the shadow route, logged under its own call ID (7 v1.607).
 
         A ``ProviderError``, an invalid output or a refusal of its own reservation never
         reaches the caller; any other exception propagates, as in step 2.
         """
         registry = self.router.registry
-        call_id = self.id_factory()
         tags = dict(call_tags, shadow="true")
         pair = {"pair_id": pair_id, "shadow": True}
         scope, refused = None, []
@@ -306,12 +314,14 @@ class Executor:
                 "expected_output_tokens", task.expected_output_tokens)
 
             def note(fields: dict) -> None:
-                if fields.get("budget_event") == "refused":
-                    refused.append(fields)  # its own reservation was refused, right before raise
                 if self.monitor is not None:
                     self.monitor.record({"ts": self.now(), "call_id": call_id,
                                          "task": decision.task, "tags": dict(tags), **pair,
                                          **fields})
+                # marked only once recorded: _attempt raises its own refusal right after this
+                # returns, so a monitor's own exception is never taken for it (iter-456 should-fix 1)
+                if fields.get("budget_event") == "refused":
+                    refused.append(fields)
 
             scope = (task_name, tags, None if size is None else size[0], out, None, note)
         try:

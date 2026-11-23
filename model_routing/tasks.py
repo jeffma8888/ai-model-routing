@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import math
 import re
 from dataclasses import dataclass, field, fields
 from pathlib import Path
@@ -177,7 +176,7 @@ class Task:
                              f"{FAILURE_POLICIES}, got {self.failure_policy!r}")
         rate = self.shadow_rate  # DESIGN 4.2 v1.607
         if isinstance(rate, bool) or not isinstance(rate, (int, float)) \
-                or not math.isfinite(rate) or not 0.0 <= rate <= 1.0:
+                or not 0.0 <= rate <= 1.0:  # NaN and the infinities fail the range (iter-456 nit 1)
             raise ValueError(f"task {self.name!r}: shadow_rate must be a finite number in "
                              f"[0, 1] that is not a bool, got {rate!r}")
         if self.shadow_route is not None \

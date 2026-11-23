@@ -57,11 +57,12 @@ def route(decision):
 
 # ---- 4.2 the field ----------------------------------------------------------------------------
 
-def test_the_field_is_last_and_off_by_default():
+def test_the_field_is_followed_by_the_later_fields_and_off_by_default():
     names = [f.name for f in dataclasses.fields(Task)]
     # v1.511 (row STRAT1b): `slices` comes after it; v1.535 (row ESC2a): then `cascades`;
-    # v1.567 (row CPS1a): then `failure_policy`, the last
-    assert names[-4:] == ["fallback_below_bar", "slices", "cascades", "failure_policy"]
+    # v1.567 (row CPS1a): then `failure_policy`; v1.607 (row CANARY1a): then the two shadow fields
+    assert names[-6:] == ["fallback_below_bar", "slices", "cascades", "failure_policy",
+                          "shadow_rate", "shadow_route"]
     assert Task("t", 0.5).fallback_below_bar is False
     assert Task("t", 0.5, fallback_below_bar=True).fallback_below_bar is True
 

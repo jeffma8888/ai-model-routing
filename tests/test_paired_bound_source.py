@@ -103,7 +103,8 @@ def test_the_readme_paragraph_cites_the_paper_once():
 
 
 def test_the_changelog_line_names_the_source():
-    last = read("CHANGELOG.md").rstrip("\n").rsplit("\n", 1)[1]
+    # the v1.606 line, not the file's last one, so a later version's line keeps this test (iter 456)
+    [last] = [line for line in read("CHANGELOG.md").split("\n") if line.startswith("- v1.606 (")]
     assert last.startswith("- v1.606 (2026-11-23): docs and tests (4.7, 5.2, row GATE1e, review iter-449 "
                            "should-fix 1). ")
     assert "the adjusted Wald interval of Bonett and Price (2012)" in last

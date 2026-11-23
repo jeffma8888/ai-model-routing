@@ -79,7 +79,8 @@ def test_the_fields_follow_failure_policy_with_their_defaults():
     assert task.shadow_rate == 0.0 and task.shadow_route is None
 
 
-@pytest.mark.parametrize("value", [True, False, -0.1, 1.5, math.nan, math.inf, "0.5", None])
+@pytest.mark.parametrize("value", [True, False, -0.1, 1.5, math.nan, math.inf, -math.inf,
+                                   10 ** 400, "0.5", None])  # 10 ** 400 overflows a float
 def test_a_bad_shadow_rate_is_a_value_error_naming_the_task(value):
     with pytest.raises(ValueError, match="'t'"):
         Task("t", 0.5, shadow_rate=value)
@@ -338,3 +339,121 @@ def test_the_budget_records_of_both_calls_carry_the_pair_keys_after_tags():
     assert {(rec["call_id"], rec["shadow"]) for rec in warns} == {("call-0", False)}
     assert all(rec["pair_id"] == "call-0" for rec in monitor.records)
     assert [rec["shadow"] for rec in attempts_of(monitor.records)] == [False, True]
+
+
+# --- review iter-456 must-fix 1 and 2, should-fix 1 and 2 ------------------------------------
+
+def test_an_id_factory_that_repeats_the_call_s_id_raises_before_any_call():
+    monitor, prov = Monitor(), provider()
+    executor = Executor(router(shadow_rate=1.0), prov, monitor=monitor,
+                        id_factory=lambda: "same", random=Draws(0.0))
+    with pytest.raises(ValueError, match="same"):
+        executor.call("judge", MESSAGES)
+    assert prov.calls == [] and monitor.records == []
+    plain = Executor(router(shadow_rate=0.5), provider(), monitor=Monitor(),
+                     id_factory=lambda: "same", random=Draws(0.9))
+    assert plain.call("judge", MESSAGES).text == "cheap"  # not shadowed, so one ID is taken
+
+
+@pytest.mark.parametrize("value", [-0.1, 1.0, 1.5, math.nan, False, True, "0", None])
+def test_a_draw_outside_the_unit_interval_raises_before_any_call(value):
+    monitor, prov = Monitor(), provider()
+    with pytest.raises(ValueError, match="random"):
+        make(router(shadow_rate=0.5), prov, monitor, random=Draws(value)).call("judge", MESSAGES)
+    assert prov.calls == [] and monitor.records == []
+
+
+def test_a_draw_of_zero_as_an_int_is_a_number_in_the_interval():
+    monitor = Monitor()
+    make(router(shadow_rate=0.5), provider(), monitor, random=Draws(0)).call("judge", MESSAGES)
+    assert [rec["model"] for rec in monitor.records] == [CHEAP, BEST]
+
+
+def test_a_monitor_error_on_the_shadow_s_refusal_record_propagates():
+    from model_routing import BudgetExceeded
+
+    class Raising(Monitor):
+        def record(self, rec):
+            if rec.get("budget_event") == "refused":
+                raise BudgetExceeded(Budget("other", 1.0, "refuse"), 0.0, 0.0, 2.0, BEST)
+            super().record(rec)
+
+    ledger = BudgetLedger([Budget("shadows", 0.001, "refuse", tags={"shadow": "true"})])
+    with pytest.raises(BudgetExceeded) as caught:
+        make(router(shadow_rate=1.0), provider(), Raising(), random=Draws(0.0),
+             ledger=ledger).call("judge", MESSAGES)
+    assert caught.value.budget.name == "other"
+
+
+def test_a_budget_exceeded_from_the_shadow_s_provider_propagates():
+    from model_routing import BudgetExceeded
+
+    def raises(messages):
+        raise BudgetExceeded(Budget("theirs", 1.0, "refuse"), 0.0, 0.0, 2.0, BEST)
+    ledger = BudgetLedger([Budget("all", 100.0, "refuse")])
+    with pytest.raises(BudgetExceeded) as caught:
+        make(router(shadow_rate=1.0), provider(**{BEST: raises}), Monitor(), random=Draws(0.0),
+             ledger=ledger).call("judge", MESSAGES)
+    assert caught.value.budget.name == "theirs"
+
+
+def test_an_excluded_or_generator_family_shadow_route_draws_nothing():
+    monitor = Monitor()  # the default skips an excluded model: the next bound, mid, is shadowed
+    make(router(shadow_rate=1.0), provider(), monitor, random=Draws(0.0)).call(
+        "judge", MESSAGES, exclude_models=[BEST])
+    assert [rec["model"] for rec in monitor.records] == [CHEAP, MID]
+    monitor = Monitor()
+    make(router(shadow_rate=1.0, shadow_route=BEST), provider(), monitor, random=never).call(
+        "judge", MESSAGES, exclude_models=[BEST])
+    assert [rec["model"] for rec in monitor.records] == [CHEAP]
+    monitor = Monitor()
+    make(router(shadow_rate=1.0, shadow_route=MID), provider(), monitor, random=never).call(
+        "judge", MESSAGES, generator_model=MID)
+    assert [rec["model"] for rec in monitor.records] == [CHEAP]
+
+
+def test_a_sliced_call_s_shadow_holds_the_slice_s_output_and_names_the_slice():
+    task = Task("judge", bar=0.7, min_samples=10, shadow_rate=1.0,
+                slices={"deep": {"expected_output_tokens": 400}})
+    stats = Stats()
+    for model_id, (successes, trials) in ((CHEAP, (90, 100)), (BEST, (100, 100))):
+        stats.add("judge@deep", model_id, successes, trials)
+    monitor = Monitor()
+    ledger = BudgetLedger([Budget("shadows", 100.0, "refuse", tags={"shadow": "true"})])
+    executor = make(Router(REGISTRY, {"judge": task}, stats), provider(), monitor,
+                    random=Draws(0.0), ledger=ledger)
+    seen = []
+    reserve = ledger.reserve
+
+    def spy(name, tags, estimate, model=None, **extra):
+        seen.append((tags.get("shadow"), estimate))
+        return reserve(name, tags, estimate, model, **extra)
+    ledger.reserve = spy
+    executor.call("judge", MESSAGES, slice="deep", prompt_tokens=100)
+    assert [rec["slice"] for rec in monitor.records] == ["deep", "deep"]
+    assert seen[-1] == ("true", REGISTRY.get(BEST).cost(100, 400))
+
+
+def test_a_strict_budget_holds_the_shadow_s_billing_bound():
+    from model_routing import Variant, billing_bound
+    capped = BEST + "@capped"
+    bounded = Model(capped, "large", 10.0, 20.0, 8000,
+                    variant=Variant("capped", provider_options={"max_tokens": 500}))
+    registry = Registry([REGISTRY.get(CHEAP), REGISTRY.get(BEST), bounded])
+    stats = Stats()
+    stats.add("judge", CHEAP, 90, 100)
+    stats.add("judge", capped, 100, 100)
+    route = Router(registry, {"judge": Task("judge", 0.7, min_samples=10, shadow_rate=1.0)},
+                   stats)
+    seen = []
+    ledger = BudgetLedger([Budget("s", 100.0, "refuse", tags={"team": "x"}, strict=True)])
+    reserve = ledger.reserve
+
+    def spy(name, tags, estimate, model=None, **extra):
+        seen.append((model, tags.get("shadow"), extra.get("bound_usd")))
+        return reserve(name, tags, estimate, model, **extra)
+    ledger.reserve = spy
+    make(route, provider(**{capped: answer("capped")}), Monitor(), random=Draws(0.0),
+         ledger=ledger).call("judge", MESSAGES)
+    assert billing_bound(bounded) is not None
+    assert seen == [(CHEAP, None, None), (capped, "true", billing_bound(bounded))]
