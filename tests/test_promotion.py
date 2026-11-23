@@ -327,8 +327,8 @@ def test_the_note_names_the_check_as_shipped_and_the_rest_as_planned():
     locked = note[note.index("### Switch models only on locked data and a significant result"):]
     line = [x for x in locked.splitlines() if x.startswith("- In this library: ")][0]
     assert "From v1.601 `paired_promotion` compares a challenger with the current route on the items both were graded on" in line
-    assert line.endswith("The change still planned: record the labeled file's hash with the stats, and a `promote` command "
-                         "that pairs the two routes' outcomes on it before a route changes.")
+    assert line.endswith("The change still planned: a `promote` command that pairs the two routes' outcomes "
+                         "on that hash before a route changes.")  # restated at v1.602, row GATE1b
     assert "an advisory paired check of a challenger" not in note
     assert ", `hold` otherwise or `insufficient_overlap` on too few shared items, and changes nothing. " in line
     assert note.count("its comparison `paired_promotion` from v1.601 and the command that runs it planned.") == 1
