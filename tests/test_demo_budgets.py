@@ -144,22 +144,33 @@ def test_a_refusal_ends_the_demo_with_exit_4_and_one_stderr_line(tmp_path, capsy
     assert f"refuses a call of {last['model']!r}" in stderr
     attempts = attempt_lines(out / "calls.jsonl")
     assert attempts == baseline["calls"].splitlines()[:len(attempts)]
-    assert math.fsum(json.loads(line)["cost_usd"] for line in attempts) <= row["limit_usd"]
+    # the check read the settled spend of every attempt before it; a budget that is not strict
+    # holds a list-price estimate, so the spend may pass the limit by one call's error (4.6)
+    spent = math.fsum(json.loads(line)["cost_usd"] for line in attempts)
+    assert last["spent_usd"] == pytest.approx(spent, abs=1e-9)
+    if row.get("strict"):  # the demo's models send no output maximum, so the first call refuses
+        assert attempts == [] and "is strict and refuses" in stderr
+    else:
+        assert last["spent_usd"] + last["held_usd"] + last["estimate_usd"] > last["limit_usd"]
 
 
 def test_a_downgrade_budget_moves_calls_and_records_the_moves(tmp_path, capsys):
+    # at 0.98 USD two cost_blind calls move off demo/atlas-max before every entry refuses
     path = write_budgets(tmp_path / "budgets.json", [
-        {"name": "blind", "limit_usd": 1.0, "mode": "downgrade"}])
+        {"name": "blind", "limit_usd": 0.98, "mode": "downgrade"}])
     out = tmp_path / "demo"
     code, stdout, stderr = run_cli(capsys, "--out", str(out), "--budgets", str(path))
+    assert (code, stdout) == (4, "")
+    assert stderr.startswith("error: budget 'blind' (0.98 USD) refuses a call of ")
     log = load_records(out / "calls.jsonl")
     moved = [r for r in log if "budget_moves" in r]
-    assert moved and all(m["budget"] == "blind" for r in moved for m in r["budget_moves"])
-    if code == 4:
-        assert stdout == "" and stderr.startswith("error: budget 'blind' (1.0 USD) ")
-        assert log[-1]["budget_event"] == "refused"
-    else:
-        assert code == 0 and stderr == "" and "\nbudgets:\n" in stdout
+    assert len({r["call_id"] for r in moved}) == 2
+    assert all(r["flavor"] == "cost_blind" and r["model"] != "demo/atlas-max" for r in moved)
+    assert [m for r in moved for m in r["budget_moves"]] == [
+        {"entry": "demo/atlas-max", "model": "demo/atlas-max", "budget": "blind"}] * len(moved)
+    refused = [r for r in log if r.get("budget_event") == "refused"]
+    assert all(r["mode"] == "downgrade" for r in refused) and log[-1] is refused[-1]
+    assert len({r["call_id"] for r in refused}) == 3  # the two moved calls and the last one
 
 
 def test_an_empty_budgets_list_prints_the_header_and_rule(tmp_path, capsys, baseline):

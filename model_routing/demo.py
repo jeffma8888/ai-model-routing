@@ -7,8 +7,9 @@ import math
 import random
 from dataclasses import fields
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Union
+from typing import Callable, Dict, List, Optional, Sequence, Union
 
+from .budget import Budget, BudgetLedger
 from .delegation import DELEGATE
 from .executor import AllModelsFailed, Executor, estimate_prompt_tokens, json_validator
 from .monitor import Monitor, report
@@ -127,7 +128,8 @@ def _script(registry: Registry, rng: random.Random, clock: _SimulatedClock,
 
 
 def _hand_off(router: Router, provider: FakeProvider, monitor: Monitor,
-              clock: _SimulatedClock, state: Dict[str, str], validate, flavor: str) -> dict:
+              clock: _SimulatedClock, state: Dict[str, str], validate, flavor: str,
+              ledger: Optional[BudgetLedger] = None) -> dict:
     """One inline-or-sub-agent decision, its hand-off run when it delegates (DESIGN 11 v1.12)."""
     decision = router.decide_delegation(
         DEMO_TASK, DELEGATION_PARENT, flavor, context_tokens=DELEGATION_CONTEXT_TOKENS,
@@ -136,7 +138,8 @@ def _hand_off(router: Router, provider: FakeProvider, monitor: Monitor,
     if decision.mode == DELEGATE:
         state["primary"] = decision.route.primary
         executor = Executor(router, provider, monitor=monitor, clock=clock,
-                            now=clock.timestamp, id_factory=lambda: f"{flavor}-delegated-0001")
+                            now=clock.timestamp, id_factory=lambda: f"{flavor}-delegated-0001",
+                            ledger=ledger)
         brief = [
             {"role": "system", "content": "Judge whether the answer is faithful "
                                           "to the source. Reply in JSON with a verdict."},
@@ -148,7 +151,7 @@ def _hand_off(router: Router, provider: FakeProvider, monitor: Monitor,
                                     validate=validate)
         except AllModelsFailed:
             pass
-    records = monitor.records[first:]
+    records = _attempts(monitor.records[first:])
     return {
         "parent": decision.parent,
         "context_tokens": DELEGATION_CONTEXT_TOKENS,
@@ -162,7 +165,13 @@ def _hand_off(router: Router, provider: FakeProvider, monitor: Monitor,
     }
 
 
-def run_demo(out_dir: Union[str, Path], seed: int = 7) -> dict:
+def _attempts(records: List[dict]) -> List[dict]:
+    """The attempt records of ``records``, without the budget records (DESIGN 11 v1.599)."""
+    return [record for record in records if "budget_event" not in record]
+
+
+def run_demo(out_dir: Union[str, Path], seed: int = 7,
+             budgets: Optional[Sequence[Budget]] = None) -> dict:
     """Run the offline demo and write its output files (``OUTPUTS``) to ``out_dir``.
 
     Four fictional judges in two families are calibrated on a 300-item
@@ -183,7 +192,11 @@ def run_demo(out_dir: Union[str, Path], seed: int = 7) -> dict:
     demo output. If any of those files already exists without
     that marker, ``FileExistsError`` is raised and nothing is modified; with
     the marker, the previous demo output is replaced.
+
+    ``budgets``, None or a list or tuple of :class:`Budget`, puts every call of the run under
+    one :class:`BudgetLedger` of them; a ``BudgetExceeded`` ends the run (DESIGN 11 v1.599).
     """
+    ledger = None if budgets is None else BudgetLedger(budgets)  # checked before any write
     out = Path(out_dir)
     marker = out / MARKER
     if not marker.exists():
@@ -224,7 +237,8 @@ def run_demo(out_dir: Union[str, Path], seed: int = 7) -> dict:
         counter = iter(range(1, CALLS_PER_FLAVOR + 1))
         executor = Executor(router, provider, monitor=monitor, clock=clock,
                             now=clock.timestamp,
-                            id_factory=lambda f=flavor, c=counter: f"{f}-{next(c):04d}")
+                            id_factory=lambda f=flavor, c=counter: f"{f}-{next(c):04d}",
+                            ledger=ledger)
         first = len(monitor.records)
         for item in range(CALLS_PER_FLAVOR):
             messages = [
@@ -238,7 +252,7 @@ def run_demo(out_dir: Union[str, Path], seed: int = 7) -> dict:
                               validate=validate)
             except AllModelsFailed:
                 pass
-        records = monitor.records[first:]
+        records = _attempts(monitor.records[first:])
         finals = [r for r in records if r["final"]]
         summary[flavor] = {
             "primary": decision.primary,
@@ -250,7 +264,7 @@ def run_demo(out_dir: Union[str, Path], seed: int = 7) -> dict:
     # after every judge call, so their records and random draws are unchanged (v1.12)
     for flavor in summary:
         summary[flavor]["delegation"] = _hand_off(router, provider, monitor, clock, state,
-                                                  validate, flavor)
+                                                  validate, flavor, ledger)
     return summary
 
 

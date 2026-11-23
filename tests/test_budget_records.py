@@ -417,10 +417,18 @@ def test_design_and_the_note_state_the_records_as_shipped():
     assert "row B1e" in line
 
 
-def test_no_evidence_script_or_demo_runs_a_ledger_so_their_outputs_keep_their_bytes():
-    paths = [ROOT / "model_routing" / "demo.py", ROOT / "model_routing" / "cli.py",
-             *sorted((ROOT / "evidence").rglob("*.py")), *sorted((ROOT / "research").rglob("*.py"))]
+def test_no_evidence_script_runs_a_ledger_and_the_demo_only_with_budgets():
+    paths = [*sorted((ROOT / "evidence").rglob("*.py")), *sorted((ROOT / "research").rglob("*.py"))]
     assert len(paths) > 2
     for path in paths:
         source = path.read_text(encoding="utf-8")
         assert "BudgetLedger" not in source and "budget_report" not in source, path
+    # v1.599 (row B1f): the demo builds a ledger only from a budgets value and the CLI reports one
+    # only with --budgets, so without them their outputs keep their bytes (tests/test_demo_budgets.py)
+    demo = (ROOT / "model_routing" / "demo.py").read_text(encoding="utf-8")
+    assert demo.count("BudgetLedger(") == 1
+    assert "    ledger = None if budgets is None else BudgetLedger(budgets)" in demo
+    cli = (ROOT / "model_routing" / "cli.py").read_text(encoding="utf-8")
+    assert cli.count("BudgetLedger") == 0 and cli.count("budget_report(") == 1
+    assert cli.count("    if budgets is not None:  # DESIGN 10 v1.599") == 1
+    assert cli.count("run_demo(args.out) if budgets is None else run_demo(args.out, budgets=budgets)") == 1

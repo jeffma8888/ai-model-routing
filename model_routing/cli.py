@@ -10,8 +10,9 @@ from pathlib import Path
 from typing import List, Optional
 
 from . import DATA_DIR
+from .budget import BudgetExceeded, load_budgets
 from .demo import run_demo
-from .monitor import load_audits, load_records, report
+from .monitor import budget_report, load_audits, load_records, report
 from .priors import Priors
 from .registry import Registry
 from .router import FLAVORS, NoModelClearsBar, Router
@@ -22,6 +23,7 @@ from .tasks import is_slice_name, load_tasks
 EXIT_OK = 0
 EXIT_BAD_INPUT = 2
 EXIT_NO_MODEL = 3
+EXIT_BUDGET = 4  # DESIGN 10 v1.599: a BudgetExceeded ended a call of demo --budgets
 
 
 class _BadInput(Exception):
@@ -99,6 +101,9 @@ def _build_parser() -> argparse.ArgumentParser:
 
     demo = sub.add_parser("demo", help="run the offline demo with fictional models")
     demo.add_argument("--out", default="model-routing-demo")
+    demo.add_argument("--budgets", default=None, metavar="FILE",
+                      help="a budgets JSON file: one ledger for every demo call; a refused call "
+                           "exits 4")
 
     ev = sub.add_parser("evaluate",
                         help="score routing on a held-out split of an outcome matrix")
@@ -311,7 +316,13 @@ def _cmd_report(args) -> int:
 
 
 def _cmd_demo(args) -> int:
-    summary = run_demo(args.out)
+    # DESIGN 10 v1.599: the file is read before the demo writes anything
+    budgets = None if args.budgets is None else load_budgets(args.budgets)
+    try:  # without the option, v1.598's call
+        summary = run_demo(args.out) if budgets is None else run_demo(args.out, budgets=budgets)
+    except BudgetExceeded as exc:  # the message names the budget, on one line
+        print(f"error: {exc}", file=sys.stderr)
+        return EXIT_BUDGET
     print("model-routing demo (fictional demo/ models, simulated outages)")
     for flavor, s in summary.items():
         print()
@@ -335,6 +346,16 @@ def _cmd_demo(args) -> int:
               f"inline {d['inline_cost_usd']:.6f} vs delegate {delegate} USD")
     print(f"  hand-off calls: {sum(d['hand_off_calls'] for d in hand_offs)}, "
           f"list-price USD {sum(d['hand_off_cost_usd'] for d in hand_offs):.4f}")
+    if budgets is not None:  # DESIGN 10 v1.599: each budget's spend per window, from the log
+        rows = budget_report(load_records(Path(args.out) / "calls.jsonl"), budgets)
+        print()
+        print("budgets:")
+        print(_table(["budget", "window", "mode", "limit_usd", "spent_usd", "budget_used_pct",
+                      "warn_records", "refused_records"],
+                     [[r["budget"], "total" if r["window"] is None else r["window"], r["mode"],
+                       f"{r['limit_usd']:.6f}", f"{r['spent_usd']:.6f}",
+                       f"{r['budget_used_pct']:.1f}", r["warn_records"], r["refused_records"]]
+                      for r in rows]))
     print(f"log: {Path(args.out) / 'calls.jsonl'}")
     return EXIT_OK
 
@@ -460,7 +481,8 @@ _COMMANDS = {"select": _cmd_select, "calibrate": _cmd_calibrate, "report": _cmd_
 
 
 def main(argv: Optional[List[str]] = None, *, today: Optional[date] = None) -> int:
-    """Run the CLI and return its exit code: 0 ok, 2 bad input, 3 no model clears the bar.
+    """Run the CLI and return its exit code: 0 ok, 2 bad input, 3 no model clears the bar,
+    4 a budget refused a call (``demo --budgets``, v1.599).
 
     ``today`` dates the price expiry check of ``select``, ``delegate`` and, from v1.411,
     ``evaluate``; ``None`` means ``datetime.date.today()``.
