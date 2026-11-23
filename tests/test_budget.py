@@ -1,7 +1,6 @@
 """In-process budgets: the ledger and the executor's holds (DESIGN 4.6 and 7 v1.595, row B1a)."""
 
 import json
-import math
 from dataclasses import FrozenInstanceError
 from pathlib import Path
 
@@ -26,6 +25,14 @@ def ok(input_tokens=1000, output_tokens=200, calls=None):
 
 def fail(messages):
     raise ProviderError("outage")
+
+
+def running(values):
+    """The ledger's spend: each cost added to a float in settle order, not ``math.fsum``."""
+    total = 0.0
+    for value in values:
+        total += value
+    return total
 
 
 def executor(router, provider, ledger=None, monitor=None):
@@ -169,6 +176,8 @@ def test_a_hold_counts_until_settled_and_settles_once():
     assert (ledger.spent_usd("a"), ledger.held_usd("a")) == (0.4, 0.0)
     with pytest.raises(ValueError):
         ledger.settle(first, 0.4)
+    with pytest.raises(ValueError):
+        ledger.settle(type("Fake", (), {"key": 1})(), 0.0)   # opaque: only a real hold settles
     ledger.settle(ledger.reserve("t", {}, 0.6), 0.6)   # 0.4 + 0.6 is not over 1.0
     assert ledger.spent_usd("a") == 1.0
     ledger.charge("t", {}, 0.25)              # spent without a hold: never refused
@@ -253,7 +262,7 @@ def test_refuse_runs_two_calls_of_a_two_call_budget_and_refuses_the_third(router
         2 * unit, 0.0, unit, "fiction/cheap")
     assert exc.attempts == () and exc.decision.primary == "fiction/cheap"
     assert len(calls) == 2 and len(monitor.records) == 2
-    assert ledger.spent_usd("two") == 2 * unit == math.fsum(r["cost_usd"] for r in monitor.records)
+    assert ledger.spent_usd("two") == 2 * unit == running(r["cost_usd"] for r in monitor.records)
     assert ledger.held_usd("two") == 0.0
 
 
@@ -394,7 +403,7 @@ def test_a_delegated_call_counts_to_the_run_budget_with_its_parent(router):
     ex.call_delegated(decision, [{"role": "user", "content": "brief"}], tags={"run": "r1"})
     assert monitor.records[1]["tags"] == {"run": "r1", "delegated": "true",
                                           "parent": "fiction/best"}
-    assert ledger.spent_usd("run") == math.fsum(r["cost_usd"] for r in monitor.records)
+    assert ledger.spent_usd("run") == running(r["cost_usd"] for r in monitor.records)
     assert ledger.spent_usd("run") > 0
 
 
@@ -434,7 +443,32 @@ def test_a_procedure_holds_its_model_call_and_charges_its_tool_cost():
     assert seen == [(PROC_REGISTRY.get(CHEAP).cost(4, 200), CHEAP)]
     costs = [r["cost_usd"] for r in monitor.records]
     assert costs == [PROC_REGISTRY.get(CHEAP).cost(4000, 1000), 0.0005]
-    assert ledger.spent_usd("all") == math.fsum(costs)
+    assert ledger.spent_usd("all") == running(costs)
+
+
+def test_an_invalid_or_failed_procedure_charges_its_closing_cost_and_falls_back():
+    ledger = BudgetLedger([Budget("all", 1.0, "refuse")])
+    monitor = Monitor()
+    ex = executor(proc_router(), FakeProvider({CHEAP: ok(4000, 1000), BEST: ok(55, 12)}), ledger,
+                  monitor)
+    assert ex.call("t", [{"role": "user", "content": "hi"}], procedures=[POLL],
+                   validate=lambda text: not text.startswith("shaped")).model == BEST
+    assert [(r["model"], r["outcome"], r["cost_usd"]) for r in monitor.records] == [
+        (CHEAP, "ok", PROC_REGISTRY.get(CHEAP).cost(4000, 1000)), (POLL.id, "invalid", 0.0005),
+        (BEST, "ok", PROC_REGISTRY.get(BEST).cost(55, 12))]
+    assert ledger.spent_usd("all") == running(r["cost_usd"] for r in monitor.records)
+
+    def boom(value, call):
+        raise RuntimeError("boom")
+
+    failed = BudgetLedger([Budget("all", 1.0, "refuse")])
+    monitor = Monitor()
+    ex = executor(proc_router(), FakeProvider({BEST: ok(55, 12)}), failed, monitor)
+    broken = Procedure("poll", "v1", boom, max_model_calls=2, max_tool_calls=5, model=CHEAP)
+    assert ex.call("t", [{"role": "user", "content": "hi"}], procedures=[broken]).model == BEST
+    assert [(r["outcome"], r["cost_usd"]) for r in monitor.records] == [
+        ("error", 0.0), ("ok", PROC_REGISTRY.get(BEST).cost(55, 12))]
+    assert failed.spent_usd("all") == PROC_REGISTRY.get(BEST).cost(55, 12)
 
 
 def test_a_refused_procedure_call_propagates_after_the_run_with_no_record():

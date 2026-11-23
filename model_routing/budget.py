@@ -176,7 +176,7 @@ class BudgetLedger:
         """Release ``hold`` and add ``cost_usd`` to each budget it was held on."""
         cost = _amount(cost_usd, "cost_usd")
         with self._lock:
-            entry = self._holds.pop(getattr(hold, "key", None), None)
+            entry = self._holds.pop(hold.key, None) if isinstance(hold, _Hold) else None
             if entry is None:
                 raise ValueError("this hold is settled already or was never reserved here")
             self._add(entry[0], cost)
