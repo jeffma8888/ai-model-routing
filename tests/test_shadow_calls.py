@@ -614,25 +614,31 @@ def under_bar_calls(records):
     return {row["group"]: row["below_bar_calls"] for row in report(records)}
 
 
-@pytest.mark.parametrize("fields, held", [
-    ({"fallback_below_bar": True, "max_fallbacks": 3}, True),  # the route ends with small
-    ({"max_fallbacks": 3}, False),  # the option off
-    ({"fallback_below_bar": True}, False),  # small past the route's two fallbacks
+HELD = {"fallback_below_bar": True, "max_fallbacks": 3}  # the route ends with small
+
+
+@pytest.mark.parametrize("fields, held, small, outcome", [
+    (HELD, True, answer("small"), "ok"),
+    (HELD, True, outage, "error"),  # keyed, and no below_bar_calls: the attempt is not ok
+    ({"max_fallbacks": 3}, False, answer("small"), "ok"),  # the option off
+    ({"fallback_below_bar": True}, False, answer("small"), "ok"),  # past two fallbacks
 ])
 def test_a_named_below_bar_shadow_carries_below_bar_fallback_only_when_the_route_holds_it(
-        fields, held):
+        fields, held, small, outcome):
     route = router(shadow_rate=1.0, shadow_route=SMALL, **fields)  # 50 of 100, under the bar
     decision = route.select("judge", prompt_tokens=2)
     assert decision.primary == CHEAP and not decision.below_bar
     assert decision.below_bar_fallbacks == ((SMALL,) if held else ())
     monitor = Monitor()
-    result = make(route, provider(**{SMALL: answer("small")}), monitor,
+    result = make(route, provider(**{SMALL: small}), monitor,
                   random=Draws(0.0)).call("judge", MESSAGES)
     assert result.text == "cheap"
     routed, shadow = monitor.records
     assert (routed["model"], shadow["model"], shadow["shadow"]) == (CHEAP, SMALL, True)
+    assert (routed["outcome"], shadow["outcome"]) == ("ok", outcome)
     assert routed["prompt_tokens"] == shadow["prompt_tokens"] == 2
-    assert routed["below_bar"] is shadow["below_bar"] is False  # the decision's flag
+    assert routed["below_bar"] is False  # the decision's flag
+    assert shadow["below_bar"] is False
     assert "below_bar_fallback" not in routed
     keys = list(routed)
     if held:
@@ -642,7 +648,7 @@ def test_a_named_below_bar_shadow_carries_below_bar_fallback_only_when_the_route
     else:
         assert "below_bar_fallback" not in shadow and list(shadow) == keys
     # until row CANARY1c, report counts the shadow as a call of its own
-    assert under_bar_calls(monitor.records) == {CHEAP: 0, SMALL: 1 if held else 0}
+    assert under_bar_calls(monitor.records) == {CHEAP: 0, SMALL: int(held and outcome == "ok")}
 
 
 def test_a_named_shadow_s_below_bar_is_the_decision_s_when_nothing_clears_the_bar():
@@ -659,7 +665,8 @@ def test_a_named_shadow_s_below_bar_is_the_decision_s_when_nothing_clears_the_ba
     make(route, provider(), monitor, random=Draws(0.0)).call("judge", MESSAGES)
     routed, shadow = monitor.records
     assert (routed["model"], shadow["model"], shadow["shadow"]) == (MID, CHEAP, True)
-    assert routed["below_bar"] is shadow["below_bar"] is True
+    assert routed["below_bar"] is True
+    assert shadow["below_bar"] is True
     assert "below_bar_fallback" not in routed and "below_bar_fallback" not in shadow
     assert list(shadow) == list(routed)
     assert under_bar_calls(monitor.records) == {MID: 1, CHEAP: 1}
