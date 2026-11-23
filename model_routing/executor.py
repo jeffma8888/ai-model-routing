@@ -12,6 +12,7 @@ from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from typing import Callable, Dict, Iterable, List, Optional, Sequence, Tuple
 
+from .budget import BudgetExceeded, BudgetLedger
 from .delegation import DELEGATE
 from .procedures import Procedure
 from .providers import Provider, ProviderError
@@ -99,19 +100,25 @@ class Executor:
     """Executes calls against the primary model, falling back on provider errors.
 
     ``clock`` returns seconds for latency timing, ``now`` returns an ISO 8601
-    UTC timestamp and ``id_factory`` returns a call ID; all are injectable.
+    UTC timestamp and ``id_factory`` returns a call ID; all are injectable. ``ledger``, None
+    or a :class:`BudgetLedger`, holds each provider call's estimate before it and settles its
+    measured cost after (DESIGN 7 v1.595).
     """
 
     def __init__(self, router: Router, provider: Provider, monitor=None,
                  clock: Callable[[], float] = time.monotonic,
                  now: Optional[Callable[[], str]] = None,
-                 id_factory: Optional[Callable[[], str]] = None):
+                 id_factory: Optional[Callable[[], str]] = None,
+                 ledger: Optional[BudgetLedger] = None):
+        if ledger is not None and not isinstance(ledger, BudgetLedger):
+            raise ValueError(f"ledger must be None or a BudgetLedger, got {type(ledger).__name__}")
         self.router = router
         self.provider = provider
         self.monitor = monitor
         self.clock = clock
         self.now = now if now is not None else _utc_now
         self.id_factory = id_factory if id_factory is not None else _new_id
+        self.ledger = ledger
 
     def call(self, task_name: str, messages: List[dict], flavor: str = "cost_effective",
              generator_model: Optional[str] = None, exclude_models: Iterable[str] = (),
@@ -205,6 +212,11 @@ class Executor:
         call_id = self.id_factory()
         order = (decision.primary, *decision.fallbacks)
         attempts: List[Attempt] = []
+        scope = None
+        if self.ledger is not None:  # DESIGN 7 v1.595: the hold's task, tags and sizes
+            out = dict(task.slices.get(decision.slice) or {}).get(
+                "expected_output_tokens", task.expected_output_tokens)
+            scope = (task_name, call_tags, None if size is None else size[0], out)
 
         def log(attempt: Attempt, final: bool, entry: str, cascade=None, escalated=None,
                 keys: Optional[dict] = None, family: Optional[str] = None):
@@ -214,25 +226,35 @@ class Executor:
                                                  final, attempt, call_tags, size, entry,
                                                  cascade, escalated, keys, family))
 
+        try:
+            return self._entries(task_name, decision, messages, validate, cascades, signals,
+                                 procedures, task, registry, call_id, order, attempts, log, scope)
+        except BudgetExceeded as exc:
+            exc.attempts, exc.decision = tuple(attempts), decision
+            raise
+
+    def _entries(self, task_name, decision, messages, validate, cascades, signals, procedures,
+                 task, registry, call_id, order, attempts, log, scope) -> CallResult:
         for position, entry in enumerate(order):
             last = position == len(order) - 1
             proc = (procedures or {}).get(entry)
             if proc is not None:
-                text = self._procedure(proc, messages, task, registry, validate, log, last)
+                text = self._procedure(proc, messages, task, registry, validate, log, last,
+                                       scope)
                 if text is not None:
                     return CallResult(call_id, text, entry, tuple(attempts), decision)
                 continue
             cascade = (cascades or {}).get(entry)
             if cascade is None:
-                attempt, text = self._checked(*self._run(entry, messages, task, registry),
-                                              validate)
+                attempt, text = self._checked(*self._run(entry, messages, task, registry,
+                                                         scope), validate)
                 log(attempt, text is not None or last, entry)
                 if text is not None:
                     return CallResult(call_id, text, entry, tuple(attempts), decision)
                 continue
             # DESIGN 7 v1.537: the cheap model first; a ProviderError or a truthy signal
             # hands the call up to a fresh call of the strong model on the same messages
-            attempt, completion = self._run(cascade.cheap, messages, task, registry)
+            attempt, completion = self._run(cascade.cheap, messages, task, registry, scope)
             if completion is not None and not signals[cascade.signal](completion.text):
                 attempt, text = self._checked(attempt, completion, validate)
                 log(attempt, text is not None or last, entry, cascade, False)
@@ -240,8 +262,8 @@ class Executor:
                     return CallResult(call_id, text, cascade.cheap, tuple(attempts), decision)
                 continue
             log(attempt, False, entry, cascade, True)
-            attempt, text = self._checked(*self._run(cascade.strong, messages, task, registry),
-                                          validate)
+            attempt, text = self._checked(*self._run(cascade.strong, messages, task, registry,
+                                                     scope), validate)
             log(attempt, text is not None or last, entry, cascade, True)
             if text is not None:
                 return CallResult(call_id, text, cascade.strong, tuple(attempts), decision)
@@ -250,7 +272,7 @@ class Executor:
             tuple(attempts), decision)
 
     def _procedure(self, proc: Procedure, messages: List[dict], task, registry, validate, log,
-                   last: bool) -> Optional[str]:
+                   last: bool, scope=None) -> Optional[str]:
         """Run one procedure entry (DESIGN 7 v1.578): its accepted output, or None to move on.
 
         Each model call of the handle is an attempt of the procedure's model, a ``ProviderError``
@@ -265,8 +287,9 @@ class Executor:
             if state["bug"] is not None:
                 raise state["bug"]
             try:
-                attempt, completion, exc = self._attempt(proc.model, call_messages, task,
-                                                         registry)
+                attempt, completion, exc = self._attempt(
+                    proc.model, call_messages, task, registry,
+                    None if scope is None else (scope[0], scope[1], None, scope[3]))
             except Exception as bug:  # a bug, not an outage: it leaves .call (7 step 2)
                 state["bug"] = bug
                 raise
@@ -299,20 +322,41 @@ class Executor:
                     tool_calls=None if run is None else run.tool_calls,
                     tool_cost_usd=None if run is None else run.tool_cost_usd)
         family = "" if proc.model is None else registry.get(proc.model).family
+        if scope is not None:  # DESIGN 7 v1.595: the tool cost, spent with no hold
+            self.ledger.charge(scope[0], scope[1], attempt.cost_usd)
         log(attempt, text is not None or last, proc.id, keys=keys, family=family)
         return text
 
-    def _run(self, model_id: str, messages: List[dict], task, registry):
+    def _run(self, model_id: str, messages: List[dict], task, registry, scope=None):
         """One timed provider call: its attempt, ``ok`` or ``error``, and the completion or None.
 
         A route with provider options passes a new copy of them as ``options``; any other route
         calls the provider as before v1.574 (DESIGN 7 v1.574).
         """
-        attempt, completion, _ = self._attempt(model_id, messages, task, registry)
+        attempt, completion, _ = self._attempt(model_id, messages, task, registry, scope)
         return attempt, completion
 
-    def _attempt(self, model_id: str, messages: List[dict], task, registry):
-        """``_run``'s attempt and completion, and the ``ProviderError`` caught or None."""
+    def _attempt(self, model_id: str, messages: List[dict], task, registry, scope=None):
+        """``_run``'s attempt and completion, and the ``ProviderError`` caught or None.
+
+        With a ``scope`` (task, tags, prompt tokens or None, output tokens) the ledger holds the
+        call's list-price estimate before it and settles the attempt's cost after (7 v1.595).
+        """
+        if scope is None:
+            return self._provider_call(model_id, messages, task, registry)
+        name, tags, prompt, out = scope
+        size_in = estimate_prompt_tokens(messages) if prompt is None else prompt
+        estimate = float(registry.get(model_id).cost(size_in, out)) if model_id in registry else 0.0
+        hold = self.ledger.reserve(name, tags, estimate, model_id)
+        cost = 0.0
+        try:
+            result = self._provider_call(model_id, messages, task, registry)
+            cost = result[0].cost_usd
+            return result
+        finally:
+            self.ledger.settle(hold, cost)
+
+    def _provider_call(self, model_id: str, messages: List[dict], task, registry):
         options = registry.get(model_id).provider_options if model_id in registry else {}
         start = self.clock()
         try:

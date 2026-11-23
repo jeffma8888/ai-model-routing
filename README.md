@@ -1149,6 +1149,7 @@ model_routing/
   stats.py      Wilson lower bound, items a bar needs, calibration counts and token totals
   priors.py     leaderboard priors (order only, never admit)
   procedures.py a job's fixed steps as code, its calls bounded
+  budget.py     in-process spend limits per task or tag: warn or refuse
   router.py     the routing rules and both flavors
   providers.py  provider protocol, fake provider, OpenAI-compatible HTTP provider
   executor.py   fallback execution and output validation
