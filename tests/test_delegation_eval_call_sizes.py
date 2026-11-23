@@ -23,13 +23,13 @@ tokens are big 10/40, small 1/4 and weak 0.1/0.4, and big and small are right on
 item and weak on none, so at bar 0.4 big and small clear and weak does not.
 """
 
-import hashlib
 import importlib
 import json
 from math import fsum
 
 import pytest
 
+from decision_hash import decision_sha256
 from model_routing import Model, Registry
 
 ITEMS = [f"q{i}" for i in range(1, 9)]
@@ -159,7 +159,7 @@ def test_rows_without_call_keys_give_the_v1_73_result_bit_for_bit():
                     point(64_000, 500, 500, 1, False, work_calls=15),
                     point(100_000, 500, 300, 0, True, work_calls=2, cached_read_ratio=0.25)]
     result = run(rows, pts, bars=(0.4, 0.8))
-    digest = hashlib.sha256(json.dumps(result, sort_keys=True).encode()).hexdigest()
+    digest = decision_sha256(result)
     assert digest == V173_SHA
     assert all("expected_work_calls" not in c for c in result["cells"])
 

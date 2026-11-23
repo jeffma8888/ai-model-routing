@@ -17,6 +17,7 @@ import json
 
 import pytest
 
+from decision_hash import decision_sha256
 from model_routing import (
     Cascade, Completion, Executor, FakeProvider, Model, Monitor, Procedure, ProcedureResult,
     ProviderError, Registry, Router, Stats, Task, load_records, report, run_demo,
@@ -179,7 +180,7 @@ def demo_records(tmp_path_factory):
 @pytest.mark.parametrize("by", sorted(DEMO_ROWS_SHA256))
 def test_guard_the_demo_log_gives_v1_577_rows_key_for_key(demo_records, by):
     rows = report(demo_records, by=by)
-    assert hashlib.sha256(json.dumps(rows).encode()).hexdigest() == DEMO_ROWS_SHA256[by]
+    assert decision_sha256(rows, sort_keys=False) == DEMO_ROWS_SHA256[by]
     assert sum(row["fallback_calls"] for row in rows) == 55
 
 

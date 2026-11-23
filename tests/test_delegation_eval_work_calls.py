@@ -20,7 +20,6 @@ and small are right on every item and weak on none, so at bar 0.4 big and small 
 (3 of 3 has a 95% Wilson lower bound of 0.438) and weak does not.
 """
 
-import hashlib
 import importlib
 import json
 import statistics
@@ -29,6 +28,7 @@ from pathlib import Path
 
 import pytest
 
+from decision_hash import decision_sha256
 from model_routing import Model, Registry, Router, Stats, Task
 from model_routing.evaluate import split_items
 
@@ -386,7 +386,7 @@ V142_SHA256 = {
 
 
 def digest(result):
-    return hashlib.sha256(json.dumps(result, sort_keys=True).encode()).hexdigest()
+    return decision_sha256(result)
 
 
 def test_points_without_work_calls_give_the_v142_result_bit_for_bit():

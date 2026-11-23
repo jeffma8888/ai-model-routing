@@ -29,6 +29,7 @@ import json
 
 import pytest
 
+from decision_hash import decision_sha256
 from model_routing import Outcome, evaluate, outcomes_from_rows, split_items, wilson_lower_bound
 from model_routing.cli import main
 
@@ -108,7 +109,7 @@ def cell_of(result, task, seed, bar=BAR):
 
 
 def digest(value) -> str:
-    return hashlib.sha256(json.dumps(value, sort_keys=True).encode("utf-8")).hexdigest()
+    return decision_sha256(value)
 
 
 def write(path, rows):

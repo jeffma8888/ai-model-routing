@@ -18,6 +18,7 @@ from pathlib import Path
 
 import pytest
 
+from decision_hash import PLATFORM_Z, FixedZ, decision_sha256
 from model_routing import (Cascade, Model, Procedure, ProcedureResult, Registry, Router, Stats,
                            Task, Variant)
 
@@ -286,27 +287,16 @@ def _guard_stats(tokens):
 
 # the guard decisions (two flavors, unsliced and on the slice `deep`, each with the cascade and
 # the three procedures), with and without token totals, computed at 3ef5af9 before any v1.591 code,
-# each `quality_lb` rounded to 12 decimals (DESIGN 4.3 v1.592, row CI31: `z`'s last bit differs by
-# platform, so the exact v1.590 hashes were 7122ae1a... and e1535a82... on the machine that wrote
-# them and 27deaa3e... and 7d528bac... on the CI runners); the same under both values of `z`
+# each `quality_lb` rounded to 12 decimals by tests/decision_hash.py (DESIGN 4.3 v1.592 and v1.593,
+# rows CI31 and CI32: `z`'s last bit differs by platform, so the exact v1.590 hashes were
+# 7122ae1a... and e1535a82... on the machine that wrote them and 27deaa3e... and 7d528bac... on the
+# CI runners); the same under both values of `z`
 V1_590_TOKENS_SHA256 = "315b61635d00ab990e40cc6acbdb160e4f5df3ac4f70119dd139d8fab309a674"
 V1_590_NO_TOKENS_SHA256 = "1f57f2e0f57193a1461101ee68c1a15120e7da4f0e437c8aadabae3e1c982041"
-# `NormalDist().inv_cdf(0.975)` on the machine that wrote v1.591's tests and on the CI runners
-PLATFORM_Z = (1.9599639845400534, 1.9599639845400536)
-
-
-def _neutral(value):
-    """``value`` with each ``quality_lb`` rounded to 12 decimals, every other value as it is."""
-    if isinstance(value, dict):
-        return {key: round(item, 12) if key == "quality_lb" else _neutral(item)
-                for key, item in value.items()}
-    if isinstance(value, list):
-        return [_neutral(item) for item in value]
-    return value
 
 
 def _sha(value):
-    return hashlib.sha256(json.dumps(_neutral(value), sort_keys=True).encode()).hexdigest()
+    return decision_sha256(value)
 
 
 @pytest.mark.parametrize("tokens, expected", [(True, V1_590_TOKENS_SHA256),
@@ -317,24 +307,13 @@ def test_guard_without_a_cache_count_every_decision_keeps_v1_590s_bytes(tokens, 
     assert "cache" not in json.dumps(decisions)
 
 
-class _FixedZ:
-    def __init__(self, z):
-        self.z = z
-
-    def __call__(self):
-        return self
-
-    def inv_cdf(self, p):
-        return self.z
-
-
 @pytest.mark.parametrize("tokens, expected", [(True, V1_590_TOKENS_SHA256),
                                               (False, V1_590_NO_TOKENS_SHA256)])
 def test_the_guard_hash_is_the_same_under_either_platforms_z(monkeypatch, tokens, expected):
     import model_routing.stats as stats_module
     exact, bounds = set(), set()
     for z in PLATFORM_Z:
-        monkeypatch.setattr(stats_module, "NormalDist", _FixedZ(z))
+        monkeypatch.setattr(stats_module, "NormalDist", FixedZ(z))
         decisions = _guard_decisions(_guard_stats(tokens))
         assert _sha(decisions) == expected
         exact.add(hashlib.sha256(json.dumps(decisions, sort_keys=True).encode()).hexdigest())

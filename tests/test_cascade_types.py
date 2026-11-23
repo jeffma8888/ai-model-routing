@@ -17,6 +17,7 @@ import re
 
 import pytest
 
+from decision_hash import decision_sha256
 import model_routing
 from model_routing import (
     DATA_DIR, NoModelClearsBar, Priors, Registry, Router, Stats, Task, calibrate_from_results,
@@ -44,7 +45,7 @@ V1_534_EXAMPLE_SELECT_SHA256 = "2369381cc7a44f66de6512014c0ec9c5ca6df5a65074ca92
 
 
 def sha(value) -> str:
-    return hashlib.sha256(json.dumps(value, sort_keys=True).encode()).hexdigest()
+    return decision_sha256(value)
 
 
 def cascade(cheap=CHEAP, strong=STRONG, signal=SIGNAL):

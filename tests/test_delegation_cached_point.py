@@ -23,7 +23,6 @@ prices per 1M tokens big 10/40, small 1/4 and weak 0.1/0.4, big and small right 
 item and weak on none, so at bar 0.4 big and small clear and weak does not.
 """
 
-import hashlib
 import importlib
 import importlib.util
 import json
@@ -34,6 +33,7 @@ from pathlib import Path
 
 import pytest
 
+from decision_hash import decision_sha256
 from model_routing import Model, Registry, Router, Stats, Task, evaluate_delegation
 from model_routing.evaluate import split_items
 
@@ -436,7 +436,7 @@ V156_SHA256 = {
 
 
 def digest(result):
-    return hashlib.sha256(json.dumps(result, sort_keys=True).encode()).hexdigest()
+    return decision_sha256(result)
 
 
 def test_points_without_the_ratio_give_the_v156_result_bit_for_bit():

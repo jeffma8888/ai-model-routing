@@ -9,7 +9,6 @@ contract tests were written under strict xfail and the implementing commit remov
 the unmarked guards pin what v1.577 keeps and passed before and after it.
 """
 
-import hashlib
 import json
 import math
 import tempfile
@@ -17,6 +16,7 @@ from pathlib import Path
 
 import pytest
 
+from decision_hash import PLATFORM_Z, FixedZ, decision_sha256
 import model_routing
 from model_routing import (
     DATA_DIR, Cascade, Model, NoModelClearsBar, Priors, Procedure, ProcedureResult, Registry,
@@ -35,10 +35,12 @@ REGISTRY = Registry([
 # the decisions on the demo's files (no generator, then the demo's generator) and on the example
 # tasks (empty Stats, packaged priors), both flavors, computed at 2f8de0b before any v1.577 code;
 # equal to tests/test_cascade_candidates.py's v1.535 values, so no version since v1.535 has
-# changed these decisions
-V1_576_DEMO_SELECT_SHA256 = "fed7262101e26be156ce0926f41ec18c8fe77f37be23b2718550916fafbc2638"
+# changed these decisions; hashed by tests/decision_hash.py (DESIGN 4.3 v1.593, row CI32), so
+# each bound rounded to 12 decimals, and recomputed so at 2f8de0b, the same under both platform
+# values of `z` (the exact hashes were fed72621... and c48657f0...)
+V1_576_DEMO_SELECT_SHA256 = "b3887f8d39abe681f8e317c28f0a8d30f564f71b86a6d5b94ea19d6d95755329"
 V1_576_DEMO_GENERATOR_SELECT_SHA256 = (
-    "c48657f0ac1fee6e33ee17cc5ead48fd61cce90c1044bb9c7d08ea8a94465444")
+    "0ecc62acc20a9d9aad7f588b41231cf6c7ef4cf313b5fbd9efe0b9c454cfebe1")
 V1_576_EXAMPLE_SELECT_SHA256 = "2369381cc7a44f66de6512014c0ec9c5ca6df5a65074ca9239b14d114255d4da"
 DEMO_GENERATOR = "demo/cedar-writer"
 
@@ -86,7 +88,7 @@ def route(decision):
 
 
 def sha(value) -> str:
-    return hashlib.sha256(json.dumps(value, sort_keys=True).encode()).hexdigest()
+    return decision_sha256(value)
 
 
 def routes(registry, tasks, stats, priors, **kw):
@@ -581,6 +583,16 @@ def test_guard_without_the_keyword_the_demo_and_example_tasks_route_as_v1_576():
         V1_576_DEMO_GENERATOR_SELECT_SHA256)
     registry, tasks, priors = example_files()
     assert sha(routes(registry, tasks, Stats(), priors)) == V1_576_EXAMPLE_SELECT_SHA256
+
+
+def test_the_v1_576_demo_hashes_are_the_same_under_either_platforms_z(monkeypatch):
+    import model_routing.stats as stats_module
+    for z in PLATFORM_Z:  # DESIGN 4.3 v1.593, row CI32
+        monkeypatch.setattr(stats_module, "NormalDist", FixedZ(z))
+        registry, tasks, stats = demo_files()
+        assert sha(routes(registry, tasks, stats, None)) == V1_576_DEMO_SELECT_SHA256
+        assert sha(routes(registry, tasks, stats, None, generator_model=DEMO_GENERATOR)) == (
+            V1_576_DEMO_GENERATOR_SELECT_SHA256)
 
 
 @pytest.mark.parametrize("empty", [(), []])
