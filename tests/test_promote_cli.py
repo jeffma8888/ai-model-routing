@@ -421,8 +421,11 @@ def test_pair_outcomes_is_exported_after_item_outcomes():
 
 def test_design_and_changelog_name_the_contract():
     design = (ROOT / "DESIGN.md").read_text(encoding="utf-8")
-    status = design.splitlines()[2]  # restated at v1.604 (row PROD1a): no longer the newest version
-    assert status.startswith("Status: v1.60") and "; v1.603, spec, code and tests: " in status
+    # review iter-453 nit 1: the Status line keeps five versions (tests/test_design_status.py), so the
+    # version is pinned by its changelog line, which stays
+    changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").splitlines()
+    assert sum(line.startswith("- v1.603 (2026-11-23): spec, code and tests (3, 4.7, 10, row GATE1c). ")
+               for line in changelog) == 1
     assert "  promotion.py    paired_promotion, PromotionCheck (v1.601, 4.7), pair_outcomes (v1.603, 4.7)\n" in design
     seven = design[design.index("### 4.7 "):design.index("## 5. ")]
     assert ("- v1.603 `pair_outcomes(records, *, task, current, challenger, slice=None, dataset_sha256=None) "

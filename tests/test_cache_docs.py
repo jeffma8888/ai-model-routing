@@ -42,14 +42,14 @@ def read(name):
     return (ROOT / name).read_text(encoding="utf-8")
 
 
-def chosen_paragraphs():
+def production_paragraphs():
     # v1.604 (row PROD1a): the paragraphs moved to `## Running it in production`, word for word
     section = read("README.md").split("\n## Running it in production\n", 1)[1].split("\n## ", 1)[0]
     return section.split("\n### ", 1)[0].strip().split("\n\n")
 
 
 def paragraph():
-    found = [p for p in chosen_paragraphs() if p.startswith("A prompt cache changes what a call costs")]
+    found = [p for p in production_paragraphs() if p.startswith("A prompt cache changes what a call costs")]
     assert len(found) == 1
     return found[0]
 
@@ -61,7 +61,7 @@ def slug(heading):
 # --- README ---------------------------------------------------------------------------------
 
 def test_the_paragraph_follows_the_scope_paragraph_and_ends_the_part():
-    paragraphs = chosen_paragraphs()
+    paragraphs = production_paragraphs()
     at = paragraphs.index(paragraph())
     # v1.600 (row B1d): the two budget paragraphs follow it and now end the part
     assert at == len(paragraphs) - 3

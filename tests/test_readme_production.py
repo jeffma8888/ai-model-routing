@@ -179,6 +179,9 @@ def test_how_a_model_is_chosen_keeps_the_rule_and_one_pointer():
 
 def test_the_links_to_the_moved_paragraphs_target_the_new_section():
     text = read("README.md")
+    # review iter-453 nit 2: `link_problems` cannot see a stale link to a moved paragraph, since the old
+    # heading stays, so the old anchor is counted: the lead is its one link; a new link to the selection
+    # rule raises this count
     assert text.count("](#how-a-model-is-chosen)") == 1 and LEAD in text
     assert text.count("Under a [budget](#running-it-in-production) the executor logs ") == 1
     limits = "".join(section_lines(text, "## Limitations and non-goals (v1)"))

@@ -39,14 +39,14 @@ def section(text, heading):
     return text.split(f"\n## {heading}\n", 1)[1].split("\n## ", 1)[0]
 
 
-def chosen_paragraphs():
+def production_paragraphs():
     # v1.604 (row PROD1a): the paragraphs moved to `## Running it in production`, word for word
     part = section(read("README.md"), "Running it in production").split("\n### ", 1)[0]
     return part.strip().split("\n\n")
 
 
 def both():
-    paragraphs = chosen_paragraphs()
+    paragraphs = production_paragraphs()
     found = [i for i, p in enumerate(paragraphs) if p.startswith(OPENER)]
     assert len(found) == 1
     first, second = paragraphs[found[0]:found[0] + 2]
@@ -65,7 +65,7 @@ def slug(heading):
 # --- README: the paragraph ---------------------------------------------------------------------
 
 def test_the_paragraphs_follow_the_cache_paragraph_and_end_the_part():
-    paragraphs = chosen_paragraphs()
+    paragraphs = production_paragraphs()
     first, second = both()
     at = paragraphs.index(first)
     assert at == len(paragraphs) - 2 and paragraphs[at + 1] == second

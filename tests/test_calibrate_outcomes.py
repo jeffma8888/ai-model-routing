@@ -296,8 +296,11 @@ def test_item_outcomes_is_exported_after_promotion_check():
 
 def test_design_names_the_contract():
     design = (ROOT / "DESIGN.md").read_text(encoding="utf-8")
-    status = design.splitlines()[2]  # restated at v1.603 (row GATE1c): no longer the newest version
-    assert status.startswith("Status: v1.60") and "; v1.602, spec, code and tests: `item_outcomes` " in status
+    # review iter-453 nit 1: the Status line keeps five versions (tests/test_design_status.py), so the
+    # version is pinned by its changelog line, which stays
+    changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").splitlines()
+    assert sum(line.startswith("- v1.602 (2026-11-23): spec, code and tests (3, 4.3, 4.7, 10, row GATE1b). ")
+               for line in changelog) == 1
     assert ("  stats.py        wilson_lower_bound, items_needed (v1.140), Stats, calibrate_from_results, "
             "item_outcomes (v1.602, 4.3)\n") in design
     four3 = design[design.index("### 4.3 "):design.index("### 4.4 ")]
