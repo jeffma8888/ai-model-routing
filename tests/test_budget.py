@@ -71,8 +71,8 @@ def test_a_budget_copies_its_tags():
 @pytest.mark.parametrize("kwargs", [
     {"name": ""}, {"name": 3}, {"limit_usd": 0}, {"limit_usd": -1.0}, {"limit_usd": True},
     {"limit_usd": float("nan")}, {"limit_usd": float("inf")}, {"limit_usd": "1"},
-    {"limit_usd": 10 ** 400}, {"mode": "downgrade"}, {"mode": "WARN"}, {"window": "day"},
-    {"window": "month"}, {"task": ""}, {"task": 3}, {"tags": {"tool": 1}}, {"tags": {1: "a"}},
+    {"limit_usd": 10 ** 400}, {"mode": "Downgrade"}, {"mode": "WARN"}, {"window": "week"},
+    {"window": "Day"}, {"task": ""}, {"task": 3}, {"tags": {"tool": 1}}, {"tags": {1: "a"}},
     {"tags": ["tool"]}, {"tags": None},
 ])
 def test_a_bad_budget_raises_at_construction(kwargs):
@@ -117,7 +117,7 @@ def test_load_budgets_reads_every_field(tmp_path):
     {"budgets": [{"name": "a", "limit_usd": 1, "mode": "warn"},
                  {"name": "a", "limit_usd": 2, "mode": "refuse"}]},
     {"budgets": [{"name": "a", "mode": "warn"}]},
-    {"budgets": [{"name": "a", "limit_usd": 1, "mode": "warn", "window": "day"}]},
+    {"budgets": [{"name": "a", "limit_usd": 1, "mode": "warn", "window": "week"}]},
 ])
 def test_load_budgets_refuses_a_bad_file(tmp_path, data):
     path = tmp_path / "budgets.json"
@@ -503,8 +503,9 @@ def test_design_specifies_the_ledger_and_lifts_part_of_the_deferral():
     assert "- Online drift detection beyond re-calibrating from audited results; budgets and alerts\n" \
         not in fourteen
     assert fourteen.count("beyond v1.595's in-process ledger (4.6)") == 1
-    last = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").splitlines()[-1]
-    assert last.startswith("- v1.595 (2026-11-22): ") and "row B1a" in last
+    [line] = [line for line in (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").splitlines()
+              if line.startswith("- v1.595 (2026-11-22): ")]
+    assert "row B1a" in line
 
 
 def test_the_note_states_the_budget_as_shipped_and_what_stays_planned():
@@ -513,6 +514,7 @@ def test_the_note_states_the_budget_as_shipped_and_what_stays_planned():
     lines = [line for line in note.splitlines() if line.startswith("- In this library: ")]
     spend = [line for line in lines if "`BudgetExceeded`" in line]
     assert len(spend) == 1
-    assert "The change still planned: a window of a day or a month" in spend[0]
-    assert sum("It has an in-process budget (v1.595) but no rate limit." in line
+    assert "The change still planned: warn crossings and refusals written to the monitor log." \
+        in spend[0]
+    assert sum("It has an in-process budget (v1.595) with the day and month windows" in line
                for line in lines) == 1

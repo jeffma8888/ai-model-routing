@@ -248,8 +248,9 @@ def test_the_cache_lessons_plan_only_the_monitor_check_the_switch_and_the_budget
     assert "a planned change also prices a call moved to another model mid-session" in prefix
     changes = {h: line.split("The change: ", 1)[1] for h, line in lines.items() if "The change" in line}
     assert list(changes) == [CACHE_LESSONS[5]]
-    assert changes[CACHE_LESSONS[5]].startswith("a monitor check that flags a run of calls whose hit rate "
-                                                "stays under the task's floor; and an in-process budget")
+    # v1.596 (row B1b): the budget that refuses or moves a call is shipped, so only the check is planned
+    assert changes[CACHE_LESSONS[5]] == ("a monitor check that flags a run of calls whose hit rate stays "
+                                         "under the task's floor.")
     for line in lines.values():
         assert "The changes" not in line and "measured cached and written tokens per task and model" not in line
 
@@ -257,7 +258,9 @@ def test_the_cache_lessons_plan_only_the_monitor_check_the_switch_and_the_budget
 def test_the_bill_lesson_says_report_cache_gives_the_hit_rate():
     # review iter-442 nit 5: the hit rate is measured and shown today; the check on a floor is planned
     assert ("so a cache that mostly misses shows in the log, and `report --cache` gives each group's "
-            "hit rate; there is no budget. The change: a monitor check") in lesson_lines()[CACHE_LESSONS[5]]
+            "hit rate, and an in-process budget refuses a call (v1.595) or moves it only to a route that "
+            "still clears the bar (v1.596), as in the Uber lesson on spend tiers. The change: a monitor "
+            "check") in lesson_lines()[CACHE_LESSONS[5]]
 
 
 def test_the_delegation_decision_still_passes_no_measured_count():
