@@ -8,6 +8,9 @@ fresh demo output calibrate the demo's `outcomes.jsonl` with `--outcomes` and ho
 against `demo/atlas-mid`. With no outcomes file nothing GATE1 added runs: no evidence or research
 script names it, and the ten transcripts before the two keep their v1.601 bytes. A docs slice: no
 package module changes, so these tests passed when they were written.
+
+DESIGN 5.2 v1.606 (row GATE1e): the paragraph's paired lower bound cites its source, the adjusted
+Wald interval of Bonett and Price (2012), by its DOI (tests/test_paired_bound_source.py).
 """
 
 import hashlib
@@ -106,7 +109,8 @@ def test_the_paragraph_says_the_check_complements_the_bar_and_how_to_use_it():
                    "complements the bar and never replaces it.",
                    "Then it prints `promote` on an exact McNemar result in the challenger's favor at `--alpha` "
                    "(default 0.05) or, for a challenger "
-                   "cheaper per item at list prices, on a paired lower bound above `-M`; `hold` otherwise; and "
+                   "cheaper per item at list prices, on a paired lower bound above `-M` (the adjusted Wald interval "
+                   "of [Bonett and Price, 2012](https://doi.org/10.3102/1076998611411915)); `hold` otherwise; and "
                    "`insufficient_overlap` under the task's `min_samples` pairs.",
                    "It is advisory and changes no route or file (`DESIGN.md` 4.7 and 10).",
                    # review iter-454 should-fix 1: `promote` pairs with `select`'s primary, so the paragraph says
