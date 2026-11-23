@@ -8,11 +8,12 @@ import math
 import threading
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple, Union
 
-BUDGET_MODES = ("warn", "refuse")
-BUDGET_WINDOWS = ("total",)
+BUDGET_MODES = ("warn", "refuse", "downgrade")
+BUDGET_WINDOWS = ("total", "day", "month")
 WARN_SHARES = (0.5, 0.8, 1.0)
 _FIELDS = ("name", "limit_usd", "mode", "window", "task", "tags")
 _REQUIRED = ("name", "limit_usd", "mode")
@@ -31,6 +32,20 @@ def _amount(value, what: str) -> float:
     return number
 
 
+def _instant(at) -> datetime:
+    """``at``, an ISO 8601 timestamp, as an aware UTC datetime; no offset reads as UTC (4.6)."""
+    if not isinstance(at, str):
+        raise ValueError(f"at must be None or an ISO 8601 timestamp str, got {at!r}")
+    text = at[:-1] + "+00:00" if at.endswith("Z") else at
+    try:
+        stamp = datetime.fromisoformat(text)
+        if stamp.tzinfo is None:
+            return stamp.replace(tzinfo=timezone.utc)
+        return stamp.astimezone(timezone.utc)
+    except (ValueError, OverflowError):
+        raise ValueError(f"at must be None or an ISO 8601 timestamp str, got {at!r}") from None
+
+
 @dataclass(frozen=True)
 class Budget:
     """A spend limit in USD on the calls of one scope (DESIGN 4.6 v1.595).
@@ -38,8 +53,10 @@ class Budget:
     A call is in scope when ``task`` is None or its task, and its tags hold every pair of
     ``tags``. ``warn`` notes each first crossing of half, 80 percent and all of the limit;
     ``refuse`` raises :class:`BudgetExceeded` before a provider call whose estimate would take
-    the spend and the holds of calls in flight over the limit. ``window`` is ``total``, the
-    ledger's whole life, the one window of this version.
+    the spend and the holds of calls in flight over the limit; ``downgrade`` raises it too, and
+    the executor moves the call to the next route entry that clears the bar (7 v1.596).
+    ``window`` is ``total``, the ledger's whole life, ``day`` or ``month``, a UTC calendar day
+    or month (4.6 v1.596).
     """
 
     name: str
@@ -61,7 +78,7 @@ class Budget:
             raise ValueError(f"budget {self.name!r} mode must be one of {BUDGET_MODES}, "
                              f"got {self.mode!r}")
         if self.window not in BUDGET_WINDOWS:
-            raise ValueError(f"budget {self.name!r} window must be 'total' in this version, "
+            raise ValueError(f"budget {self.name!r} window must be one of {BUDGET_WINDOWS}, "
                              f"got {self.window!r}")
         if self.task is not None and (not isinstance(self.task, str) or not self.task):
             raise ValueError(f"budget {self.name!r} task must be None or a non-empty str, "
@@ -81,7 +98,7 @@ class Budget:
 
 
 class BudgetExceeded(Exception):
-    """A ``refuse`` budget would be passed by the next provider call, which was not made.
+    """A ``refuse`` or ``downgrade`` budget would be passed by the next provider call, not made.
 
     ``attempts`` and ``decision`` are the call's attempts before the refusal and its route,
     set by the executor (DESIGN 7 v1.595); ``()`` and None as ``reserve`` raises it.
@@ -107,8 +124,15 @@ class _Hold:
     key: int
 
 
+_Slot = Tuple[str, Optional[str]]  # a budget's name and its window's label, None for total
+
+
 class BudgetLedger:
-    """Each budget's settled spend and the holds of calls in flight, under one lock (4.6)."""
+    """Each budget's settled spend per window and the holds of calls in flight, under one lock.
+
+    A ``day`` or ``month`` budget reads its window from the ``at`` its methods take, an ISO 8601
+    timestamp (the current UTC time when None); a ``total`` budget has one window (4.6 v1.596).
+    """
 
     def __init__(self, budgets: Sequence[Budget] = ()):
         if not isinstance(budgets, (list, tuple)):
@@ -124,10 +148,10 @@ class BudgetLedger:
         self._budgets: Tuple[Budget, ...] = tuple(budgets)
         self._by_name = {budget.name: budget for budget in self._budgets}
         self._lock = threading.Lock()
-        self._spent: Dict[str, float] = {name: 0.0 for name in self._by_name}
-        self._holds: Dict[int, Tuple[Tuple[str, ...], float]] = {}
+        self._spent: Dict[_Slot, float] = {}
+        self._holds: Dict[int, Tuple[Tuple[_Slot, ...], float]] = {}
         self._keys = itertools.count()
-        self._fired: Dict[str, set] = {name: set() for name in self._by_name}
+        self._fired: Dict[_Slot, set] = {}
         self._events: List[dict] = []
 
     @property
@@ -143,37 +167,63 @@ class BudgetLedger:
         if name not in self._by_name:
             raise ValueError(f"no budget named {name!r}")
 
-    def spent_usd(self, name: str) -> float:
-        self._known(name)
-        with self._lock:
-            return self._spent[name]
+    @staticmethod
+    def _slots(budgets: Sequence[Budget], at) -> Tuple[_Slot, ...]:
+        """Each budget's name and the label of its window that holds ``at`` (4.6 v1.596)."""
+        instant = None if at is None else _instant(at)
+        slots = []
+        for budget in budgets:
+            if budget.window == "total":
+                slots.append((budget.name, None))
+                continue
+            if instant is None:
+                instant = datetime.now(timezone.utc)
+            label = f"{instant.year:04d}-{instant.month:02d}"
+            if budget.window == "day":
+                label += f"-{instant.day:02d}"
+            slots.append((budget.name, label))
+        return tuple(slots)
 
-    def held_usd(self, name: str) -> float:
+    def spent_usd(self, name: str, at: Optional[str] = None) -> float:
+        """The settled spend of ``name``'s window that holds ``at``."""
         self._known(name)
+        [slot] = self._slots([self._by_name[name]], at)
         with self._lock:
-            return self._held(name)
+            return self._spent.get(slot, 0.0)
 
-    def _held(self, name: str) -> float:
-        return math.fsum(amount for names, amount in self._holds.values() if name in names)
+    def held_usd(self, name: str, at: Optional[str] = None) -> float:
+        """The live holds of ``name``'s window that holds ``at``."""
+        self._known(name)
+        [slot] = self._slots([self._by_name[name]], at)
+        with self._lock:
+            return self._held(slot)
+
+    def _held(self, slot: _Slot) -> float:
+        return math.fsum(amount for slots, amount in self._holds.values() if slot in slots)
 
     def reserve(self, task: str, tags: Mapping[str, str], estimate_usd: float,
-                model: Optional[str] = None) -> _Hold:
-        """Hold ``estimate_usd`` on every budget that applies, or raise :class:`BudgetExceeded`."""
+                model: Optional[str] = None, at: Optional[str] = None) -> _Hold:
+        """Hold ``estimate_usd`` on every budget that applies, or raise :class:`BudgetExceeded`.
+
+        ``refuse`` budgets are checked first, then ``downgrade`` ones, each in the ledger's order.
+        """
         estimate = _amount(estimate_usd, "estimate_usd")
         with self._lock:
             scope = [budget for budget in self._budgets if budget.applies(task, tags)]
-            for budget in scope:
-                if budget.mode != "refuse":
-                    continue
-                spent, held = self._spent[budget.name], self._held(budget.name)
-                if spent + held + estimate > budget.limit_usd:
-                    raise BudgetExceeded(budget, spent, held, estimate, model)
+            slots = self._slots(scope, at)
+            for mode in ("refuse", "downgrade"):
+                for budget, slot in zip(scope, slots):
+                    if budget.mode != mode:
+                        continue
+                    spent, held = self._spent.get(slot, 0.0), self._held(slot)
+                    if spent + held + estimate > budget.limit_usd:
+                        raise BudgetExceeded(budget, spent, held, estimate, model)
             key = next(self._keys)
-            self._holds[key] = (tuple(budget.name for budget in scope), estimate)
+            self._holds[key] = (slots, estimate)
             return _Hold(key)
 
     def settle(self, hold: _Hold, cost_usd: float) -> None:
-        """Release ``hold`` and add ``cost_usd`` to each budget it was held on."""
+        """Release ``hold`` and add ``cost_usd`` to each budget it was held on, in its window."""
         cost = _amount(cost_usd, "cost_usd")
         with self._lock:
             entry = self._holds.pop(hold.key, None) if isinstance(hold, _Hold) else None
@@ -181,24 +231,31 @@ class BudgetLedger:
                 raise ValueError("this hold is settled already or was never reserved here")
             self._add(entry[0], cost)
 
-    def charge(self, task: str, tags: Mapping[str, str], cost_usd: float) -> None:
-        """Add a cost spent without a hold to each budget that applies; never refuses."""
+    def charge(self, task: str, tags: Mapping[str, str], cost_usd: float,
+               at: Optional[str] = None) -> None:
+        """Add a cost spent without a hold to each budget that applies, in the window that holds
+        ``at``; never refuses."""
         cost = _amount(cost_usd, "cost_usd")
         with self._lock:
-            self._add(tuple(b.name for b in self._budgets if b.applies(task, tags)), cost)
+            self._add(self._slots([b for b in self._budgets if b.applies(task, tags)], at), cost)
 
-    def _add(self, names: Tuple[str, ...], cost: float) -> None:
-        for name in names:
-            spent = self._spent[name] + cost
-            self._spent[name] = spent
+    def _add(self, slots: Tuple[_Slot, ...], cost: float) -> None:
+        for slot in slots:
+            spent = self._spent.get(slot, 0.0) + cost
+            self._spent[slot] = spent
+            name, label = slot
             budget = self._by_name[name]
             if budget.mode != "warn":
                 continue
+            fired = self._fired.setdefault(slot, set())
             for share in WARN_SHARES:
-                if share not in self._fired[name] and spent >= share * budget.limit_usd:
-                    self._fired[name].add(share)
-                    self._events.append({"budget": name, "share": share, "spent_usd": spent,
-                                         "limit_usd": budget.limit_usd})
+                if share not in fired and spent >= share * budget.limit_usd:
+                    fired.add(share)
+                    event = {"budget": name, "share": share, "spent_usd": spent,
+                             "limit_usd": budget.limit_usd}
+                    if label is not None:  # 4.6 v1.596: a day or month budget's window
+                        event["window"] = label
+                    self._events.append(event)
 
 
 def load_budgets(path: Union[str, Path]) -> Tuple[Budget, ...]:

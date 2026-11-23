@@ -102,7 +102,9 @@ class Executor:
     ``clock`` returns seconds for latency timing, ``now`` returns an ISO 8601
     UTC timestamp and ``id_factory`` returns a call ID; all are injectable. ``ledger``, None
     or a :class:`BudgetLedger`, holds each provider call's estimate before it and settles its
-    measured cost after (DESIGN 7 v1.595).
+    measured cost after (DESIGN 7 v1.595); a ``downgrade`` budget moves a call to the next route
+    entry that clears the bar, and a ``day`` or ``month`` budget reads its window from ``now``
+    (DESIGN 7 v1.596).
     """
 
     def __init__(self, router: Router, provider: Provider, monitor=None,
@@ -212,6 +214,7 @@ class Executor:
         call_id = self.id_factory()
         order = (decision.primary, *decision.fallbacks)
         attempts: List[Attempt] = []
+        moves: List[dict] = []  # DESIGN 7 v1.596: each downgrade move so far, in order
         scope = None
         if self.ledger is not None:  # DESIGN 7 v1.595: the hold's task, tags and sizes
             out = dict(task.slices.get(decision.slice) or {}).get(
@@ -224,52 +227,82 @@ class Executor:
             if self.monitor is not None:
                 self.monitor.record(self._record(call_id, decision, registry, len(attempts) - 1,
                                                  final, attempt, call_tags, size, entry,
-                                                 cascade, escalated, keys, family))
+                                                 cascade, escalated, keys, family, moves))
 
         try:
             return self._entries(task_name, decision, messages, validate, cascades, signals,
-                                 procedures, task, registry, call_id, order, attempts, log, scope)
+                                 procedures, task, registry, call_id, order, attempts, log, scope,
+                                 moves)
         except BudgetExceeded as exc:
             exc.attempts, exc.decision = tuple(attempts), decision
             raise
 
     def _entries(self, task_name, decision, messages, validate, cascades, signals, procedures,
-                 task, registry, call_id, order, attempts, log, scope) -> CallResult:
+                 task, registry, call_id, order, attempts, log, scope, moves) -> CallResult:
+        moving = None  # DESIGN 7 v1.596: the last downgrade refusal while the call is moving
         for position, entry in enumerate(order):
             last = position == len(order) - 1
+            if moving is not None:
+                if decision.below_bar or entry in decision.below_bar_fallbacks:
+                    raise moving  # a move never lands under the bar
+                moving = None
             proc = (procedures or {}).get(entry)
-            if proc is not None:
+            if proc is not None:  # a downgrade refusal inside the run ends the call (7 v1.596)
                 text = self._procedure(proc, messages, task, registry, validate, log, last,
                                        scope)
                 if text is not None:
                     return CallResult(call_id, text, entry, tuple(attempts), decision)
                 continue
-            cascade = (cascades or {}).get(entry)
-            if cascade is None:
-                attempt, text = self._checked(*self._run(entry, messages, task, registry,
-                                                         scope), validate)
-                log(attempt, text is not None or last, entry)
-                if text is not None:
-                    return CallResult(call_id, text, entry, tuple(attempts), decision)
+            try:
+                result = self._entry(entry, cascades, signals, messages, task, registry, scope,
+                                     validate, log, last, call_id, attempts, decision)
+            except BudgetExceeded as exc:
+                if exc.budget.mode != "downgrade":
+                    raise
+                moving = exc  # DESIGN 7 v1.596: no call was made; move on along the route
+                moves.append({"entry": entry, "model": exc.model, "budget": exc.budget.name})
                 continue
-            # DESIGN 7 v1.537: the cheap model first; a ProviderError or a truthy signal
-            # hands the call up to a fresh call of the strong model on the same messages
-            attempt, completion = self._run(cascade.cheap, messages, task, registry, scope)
-            if completion is not None and not signals[cascade.signal](completion.text):
-                attempt, text = self._checked(attempt, completion, validate)
-                log(attempt, text is not None or last, entry, cascade, False)
-                if text is not None:
-                    return CallResult(call_id, text, cascade.cheap, tuple(attempts), decision)
-                continue
-            log(attempt, False, entry, cascade, True)
-            attempt, text = self._checked(*self._run(cascade.strong, messages, task, registry,
-                                                     scope), validate)
-            log(attempt, text is not None or last, entry, cascade, True)
-            if text is not None:
-                return CallResult(call_id, text, cascade.strong, tuple(attempts), decision)
+            if result is not None:
+                return result
+        if moving is not None:
+            raise moving
         raise AllModelsFailed(
             f"all {len(attempts)} routed models failed for task {task_name!r}",
             tuple(attempts), decision)
+
+    def _entry(self, entry, cascades, signals, messages, task, registry, scope, validate, log,
+               last, call_id, attempts, decision) -> Optional[CallResult]:
+        """Run one plain or cascade route entry: its result, or None to move on."""
+        cascade = (cascades or {}).get(entry)
+        if cascade is None:
+            attempt, text = self._checked(*self._run(entry, messages, task, registry,
+                                                     scope), validate)
+            log(attempt, text is not None or last, entry)
+            if text is not None:
+                return CallResult(call_id, text, entry, tuple(attempts), decision)
+            return None
+        # DESIGN 7 v1.537: the cheap model first; a ProviderError or a truthy signal
+        # hands the call up to a fresh call of the strong model on the same messages
+        attempt, completion = self._run(cascade.cheap, messages, task, registry, scope)
+        if completion is not None and not signals[cascade.signal](completion.text):
+            attempt, text = self._checked(attempt, completion, validate)
+            log(attempt, text is not None or last, entry, cascade, False)
+            if text is not None:
+                return CallResult(call_id, text, cascade.cheap, tuple(attempts), decision)
+            return None
+        log(attempt, False, entry, cascade, True)
+        attempt, text = self._checked(*self._run(cascade.strong, messages, task, registry,
+                                                 scope), validate)
+        log(attempt, text is not None or last, entry, cascade, True)
+        if text is not None:
+            return CallResult(call_id, text, cascade.strong, tuple(attempts), decision)
+        return None
+
+    def _at(self) -> dict:
+        """``{"at": now()}`` for a ledger with a day or month budget, else ``{}`` (7 v1.596)."""
+        if any(budget.window != "total" for budget in self.ledger.budgets):
+            return {"at": self.now()}
+        return {}
 
     def _procedure(self, proc: Procedure, messages: List[dict], task, registry, validate, log,
                    last: bool, scope=None) -> Optional[str]:
@@ -323,7 +356,7 @@ class Executor:
                     tool_cost_usd=None if run is None else run.tool_cost_usd)
         family = "" if proc.model is None else registry.get(proc.model).family
         if scope is not None:  # DESIGN 7 v1.595: the tool cost, spent with no hold
-            self.ledger.charge(scope[0], scope[1], attempt.cost_usd)
+            self.ledger.charge(scope[0], scope[1], attempt.cost_usd, **self._at())
         log(attempt, text is not None or last, proc.id, keys=keys, family=family)
         return text
 
@@ -347,7 +380,7 @@ class Executor:
         name, tags, prompt, out = scope
         size_in = estimate_prompt_tokens(messages) if prompt is None else prompt
         estimate = float(registry.get(model_id).cost(size_in, out)) if model_id in registry else 0.0
-        hold = self.ledger.reserve(name, tags, estimate, model_id)
+        hold = self.ledger.reserve(name, tags, estimate, model_id, **self._at())
         cost = 0.0
         try:
             result = self._provider_call(model_id, messages, task, registry)
@@ -393,7 +426,7 @@ class Executor:
                 final: bool, attempt: Attempt, tags: Dict[str, str],
                 size: Optional[Tuple[int, bool]] = None, entry: Optional[str] = None,
                 cascade=None, escalated: Optional[bool] = None, keys: Optional[dict] = None,
-                family: Optional[str] = None) -> dict:
+                family: Optional[str] = None, moves: Optional[List[dict]] = None) -> dict:
         model = registry.get(attempt.model) if family is None else None  # None: a closing record
         record = {
             "ts": self.now(),
@@ -431,6 +464,8 @@ class Executor:
             record["escalated"] = escalated
         if keys is not None:  # DESIGN 8.1 v1.578: a procedure entry's records
             record.update(keys)
+        if moves:  # DESIGN 8.1 v1.596: the downgrade moves before this record
+            record["budget_moves"] = [dict(move) for move in moves]
         if size is not None:
             record["prompt_tokens"], record["prompt_tokens_estimated"] = size
         if decision.failure_policy != "none":  # DESIGN 8.1 v1.567: the last key
