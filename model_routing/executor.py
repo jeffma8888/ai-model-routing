@@ -219,7 +219,8 @@ class Executor:
         if self.ledger is not None:  # DESIGN 7 v1.595: the hold's task, tags and sizes
             out = dict(task.slices.get(decision.slice) or {}).get(
                 "expected_output_tokens", task.expected_output_tokens)
-            scope = (task_name, call_tags, None if size is None else size[0], out)
+            # the last item collects this call's own downgrade refusals (7 v1.596)
+            scope = (task_name, call_tags, None if size is None else size[0], out, [])
 
         def log(attempt: Attempt, final: bool, entry: str, cascade=None, escalated=None,
                 keys: Optional[dict] = None, family: Optional[str] = None):
@@ -257,8 +258,8 @@ class Executor:
                 result = self._entry(entry, cascades, signals, messages, task, registry, scope,
                                      validate, log, last, call_id, attempts, decision)
             except BudgetExceeded as exc:
-                if exc.budget.mode != "downgrade":
-                    raise
+                if scope is None or not any(own is exc for own in scope[4]):
+                    raise  # not this call's own downgrade refusal (review iter-444 must-fix 1)
                 moving = exc  # DESIGN 7 v1.596: no call was made; move on along the route
                 moves.append({"entry": entry, "model": exc.model, "budget": exc.budget.name})
                 continue
@@ -322,7 +323,7 @@ class Executor:
             try:
                 attempt, completion, exc = self._attempt(
                     proc.model, call_messages, task, registry,
-                    None if scope is None else (scope[0], scope[1], None, scope[3]))
+                    None if scope is None else (scope[0], scope[1], None, scope[3], None))
             except Exception as bug:  # a bug, not an outage: it leaves .call (7 step 2)
                 state["bug"] = bug
                 raise
@@ -372,15 +373,21 @@ class Executor:
     def _attempt(self, model_id: str, messages: List[dict], task, registry, scope=None):
         """``_run``'s attempt and completion, and the ``ProviderError`` caught or None.
 
-        With a ``scope`` (task, tags, prompt tokens or None, output tokens) the ledger holds the
-        call's list-price estimate before it and settles the attempt's cost after (7 v1.595).
+        With a ``scope`` (task, tags, prompt tokens or None, output tokens, and the list of the
+        call's own downgrade refusals or None) the ledger holds the call's list-price estimate
+        before it and settles the attempt's cost after (7 v1.595 and v1.596).
         """
         if scope is None:
             return self._provider_call(model_id, messages, task, registry)
-        name, tags, prompt, out = scope
+        name, tags, prompt, out, refused = scope
         size_in = estimate_prompt_tokens(messages) if prompt is None else prompt
         estimate = float(registry.get(model_id).cost(size_in, out)) if model_id in registry else 0.0
-        hold = self.ledger.reserve(name, tags, estimate, model_id, **self._at())
+        try:
+            hold = self.ledger.reserve(name, tags, estimate, model_id, **self._at())
+        except BudgetExceeded as exc:
+            if refused is not None and exc.budget.mode == "downgrade":
+                refused.append(exc)  # a refusal of this call's own reservation may move it
+            raise
         cost = 0.0
         try:
             result = self._provider_call(model_id, messages, task, registry)

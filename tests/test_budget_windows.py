@@ -202,6 +202,110 @@ def test_now_is_called_once_more_per_hold_only_with_a_windowed_budget():
     assert counts == [2, 2, 4]
 
 
+def test_the_executor_reads_a_month_window_from_its_now_across_a_year():
+    # review iter-444 must-fix 2: the month boundary through the executor's injected now
+    when = {"at": "2026-12-31T23:59:59.999Z"}
+    ledger = BudgetLedger([Budget("month", cost(CHEAP), "refuse", window="month")])
+    monitor = Monitor()
+    ex = make(router(), FakeProvider({CHEAP: ok()}), ledger, monitor, now=lambda: when["at"])
+    assert ex.call("judge", MESSAGES, prompt_tokens=1000).model == CHEAP
+    when["at"] = "2026-12-01T00:00:00Z"
+    with pytest.raises(BudgetExceeded) as caught:
+        ex.call("judge", MESSAGES, prompt_tokens=1000)                 # the same UTC month
+    assert caught.value.spent_usd == cost(CHEAP)
+    when["at"] = "2027-01-01T00:00:00.000Z"
+    assert ex.call("judge", MESSAGES, prompt_tokens=1000).model == CHEAP
+    assert ledger.spent_usd("month", "2026-12-15T00:00:00Z") == cost(CHEAP)
+    assert ledger.spent_usd("month", "2027-01-15T00:00:00Z") == cost(CHEAP)
+    assert [r["ts"] for r in monitor.records] == ["2026-12-31T23:59:59.999Z",
+                                                  "2027-01-01T00:00:00.000Z"]
+
+
+def test_a_call_held_before_midnight_is_spent_that_day():
+    # review iter-444 should-fix 2: now() before the hold, then again for the record
+    stamps = iter(["2026-11-22T23:59:59Z", "2026-11-23T00:00:01Z"])
+    ledger = BudgetLedger([Budget("day", 1.0, "warn", window="day")])
+    monitor = Monitor()
+    make(router(), FakeProvider({CHEAP: ok()}), ledger, monitor,
+         now=lambda: next(stamps)).call("judge", MESSAGES, prompt_tokens=1000)
+    assert monitor.records[0]["ts"] == "2026-11-23T00:00:01Z"
+    assert ledger.spent_usd("day", "2026-11-22T12:00:00Z") == cost(CHEAP)
+    assert ledger.spent_usd("day", "2026-11-23T12:00:00Z") == 0.0
+
+
+def test_a_procedure_closing_charge_reads_its_own_now():
+    def poll(value, call):
+        call([{"role": "user", "content": "hi"}])
+        return ProcedureResult("shaped", tool_calls=1, tool_cost_usd=0.0005)
+
+    proc = Procedure("poll", "v1", poll, max_model_calls=2, max_tool_calls=5, model=CHEAP)
+    stats = Stats()
+    stats.add("t", BEST, 98, 100)
+    stats.add("t", proc.id, 95, 100, cost_usd=0.001)
+    route = Router(REGISTRY, {"t": Task("t", bar=0.8, min_samples=10)}, stats)
+    # the model call's hold, its record, the closing charge, the closing record
+    stamps = iter(["2026-11-30T23:59:59Z", "2026-11-30T23:59:59Z", "2026-12-01T00:00:00Z",
+                   "2026-12-01T00:00:00Z"])
+    ledger = BudgetLedger([Budget("month", 1.0, "warn", window="month")])
+    monitor = Monitor()
+    ex = make(route, FakeProvider({CHEAP: ok(100, 10)}), ledger, monitor,
+              now=lambda: next(stamps))
+    assert ex.call("t", MESSAGES, procedures=[proc]).model == proc.id
+    assert [r["cost_usd"] for r in monitor.records] == [REGISTRY.get(CHEAP).cost(100, 10), 0.0005]
+    assert ledger.spent_usd("month", "2026-11-01T00:00:00Z") == REGISTRY.get(CHEAP).cost(100, 10)
+    assert ledger.spent_usd("month", "2026-12-01T00:00:00Z") == 0.0005
+
+
+def test_a_delegated_call_is_spent_in_its_own_window():
+    when = {"at": "2026-11-22T12:00:00Z"}
+    route = router()
+    ledger = BudgetLedger([Budget("run", 1.0, "refuse", window="day", tags={"run": "r1"})])
+    monitor = Monitor()
+    ex = make(route, FakeProvider({CHEAP: ok(), BEST: ok(300, 40)}), ledger, monitor,
+              now=lambda: when["at"])
+    ex.call("judge", MESSAGES, prompt_tokens=1000, tags={"run": "r1"})
+    decision = route.decide_delegation("judge", BEST, "cost_effective", context_tokens=5000,
+                                       brief_tokens=100, result_tokens=20)
+    assert decision.mode == "delegate"
+    when["at"] = "2026-11-23T12:00:00Z"
+    ex.call_delegated(decision, [{"role": "user", "content": "brief"}], tags={"run": "r1"})
+    first, second = (r["cost_usd"] for r in monitor.records)
+    assert monitor.records[1]["tags"]["delegated"] == "true" and second > 0
+    assert ledger.spent_usd("run", "2026-11-22T00:00:00Z") == first
+    assert ledger.spent_usd("run", "2026-11-23T00:00:00Z") == second
+
+
+FOREIGN = BudgetExceeded(Budget("elsewhere", 1.0, "downgrade"), 0.0, 0.0, 2.0, "other/model")
+
+
+def raise_foreign(*args):
+    raise FOREIGN
+
+
+@pytest.mark.parametrize("ledger", [
+    None, [Budget("w", 1.0, "warn")], [Budget("move", 1.0, "downgrade", window="day")]])
+@pytest.mark.parametrize("source", ["validate", "provider", "signal"])
+def test_a_budget_exceeded_the_reservation_did_not_raise_never_moves_the_call(source, ledger):
+    # review iter-444 must-fix 1: v1.595 propagates it after the first model; so does v1.596
+    calls = []
+    scripts = {m: ok(calls=calls) for m in (CHEAP, MID, BEST)}
+    kwargs = {"prompt_tokens": 1000}
+    if source == "validate":
+        route, kwargs["validate"] = router(), raise_foreign
+    elif source == "provider":
+        route = router()
+        scripts[CHEAP] = lambda messages: (calls.append(messages), raise_foreign())
+    else:
+        route, kwargs["signals"] = cascade_router(), {"sig": raise_foreign}
+    task = "t" if source == "signal" else "judge"
+    monitor = Monitor()
+    ex = make(route, FakeProvider(scripts), None if ledger is None else BudgetLedger(ledger),
+              monitor)
+    with pytest.raises(BudgetExceeded) as caught:
+        ex.call(task, MESSAGES, **kwargs)
+    assert caught.value is FOREIGN and len(calls) == 1 and monitor.records == []
+
+
 # --- the executor: downgrade ------------------------------------------------------------
 
 def test_downgrade_moves_the_call_to_the_next_entry_that_fits():
