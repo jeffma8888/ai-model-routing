@@ -29,19 +29,22 @@ def write_jsonl(path, rows):
     path.write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
 
 
-def setup(tmp_path, *results, min_samples=10, slices=None, expired=None):
+def setup(tmp_path, *results, min_samples=10, slices=None, expired=None, variants=None, **task_extra):
     """Write a registry and a task file, calibrate each results list with --outcomes, return args."""
     models = [{"id": m, "family": m.split("-")[1], "price_in": pin, "price_out": pout,
                "context_window": 100000, "source": "https://example.org/prices"}
               for m, pin, pout in ((STRONG, 10.0, 20.0), (CHEAP, 1.0, 2.0), (WEAK, 0.5, 1.0))]
     if expired is not None:
         models[0]["price_valid_until"] = expired
+    if variants is not None:
+        models[0]["variants"] = variants
     (tmp_path / "models.json").write_text(json.dumps(
         {"version": "1", "as_of": "2026-01-01", "currency": "USD", "models": models}))
     task = {"name": "t", "bar": 0.5, "min_samples": min_samples, "expected_input_tokens": 1000,
             "expected_output_tokens": 100}
     if slices:
         task["slices"] = slices
+    task.update(task_extra)
     (tmp_path / "tasks.json").write_text(json.dumps({"tasks": [task]}))
     for n, rows in enumerate(results):
         path = tmp_path / f"results{n}.jsonl"
@@ -139,6 +142,33 @@ def test_a_cheaper_non_inferior_challenger_promotes_under_cost_blind(tmp_path, c
     assert data["lower_bound"] == pytest.approx(-0.044707, abs=1e-6)
     tight = run_json(capsys, files, CHEAP, "--flavor", "cost_blind", margin="0.02")
     assert (tight["decision"], tight["basis"]) == ("hold", None)
+
+
+def test_cheaper_is_per_item_so_a_batched_route_dearer_per_call_is_cheaper(tmp_path, capsys):
+    # review iter-452 must-fix 1: four items a call at 2,000 in and 200 out tokens is 0.024 a call
+    # and 0.006 an item, against the single-item route's 0.012 a call at the task's sizes
+    batch = STRONG + "@batch"
+    same = set(range(6, 60))
+    files = setup(tmp_path, rows(STRONG, same, range(60))
+                  + rows(batch, same, range(60), input_tokens=2000, output_tokens=200),
+                  variants={"batch": {"items_per_call": 4}})
+    capsys.readouterr()
+    data = run_json(capsys, files, batch, "--flavor", "cost_blind", margin="0.05")
+    assert (data["current"], data["challenger"]) == (STRONG, batch)
+    assert (data["current_list_cost"], data["challenger_list_cost"]) == pytest.approx((0.012, 0.006))
+    assert (data["cheaper"], data["decision"], data["basis"]) == (True, "promote", "non_inferior")
+
+
+def test_a_retry_same_task_can_have_a_cheaper_challenger_under_cost_effective(tmp_path, capsys):
+    # review iter-452 should-fix 1: its primary is the cheapest per success (0.0012 / 0.863 against
+    # 0.0006 / 0.377), so the cheaper weak route passes beside it and is checked as cheaper
+    files = setup(tmp_path, rows(CHEAP, set(range(3, 60)), range(60)) + rows(WEAK, set(range(30)), range(60)),
+                  bar=0.3, failure_policy="retry_same")
+    capsys.readouterr()
+    data = run_json(capsys, files, WEAK)
+    assert (data["flavor"], data["current"], data["cheaper"]) == ("cost_effective", CHEAP, True)
+    # the cheap route alone right on q30 to q59, the weak one alone on q0 to q2
+    assert (data["decision"], data["current_only"], data["challenger_only"]) == ("hold", 30, 3)
 
 
 def test_a_low_power_tie_holds(tmp_path, capsys):
@@ -402,6 +432,8 @@ def test_design_and_changelog_name_the_contract():
     assert "- v1.603 `promote --task T --challenger ROUTE --margin M --outcomes FILE [--slice S] " in ten
     assert "`error: challenger ROUTE is not admitted on task T: REASON`" in ten
     assert "(4.7, review iter-449 should-fix 3(a))" in ten
+    for finding in ("must-fix 1", "should-fix 1", "should-fix 2"):
+        assert f"(review iter-452 {finding})" in ten
     assert "and on `promote` a challenger the bar does not admit (v1.603);" in ten
     lines = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").splitlines()
     mine = [line for line in lines if line.startswith("- v1.603 (2026-11-23): ")]
