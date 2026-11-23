@@ -1,4 +1,5 @@
-"""Shadow calls (DESIGN 4.2, 7 and 8.1 v1.607, row CANARY1a)."""
+"""Shadow calls (DESIGN 4.2, 7 and 8.1 v1.607, row CANARY1a; cascade and procedure primaries,
+row CANARY1f)."""
 
 import dataclasses
 import inspect
@@ -7,8 +8,9 @@ import math
 
 import pytest
 from model_routing import (
-    AllModelsFailed, Budget, BudgetLedger, Completion, Executor, FakeProvider, Model, Monitor,
-    ProviderError, Registry, Router, Stats, Task, load_tasks,
+    AllModelsFailed, Budget, BudgetLedger, Cascade, Completion, Executor, FakeProvider, Model,
+    Monitor, Procedure, ProcedureResult, ProviderError, Registry, Router, Stats, Task,
+    load_tasks,
 )
 from model_routing.demo import _tasks_json
 
@@ -457,3 +459,145 @@ def test_a_strict_budget_holds_the_shadow_s_billing_bound():
          ledger=ledger).call("judge", MESSAGES)
     assert billing_bound(bounded) is not None
     assert seen == [(CHEAP, None, None), (capped, "true", billing_bound(bounded))]
+
+
+# --- 7 a cascade or a procedure primary (review iter-456 should-fix 2, row CANARY1f) -----------
+
+CASCADE = Cascade(CHEAP, MID, "sig")  # fiction/cheap>fiction/mid@sig
+PROC_KEYS = ("procedure", "procedure_version", "model_calls", "tool_calls", "tool_cost_usd")
+
+
+def entry_stats(entry_id, **counts):
+    """cheap 50/100 is under the 0.7 bar, so cost_effective routes the entry first (mid, best
+    after it); the entry, at 100/100, has the highest bound, above best's 98/100 and mid's
+    95/100, so a default that took a route entry for a registry model would pick the primary."""
+    stats = Stats()
+    for model_id, successes in ((CHEAP, 50), (MID, 95), (BEST, 98)):
+        stats.add("judge", model_id, successes, 100)
+    stats.add("judge", entry_id, 100, 100, **counts)
+    return stats
+
+
+def cascade_router(**fields):
+    task = Task("judge", bar=0.7, min_samples=10, cascades=(CASCADE,), shadow_rate=1.0, **fields)
+    return Router(REGISTRY, {"judge": task}, entry_stats(CASCADE.id, escalated=20))
+
+
+def procedure_router(proc, **fields):
+    task = Task("judge", bar=0.7, min_samples=10, shadow_rate=1.0, **fields)
+    return Router(REGISTRY, {"judge": task}, entry_stats(proc.id, cost_usd=0.02))
+
+
+def outage(messages):
+    raise ProviderError("outage")
+
+
+def polling(value, call):
+    """One model call, then the procedure's own copy of the messages grows."""
+    text = call([{"role": "user", "content": "summarize"}])
+    value.append({"role": "tool", "content": "polled"})
+    return ProcedureResult("shaped " + text, tool_calls=3, tool_cost_usd=0.0005)
+
+
+def shaping(value, call):
+    return ProcedureResult("shaped in code", tool_calls=2)
+
+
+def crashing(value, call):
+    raise RuntimeError("boom")
+
+
+POLLING = Procedure("poll", "v1", polling, max_model_calls=2, max_tool_calls=5, model=CHEAP)
+SHAPING = Procedure("shape", "v2", shaping, max_model_calls=0, max_tool_calls=2)
+CRASHING = Procedure("crash", "v1", crashing, max_model_calls=1, max_tool_calls=1, model=CHEAP)
+
+
+def check_shadow(shadow, plain_keys):
+    """The shadow's one record: a plain entry of best under its own ID, paired with call-0."""
+    assert (shadow["model"], shadow["call_id"], shadow["pair_id"], shadow["shadow"]) == (
+        BEST, "call-1", "call-0", True)
+    assert (shadow["attempt"], shadow["final"], shadow["outcome"]) == (0, True, "ok")
+    assert shadow["tags"] == {"shadow": "true"}
+    assert list(shadow) == plain_keys  # no cascade, escalated or procedure key
+
+
+@pytest.mark.parametrize("way, signal, cheap, routed, text", [
+    ("kept", False, answer("cheap"), [CHEAP], "cheap"),
+    ("signal", True, answer("cheap"), [CHEAP, MID], "mid"),
+    ("error", False, outage, [CHEAP, MID], "mid"),
+])
+def test_a_cascade_primary_s_shadow_goes_to_the_default_route_after_its_attempts(
+        way, signal, cheap, routed, text):
+    route = cascade_router()
+    decision = route.select("judge", cascades=True)
+    bounds = {c.model_id: c.quality_lb for c in decision.candidates}
+    assert decision.primary == CASCADE.id == max(bounds, key=bounds.get)
+    monitor, prov = Monitor(), provider(**{CHEAP: cheap})
+    result = make(route, prov, monitor, random=Draws(0.0)).call(
+        "judge", MESSAGES, signals={"sig": lambda output: signal})
+    assert (result.call_id, result.model, result.text) == ("call-0", routed[-1], text)
+    assert [attempt.model for attempt in result.attempts] == routed  # never the shadow's
+    assert [model for model, _ in prov.calls] == routed + [BEST]
+    assert all(messages is MESSAGES for _, messages in prov.calls)
+    *legs, shadow = monitor.records
+    assert [rec["model"] for rec in legs] == routed
+    assert [rec["final"] for rec in legs] == [False] * (len(routed) - 1) + [True]
+    assert legs[0]["outcome"] == ("error" if way == "error" else "ok")
+    for rec in legs:
+        assert (rec["call_id"], rec["pair_id"], rec["shadow"]) == ("call-0", "call-0", False)
+        assert (rec["cascade"], rec["escalated"]) == (CASCADE.id, way != "kept")
+        keys = list(rec)
+        at = keys.index("slice") + 1
+        assert keys[at:at + 4] == ["pair_id", "shadow", "cascade", "escalated"]
+    check_shadow(shadow, [key for key in legs[-1] if key not in ("cascade", "escalated")])
+
+
+@pytest.mark.parametrize("proc, routed, model, text", [
+    (POLLING, [CHEAP, POLLING.id], POLLING.id, "shaped cheap"),
+    (SHAPING, [SHAPING.id], SHAPING.id, "shaped in code"),
+    (CRASHING, [CRASHING.id, MID], MID, "mid"),  # the entry errs and falls back
+])
+def test_a_procedure_primary_s_shadow_goes_to_the_default_route_after_its_closing_record(
+        proc, routed, model, text):
+    route = procedure_router(proc)
+    decision = route.select("judge", procedures=[proc])
+    bounds = {c.model_id: c.quality_lb for c in decision.candidates}
+    assert decision.primary == proc.id == max(bounds, key=bounds.get)
+    monitor, prov = Monitor(), provider()
+    result = make(route, prov, monitor, random=Draws(0.0)).call(
+        "judge", MESSAGES, procedures=[proc])
+    assert (result.call_id, result.model, result.text) == ("call-0", model, text)
+    assert [attempt.model for attempt in result.attempts] == routed  # never the shadow's
+    assert [m for m, _ in prov.calls] == [m for m in routed if m in REGISTRY] + [BEST]
+    assert prov.calls[-1][1] is MESSAGES and MESSAGES == [{"role": "user", "content": "judge"}]
+    *legs, shadow = monitor.records
+    assert [rec["model"] for rec in legs] == routed
+    assert [rec["final"] for rec in legs] == [False] * (len(routed) - 1) + [True]
+    closing = [rec["model"] for rec in legs].index(proc.id)  # the entry's closing record
+    assert legs[closing]["outcome"] == ("error" if proc is CRASHING else "ok")
+    for position, rec in enumerate(legs):
+        assert (rec["call_id"], rec["pair_id"], rec["shadow"]) == ("call-0", "call-0", False)
+        keys = list(rec)
+        at = keys.index("slice") + 1
+        if position <= closing:  # the handle's model calls and the closing record
+            assert keys[at:at + 4] == ["pair_id", "shadow", "procedure", "procedure_version"]
+            assert (rec["procedure"], rec["procedure_version"]) == (proc.name, proc.version)
+        else:  # a fallback entry after the procedure: a plain record
+            assert keys[at:at + 2] == ["pair_id", "shadow"]
+            assert not set(PROC_KEYS) & set(keys)
+    assert legs[closing]["model_calls"] == closing
+    check_shadow(shadow, [key for key in legs[closing] if key not in PROC_KEYS])
+
+
+@pytest.mark.parametrize("kind", ["cascade", "procedure"])
+def test_a_shadow_route_naming_a_cascade_or_a_procedure_is_a_value_error_before_any_call(kind):
+    if kind == "cascade":
+        route = cascade_router(shadow_route=CASCADE.id)
+        kwargs = {"signals": {"sig": lambda output: False}}
+    else:
+        route = procedure_router(POLLING, shadow_route=POLLING.id)
+        kwargs = {"procedures": [POLLING]}
+    monitor, prov = Monitor(), provider()
+    with pytest.raises(ValueError, match="is not a registry model"):
+        make(route, prov, monitor, random=never).call("judge", MESSAGES, **kwargs)
+    assert prov.calls == [] and monitor.records == []
