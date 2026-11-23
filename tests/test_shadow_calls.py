@@ -468,9 +468,10 @@ PROC_KEYS = ("procedure", "procedure_version", "model_calls", "tool_calls", "too
 
 
 def entry_stats(entry_id, **counts):
-    """cheap 50/100 is under the 0.7 bar, so cost_effective routes the entry first (mid, best
-    after it); the entry, at 100/100, has the highest bound, above best's 98/100 and mid's
-    95/100, so a default that took a route entry for a registry model would pick the primary."""
+    """cheap 50/100 is under the 0.7 bar and off the route, so the entry, the cheapest passing
+    candidate, leads cost_effective's route (mid, best after it); at 100/100 its bound is the
+    highest, above best's 98/100 and mid's 95/100, so a default that took a route entry for a
+    registry model would pick the primary (review iter-457 nit 1)."""
     stats = Stats()
     for model_id, successes in ((CHEAP, 50), (MID, 95), (BEST, 98)):
         stats.add("judge", model_id, successes, 100)
@@ -532,9 +533,11 @@ def test_a_cascade_primary_s_shadow_goes_to_the_default_route_after_its_attempts
     decision = route.select("judge", cascades=True)
     bounds = {c.model_id: c.quality_lb for c in decision.candidates}
     assert decision.primary == CASCADE.id == max(bounds, key=bounds.get)
-    monitor, prov = Monitor(), provider(**{CHEAP: cheap})
-    result = make(route, prov, monitor, random=Draws(0.0)).call(
+    assert decision.fallbacks == (MID, BEST)  # review iter-457 nit 2
+    monitor, prov, draws = Monitor(), provider(**{CHEAP: cheap}), Draws(0.0)
+    result = make(route, prov, monitor, random=draws).call(
         "judge", MESSAGES, signals={"sig": lambda output: signal})
+    assert draws.calls == 1  # review iter-457 nit 3
     assert (result.call_id, result.model, result.text) == ("call-0", routed[-1], text)
     assert [attempt.model for attempt in result.attempts] == routed  # never the shadow's
     assert [model for model, _ in prov.calls] == routed + [BEST]
@@ -563,9 +566,11 @@ def test_a_procedure_primary_s_shadow_goes_to_the_default_route_after_its_closin
     decision = route.select("judge", procedures=[proc])
     bounds = {c.model_id: c.quality_lb for c in decision.candidates}
     assert decision.primary == proc.id == max(bounds, key=bounds.get)
-    monitor, prov = Monitor(), provider()
-    result = make(route, prov, monitor, random=Draws(0.0)).call(
+    assert decision.fallbacks == (MID, BEST)  # review iter-457 nit 2
+    monitor, prov, draws = Monitor(), provider(), Draws(0.0)
+    result = make(route, prov, monitor, random=draws).call(
         "judge", MESSAGES, procedures=[proc])
+    assert draws.calls == 1  # review iter-457 nit 3
     assert (result.call_id, result.model, result.text) == ("call-0", model, text)
     assert [attempt.model for attempt in result.attempts] == routed  # never the shadow's
     assert [m for m, _ in prov.calls] == [m for m in routed if m in REGISTRY] + [BEST]
