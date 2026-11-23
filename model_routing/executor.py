@@ -221,8 +221,15 @@ class Executor:
         if self.ledger is not None:  # DESIGN 7 v1.595: the hold's task, tags and sizes
             out = dict(task.slices.get(decision.slice) or {}).get(
                 "expected_output_tokens", task.expected_output_tokens)
-            # the last item collects this call's own downgrade refusals (7 v1.596)
-            scope = (task_name, call_tags, None if size is None else size[0], out, [])
+
+            def note(fields: dict) -> None:  # DESIGN 7 and 8.1 v1.598: a budget record
+                if self.monitor is not None:
+                    self.monitor.record({"ts": self.now(), "call_id": call_id,
+                                         "task": decision.task, "tags": dict(call_tags),
+                                         **fields})
+
+            # the fifth item collects this call's own downgrade refusals (7 v1.596)
+            scope = (task_name, call_tags, None if size is None else size[0], out, [], note)
 
         def log(attempt: Attempt, final: bool, entry: str, cascade=None, escalated=None,
                 keys: Optional[dict] = None, family: Optional[str] = None):
@@ -253,6 +260,7 @@ class Executor:
             if proc is not None and scope is not None and self._strict:
                 refusal = self._strict_refusal(scope, proc.id)  # DESIGN 7 v1.597
                 if refusal is not None:
+                    scope[5](_refused(refusal))  # DESIGN 7 v1.598
                     if refusal.budget.mode != "downgrade":
                         raise refusal
                     moving = refusal
@@ -320,9 +328,10 @@ class Executor:
             for budget in applying:
                 if budget.mode == mode:
                     at = self._at().get("at")
+                    [(_, label)] = BudgetLedger._slots([budget], at)  # v1.598: its window
                     return BudgetExceeded(budget, self.ledger.spent_usd(budget.name, at),
                                           self.ledger.held_usd(budget.name, at), 0.0, model,
-                                          unbounded=True)
+                                          unbounded=True, window=label)
         return None
 
     def _at(self) -> dict:
@@ -349,7 +358,8 @@ class Executor:
             try:
                 attempt, completion, exc = self._attempt(
                     proc.model, call_messages, task, registry,
-                    None if scope is None else (scope[0], scope[1], None, scope[3], None))
+                    None if scope is None else (scope[0], scope[1], None, scope[3], None,
+                                                scope[5]))
             except Exception as bug:  # a bug, not an outage: it leaves .call (7 step 2)
                 state["bug"] = bug
                 raise
@@ -383,7 +393,8 @@ class Executor:
                     tool_cost_usd=None if run is None else run.tool_cost_usd)
         family = "" if proc.model is None else registry.get(proc.model).family
         if scope is not None:  # DESIGN 7 v1.595: the tool cost, spent with no hold
-            self.ledger.charge(scope[0], scope[1], attempt.cost_usd, **self._at())
+            for event in self.ledger.charge(scope[0], scope[1], attempt.cost_usd, **self._at()):
+                scope[5](_warned(event))  # DESIGN 7 v1.598
         log(attempt, text is not None or last, proc.id, keys=keys, family=family)
         return text
 
@@ -405,7 +416,7 @@ class Executor:
         """
         if scope is None:
             return self._provider_call(model_id, messages, task, registry)
-        name, tags, prompt, out, refused = scope
+        name, tags, prompt, out, refused, note = scope
         size_in = estimate_prompt_tokens(messages) if prompt is None else prompt
         estimate = float(registry.get(model_id).cost(size_in, out)) if model_id in registry else 0.0
         extra = self._at()
@@ -415,6 +426,7 @@ class Executor:
         try:
             hold = self.ledger.reserve(name, tags, estimate, model_id, **extra)
         except BudgetExceeded as exc:
+            note(_refused(exc))  # DESIGN 7 v1.598: a refusal of this call's own reservation
             if refused is not None and exc.budget.mode == "downgrade":
                 refused.append(exc)  # a refusal of this call's own reservation may move it
             raise
@@ -425,9 +437,11 @@ class Executor:
             return result
         finally:
             if cost is None:  # DESIGN 7 v1.597: a strict budget adds the bound it held
-                self.ledger.settle_unpriced(hold)
+                events = self.ledger.settle_unpriced(hold)
             else:
-                self.ledger.settle(hold, cost)
+                events = self.ledger.settle(hold, cost)
+            for event in events:  # DESIGN 7 v1.598: each crossing right after its settle
+                note(_warned(event))
 
     def _provider_call(self, model_id: str, messages: List[dict], task, registry):
         options = registry.get(model_id).provider_options if model_id in registry else {}
@@ -511,6 +525,21 @@ class Executor:
         if decision.failure_policy != "none":  # DESIGN 8.1 v1.567: the last key
             record["expected_cost_per_success_usd"] = decision.expected_cost_per_success_usd
         return record
+
+
+def _refused(exc: BudgetExceeded) -> dict:
+    """A refused budget record's fields after ``tags`` (DESIGN 8.1 v1.598)."""
+    return {"budget_event": "refused", "budget": exc.budget.name, "mode": exc.budget.mode,
+            "window": exc.window, "model": exc.model, "spent_usd": exc.spent_usd,
+            "held_usd": exc.held_usd, "estimate_usd": exc.estimate_usd,
+            "limit_usd": exc.budget.limit_usd, "unbounded": exc.unbounded}
+
+
+def _warned(event: dict) -> dict:
+    """A warn budget record's fields after ``tags`` (DESIGN 8.1 v1.598)."""
+    return {"budget_event": "warn", "budget": event["budget"], "mode": "warn",
+            "window": event.get("window"), "share": event["share"],
+            "spent_usd": event["spent_usd"], "limit_usd": event["limit_usd"]}
 
 
 def json_validator(*required_keys: str) -> Callable[[str], bool]:

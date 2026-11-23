@@ -5,7 +5,9 @@ from __future__ import annotations
 import json
 from math import ceil, fsum
 from pathlib import Path
-from typing import Dict, Iterable, List, Mapping, Optional, Union
+from typing import Dict, Iterable, List, Mapping, Optional, Sequence, Union
+
+from .budget import Budget, _instant
 
 PathLike = Union[str, Path]
 
@@ -151,7 +153,7 @@ def report(records: Iterable[dict], by: str = "model",
     ``cache_write_tokens`` enters no part of the rate.
     """
     group_of = _grouper(by)
-    records = list(records)
+    records = [rec for rec in records if "budget_event" not in rec]  # DESIGN 8.3 v1.598
     groups: Dict[str, dict] = {}
     latencies: Dict[str, List[float]] = {}
     under: Dict[str, int] = {}
@@ -263,3 +265,57 @@ def _add_cache_keys(records: List[dict], groups: Dict[str, dict], group_of) -> N
         row["cache_counted_input_tokens"] = counted[group]
         row["cache_hit_rate"] = (round(cached[group] / counted[group], 6)
                                  if counted[group] else None)
+
+
+def budget_report(records: Iterable[dict], budgets: Sequence[Budget]) -> List[dict]:
+    """Each budget's spend in each window as a percent of its limit (DESIGN 8.3 v1.598).
+
+    The spend is the ``math.fsum`` of ``cost_usd`` over the attempt records the budget applies
+    to, a ``day`` or ``month`` budget's window read from each record's ``ts``; the counts are of
+    the budget records (8.1 v1.598) with the budget's name, the row's window and that event.
+    """
+    if not isinstance(budgets, (list, tuple)) or not all(isinstance(b, Budget) for b in budgets):
+        raise ValueError(f"budgets must be a list or tuple of Budget, got {budgets!r}")
+    names = [budget.name for budget in budgets]
+    if len(set(names)) != len(names):
+        raise ValueError(f"budget names must be unique, got {names}")
+    records = list(records)
+    rows = []
+    for budget in budgets:
+        spend: Dict[Optional[str], List[float]] = {None: []} if budget.window == "total" else {}
+        counts: Dict[Optional[str], Dict[str, int]] = {}
+        for rec in records:
+            if "budget_event" in rec:
+                label = rec.get("window")
+                if rec.get("budget") != budget.name or (
+                        label is not None if budget.window == "total" else not isinstance(label, str)):
+                    continue
+                tally = counts.setdefault(label, {"warn": 0, "refused": 0})
+                if rec["budget_event"] in tally:
+                    tally[rec["budget_event"]] += 1
+                continue
+            if not budget.applies(rec.get("task"), rec.get("tags") or {}):
+                continue
+            spend.setdefault(_window(budget, rec), []).append(float(rec.get("cost_usd", 0.0)))
+        labels = [None] if budget.window == "total" else sorted(set(spend) | set(counts))
+        for label in labels:
+            total = fsum(spend.get(label, ()))
+            tally = counts.get(label, {"warn": 0, "refused": 0})
+            rows.append({"budget": budget.name, "window": label, "mode": budget.mode,
+                         "limit_usd": budget.limit_usd, "spent_usd": round(total, 6),
+                         "budget_used_pct": round(100 * total / budget.limit_usd, 6),
+                         "warn_records": tally["warn"], "refused_records": tally["refused"]})
+    return rows
+
+
+def _window(budget: Budget, rec: dict) -> Optional[str]:
+    """The label of ``budget``'s window that holds the record's ``ts``, None for ``total``."""
+    if budget.window == "total":
+        return None
+    try:
+        instant = _instant(rec.get("ts"))
+    except ValueError:
+        raise ValueError(f"call_id {rec.get('call_id')!r}: ts {rec.get('ts')!r} is no ISO 8601 "
+                         f"timestamp, so budget {budget.name!r} cannot read its window") from None
+    label = f"{instant.year:04d}-{instant.month:02d}"
+    return label + f"-{instant.day:02d}" if budget.window == "day" else label

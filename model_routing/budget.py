@@ -111,10 +111,12 @@ class BudgetExceeded(Exception):
     ``attempts`` and ``decision`` are the call's attempts before the refusal and its route,
     set by the executor (DESIGN 7 v1.595); ``()`` and None as ``reserve`` raises it.
     ``unbounded`` is True when a strict budget refused a call with no billing bound (4.6 v1.597).
+    ``window`` is the label of the window its check read, None for a ``total`` budget (v1.598).
     """
 
     def __init__(self, budget: Budget, spent_usd: float, held_usd: float,
-                 estimate_usd: float, model: Optional[str], unbounded: bool = False):
+                 estimate_usd: float, model: Optional[str], unbounded: bool = False,
+                 window: Optional[str] = None):
         if unbounded:
             message = (f"budget {budget.name!r} ({budget.limit_usd!r} USD) is strict and refuses "
                        f"a call of {model!r}, whose billing has no bound: {spent_usd!r} spent, "
@@ -130,6 +132,7 @@ class BudgetExceeded(Exception):
         self.held_usd = held_usd
         self.estimate_usd = estimate_usd
         self.model = model
+        self.window = window
         self.attempts: tuple = ()
         self.decision = None
 
@@ -236,27 +239,31 @@ class BudgetLedger:
                         continue
                     spent, held = self._spent.get(slot, 0.0), self._held(slot)
                     if budget.strict and bound is None:
-                        raise BudgetExceeded(budget, spent, held, estimate, model, unbounded=True)
+                        raise BudgetExceeded(budget, spent, held, estimate, model, unbounded=True,
+                                             window=slot[1])
                     amount = bound if budget.strict else estimate
                     if spent + held + amount > budget.limit_usd:
-                        raise BudgetExceeded(budget, spent, held, amount, model)
+                        raise BudgetExceeded(budget, spent, held, amount, model, window=slot[1])
             key = next(self._keys)
             self._holds[key] = tuple((slot, bound if budget.strict else estimate)
                                      for budget, slot in zip(scope, slots))
             return _Hold(key)
 
-    def settle(self, hold: _Hold, cost_usd: float) -> None:
-        """Release ``hold`` and add ``cost_usd`` to each budget it was held on, in its window."""
+    def settle(self, hold: _Hold, cost_usd: float) -> Tuple[dict, ...]:
+        """Release ``hold`` and add ``cost_usd`` to each budget it was held on, in its window;
+        the warn events the add appended, each a new dict (4.6 v1.598)."""
         cost = _amount(cost_usd, "cost_usd")
         with self._lock:
-            self._add(tuple(slot for slot, _ in self._release(hold)), cost)
+            return self._add(tuple(slot for slot, _ in self._release(hold)), cost)
 
-    def settle_unpriced(self, hold: _Hold) -> None:
+    def settle_unpriced(self, hold: _Hold) -> Tuple[dict, ...]:
         """Release ``hold`` of a call whose cost is not known: a strict budget adds the bound it
-        held and any other 0.0, in the hold's window (4.6 v1.597)."""
+        held and any other 0.0, in the hold's window (4.6 v1.597); its warn events (v1.598)."""
         with self._lock:
+            events: Tuple[dict, ...] = ()
             for slot, amount in self._release(hold):
-                self._add((slot,), amount if self._by_name[slot[0]].strict else 0.0)
+                events += self._add((slot,), amount if self._by_name[slot[0]].strict else 0.0)
+            return events
 
     def _release(self, hold: _Hold) -> Tuple[Tuple[_Slot, float], ...]:
         entry = self._holds.pop(hold.key, None) if isinstance(hold, _Hold) else None
@@ -265,14 +272,16 @@ class BudgetLedger:
         return entry
 
     def charge(self, task: str, tags: Mapping[str, str], cost_usd: float,
-               at: Optional[str] = None) -> None:
+               at: Optional[str] = None) -> Tuple[dict, ...]:
         """Add a cost spent without a hold to each budget that applies, in the window that holds
-        ``at``; never refuses."""
+        ``at``; never refuses. Returns the warn events the add appended (v1.598)."""
         cost = _amount(cost_usd, "cost_usd")
         with self._lock:
-            self._add(self._slots([b for b in self._budgets if b.applies(task, tags)], at), cost)
+            return self._add(self._slots([b for b in self._budgets if b.applies(task, tags)], at),
+                             cost)
 
-    def _add(self, slots: Tuple[_Slot, ...], cost: float) -> None:
+    def _add(self, slots: Tuple[_Slot, ...], cost: float) -> Tuple[dict, ...]:
+        start = len(self._events)
         for slot in slots:
             spent = self._spent.get(slot, 0.0) + cost
             self._spent[slot] = spent
@@ -289,6 +298,7 @@ class BudgetLedger:
                     if label is not None:  # 4.6 v1.596: a day or month budget's window
                         event["window"] = label
                     self._events.append(event)
+        return tuple(dict(event) for event in self._events[start:])
 
 
 def billing_bound(model) -> Optional[float]:

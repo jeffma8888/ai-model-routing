@@ -12,6 +12,10 @@ from model_routing import (
 
 ROOT = Path(__file__).resolve().parent.parent
 MESSAGES = [{"role": "user", "content": "judge"}]
+
+def attempts(monitor):
+    """The monitor's attempt records: from v1.598 a ledger also writes budget records (8.1)."""
+    return [rec for rec in monitor.records if "budget_event" not in rec]
 CHEAP, BEST = "fiction/cheap", "fiction/best"
 CAPPED, BEST_CAPPED = "fiction/cheap@capped", "fiction/best@capped"
 
@@ -220,7 +224,7 @@ def test_a_strict_refuse_budget_refuses_an_unbounded_route_before_any_call():
         make(router((CHEAP, 95)), FakeProvider({CHEAP: ok(calls=calls)}), ledger,
              monitor).call("t", MESSAGES)
     assert caught.value.unbounded is True and caught.value.model == CHEAP
-    assert calls == [] and monitor.records == [] and ledger.spent_usd("s") == 0.0
+    assert calls == [] and attempts(monitor) == [] and ledger.spent_usd("s") == 0.0
 
 
 def test_a_strict_budget_holds_the_bound_during_the_call_and_spends_the_cost():
@@ -253,7 +257,7 @@ def test_a_strict_downgrade_budget_moves_an_unbounded_entry_to_a_bounded_one():
     result = make(route, FakeProvider({CHEAP: ok(), BEST_CAPPED: ok()}), ledger,
                   monitor).call("t", MESSAGES)
     assert result.model == BEST_CAPPED
-    assert [r["budget_moves"] for r in monitor.records] == [
+    assert [r["budget_moves"] for r in attempts(monitor)] == [
         [{"entry": CHEAP, "model": CHEAP, "budget": "s"}]]
 
 
@@ -295,7 +299,7 @@ def test_a_strict_downgrade_budget_moves_a_procedure_entry_on():
     result = make(_procedure_route(proc), FakeProvider({CAPPED: ok(), BEST_CAPPED: ok()}),
                   ledger, monitor).call("t", MESSAGES, procedures=[proc])
     assert result.model == BEST_CAPPED and seen == []
-    assert [r["budget_moves"] for r in monitor.records] == [
+    assert [r["budget_moves"] for r in attempts(monitor)] == [
         [{"entry": proc.id, "model": proc.id, "budget": "s"}]]
 
 
@@ -376,13 +380,13 @@ def test_design_specifies_strict_budgets_and_defers_rows_b1e_and_b1f():
     four = text[text.index("### 4.6 Budgets"):text.index("## 5. ")]
     assert four.count("  - v1.597 strict (row B1c): ") == 1
     assert "`max_tokens`, `max_completion_tokens` and `max_output_tokens`" in four
-    assert ("- Not in this version: the crossings and refusals in the monitor log and "
-            "`report`'s `budget_used_pct` (row B1e), a CLI option and exit code for a refusal "
-            "(row B1f), and the README paragraph (row B1d).") in four
+    assert ("- Not in this version: a CLI option and exit code for a refusal (row B1f) and the "
+            "README paragraph (row B1d); the crossings and refusals in the monitor log and "
+            "`budget_used_pct` are v1.598's (7 and 8, row B1e).") in four   # v1.598 restates it
     seven = text[text.index("## 7. "):text.index("## 8. ")]
     assert seven.count("- v1.597 strict (row B1c): ") == 1
     fourteen = text[text.index("## 14. "):text.index("## 15. ")]
-    assert fourteen.count("v1.597's strict caps, whose logged crossings are row B1e") == 1
+    assert fourteen.count("v1.597's strict caps and v1.598's budget records") == 1
     lines = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").splitlines()
     [line] = [l for l in lines if l.startswith("- v1.597 (2026-11-23): ")]
     assert "row B1c" in line

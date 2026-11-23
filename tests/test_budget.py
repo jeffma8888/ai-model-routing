@@ -14,6 +14,10 @@ from model_routing import (
 ROOT = Path(__file__).resolve().parent.parent
 MESSAGES = [{"role": "user", "content": "judge"}]
 
+def attempts(monitor):
+    """The monitor's attempt records: from v1.598 a ledger also writes budget records (8.1)."""
+    return [rec for rec in monitor.records if "budget_event" not in rec]
+
 
 def ok(input_tokens=1000, output_tokens=200, calls=None):
     def script(messages):
@@ -261,8 +265,8 @@ def test_refuse_runs_two_calls_of_a_two_call_budget_and_refuses_the_third(router
     assert (exc.spent_usd, exc.held_usd, exc.estimate_usd, exc.model) == (
         2 * unit, 0.0, unit, "fiction/cheap")
     assert exc.attempts == () and exc.decision.primary == "fiction/cheap"
-    assert len(calls) == 2 and len(monitor.records) == 2
-    assert ledger.spent_usd("two") == 2 * unit == running(r["cost_usd"] for r in monitor.records)
+    assert len(calls) == 2 and len(attempts(monitor)) == 2
+    assert ledger.spent_usd("two") == 2 * unit == running(r["cost_usd"] for r in attempts(monitor))
     assert ledger.held_usd("two") == 0.0
 
 
@@ -341,7 +345,7 @@ def test_a_refused_fallback_ends_the_call_with_the_attempts_before_it(router, re
     exc = caught.value
     assert exc.model == "fiction/mid" and exc.estimate_usd == mid
     assert [a.outcome for a in exc.attempts] == ["error"]
-    assert [(r["model"], r["final"]) for r in monitor.records] == [("fiction/cheap", False)]
+    assert [(r["model"], r["final"]) for r in attempts(monitor)] == [("fiction/cheap", False)]
     assert ledger.spent_usd("r") == 0.0 and ledger.held_usd("r") == 0.0
 
 
@@ -480,7 +484,7 @@ def test_a_refused_procedure_call_propagates_after_the_run_with_no_record():
     with pytest.raises(BudgetExceeded) as caught:
         ex.call("t", [{"role": "user", "content": "hi"}], procedures=[POLL])
     assert caught.value.model == CHEAP and caught.value.attempts == ()
-    assert calls == [] and monitor.records == []
+    assert calls == [] and attempts(monitor) == []
 
 
 # --- exports, spec and the note -----------------------------------------------------------
@@ -514,7 +518,7 @@ def test_the_note_states_the_budget_as_shipped_and_what_stays_planned():
     lines = [line for line in note.splitlines() if line.startswith("- In this library: ")]
     spend = [line for line in lines if "`BudgetExceeded`" in line]
     assert len(spend) == 1
-    assert "The change still planned: warn crossings and refusals written to the monitor log." \
-        in spend[0]
+    assert "From v1.598 the executor writes each warn crossing and each refusal to the monitor " \
+        "log as a budget record" in spend[0]   # v1.598 restates v1.595's planned line (row B1e)
     assert sum("It has an in-process budget (v1.595) with the day and month windows" in line
                for line in lines) == 1

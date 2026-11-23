@@ -12,6 +12,10 @@ from model_routing import (
 
 ROOT = Path(__file__).resolve().parent.parent
 MESSAGES = [{"role": "user", "content": "judge"}]
+
+def attempts(monitor):
+    """The monitor's attempt records: from v1.598 a ledger also writes budget records (8.1)."""
+    return [rec for rec in monitor.records if "budget_event" not in rec]
 CHEAP, MID, BEST = "fiction/cheap", "fiction/mid", "fiction/best"
 REGISTRY = Registry([
     Model(CHEAP, "small", 1.0, 2.0, 8000),
@@ -183,7 +187,7 @@ def test_the_executor_reads_each_hold_window_from_its_now():
     assert ex.call("judge", MESSAGES, prompt_tokens=1000).model == CHEAP
     assert ledger.spent_usd("day", "2026-11-22T00:00:00Z") == cost(CHEAP)
     assert ledger.spent_usd("day", "2026-11-23T00:00:00Z") == cost(CHEAP)
-    assert [r["ts"] for r in monitor.records] == ["2026-11-22T10:00:00Z", "2026-11-23T00:00:00Z"]
+    assert [r["ts"] for r in attempts(monitor)] == ["2026-11-22T10:00:00Z", "2026-11-23T00:00:00Z"]
 
 
 def test_now_is_called_once_more_per_hold_only_with_a_windowed_budget():
@@ -217,7 +221,7 @@ def test_the_executor_reads_a_month_window_from_its_now_across_a_year():
     assert ex.call("judge", MESSAGES, prompt_tokens=1000).model == CHEAP
     assert ledger.spent_usd("month", "2026-12-15T00:00:00Z") == cost(CHEAP)
     assert ledger.spent_usd("month", "2027-01-15T00:00:00Z") == cost(CHEAP)
-    assert [r["ts"] for r in monitor.records] == ["2026-12-31T23:59:59.999Z",
+    assert [r["ts"] for r in attempts(monitor)] == ["2026-12-31T23:59:59.999Z",
                                                   "2027-01-01T00:00:00.000Z"]
 
 
@@ -316,7 +320,7 @@ def test_downgrade_moves_the_call_to_the_next_entry_that_fits():
     result = ex.call("judge", MESSAGES, flavor="cost_blind", prompt_tokens=1000)
     assert result.decision.primary == BEST and calls == []
     assert result.model == MID and [a.model for a in result.attempts] == [MID]
-    [record] = monitor.records
+    [record] = attempts(monitor)
     assert (record["model"], record["final"]) == (MID, True)
     assert record["budget_moves"] == [{"entry": BEST, "model": BEST, "budget": "move"}]
     keys = list(record)
@@ -336,7 +340,7 @@ def test_downgrade_refuses_when_no_entry_fits():
     exc = caught.value
     assert (exc.budget.name, exc.model, exc.estimate_usd) == ("move", CHEAP, cost(CHEAP))
     assert exc.attempts == () and exc.decision.primary == BEST
-    assert calls == [] and monitor.records == []
+    assert calls == [] and attempts(monitor) == []
     assert ledger.spent_usd("move") == 0.0 == ledger.held_usd("move")
 
 
@@ -374,9 +378,9 @@ def test_a_moved_call_falls_back_on_an_error_as_before_below_bar_included():
     ex = make(route, FakeProvider({MID: fail, CHEAP: ok()}), ledger, monitor)
     assert ex.call("judge", MESSAGES, flavor="cost_blind", prompt_tokens=1000).model == CHEAP
     move = [{"entry": BEST, "model": BEST, "budget": "move"}]
-    assert [(r["model"], r["outcome"], r["budget_moves"]) for r in monitor.records] == [
+    assert [(r["model"], r["outcome"], r["budget_moves"]) for r in attempts(monitor)] == [
         (MID, "error", move), (CHEAP, "ok", move)]
-    assert monitor.records[1]["below_bar_fallback"] is True
+    assert attempts(monitor)[1]["below_bar_fallback"] is True
     assert ledger.spent_usd("move") == cost(CHEAP)
 
 
@@ -415,7 +419,7 @@ def test_a_move_onto_a_cascade_and_off_its_strong_leg(escalate):
         with pytest.raises(BudgetExceeded) as caught:
             run()
         assert caught.value.model == BEST and [a.model for a in caught.value.attempts] == [CHEAP]
-    [record] = monitor.records
+    [record] = attempts(monitor)
     assert (record["cascade"], record["escalated"], record["final"]) == (CID, escalate,
                                                                           not escalate)
     assert record["budget_moves"] == [first]

@@ -33,7 +33,7 @@ def ok(messages):
     return Completion("ok", 1000, 200)
 
 
-def router(flavor_order_best_first=False):
+def router():
     """cost_effective routes cheap first; cost_blind routes (best, mid, cheap)."""
     task = Task("judge", bar=0.7, min_samples=10)
     stats = Stats()
@@ -184,9 +184,12 @@ def test_without_a_monitor_the_ledger_still_runs_and_nothing_is_written():
 
 def _log():
     ledger = BudgetLedger([Budget("w", 2 * cost(CHEAP), "warn"),
-                           Budget("r", 3 * cost(CHEAP), "refuse", tags={"tool": "a"})])
+                           Budget("r", 2.5 * cost(CHEAP), "refuse", tags={"tool": "a"})])
     monitor = Monitor()
-    ex = make(router(), FakeProvider({CHEAP: ok}), ledger, monitor)
+    ids = iter(f"c{i}" for i in range(10))
+    ticks = iter(float(i) for i in range(1000))
+    ex = Executor(router(), FakeProvider({CHEAP: ok}), monitor=monitor, clock=lambda: next(ticks),
+                  now=lambda: "2026-11-22T00:00:00Z", id_factory=lambda: next(ids), ledger=ledger)
     for _ in range(4):
         try:
             ex.call("judge", MESSAGES, prompt_tokens=1000, tags={"tool": "a"})
@@ -198,8 +201,8 @@ def _log():
 
 def test_report_reads_the_attempt_records_alone():
     _, records = _log()
-    assert budget_records(records) and len(attempts_of(records)) == 4
-    audits = {"call-1": True}
+    assert budget_records(records) and len(attempts_of(records)) == 3
+    audits = {"c0": True, "c4": False}
     for by in ("model", "task", "flavor", "family", "pricing_basis", "tag:tool"):
         assert report(records, by=by) == report(attempts_of(records), by=by)
     assert report(records, audits=audits, cache=True) == report(
@@ -210,17 +213,17 @@ def test_budget_report_gives_the_total_budgets_spend_and_counts():
     ledger, records = _log()
     budgets = list(ledger.budgets)
     rows = model_routing.budget_report(records, budgets)
-    spent_w = math.fsum([cost(CHEAP)] * 4)
-    spent_r = math.fsum([cost(CHEAP)] * 3)
+    spent_w = math.fsum([cost(CHEAP)] * 3)
+    spent_r = math.fsum([cost(CHEAP)] * 2)
     assert rows == [
         {"budget": "w", "window": None, "mode": "warn", "limit_usd": 2 * cost(CHEAP),
          "spent_usd": round(spent_w, 6), "budget_used_pct": round(100 * spent_w / (2 * cost(CHEAP)), 6),
          "warn_records": 3, "refused_records": 0},
-        {"budget": "r", "window": None, "mode": "refuse", "limit_usd": 3 * cost(CHEAP),
-         "spent_usd": round(spent_r, 6), "budget_used_pct": round(100 * spent_r / (3 * cost(CHEAP)), 6),
-         "warn_records": 0, "refused_records": 1},
+        {"budget": "r", "window": None, "mode": "refuse", "limit_usd": 2.5 * cost(CHEAP),
+         "spent_usd": round(spent_r, 6), "budget_used_pct": round(100 * spent_r / (2.5 * cost(CHEAP)), 6),
+         "warn_records": 0, "refused_records": 2},
     ]
-    assert rows[0]["budget_used_pct"] == 200.0 and rows[1]["budget_used_pct"] == 100.0
+    assert rows[0]["budget_used_pct"] == 150.0 and rows[1]["budget_used_pct"] == 80.0
     assert list(rows[0]) == ["budget", "window", "mode", "limit_usd", "spent_usd",
                              "budget_used_pct", "warn_records", "refused_records"]
 
