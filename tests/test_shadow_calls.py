@@ -1,5 +1,5 @@
 """Shadow calls (DESIGN 4.2, 7 and 8.1 v1.607, row CANARY1a; cascade and procedure primaries,
-row CANARY1f)."""
+row CANARY1f; a below-bar shadow route's record, 8.1 v1.608, row CANARY1g)."""
 
 import dataclasses
 import inspect
@@ -10,7 +10,7 @@ import pytest
 from model_routing import (
     AllModelsFailed, Budget, BudgetLedger, Cascade, Completion, Executor, FakeProvider, Model,
     Monitor, Procedure, ProcedureResult, ProviderError, Registry, Router, Stats, Task,
-    load_tasks,
+    load_tasks, report,
 )
 from model_routing.demo import _tasks_json
 
@@ -606,3 +606,60 @@ def test_a_shadow_route_naming_a_cascade_or_a_procedure_is_a_value_error_before_
     with pytest.raises(ValueError, match="is not a registry model"):
         make(route, prov, monitor, random=never).call("judge", MESSAGES, **kwargs)
     assert prov.calls == [] and monitor.records == []
+
+
+# --- 8.1 v1.608 a below-bar shadow route's record -----------------------------------------
+
+def under_bar_calls(records):
+    return {row["group"]: row["below_bar_calls"] for row in report(records)}
+
+
+@pytest.mark.parametrize("fields, held", [
+    ({"fallback_below_bar": True, "max_fallbacks": 3}, True),  # the route ends with small
+    ({"max_fallbacks": 3}, False),  # the option off
+    ({"fallback_below_bar": True}, False),  # small past the route's two fallbacks
+])
+def test_a_named_below_bar_shadow_carries_below_bar_fallback_only_when_the_route_holds_it(
+        fields, held):
+    route = router(shadow_rate=1.0, shadow_route=SMALL, **fields)  # 50 of 100, under the bar
+    decision = route.select("judge", prompt_tokens=2)
+    assert decision.primary == CHEAP and not decision.below_bar
+    assert decision.below_bar_fallbacks == ((SMALL,) if held else ())
+    monitor = Monitor()
+    result = make(route, provider(**{SMALL: answer("small")}), monitor,
+                  random=Draws(0.0)).call("judge", MESSAGES)
+    assert result.text == "cheap"
+    routed, shadow = monitor.records
+    assert (routed["model"], shadow["model"], shadow["shadow"]) == (CHEAP, SMALL, True)
+    assert routed["prompt_tokens"] == shadow["prompt_tokens"] == 2
+    assert routed["below_bar"] is shadow["below_bar"] is False  # the decision's flag
+    assert "below_bar_fallback" not in routed
+    keys = list(routed)
+    if held:
+        assert shadow["below_bar_fallback"] is True
+        at = keys.index("below_bar") + 1
+        assert list(shadow) == keys[:at] + ["below_bar_fallback"] + keys[at:]
+    else:
+        assert "below_bar_fallback" not in shadow and list(shadow) == keys
+    # until row CANARY1c, report counts the shadow as a call of its own
+    assert under_bar_calls(monitor.records) == {CHEAP: 0, SMALL: 1 if held else 0}
+
+
+def test_a_named_shadow_s_below_bar_is_the_decision_s_when_nothing_clears_the_bar():
+    task = Task("judge", bar=0.99, min_samples=10, on_no_model="best_available",
+                fallback_below_bar=True, shadow_rate=1.0, shadow_route=CHEAP)
+    stats = Stats()
+    stats.add("judge", CHEAP, 50, 100)
+    stats.add("judge", MID, 60, 100)
+    route = Router(REGISTRY, {"judge": task}, stats)
+    decision = route.select("judge", prompt_tokens=2)
+    assert (decision.primary, decision.fallbacks) == (MID, (CHEAP,))
+    assert decision.below_bar and decision.below_bar_fallbacks == ()
+    monitor = Monitor()
+    make(route, provider(), monitor, random=Draws(0.0)).call("judge", MESSAGES)
+    routed, shadow = monitor.records
+    assert (routed["model"], shadow["model"], shadow["shadow"]) == (MID, CHEAP, True)
+    assert routed["below_bar"] is shadow["below_bar"] is True
+    assert "below_bar_fallback" not in routed and "below_bar_fallback" not in shadow
+    assert list(shadow) == list(routed)
+    assert under_bar_calls(monitor.records) == {MID: 1, CHEAP: 1}
