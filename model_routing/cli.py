@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sys
 from datetime import date
@@ -16,8 +17,8 @@ from .monitor import budget_report, load_audits, load_records, report
 from .priors import Priors
 from .registry import Registry
 from .router import FLAVORS, NoModelClearsBar, Router
-from .stats import (Stats, _planned_successes, calibrate_from_results, items_needed,
-                    wilson_lower_bound)
+from .stats import (Stats, _planned_successes, calibrate_from_results, item_outcomes,
+                    items_needed, wilson_lower_bound)
 from .tasks import is_slice_name, load_tasks
 
 EXIT_OK = 0
@@ -89,6 +90,8 @@ def _build_parser() -> argparse.ArgumentParser:
     calibrate = sub.add_parser("calibrate", help="merge labeled results into a stats file")
     calibrate.add_argument("--results", required=True)
     calibrate.add_argument("--stats", required=True)
+    calibrate.add_argument("--outcomes", default=None, metavar="FILE",
+                           help="append one outcome per row, with the results file's sha256")
 
     rep = sub.add_parser("report", help="aggregate a calls.jsonl log")
     rep.add_argument("--log", required=True)
@@ -267,8 +270,16 @@ def _cmd_select(args) -> int:
 
 
 def _cmd_calibrate(args) -> int:
-    new = calibrate_from_results(load_records(args.results))
+    rows = load_records(args.results)
+    new = calibrate_from_results(rows)
     stats_path = Path(args.stats)
+    records = None
+    if args.outcomes is not None:  # DESIGN 10 v1.602: every check before any write
+        outcomes_path = Path(args.outcomes)
+        if outcomes_path.resolve() in (Path(args.results).resolve(), stats_path.resolve()):
+            raise _BadInput(f"--outcomes {args.outcomes} names the results or the stats file")
+        digest = hashlib.sha256(Path(args.results).read_bytes()).hexdigest()
+        records = item_outcomes(rows, dataset_sha256=digest)
     existing = Stats.load(stats_path) if stats_path.exists() else Stats()
     merged = existing.merge(new)
     merged.save(stats_path)
@@ -276,7 +287,22 @@ def _cmd_calibrate(args) -> int:
              for (task, model_id), (s, t) in merged.items()]
     print(_table(["task", "model", "successes", "trials", "lower_bound_95"], table))
     print(f"\nwrote {stats_path}")
+    if records is not None:
+        _append_outcomes(outcomes_path, records)
+        print(f"appended {len(records)} outcomes to {outcomes_path}, dataset_sha256 {digest}")
     return EXIT_OK
+
+
+def _append_outcomes(path: Path, records) -> None:
+    """Append one ``json.dumps`` per record, a newline first after a last line without one."""
+    lead = ""
+    if path.exists() and path.stat().st_size:
+        with path.open("rb") as handle:
+            handle.seek(-1, 2)
+            if handle.read(1) != b"\n":
+                lead = "\n"
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(lead + "".join(json.dumps(record) + "\n" for record in records))
 
 
 def _cmd_report(args) -> int:

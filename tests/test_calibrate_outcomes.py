@@ -63,7 +63,7 @@ def test_one_record_per_row_in_row_order_with_the_keys_in_order():
         {"task": "judge", "model": "fiction/b", "item": "q1", "prediction": "yes", "gold": "no"},
         {"task": "judge", "model": "fiction/b", "item": "q2", "prediction": "no", "gold": "no", "slice": "deep"},
         {"task": "judge", "model": "fiction/a@terse", "item": "q2", "correct": False, "slice": None},
-        {"task": "judge", "model": "fiction/a>fiction/b", "item": "q3", "correct": True, "escalated": True},
+        {"task": "judge", "model": "fiction/a>fiction/b@sig", "item": "q3", "correct": True, "escalated": True},
         {"task": "judge", "model": "proc:review@1", "item": "q4", "correct": False, "cost_usd": 0.5},
     ]
     records = item_outcomes(rows, dataset_sha256=HASH)
@@ -73,7 +73,7 @@ def test_one_record_per_row_in_row_order_with_the_keys_in_order():
         {"task": "judge", "slice": "deep", "route": "fiction/b", "item": "q2", "correct": True, "dataset_sha256": HASH},
         {"task": "judge", "slice": None, "route": "fiction/a@terse", "item": "q2", "correct": False,
          "dataset_sha256": HASH},
-        {"task": "judge", "slice": None, "route": "fiction/a>fiction/b", "item": "q3", "correct": True,
+        {"task": "judge", "slice": None, "route": "fiction/a>fiction/b@sig", "item": "q3", "correct": True,
          "dataset_sha256": HASH},
         {"task": "judge", "slice": None, "route": "proc:review@1", "item": "q4", "correct": False,
          "dataset_sha256": HASH},
@@ -149,7 +149,7 @@ def test_a_row_without_an_item_is_refused_only_here():
     {"task": "judge", "model": "fiction/a", "item": "q1"},
     {"task": "judge", "model": "fiction/a", "item": "q1", "correct": True, "slice": "a@b"},
     {"task": "judge", "model": "fiction/a", "item": "q1", "correct": True, "input_tokens": 3},
-    {"task": "judge", "model": "fiction/a>fiction/b", "item": "q1", "correct": True},
+    {"task": "judge", "model": "fiction/a>fiction/b@sig", "item": "q1", "correct": True},
     "not a row",
 ])
 def test_every_row_is_checked_as_calibrate_checks_it_before_a_record_is_returned(row):
@@ -305,7 +305,7 @@ def test_design_names_the_contract():
     assert "(review iter-449 should-fix 3(c))" in four3
     assert "`model_routing.__all__` gains `item_outcomes`, after `PromotionCheck`\n" in four3
     four7 = design[design.index("### 4.7 "):design.index("## 5. ")]
-    assert "(row GATE1b, from v1.602 in 4.3 and 10)" in four7
+    assert "(row GATE1b), which v1.602 adds (4.3 and 10); " in four7
     ten = design[design.index("## 10. "):design.index("## 11. ")]
     assert "  - v1.602 `calibrate ... [--outcomes FILE]` (row GATE1b): " in ten
     assert "`appended N outcomes to FILE, dataset_sha256 HEX`" in ten

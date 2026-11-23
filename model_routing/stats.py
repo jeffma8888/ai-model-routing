@@ -8,7 +8,7 @@ from fractions import Fraction
 from math import floor, isfinite, sqrt
 from pathlib import Path
 from statistics import NormalDist
-from typing import Dict, Iterable, Optional, Tuple, Union
+from typing import Dict, Iterable, List, Optional, Tuple, Union
 
 from .procedures import is_procedure_id
 from .tasks import is_slice_name, parse_cascade_id
@@ -18,6 +18,8 @@ PathLike = Union[str, Path]
 _TOKEN_KEYS = ("input_tokens", "output_tokens", "token_trials")
 _CACHE_PAIRS = (("cached_input_tokens", "cached_trials"),
                 ("cache_write_tokens", "cache_write_trials"))
+_OUTCOME_KEYS = ("task", "model", "item")  # DESIGN 4.3 v1.602, as the outcome matrix (12.1)
+_HEX = frozenset("0123456789abcdef")
 
 
 def _is_int(value: object) -> bool:
@@ -477,3 +479,35 @@ def calibrate_from_results(rows: Iterable[dict]) -> Stats:
         for key in keys:
             stats.add(key, model_id, 1 if correct else 0, 1, **tokens)
     return stats
+
+
+def item_outcomes(rows: Iterable[dict], *, dataset_sha256: str) -> List[dict]:
+    """One outcome record per result row, in row order, for a paired check (DESIGN 4.3 v1.602).
+
+    Each row is checked as `calibrate_from_results` checks it and must also carry ``task``,
+    ``model`` and ``item``, each a non-empty string; ``dataset_sha256`` is 64 lowercase hex
+    digits, the sha256 of the labeled file's bytes. A record holds ``task``, ``slice`` (None when
+    the row has none), ``route`` (the row's ``model``), ``item``, ``correct`` and
+    ``dataset_sha256``, in that order. Every check runs before a record is returned, and no row
+    is changed.
+    """
+    if (not isinstance(dataset_sha256, str) or len(dataset_sha256) != 64
+            or not set(dataset_sha256) <= _HEX):
+        raise ValueError(f"dataset_sha256 must be 64 lowercase hex digits, got {dataset_sha256!r}")
+    rows = list(rows)
+    calibrate_from_results(rows)  # the same checks, the same messages, before any record
+    for row in rows:
+        for key in _OUTCOME_KEYS:
+            value = row.get(key)
+            if not isinstance(value, str) or not value:
+                raise ValueError(f"an outcome row needs a non-empty string {key!r}: {row!r}")
+    records = []
+    for row in rows:
+        if "correct" in row:
+            correct = row["correct"]
+        else:
+            correct = row["prediction"] == row["gold"]
+        records.append({"task": row["task"], "slice": row.get("slice"), "route": row["model"],
+                        "item": row["item"], "correct": bool(correct),
+                        "dataset_sha256": dataset_sha256})
+    return records
