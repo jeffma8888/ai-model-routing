@@ -1,5 +1,6 @@
 """Shadow calls (DESIGN 4.2, 7 and 8.1 v1.607, row CANARY1a; cascade and procedure primaries,
-row CANARY1f; a below-bar shadow route's record, 8.1 v1.608, row CANARY1g)."""
+row CANARY1f; a below-bar shadow route's record, 8.1 v1.608, row CANARY1g; a shadow that
+repeats the routed answer, 7 and 8.1 v1.609, rows CANARY1h and CANARY1i)."""
 
 import dataclasses
 import inspect
@@ -670,3 +671,130 @@ def test_a_named_shadow_s_below_bar_is_the_decision_s_when_nothing_clears_the_ba
     assert "below_bar_fallback" not in routed and "below_bar_fallback" not in shadow
     assert list(shadow) == list(routed)
     assert under_bar_calls(monitor.records) == {MID: 1, CHEAP: 1}
+
+
+# --- 7 and 8.1 v1.609 a shadow that repeats the routed answer (rows CANARY1h and CANARY1i) ----
+
+TO_BEST = Cascade(CHEAP, BEST, "sig")  # its strong leg is the default shadow route
+
+
+def shadow_records(records):
+    return [rec for rec in records if rec.get("shadow") is True]
+
+
+def test_the_cascade_fixture_s_strong_leg_is_the_default_shadow_route():
+    task = Task("judge", bar=0.7, min_samples=10, cascades=(TO_BEST,), shadow_rate=1.0)
+    decision = Router(REGISTRY, {"judge": task},
+                      entry_stats(TO_BEST.id, escalated=10)).select("judge", cascades=True)
+    assert (decision.primary, decision.fallbacks) == (TO_BEST.id, (MID, BEST))
+    passing = [c for c in decision.candidates if c.passes and c.model_id in REGISTRY]
+    assert max(passing, key=lambda c: c.quality_lb).model_id == BEST == TO_BEST.strong
+
+
+@pytest.mark.parametrize("way, signal, cheap, routed, sent", [
+    ("kept", False, answer("cheap"), [CHEAP], True),  # best never answered: shadowed
+    ("signal", True, answer("cheap"), [CHEAP, BEST], False),  # handed up onto best
+    ("error", False, outage, [CHEAP, BEST], False),
+])
+def test_a_cascade_hand_up_onto_the_shadow_route_sends_no_shadow(way, signal, cheap, routed,
+                                                                 sent):
+    task = Task("judge", bar=0.7, min_samples=10, cascades=(TO_BEST,), shadow_rate=1.0)
+    route = Router(REGISTRY, {"judge": task}, entry_stats(TO_BEST.id, escalated=10))
+    monitor, prov, draws = Monitor(), provider(**{CHEAP: cheap}), Draws(0.0, 0.0)
+    executor = make(route, prov, monitor, random=draws)
+    result = executor.call("judge", MESSAGES, signals={"sig": lambda output: signal})
+    assert draws.calls == 1  # drawn before any provider call, sent or not
+    assert (result.call_id, result.model) == ("call-0", routed[-1])
+    assert [model for model, _ in prov.calls] == routed + ([BEST] if sent else [])
+    legs = [rec for rec in monitor.records if rec["call_id"] == "call-0"]
+    assert [rec["model"] for rec in legs] == routed
+    assert all((rec["pair_id"], rec["shadow"]) == ("call-0", False) for rec in legs)
+    shadows = shadow_records(monitor.records)
+    assert len(monitor.records) == len(routed) + len(shadows)
+    if sent:
+        check_shadow(shadows[0], [key for key in legs[-1] if key not in ("cascade", "escalated")])
+    else:
+        assert shadows == []
+        # the skipped shadow took call-1, so the next call is call-2 (7 v1.609)
+        assert executor.call("judge", MESSAGES,
+                             signals={"sig": lambda output: False}).call_id == "call-2"
+        assert draws.calls == 2
+
+
+POLL_BEST = Procedure("pollbest", "v1", polling, max_model_calls=2, max_tool_calls=5, model=BEST)
+
+
+@pytest.mark.parametrize("proc, named, routed, sent", [
+    (POLL_BEST, None, [BEST, POLL_BEST.id], BEST),  # its model is the default shadow route
+    (CRASHING, MID, [CRASHING.id, MID], None),  # it errs and falls back onto the shadow route
+])
+def test_a_procedure_s_answer_is_no_repeat_but_its_fallback_onto_the_shadow_route_is(
+        proc, named, routed, sent):
+    route = procedure_router(proc, **({} if named is None else {"shadow_route": named}))
+    monitor, prov, draws = Monitor(), provider(), Draws(0.0)
+    result = make(route, prov, monitor, random=draws).call("judge", MESSAGES, procedures=[proc])
+    assert draws.calls == 1
+    assert result.model == routed[-1]
+    assert [attempt.model for attempt in result.attempts] == routed
+    registry_calls = [m for m in routed if m in REGISTRY]
+    assert [m for m, _ in prov.calls] == registry_calls + ([sent] if sent else [])
+    shadows = shadow_records(monitor.records)
+    if sent:  # the handle sent the procedure's messages, the shadow the call's
+        assert prov.calls[0][1] == [{"role": "user", "content": "summarize"}]
+        assert prov.calls[-1][1] is MESSAGES
+        assert [(rec["model"], rec["outcome"]) for rec in shadows] == [(BEST, "ok")]
+    else:
+        assert shadows == []
+    assert len(monitor.records) == len(routed) + len(shadows)
+
+
+def test_a_fallback_onto_the_named_shadow_route_sends_no_shadow():
+    route = router(shadow_rate=1.0, shadow_route=MID)
+    monitor, prov = Monitor(), provider(**{CHEAP: outage})
+    result = make(route, prov, monitor, random=Draws(0.0)).call("judge", MESSAGES)
+    assert (result.model, result.text) == (MID, "mid")
+    assert [m for m, _ in prov.calls] == [CHEAP, MID]
+    assert [(r["call_id"], r["model"], r["attempt"], r["outcome"], r["pair_id"], r["shadow"])
+            for r in monitor.records] == [("call-0", CHEAP, 0, "error", "call-0", False),
+                                          ("call-0", MID, 1, "ok", "call-0", False)]
+    calls = {row["group"]: row["calls"] for row in report(monitor.records)}
+    assert calls == {CHEAP: 1, MID: 1}
+
+
+def test_a_below_bar_fallback_onto_the_named_shadow_route_sends_no_shadow():
+    route = router(shadow_rate=1.0, shadow_route=SMALL, **HELD)
+    prov = provider(**{CHEAP: outage, MID: outage, BEST: outage, SMALL: answer("small")})
+    monitor = Monitor()
+    result = make(route, prov, monitor, random=Draws(0.0)).call("judge", MESSAGES)
+    assert (result.model, result.text) == (SMALL, "small")
+    assert [m for m, _ in prov.calls] == [CHEAP, MID, BEST, SMALL]
+    *failed, last = monitor.records
+    assert [rec["outcome"] for rec in failed] == ["error"] * 3
+    assert (last["call_id"], last["model"], last["attempt"], last["shadow"]) == (
+        "call-0", SMALL, 3, False)
+    assert last["below_bar_fallback"] is True
+    assert shadow_records(monitor.records) == []
+    assert under_bar_calls(monitor.records) == {CHEAP: 0, MID: 0, BEST: 0, SMALL: 1}
+    assert {row["group"]: row["calls"] for row in report(monitor.records)}[SMALL] == 1
+
+
+@pytest.mark.parametrize("named, overrides, routed, outcome", [
+    (None, {}, [CHEAP], "ok"),  # a plain primary answers: the default shadow, as in v1.607
+    (MID, {}, [CHEAP], "ok"),
+    (MID, {CHEAP: outage, MID: outage}, [CHEAP, MID, BEST], "error"),  # tried and left
+])
+def test_a_call_whose_answer_is_not_the_shadow_route_s_is_shadowed_as_in_v1_608(
+        named, overrides, routed, outcome):
+    fields = {} if named is None else {"shadow_route": named}
+    route = router(shadow_rate=1.0, **fields)
+    monitor, prov = Monitor(), provider(**overrides)
+    result = make(route, prov, monitor, random=Draws(0.0)).call("judge", MESSAGES)
+    assert result.model == routed[-1] != (named or BEST)
+    target = named or BEST
+    assert [m for m, _ in prov.calls] == routed + [target]
+    *legs, shadow = monitor.records
+    assert [rec["model"] for rec in legs] == routed
+    assert (shadow["model"], shadow["call_id"], shadow["pair_id"], shadow["shadow"]) == (
+        target, "call-1", "call-0", True)
+    assert (shadow["attempt"], shadow["final"], shadow["outcome"]) == (0, True, outcome)
+    assert shadow["tags"] == {"shadow": "true"}
