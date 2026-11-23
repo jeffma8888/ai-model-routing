@@ -130,6 +130,23 @@ def test_the_strong_legs_counts_are_fitted_inside_the_hand_up_read(strong, stron
     assert parts[2] == pytest.approx(0.2 * write * 3.75 / 1e6)
 
 
+def test_the_strong_legs_counts_are_first_fitted_inside_its_own_mean():
+    # review iter-439 nit 2: means of 8 cached and 10 written over one reporting call each, inside
+    # a mean input of 12 over two calls, fit as 2 and 10 before the hand-up read of 10,500
+    stats = Stats()
+    stats.add("t", CHEAP, 95, 100, input_tokens=1_000_000, output_tokens=50_000)
+    stats.add("t", STRONG, 95, 100, input_tokens=24, output_tokens=2, token_trials=2,
+              cached_input_tokens=8, cached_trials=1, cache_write_tokens=10,
+              cache_write_trials=1)
+    stats.add("t", CID, 90, 100, escalated=20)
+    candidate = _by_id(_select(stats))[CID]
+    assert candidate.list_cost == pytest.approx(
+        _cost(CHEAP, 10_000, 500) + 0.2 * _cost(STRONG, 10_500, 500, cached=2, write=10),
+        abs=1e-15)
+    assert candidate.cost_breakdown[1] == pytest.approx(0.2 * 2 * 0.3 / 1e6)
+    assert candidate.cost_breakdown[2] == pytest.approx(0.2 * 10 * 3.75 / 1e6)
+
+
 def test_a_cascades_breakdown_sums_to_its_cost_and_follows_its_reason():
     decision = _select(_stats(cheap={"cached_input_tokens": 900_000},
                               strong={"cached_input_tokens": 600_000,
@@ -297,6 +314,10 @@ def test_design_and_the_changelog_state_the_version():
     assert seven.count("  - v1.591 the legs at their cache counts (row CACHE1e): ") == 1
     one = design[design.index("### 5.1 "):design.index("### 5.2 ")]
     assert "A cascade's and a procedure's candidate keep both defaults (until v1.591, 5.2)." in one
+    # review iter-439 must-fix 1: the divisor of a cascade's and a procedure's parts is stated
+    assert ("Each part of a registry model's candidate is `count * price / (1_000_000 * "
+            "items_per_call)` as Python divides, and from v1.591 each part of a cascade's or a "
+            "procedure's is `count * price / 1_000_000`, undivided") in one
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").splitlines()
     mine = [line for line in changelog if line.startswith("- v1.591 (")]
     assert len(mine) == 1 and "(5.1, 5.2, 7, row CACHE1e)" in mine[0]
