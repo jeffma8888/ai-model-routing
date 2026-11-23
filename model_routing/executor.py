@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import json
 import math
+import random as _random
 import time
 import uuid
 from collections.abc import Mapping
@@ -104,16 +105,20 @@ class Executor:
     or a :class:`BudgetLedger`, holds each provider call's estimate before it and settles its
     measured cost after (DESIGN 7 v1.595); a ``downgrade`` budget moves a call to the next route
     entry that clears the bar, and a ``day`` or ``month`` budget reads its window from ``now``
-    (DESIGN 7 v1.596).
+    (DESIGN 7 v1.596). ``random``, None for ``random.random``, draws whether a call of a task
+    with a ``shadow_rate`` is shadowed (DESIGN 7 v1.607).
     """
 
     def __init__(self, router: Router, provider: Provider, monitor=None,
                  clock: Callable[[], float] = time.monotonic,
                  now: Optional[Callable[[], str]] = None,
                  id_factory: Optional[Callable[[], str]] = None,
-                 ledger: Optional[BudgetLedger] = None):
+                 ledger: Optional[BudgetLedger] = None,
+                 random: Optional[Callable[[], float]] = None):
         if ledger is not None and not isinstance(ledger, BudgetLedger):
             raise ValueError(f"ledger must be None or a BudgetLedger, got {type(ledger).__name__}")
+        if random is not None and not callable(random):
+            raise ValueError(f"random must be None or a callable, got {type(random).__name__}")
         self.router = router
         self.provider = provider
         self.monitor = monitor
@@ -121,6 +126,7 @@ class Executor:
         self.now = now if now is not None else _utc_now
         self.id_factory = id_factory if id_factory is not None else _new_id
         self.ledger = ledger
+        self.random = random if random is not None else _random.random  # DESIGN 7 v1.607
         # DESIGN 7 v1.597: a strict budget reads each call's billing bound
         self._strict = ledger is not None and any(budget.strict for budget in ledger.budgets)
 
@@ -153,6 +159,9 @@ class Executor:
         handle an attempt of its named model, then one closing attempt under its ID, ``error``
         when the run raises, else ``validate`` on its output; an ``error`` or ``invalid`` entry
         falls back, and its records carry the procedure keys (DESIGN 7 and 8.1 v1.578).
+        A task with a ``shadow_rate`` above 0 may shadow the call: once the routed call has
+        returned, one call of the shadow route on the same messages, whose failure never fails
+        the routed call, both calls' records paired by ``pair_id`` (DESIGN 7 and 8.1 v1.607).
         """
         _check_prompt_tokens(prompt_tokens)
         if signals is not None and not isinstance(signals, Mapping):
@@ -177,8 +186,34 @@ class Executor:
                                      f"signal {cascade.signal!r} in signals")
                 cascades[entry] = cascade
         routed = {proc.id: proc for proc in procedures}  # select checked them (5.2 v1.577)
+        shadow = self._shadow_route(task_name, decision, tags)
         return self._execute(task_name, decision, messages, dict(tags or {}), validate,
-                             (size, estimated), cascades, signals, routed)
+                             (size, estimated), cascades, signals, routed, shadow)
+
+    def _shadow_route(self, task_name: str, decision: RouteDecision,
+                      tags: Optional[Dict[str, str]]) -> Optional[str]:
+        """The route a call is shadowed on, or None when it is not (DESIGN 7 v1.607)."""
+        task = self.router.tasks[task_name]
+        if task.shadow_rate <= 0:
+            return None
+        registry = self.router.registry
+        if task.shadow_route is not None and task.shadow_route not in registry:
+            raise ValueError(f"task {task_name!r}: shadow_route {task.shadow_route!r} is not "
+                             f"a registry model")
+        if tags and "shadow" in tags:
+            raise ValueError("tag name shadow is set on a shadowed call's shadow; "
+                             "pass another name")
+        models = {c.model_id: c for c in decision.candidates if c.model_id in registry}
+        target = task.shadow_route
+        if target is None:
+            passing = sorted((c for c in models.values() if c.passes),
+                             key=lambda c: (-c.quality_lb, c.model_id))
+            if not passing:
+                return None
+            target = passing[0].model_id
+        if target == decision.primary or not models[target].eligible:
+            return None
+        return target if self.random() < task.shadow_rate else None
 
     def call_delegated(self, decision, messages: List[dict],
                        tags: Optional[Dict[str, str]] = None,
@@ -210,10 +245,12 @@ class Executor:
                  size: Optional[Tuple[int, bool]] = None,
                  cascades: Optional[Dict[str, object]] = None,
                  signals: Optional[Mapping] = None,
-                 procedures: Optional[Dict[str, Procedure]] = None) -> CallResult:
+                 procedures: Optional[Dict[str, Procedure]] = None,
+                 shadow: Optional[str] = None) -> CallResult:
         task = self.router.tasks[task_name]
         registry = self.router.registry
         call_id = self.id_factory()
+        pair = None if shadow is None else {"pair_id": call_id, "shadow": False}  # 8.1 v1.607
         order = (decision.primary, *decision.fallbacks)
         attempts: List[Attempt] = []
         moves: List[dict] = []  # DESIGN 7 v1.596: each downgrade move so far, in order
@@ -226,7 +263,7 @@ class Executor:
                 if self.monitor is not None:
                     self.monitor.record({"ts": self.now(), "call_id": call_id,
                                          "task": decision.task, "tags": dict(call_tags),
-                                         **fields})
+                                         **(pair or {}), **fields})
 
             # the fifth item collects this call's own downgrade refusals (7 v1.596)
             scope = (task_name, call_tags, None if size is None else size[0], out, [], note)
@@ -237,15 +274,56 @@ class Executor:
             if self.monitor is not None:
                 self.monitor.record(self._record(call_id, decision, registry, len(attempts) - 1,
                                                  final, attempt, call_tags, size, entry,
-                                                 cascade, escalated, keys, family, moves))
+                                                 cascade, escalated, keys, family, moves, pair))
 
         try:
-            return self._entries(task_name, decision, messages, validate, cascades, signals,
-                                 procedures, task, registry, call_id, order, attempts, log, scope,
-                                 moves)
+            result = self._entries(task_name, decision, messages, validate, cascades, signals,
+                                   procedures, task, registry, call_id, order, attempts, log,
+                                   scope, moves)
         except BudgetExceeded as exc:
             exc.attempts, exc.decision = tuple(attempts), decision
             raise
+        if shadow is not None:  # DESIGN 7 v1.607: only once the routed call has returned
+            self._shadow(shadow, task_name, task, decision, messages, call_tags, validate, size,
+                         call_id)
+        return result
+
+    def _shadow(self, model_id: str, task_name: str, task, decision: RouteDecision,
+                messages: List[dict],
+                call_tags: Dict[str, str], validate, size, pair_id: str) -> None:
+        """One provider call of the shadow route, logged under its own call ID (7 v1.607).
+
+        A ``ProviderError``, an invalid output or a refusal of its own reservation never
+        reaches the caller; any other exception propagates, as in step 2.
+        """
+        registry = self.router.registry
+        call_id = self.id_factory()
+        tags = dict(call_tags, shadow="true")
+        pair = {"pair_id": pair_id, "shadow": True}
+        scope, refused = None, []
+        if self.ledger is not None:
+            out = dict(task.slices.get(decision.slice) or {}).get(
+                "expected_output_tokens", task.expected_output_tokens)
+
+            def note(fields: dict) -> None:
+                if fields.get("budget_event") == "refused":
+                    refused.append(fields)  # its own reservation was refused, right before raise
+                if self.monitor is not None:
+                    self.monitor.record({"ts": self.now(), "call_id": call_id,
+                                         "task": decision.task, "tags": dict(tags), **pair,
+                                         **fields})
+
+            scope = (task_name, tags, None if size is None else size[0], out, None, note)
+        try:
+            attempt, completion, _ = self._attempt(model_id, messages, task, registry, scope)
+        except BudgetExceeded:
+            if refused:
+                return
+            raise
+        attempt, _ = self._checked(attempt, completion, validate)
+        if self.monitor is not None:
+            self.monitor.record(self._record(call_id, decision, registry, 0, True, attempt, tags,
+                                             size, model_id, pair=pair))
 
     def _entries(self, task_name, decision, messages, validate, cascades, signals, procedures,
                  task, registry, call_id, order, attempts, log, scope, moves) -> CallResult:
@@ -481,7 +559,8 @@ class Executor:
                 final: bool, attempt: Attempt, tags: Dict[str, str],
                 size: Optional[Tuple[int, bool]] = None, entry: Optional[str] = None,
                 cascade=None, escalated: Optional[bool] = None, keys: Optional[dict] = None,
-                family: Optional[str] = None, moves: Optional[List[dict]] = None) -> dict:
+                family: Optional[str] = None, moves: Optional[List[dict]] = None,
+                pair: Optional[dict] = None) -> dict:
         model = registry.get(attempt.model) if family is None else None  # None: a closing record
         record = {
             "ts": self.now(),
@@ -514,6 +593,8 @@ class Executor:
         record["basis"] = decision.basis
         record["tags"] = dict(tags)
         record["slice"] = decision.slice
+        if pair is not None:  # DESIGN 8.1 v1.607: a shadowed call's records
+            record.update(pair)
         if cascade is not None:
             record["cascade"] = cascade.id
             record["escalated"] = escalated

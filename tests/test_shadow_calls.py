@@ -324,3 +324,17 @@ def test_without_a_monitor_the_shadow_still_runs():
     result = make(router(shadow_rate=1.0), prov, None, random=Draws(0.0)).call(
         "judge", MESSAGES)
     assert result.text == "cheap" and [m for m, _ in prov.calls] == [CHEAP, BEST]
+
+
+def test_the_budget_records_of_both_calls_carry_the_pair_keys_after_tags():
+    monitor = Monitor()
+    cheap = REGISTRY.get(CHEAP).cost(1000, 200)
+    ledger = BudgetLedger([Budget("w", cheap, "warn")])
+    make(router(shadow_rate=1.0), provider(), monitor, random=Draws(0.0),
+         ledger=ledger).call("judge", MESSAGES)
+    warns = [rec for rec in monitor.records if rec.get("budget_event") == "warn"]
+    assert warns and all(list(rec)[:6] == ["ts", "call_id", "task", "tags", "pair_id", "shadow"]
+                         for rec in warns)
+    assert {(rec["call_id"], rec["shadow"]) for rec in warns} == {("call-0", False)}
+    assert all(rec["pair_id"] == "call-0" for rec in monitor.records)
+    assert [rec["shadow"] for rec in attempts_of(monitor.records)] == [False, True]

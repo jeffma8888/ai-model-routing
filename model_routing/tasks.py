@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 from dataclasses import dataclass, field, fields
 from pathlib import Path
@@ -105,7 +106,9 @@ class Task:
     cascades, stored as a tuple with no two of one ``id`` (DESIGN 7 v1.532).
     ``failure_policy`` says what the caller does when a call's result fails the check:
     ``"none"`` or ``"retry_same"``, which ranks the routes by expected cost per success
-    (DESIGN 4.2 and 5.3 v1.567). Invalid values raise ``ValueError`` at construction.
+    (DESIGN 4.2 and 5.3 v1.567). ``shadow_rate`` is the share of the task's calls also sent to
+    a shadow route, ``shadow_route`` that route's model ID or None for the default
+    (DESIGN 4.2 and 7 v1.607). Invalid values raise ``ValueError`` at construction.
     """
 
     name: str
@@ -124,6 +127,8 @@ class Task:
     slices: Mapping[str, Mapping[str, object]] = field(default_factory=dict, hash=False)
     cascades: Tuple[Cascade, ...] = ()
     failure_policy: str = "none"
+    shadow_rate: float = 0.0
+    shadow_route: Optional[str] = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.exclude_families, tuple):
@@ -170,6 +175,15 @@ class Task:
         if not isinstance(self.failure_policy, str) or self.failure_policy not in FAILURE_POLICIES:
             raise ValueError(f"task {self.name!r}: failure_policy must be one of "
                              f"{FAILURE_POLICIES}, got {self.failure_policy!r}")
+        rate = self.shadow_rate  # DESIGN 4.2 v1.607
+        if isinstance(rate, bool) or not isinstance(rate, (int, float)) \
+                or not math.isfinite(rate) or not 0.0 <= rate <= 1.0:
+            raise ValueError(f"task {self.name!r}: shadow_rate must be a finite number in "
+                             f"[0, 1] that is not a bool, got {rate!r}")
+        if self.shadow_route is not None \
+                and (not isinstance(self.shadow_route, str) or not self.shadow_route):
+            raise ValueError(f"task {self.name!r}: shadow_route must be None or a non-empty "
+                             f"str, got {self.shadow_route!r}")
 
 
 _TASK_FIELDS = {f.name for f in fields(Task)}
