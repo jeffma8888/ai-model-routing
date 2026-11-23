@@ -311,6 +311,8 @@ def test_design_specifies_the_check_and_defers_the_rest_of_gate1():
     assert "`max(-1.0, (ct - bt) - z * math.sqrt((bt + ct - (ct - bt) ** 2) / (n + 2)))`" in seven
     assert "- `model_routing.__all__` gains `paired_promotion` and `PromotionCheck`, after `billing_bound`." in seven
     assert "(row GATE1b)" in seven and "(row GATE1c)" in seven and "(row GATE1d)" in seven
+    assert "Both rules are one-sided at `alpha / 2` (review iter-449 should-fix 2): " in seven
+    assert "`alpha` is not the false-promotion rate of several checks of one route (row GATE1c)." in seven
 
 
 def test_the_changelog_line_names_the_row():
@@ -328,6 +330,14 @@ def test_the_note_names_the_check_as_shipped_and_the_rest_as_planned():
     assert line.endswith("The change still planned: record the labeled file's hash with the stats, and a `promote` command "
                          "that pairs the two routes' outcomes on it before a route changes.")
     assert "an advisory paired check of a challenger" not in note
+    assert ", `hold` otherwise or `insufficient_overlap` on too few shared items, and changes nothing. " in line
     assert note.count("its comparison `paired_promotion` from v1.601 and the command that runs it planned.") == 1
     layout = (ROOT / "README.md").read_text(encoding="utf-8")
     assert layout.count("\n  promotion.py  a challenger route against the current one on the same items (advisory)\n") == 1
+
+
+def test_the_module_adds_no_public_name_but_the_two_exports():
+    public = sorted(name for name in vars(model_routing.promotion)
+                    if not name.startswith("_") and name not in {"annotations", "math", "Mapping", "dataclass",
+                                                                  "NormalDist", "Optional"})
+    assert public == ["PromotionCheck", "paired_promotion"]

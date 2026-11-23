@@ -14,9 +14,9 @@ from dataclasses import dataclass
 from statistics import NormalDist
 from typing import Optional
 
-PROMOTE = "promote"
-HOLD = "hold"
-INSUFFICIENT_OVERLAP = "insufficient_overlap"
+_PROMOTE = "promote"
+_HOLD = "hold"
+_INSUFFICIENT_OVERLAP = "insufficient_overlap"
 
 
 @dataclass(frozen=True)
@@ -104,15 +104,15 @@ def paired_promotion(current, challenger, *, margin, cheaper=False, alpha=0.05,
     c = sum(1 for item in shared if challenger[item] and not current[item])
 
     if n < min_pairs:
-        return PromotionCheck(INSUFFICIENT_OVERLAP, None, n, unpaired, b, c, None, None, None, None,
+        return PromotionCheck(_INSUFFICIENT_OVERLAP, None, n, unpaired, b, c, None, None, None, None,
                               None, margin, cheaper, alpha, min_pairs)
     p_value = _mcnemar_p(b, c)
     lower = _paired_lower_bound(b, c, n, alpha)
     if c > b and p_value <= alpha:
-        decision, basis = PROMOTE, "superior"
+        decision, basis = _PROMOTE, "superior"
     elif cheaper and lower > -margin:
-        decision, basis = PROMOTE, "non_inferior"
+        decision, basis = _PROMOTE, "non_inferior"
     else:
-        decision, basis = HOLD, None
+        decision, basis = _HOLD, None
     return PromotionCheck(decision, basis, n, unpaired, b, c, (both + b) / n, (both + c) / n,
                           (c - b) / n, p_value, lower, margin, cheaper, alpha, min_pairs)
