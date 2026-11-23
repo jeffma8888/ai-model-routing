@@ -69,11 +69,16 @@ def test_the_paragraph_follows_the_scope_paragraph_and_ends_the_part():
 def test_the_paragraph_names_each_field_option_and_section():
     text = paragraph()
     for kept in ("`price_cached_in` and `price_cache_write`, USD per 1M input tokens",
-                 "an absent one is the input price", "`cache_price_unknown`",
+                 # review iter-442 should-fix 3 and 2
+                 "except a row with `price_tiers` or a self-hosted one, which may hold neither",
+                 "an absent one is the input price, and a candidate that priced a measured count "
+                 "that way names the absent field in `cache_price_unknown`",
                  "A results line may carry `cached_input_tokens` and `cache_write_tokens`",
                  "counted inside its `input_tokens`", "`cost_breakdown`",
                  "Only reported counts are priced as hits, never a repeated prompt",
                  "whose reads are 90% cached", "a write premium can make caching the dearer choice",
+                 # review iter-442 nit 1: DESIGN 5.2 v1.591's words
+                 "the model of a procedure without a measured mean cost",
                  "reads only `--cached-read-ratio`", "`usage.prompt_tokens_details.cached_tokens`",
                  "`report --cache` gives each group's `cache_hit_rate`",
                  "An adapter for another API keeps `input_tokens` inclusive",
@@ -83,14 +88,20 @@ def test_the_paragraph_names_each_field_option_and_section():
         assert text.count(kept) == 1, kept
 
 
-def test_the_names_it_gives_are_the_librarys():
+def test_the_names_it_gives_are_the_librarys(capsys):
     assert {"price_cached_in", "price_cache_write"} <= {f.name for f in dataclasses.fields(Model)}
     assert {"cost_breakdown", "cache_price_unknown"} <= {f.name for f in dataclasses.fields(Candidate)}
     assert {"cached_input_tokens", "cache_write_tokens"} <= {f.name for f in dataclasses.fields(Completion)}
     assert "cache" in inspect.signature(report).parameters
     assert "cached_read_ratio" in inspect.signature(Router.decide_delegation).parameters
-    source = inspect.getsource(cli)
-    assert '"--cache"' in source and '"--cached-read-ratio"' in source
+    # review iter-442 nit 3: each option on its own command
+    for command, option in (("report", "--cache"), ("delegate", "--cached-read-ratio")):
+        with pytest.raises(SystemExit):
+            cli.main([command, "--help"])
+        assert option in capsys.readouterr().out.split()
+    with pytest.raises(SystemExit):
+        cli.main(["delegate", "--help"])
+    assert "--cache" not in capsys.readouterr().out.split()
 
 
 def test_the_manus_line_is_the_notes_word_for_word_and_its_link_resolves():
@@ -123,13 +134,11 @@ MSGS = [{"role": "user", "content": "hi"}]
 
 
 def messages_api_completion(usage, text="ok"):
-    """DESIGN 6 v1.594's mapping of a Messages API usage object into a `Completion`."""
-    return Completion(text,
-                      usage["input_tokens"] + usage["cache_read_input_tokens"]
-                      + usage["cache_creation_input_tokens"],
-                      usage["output_tokens"],
-                      cached_input_tokens=usage["cache_read_input_tokens"],
-                      cache_write_tokens=usage["cache_creation_input_tokens"])
+    """DESIGN 6 v1.594's mapping of a Messages API usage object into a `Completion`: a cache
+    count the response lacks or gives as null adds 0 and is passed as None."""
+    read, write = usage.get("cache_read_input_tokens"), usage.get("cache_creation_input_tokens")
+    return Completion(text, usage["input_tokens"] + (read or 0) + (write or 0), usage["output_tokens"],
+                      cached_input_tokens=read, cache_write_tokens=write)
 
 
 def run(completion):
@@ -161,6 +170,21 @@ def test_the_summed_mapping_prices_the_call_at_its_three_parts():
     assert row["cache_hit_rate"] == pytest.approx(0.8)
 
 
+def test_a_count_the_response_lacks_or_nulls_adds_nothing_and_stays_unknown():
+    executor, monitor = run(messages_api_completion({"input_tokens": 2_000, "cache_read_input_tokens": 8_000,
+                                                     "cache_creation_input_tokens": None,
+                                                     "output_tokens": 500}))
+    [attempt] = executor.call("t", MSGS).attempts
+    assert (attempt.cached_input_tokens, attempt.cache_write_tokens) == (8_000, None)
+    assert attempt.cost_usd == REGISTRY.get("fiction/pricey").cost(10_000, 500, cached_input_tokens=8_000)
+    [rec] = monitor.records
+    assert rec["input_tokens"] == 10_000 and "cache_write_tokens" not in rec
+    executor, monitor = run(messages_api_completion({"input_tokens": 3_000, "output_tokens": 500}))
+    [attempt] = executor.call("t", MSGS).attempts
+    assert (attempt.cached_input_tokens, attempt.cache_write_tokens) == (None, None)
+    assert attempt.cost_usd == REGISTRY.get("fiction/pricey").cost(3_000, 500)
+
+
 def test_the_uncached_count_alone_is_refused_once_the_counts_sum_above_it():
     naive = Completion("ok", 1_000, 500, cached_input_tokens=8_000, cache_write_tokens=1_000)
     executor, monitor = run(naive)
@@ -190,6 +214,9 @@ def test_design_6_states_the_mapping_and_the_changelog_the_version():
                  "(`https://platform.claude.com/docs/en/build-with-claude/prompt-caching`, fetched 2026-11-22)",
                  "returns the sum of the three as `input_tokens`, `cache_read_input_tokens` as "
                  "`cached_input_tokens` and `cache_creation_input_tokens` as `cache_write_tokens`",
+                 "A cache count the response lacks or gives as `null` adds 0 to the sum and is "
+                 "passed as `None`, never 0",
+                 "is priced at the model's one `price_cache_write`",
                  "the executor raises `Model.cost`'s `ValueError` from `.call` before the attempt is recorded",
                  "The package ships no such adapter"):
         assert mine[0].count(kept) == 1, kept
@@ -225,6 +252,12 @@ def test_the_cache_lessons_plan_only_the_monitor_check_the_switch_and_the_budget
                                                 "stays under the task's floor; and an in-process budget")
     for line in lines.values():
         assert "The changes" not in line and "measured cached and written tokens per task and model" not in line
+
+
+def test_the_bill_lesson_says_report_cache_gives_the_hit_rate():
+    # review iter-442 nit 5: the hit rate is measured and shown today; the check on a floor is planned
+    assert ("so a cache that mostly misses shows in the log, and `report --cache` gives each group's "
+            "hit rate; there is no budget. The change: a monitor check") in lesson_lines()[CACHE_LESSONS[5]]
 
 
 def test_the_delegation_decision_still_passes_no_measured_count():
