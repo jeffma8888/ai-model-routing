@@ -110,7 +110,9 @@ def test_design_and_the_changelog_state_the_version():
     four = design[design.index("### 4.3 "):design.index("### 4.4 ")]
     assert four.count("  - v1.593 (row CI32): every test that hashes a decision or an "
                       "evaluation's result hashes it through one helper, tests/decision_hash.py,") == 1
-    assert design.splitlines()[2].startswith("Status: v1.593, 2026-11-22 (v1.593, ")
+    # v1.594 (row CACHE1d) heads the Status line now; tests/test_design_status.py checks that the
+    # line holds one clause for each of the five highest changelog versions, this one among them
+    assert "; v1.593, spec and tests: every test that pins a hash" in design.splitlines()[2]
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").splitlines()
     mine = [line for line in changelog if line.startswith("- v1.593 (")]
     assert len(mine) == 1 and "(4.3, row CI32)" in mine[0]
