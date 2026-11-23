@@ -174,6 +174,32 @@ def test_load_refuses_a_half_pair_a_bad_value_or_no_token_keys(tmp_path, row):
     assert "stats.json" in str(exc.value)
 
 
+@pytest.mark.parametrize("pair", [  # review iter-436 must-fix 1
+    {"cached_input_tokens": 10, "cached_trials": None},
+    {"cached_input_tokens": None, "cached_trials": 1},
+    {"cached_input_tokens": None, "cached_trials": None},
+    {"cache_write_tokens": 10, "cache_write_trials": None},
+    {"cache_write_tokens": None, "cache_write_trials": 1},
+    {"cache_write_tokens": None, "cache_write_trials": None},
+])
+def test_load_refuses_a_null_cache_value_on_either_side(tmp_path, pair):
+    row = dict({"task": "t", "model": PRICEY, "successes": 2, "trials": 2, "input_tokens": 200,
+                "output_tokens": 20, "token_trials": 2}, **pair)
+    path = tmp_path / "stats.json"
+    path.write_text(json.dumps({"stats": [row]}), encoding="utf-8")
+    with pytest.raises(ValueError) as exc:
+        Stats.load(path)
+    assert "stats.json" in str(exc.value) and "must be integers" in str(exc.value)
+
+
+@pytest.mark.parametrize("key", ["cached_input_tokens", "cache_write_tokens"])
+def test_calibrate_from_results_refuses_a_null_count(key):  # review iter-436 must-fix 1
+    with pytest.raises(ValueError) as exc:
+        calibrate_from_results([{"task": "t", "model": PRICEY, "correct": True,
+                                 "input_tokens": 100, "output_tokens": 10, key: None}])
+    assert key in str(exc.value)
+
+
 def test_merge_sums_the_cache_totals():
     a = Stats()
     a.add("t", PRICEY, 1, 1, input_tokens=100, output_tokens=10, cached_input_tokens=40)

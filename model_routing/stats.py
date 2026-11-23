@@ -272,8 +272,8 @@ class Stats:
         """Return the mean cached reads and cache writes per reporting call, each rounded down.
 
         Integer arithmetic; ``None`` for a count no trial reported, so it is unknown and never
-        0. Rounded down a mean never over-states the cached share, and so never prices a route
-        below what its trials support (DESIGN 4.3 v1.588).
+        0. Rounded down a cached-read mean never over-states the cached share; a write mean
+        rounded down moves under one token per call to the input price (DESIGN 4.3 v1.588).
         """
         cached, cached_trials, write, write_trials = self.cache_tokens(task, model_id)
         return (cached // cached_trials if cached_trials else None,
@@ -366,6 +366,8 @@ class Stats:
                                      f"together or neither: {row!r}")
                 if not present:
                     raise ValueError(f"{path}: {count_key} needs {', '.join(_TOKEN_KEYS)}: {row!r}")
+                if not (_is_int(row[count_key]) and _is_int(row[trials_key])):  # review iter-436 must-fix 1
+                    raise ValueError(f"{path}: {count_key} and {trials_key} must be integers: {row!r}")
                 tokens[count_key] = row[count_key]
                 tokens[trials_key] = row[trials_key]
             if "escalated" in row:
@@ -446,6 +448,8 @@ def calibrate_from_results(rows: Iterable[dict]) -> Stats:
             if count_key in row:
                 if not has_in:
                     raise ValueError(f"{count_key} needs input_tokens and output_tokens: {row!r}")
+                if not _is_int(row[count_key]) or row[count_key] < 0:  # review iter-436 must-fix 1
+                    raise ValueError(f"{count_key} must be an integer >= 0: {row!r}")
                 tokens[count_key] = row[count_key]
         if _is_procedure_key(model_id):
             if has_in:
