@@ -10,6 +10,9 @@ JSON value without it, unless that site is on its list of values that hold no bo
 import hashlib
 import json
 
+# decimals, not significant digits: a last-bit difference rounds away while a value is well
+# under 1e3 (a double's spacing reaches 1e-12 near 1e4); a bound is in [0, 1] and every pinned
+# cost per success is far under 1 USD (review iter-441 nit 2)
 BOUND_DIGITS = 12
 # a decision's bound, a delegation decision's two, and the cost per success divided by one
 BOUND_KEYS = frozenset({"quality_lb", "parent_quality_lb", "delegate_quality_lb",

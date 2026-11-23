@@ -363,12 +363,15 @@ def test_guard_without_the_keyword_the_demo_routes_as_v1_535_with_cascades_set()
 
 def test_the_v1_535_demo_hashes_are_the_same_under_either_platforms_z(monkeypatch):
     import model_routing.stats as stats_module
+    live = set()
     for z in PLATFORM_Z:  # DESIGN 4.3 v1.593, row CI32
         monkeypatch.setattr(stats_module, "NormalDist", FixedZ(z))
         registry, tasks, stats = demo_files()
         assert sha(routes(registry, tasks, stats, None)) == V1_535_DEMO_SELECT_SHA256
         assert sha(routes(registry, tasks, stats, None, generator_model=DEMO_GENERATOR)) == (
             V1_535_DEMO_GENERATOR_SELECT_SHA256)
+        live.add(wilson_lower_bound(37, 40))
+    assert len(live) == 2  # the patch reached the bound (review iter-441 nit 1)
 
 
 def test_guard_without_the_keyword_the_example_tasks_route_as_v1_535_with_cascades_set():
