@@ -12,10 +12,6 @@ from model_routing import (
 
 ROOT = Path(__file__).resolve().parent.parent
 MESSAGES = [{"role": "user", "content": "judge"}]
-
-def attempts(monitor):
-    """The monitor's attempt records: from v1.598 a ledger also writes budget records (8.1)."""
-    return [rec for rec in monitor.records if "budget_event" not in rec]
 CHEAP, MID, BEST = "fiction/cheap", "fiction/mid", "fiction/best"
 REGISTRY = Registry([
     Model(CHEAP, "small", 1.0, 2.0, 8000),
@@ -24,6 +20,11 @@ REGISTRY = Registry([
 ])
 C = Cascade(CHEAP, BEST, "sig")
 CID = "fiction/cheap>fiction/best@sig"
+
+
+def attempts(monitor):
+    """The monitor's attempt records: from v1.598 a ledger also writes budget records (8.1)."""
+    return [rec for rec in monitor.records if "budget_event" not in rec]
 
 
 def cost(model_id):

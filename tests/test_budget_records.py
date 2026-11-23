@@ -6,8 +6,8 @@ from pathlib import Path
 import pytest
 import model_routing
 from model_routing import (
-    Budget, BudgetExceeded, BudgetLedger, Completion, Executor, FakeProvider, Model, Monitor,
-    Procedure, ProcedureResult, Registry, Router, Stats, Task, report,
+    Budget, BudgetExceeded, BudgetLedger, Cascade, Completion, Executor, FakeProvider, Model,
+    Monitor, Procedure, ProcedureResult, Registry, Router, Stats, Task, report,
 )
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -33,7 +33,7 @@ def ok(messages):
     return Completion("ok", 1000, 200)
 
 
-def router():
+def judge_router():
     """cost_effective routes cheap first; cost_blind routes (best, mid, cheap)."""
     task = Task("judge", bar=0.7, min_samples=10)
     stats = Stats()
@@ -89,7 +89,7 @@ def test_a_refusal_names_the_window_its_check_read():
 def test_a_refusal_that_ends_the_call_writes_one_refused_record():
     ledger = BudgetLedger([Budget("two", 2 * cost(CHEAP), "refuse")])
     monitor = Monitor()
-    ex = make(router(), FakeProvider({CHEAP: ok}), ledger, monitor)
+    ex = make(judge_router(), FakeProvider({CHEAP: ok}), ledger, monitor)
     for _ in range(2):
         ex.call("judge", MESSAGES, prompt_tokens=1000, tags={"s": "t"})
     with pytest.raises(BudgetExceeded):
@@ -108,7 +108,7 @@ def test_a_refusal_that_ends_the_call_writes_one_refused_record():
 def test_each_warn_crossing_is_written_right_after_the_settle_that_made_it():
     ledger = BudgetLedger([Budget("two", 2 * cost(CHEAP), "warn", window="day")])
     monitor = Monitor()
-    ex = make(router(), FakeProvider({CHEAP: ok}), ledger, monitor)
+    ex = make(judge_router(), FakeProvider({CHEAP: ok}), ledger, monitor)
     for _ in range(3):
         ex.call("judge", MESSAGES, prompt_tokens=1000)
     kinds = [rec.get("budget_event", "attempt") for rec in monitor.records]
@@ -122,13 +122,13 @@ def test_each_warn_crossing_is_written_right_after_the_settle_that_made_it():
     assert [rec["share"] for rec in warns] == [0.5, 0.8, 1.0]
     assert [{k: v for k, v in rec.items() if k not in ("ts", "call_id", "task", "tags",
                                                         "budget_event", "mode")}
-            for rec in warns] == [dict(event, window=event["window"]) for event in ledger.events]
+            for rec in warns] == [dict(event) for event in ledger.events]
 
 
 def test_a_downgrade_move_writes_one_refused_record_before_the_moved_attempt():
     ledger = BudgetLedger([Budget("d", 0.005, "downgrade")])
     monitor = Monitor()
-    result = make(router(), FakeProvider({BEST: ok, MID: ok}), ledger, monitor).call(
+    result = make(judge_router(), FakeProvider({BEST: ok, MID: ok}), ledger, monitor).call(
         "judge", MESSAGES, flavor="cost_blind", prompt_tokens=1000)
     assert result.model == MID
     refused, attempt = monitor.records
@@ -166,7 +166,7 @@ def test_a_budget_exceeded_the_provider_raises_writes_no_record():
 
     monitor = Monitor()
     with pytest.raises(BudgetExceeded) as caught:
-        make(router(), FakeProvider({CHEAP: raises}),
+        make(judge_router(), FakeProvider({CHEAP: raises}),
              BudgetLedger([Budget("d", 1.0, "downgrade")]), monitor).call(
             "judge", MESSAGES, prompt_tokens=1000)
     assert caught.value is foreign and budget_records(monitor.records) == []
@@ -174,10 +174,136 @@ def test_a_budget_exceeded_the_provider_raises_writes_no_record():
 
 def test_without_a_monitor_the_ledger_still_runs_and_nothing_is_written():
     ledger = BudgetLedger([Budget("two", 2 * cost(CHEAP), "warn")])
-    ex = make(router(), FakeProvider({CHEAP: ok}), ledger)
+    ex = make(judge_router(), FakeProvider({CHEAP: ok}), ledger)
     for _ in range(3):
         ex.call("judge", MESSAGES, prompt_tokens=1000)
     assert len(ledger.events) == 3
+
+
+def _proc_route(proc):
+    stats = Stats()
+    stats.add("t", BEST, 98, 100)
+    stats.add("t", proc.id, 95, 100, cost_usd=0.001)
+    route = Router(REGISTRY, {"t": Task("t", bar=0.8, min_samples=10)}, stats)
+    decision = route.select("t", procedures=[proc])
+    assert (decision.primary, decision.fallbacks) == (proc.id, (BEST,))
+    return route
+
+
+def _poll(value, call):
+    call([{"role": "user", "content": "hi"}])
+    return ProcedureResult("shaped", tool_calls=1, tool_cost_usd=0.0005)
+
+
+def test_a_procedure_writes_warn_records_after_its_model_call_and_its_closing_charge():
+    # review iter-446 should-fix 3a: the model call's settle crosses half, the tool cost the rest
+    proc = Procedure("poll", "v1", _poll, max_model_calls=2, max_tool_calls=5, model=CHEAP)
+    ledger = BudgetLedger([Budget("w", cost(CHEAP) + 0.0005, "warn")])
+    monitor = Monitor()
+    make(_proc_route(proc), FakeProvider({CHEAP: ok, BEST: ok}), ledger, monitor).call(
+        "t", MESSAGES, procedures=[proc])
+    kinds = [(rec.get("budget_event"), rec.get("share"), rec["model"] if "model" in rec else None)
+             for rec in monitor.records]
+    assert kinds == [("warn", 0.5, None), (None, None, CHEAP), ("warn", 0.8, None),
+                     ("warn", 1.0, None), (None, None, proc.id)]
+
+
+def test_a_strict_downgrade_check_of_a_procedure_entry_writes_its_refused_record():
+    # review iter-446 should-fix 3b: the entry moves on, and the unbounded fallback is refused too
+    proc = Procedure("poll", "v1", _poll, max_model_calls=2, max_tool_calls=5, model=CHEAP)
+    monitor = Monitor()
+    with pytest.raises(BudgetExceeded):
+        make(_proc_route(proc), FakeProvider({CHEAP: ok, BEST: ok}),
+             BudgetLedger([Budget("s", 1.0, "downgrade", strict=True, window="day")]),
+             monitor).call("t", MESSAGES, procedures=[proc])
+    assert [(r["model"], r["mode"], r["window"], r["unbounded"]) for r in monitor.records] == [
+        (proc.id, "downgrade", "2026-11-22", True), (BEST, "downgrade", "2026-11-22", True)]
+
+
+def test_a_day_budget_refusal_through_the_executor_names_its_window():
+    # review iter-446 should-fix 3d
+    monitor = Monitor()
+    with pytest.raises(BudgetExceeded):
+        make(judge_router(), FakeProvider({CHEAP: ok}),
+             BudgetLedger([Budget("d", 0.001, "refuse", window="day")]), monitor).call(
+            "judge", MESSAGES, prompt_tokens=1000)
+    [refused] = monitor.records
+    assert (refused["window"], refused["model"], refused["estimate_usd"]) == (
+        "2026-11-22", CHEAP, cost(CHEAP))
+
+
+@pytest.mark.parametrize("escalate", [False, True])
+def test_a_cascade_leg_refused_by_a_downgrade_budget_writes_a_record(escalate):
+    # review iter-446 should-fix 3c: best is refused, the cascade runs its cheap leg, and a
+    # hand-up's strong leg is refused in its turn
+    cascade = Cascade(CHEAP, BEST, "sig")
+    stats = Stats()
+    stats.add("t", CHEAP, 60, 100)
+    stats.add("t", BEST, 98, 100)
+    stats.add("t", cascade.id, 95, 100, escalated=20)
+    route = Router(REGISTRY, {"t": Task("t", bar=0.8, min_samples=10, cascades=(cascade,))}, stats)
+    monitor = Monitor()
+    ex = make(route, FakeProvider({CHEAP: ok, BEST: ok}),
+              BudgetLedger([Budget("move", 2 * cost(CHEAP), "downgrade")]), monitor)
+
+    def run():
+        return ex.call("t", MESSAGES, flavor="cost_blind", prompt_tokens=1000,
+                       signals={"sig": lambda text: escalate})
+
+    if escalate:
+        with pytest.raises(BudgetExceeded):
+            run()
+    else:
+        assert run().model == CHEAP
+    seen = [(r.get("budget_event"), r["model"]) for r in monitor.records]
+    assert seen == [("refused", BEST), (None, CHEAP)] + ([("refused", BEST)] if escalate else [])
+
+
+def test_a_delegated_calls_budget_records_carry_its_tags(router):
+    # review iter-446 should-fix 3e: the conftest router, as tests/test_budget.py's delegated test
+    ledger = BudgetLedger([Budget("run", 1e-9, "warn", tags={"run": "r1"})])
+    monitor = Monitor()
+    ex = make(router, FakeProvider({CHEAP: ok, BEST: ok}), ledger, monitor)
+    decision = router.decide_delegation("judge", BEST, "cost_effective", context_tokens=5000,
+                                        brief_tokens=100, result_tokens=20)
+    assert decision.mode == "delegate"
+    ex.call_delegated(decision, [{"role": "user", "content": "brief"}], tags={"run": "r1"})
+    warns = budget_records(monitor.records)
+    assert [rec["share"] for rec in warns] == [0.5, 0.8, 1.0]
+    assert all(rec["tags"] == {"run": "r1", "delegated": "true", "parent": BEST} for rec in warns)
+
+
+def test_now_is_called_as_before_without_a_monitor_and_once_per_budget_record_with_one():
+    # review iter-446 should-fix 2
+    def counting():
+        stamps = []
+
+        def now():
+            stamps.append(len(stamps))
+            return f"2026-11-22T00:00:{len(stamps) - 1:02d}Z"
+        return stamps, now
+
+    def run(monitor, ledger):
+        stamps, now = counting()
+        ex = make(judge_router(), FakeProvider({CHEAP: ok}), ledger, monitor, now=now)
+        for _ in range(3):
+            try:
+                ex.call("judge", MESSAGES, prompt_tokens=1000)
+            except BudgetExceeded:
+                pass
+        return stamps
+
+    def budgets():
+        return BudgetLedger([Budget("w", 2 * cost(CHEAP), "warn"),
+                             Budget("r", 2 * cost(CHEAP), "refuse")])
+
+    assert run(None, budgets()) == [] == run(None, None)
+    monitor = Monitor()
+    stamps = run(monitor, budgets())
+    assert len(stamps) == len(monitor.records) == 6               # 2 attempts, 3 warns, 1 refusal
+    assert [r.get("budget_event", "attempt") for r in monitor.records] == [
+        "warn", "attempt", "warn", "warn", "attempt", "refused"]
+    assert [r["ts"] for r in monitor.records] == [f"2026-11-22T00:00:{i:02d}Z" for i in range(6)]
 
 
 # --- report and budget_report --------------------------------------------------------------
@@ -188,7 +314,7 @@ def _log():
     monitor = Monitor()
     ids = iter(f"c{i}" for i in range(10))
     ticks = iter(float(i) for i in range(1000))
-    ex = Executor(router(), FakeProvider({CHEAP: ok}), monitor=monitor, clock=lambda: next(ticks),
+    ex = Executor(judge_router(), FakeProvider({CHEAP: ok}), monitor=monitor, clock=lambda: next(ticks),
                   now=lambda: "2026-11-22T00:00:00Z", id_factory=lambda: next(ids), ledger=ledger)
     for _ in range(4):
         try:

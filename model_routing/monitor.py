@@ -290,9 +290,8 @@ def budget_report(records: Iterable[dict], budgets: Sequence[Budget]) -> List[di
                 if rec.get("budget") != budget.name or (
                         label is not None if budget.window == "total" else not isinstance(label, str)):
                     continue
-                tally = counts.setdefault(label, {"warn": 0, "refused": 0})
-                if rec["budget_event"] in tally:
-                    tally[rec["budget_event"]] += 1
+                if rec["budget_event"] in ("warn", "refused"):  # review iter-446 nit 5
+                    counts.setdefault(label, {"warn": 0, "refused": 0})[rec["budget_event"]] += 1
                 continue
             if not budget.applies(rec.get("task"), rec.get("tags") or {}):
                 continue

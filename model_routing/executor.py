@@ -440,7 +440,8 @@ class Executor:
                 events = self.ledger.settle_unpriced(hold)
             else:
                 events = self.ledger.settle(hold, cost)
-            for event in events:  # DESIGN 7 v1.598: each crossing right after its settle
+            for event in events:  # DESIGN 7 v1.598: each crossing right after its settle; a
+                # monitor error here propagates in place of the call's own (review iter-446 nit 4)
                 note(_warned(event))
 
     def _provider_call(self, model_id: str, messages: List[dict], task, registry):

@@ -12,12 +12,13 @@ from model_routing import (
 
 ROOT = Path(__file__).resolve().parent.parent
 MESSAGES = [{"role": "user", "content": "judge"}]
+CHEAP, BEST = "fiction/cheap", "fiction/best"
+CAPPED, BEST_CAPPED = "fiction/cheap@capped", "fiction/best@capped"
+
 
 def attempts(monitor):
     """The monitor's attempt records: from v1.598 a ledger also writes budget records (8.1)."""
     return [rec for rec in monitor.records if "budget_event" not in rec]
-CHEAP, BEST = "fiction/cheap", "fiction/best"
-CAPPED, BEST_CAPPED = "fiction/cheap@capped", "fiction/best@capped"
 
 
 def model(model_id=CHEAP, price_in=1.0, price_out=2.0, options=None, **kwargs):
