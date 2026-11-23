@@ -31,7 +31,7 @@ from .evaluate import Outcome, evaluate, load_outcomes, outcomes_from_rows, spli
 from .delegation import DelegationDecision  # noqa: E402
 from .delegation_eval import evaluate_delegation  # noqa: E402
 from .procedures import Procedure, ProcedureLimitError, ProcedureResult, ProcedureRun  # noqa: E402
-from .budget import Budget, BudgetExceeded, BudgetLedger, load_budgets  # noqa: E402
+from .budget import Budget, BudgetExceeded, BudgetLedger, billing_bound, load_budgets  # noqa: E402
 
 __version__ = "0.1.0"
 
@@ -47,7 +47,7 @@ __all__ = [
     "main", "Outcome", "outcomes_from_rows", "load_outcomes", "split_items", "evaluate",
     "DelegationDecision", "evaluate_delegation",
     "Procedure", "ProcedureResult", "ProcedureRun", "ProcedureLimitError",
-    "Budget", "BudgetLedger", "BudgetExceeded", "load_budgets",
+    "Budget", "BudgetLedger", "BudgetExceeded", "load_budgets", "billing_bound",
 ]
 
 

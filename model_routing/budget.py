@@ -15,7 +15,8 @@ from typing import Dict, List, Optional, Sequence, Tuple, Union
 BUDGET_MODES = ("warn", "refuse", "downgrade")
 BUDGET_WINDOWS = ("total", "day", "month")
 WARN_SHARES = (0.5, 0.8, 1.0)
-_FIELDS = ("name", "limit_usd", "mode", "window", "task", "tags")
+_FIELDS = ("name", "limit_usd", "mode", "window", "task", "tags", "strict")
+OUTPUT_MAXIMUM_KEYS = ("max_tokens", "max_completion_tokens", "max_output_tokens")
 _REQUIRED = ("name", "limit_usd", "mode")
 
 
@@ -56,7 +57,8 @@ class Budget:
     the spend and the holds of calls in flight over the limit; ``downgrade`` raises it too, and
     the executor moves the call to the next route entry that clears the bar (7 v1.596).
     ``window`` is ``total``, the ledger's whole life, ``day`` or ``month``, a UTC calendar day
-    or month (4.6 v1.596).
+    or month (4.6 v1.596). A ``strict`` budget, ``refuse`` or ``downgrade``, checks and holds each
+    call's :func:`billing_bound` and refuses a call with none (4.6 v1.597).
     """
 
     name: str
@@ -65,6 +67,7 @@ class Budget:
     window: str = "total"
     task: Optional[str] = None
     tags: Mapping[str, str] = field(default_factory=dict)
+    strict: bool = False
 
     def __post_init__(self):
         if not isinstance(self.name, str) or not self.name:
@@ -89,6 +92,11 @@ class Budget:
             raise ValueError(f"budget {self.name!r} tags must map str to str, "
                              f"got {self.tags!r}")
         object.__setattr__(self, "tags", dict(self.tags))
+        if not isinstance(self.strict, bool):
+            raise ValueError(f"budget {self.name!r} strict must be a bool, got {self.strict!r}")
+        if self.strict and self.mode == "warn":
+            raise ValueError(f"budget {self.name!r} is strict, so its mode must be refuse or "
+                             "downgrade: a warn budget refuses nothing")
 
     def applies(self, task: str, tags: Mapping[str, str]) -> bool:
         """True when a call of ``task`` with ``tags`` is in this budget's scope."""
@@ -102,14 +110,21 @@ class BudgetExceeded(Exception):
 
     ``attempts`` and ``decision`` are the call's attempts before the refusal and its route,
     set by the executor (DESIGN 7 v1.595); ``()`` and None as ``reserve`` raises it.
+    ``unbounded`` is True when a strict budget refused a call with no billing bound (4.6 v1.597).
     """
 
     def __init__(self, budget: Budget, spent_usd: float, held_usd: float,
-                 estimate_usd: float, model: Optional[str]):
-        super().__init__(
-            f"budget {budget.name!r} ({budget.limit_usd!r} USD) refuses a call of {model!r}: "
-            f"{spent_usd!r} spent, {held_usd!r} held by calls in flight, "
-            f"{estimate_usd!r} estimated for this one")
+                 estimate_usd: float, model: Optional[str], unbounded: bool = False):
+        if unbounded:
+            message = (f"budget {budget.name!r} ({budget.limit_usd!r} USD) is strict and refuses "
+                       f"a call of {model!r}, whose billing has no bound: {spent_usd!r} spent, "
+                       f"{held_usd!r} held by calls in flight")
+        else:
+            message = (f"budget {budget.name!r} ({budget.limit_usd!r} USD) refuses a call of "
+                       f"{model!r}: {spent_usd!r} spent, {held_usd!r} held by calls in flight, "
+                       f"{estimate_usd!r} estimated for this one")
+        super().__init__(message)
+        self.unbounded = unbounded
         self.budget = budget
         self.spent_usd = spent_usd
         self.held_usd = held_usd
@@ -149,7 +164,7 @@ class BudgetLedger:
         self._by_name = {budget.name: budget for budget in self._budgets}
         self._lock = threading.Lock()
         self._spent: Dict[_Slot, float] = {}
-        self._holds: Dict[int, Tuple[Tuple[_Slot, ...], float]] = {}
+        self._holds: Dict[int, Tuple[Tuple[_Slot, float], ...]] = {}  # each slot and its amount
         self._keys = itertools.count()
         self._fired: Dict[_Slot, set] = {}
         self._events: List[dict] = []
@@ -199,15 +214,19 @@ class BudgetLedger:
             return self._held(slot)
 
     def _held(self, slot: _Slot) -> float:
-        return math.fsum(amount for slots, amount in self._holds.values() if slot in slots)
+        return math.fsum(amount for pairs in self._holds.values()
+                         for held, amount in pairs if held == slot)
 
     def reserve(self, task: str, tags: Mapping[str, str], estimate_usd: float,
-                model: Optional[str] = None, at: Optional[str] = None) -> _Hold:
+                model: Optional[str] = None, at: Optional[str] = None,
+                bound_usd: Optional[float] = None) -> _Hold:
         """Hold ``estimate_usd`` on every budget that applies, or raise :class:`BudgetExceeded`.
 
         ``refuse`` budgets are checked first, then ``downgrade`` ones, each in the ledger's order.
+        A strict budget checks and holds ``bound_usd`` instead, refusing when it is None (v1.597).
         """
         estimate = _amount(estimate_usd, "estimate_usd")
+        bound = None if bound_usd is None else _amount(bound_usd, "bound_usd")
         with self._lock:
             scope = [budget for budget in self._budgets if budget.applies(task, tags)]
             slots = self._slots(scope, at)
@@ -216,20 +235,34 @@ class BudgetLedger:
                     if budget.mode != mode:
                         continue
                     spent, held = self._spent.get(slot, 0.0), self._held(slot)
-                    if spent + held + estimate > budget.limit_usd:
-                        raise BudgetExceeded(budget, spent, held, estimate, model)
+                    if budget.strict and bound is None:
+                        raise BudgetExceeded(budget, spent, held, estimate, model, unbounded=True)
+                    amount = bound if budget.strict else estimate
+                    if spent + held + amount > budget.limit_usd:
+                        raise BudgetExceeded(budget, spent, held, amount, model)
             key = next(self._keys)
-            self._holds[key] = (slots, estimate)
+            self._holds[key] = tuple((slot, bound if budget.strict else estimate)
+                                     for budget, slot in zip(scope, slots))
             return _Hold(key)
 
     def settle(self, hold: _Hold, cost_usd: float) -> None:
         """Release ``hold`` and add ``cost_usd`` to each budget it was held on, in its window."""
         cost = _amount(cost_usd, "cost_usd")
         with self._lock:
-            entry = self._holds.pop(hold.key, None) if isinstance(hold, _Hold) else None
-            if entry is None:
-                raise ValueError("this hold is settled already or was never reserved here")
-            self._add(entry[0], cost)
+            self._add(tuple(slot for slot, _ in self._release(hold)), cost)
+
+    def settle_unpriced(self, hold: _Hold) -> None:
+        """Release ``hold`` of a call whose cost is not known: a strict budget adds the bound it
+        held and any other 0.0, in the hold's window (4.6 v1.597)."""
+        with self._lock:
+            for slot, amount in self._release(hold):
+                self._add((slot,), amount if self._by_name[slot[0]].strict else 0.0)
+
+    def _release(self, hold: _Hold) -> Tuple[Tuple[_Slot, float], ...]:
+        entry = self._holds.pop(hold.key, None) if isinstance(hold, _Hold) else None
+        if entry is None:
+            raise ValueError("this hold is settled already or was never reserved here")
+        return entry
 
     def charge(self, task: str, tags: Mapping[str, str], cost_usd: float,
                at: Optional[str] = None) -> None:
@@ -258,8 +291,29 @@ class BudgetLedger:
                     self._events.append(event)
 
 
+def billing_bound(model) -> Optional[float]:
+    """The most one call of ``model`` can cost by ``Model.cost``, or None with no output maximum.
+
+    The largest of the ``max_tokens``, ``max_completion_tokens`` and ``max_output_tokens`` its
+    ``provider_options`` hold, each an int >= 1, caps the output, and the context window less it
+    the input; the bound is the largest cost at that output over the input and each price tier
+    threshold under it, the input all uncached, all cached reads or all cache writes (4.6 v1.597).
+    """
+    options = model.provider_options
+    caps = [options[key] for key in OUTPUT_MAXIMUM_KEYS if key in options]
+    if not caps or not all(type(cap) is int and cap >= 1 for cap in caps):
+        return None
+    out = max(caps)
+    top = max(model.context_window - out, 0)
+    inputs = sorted({top, *(tier.above_input_tokens for tier in model.price_tiers
+                            if tier.above_input_tokens < top)})
+    return max(cost for size in inputs for cost in (
+        model.cost(size, out), model.cost(size, out, cached_input_tokens=size),
+        model.cost(size, out, cache_write_tokens=size)))
+
+
 def load_budgets(path: Union[str, Path]) -> Tuple[Budget, ...]:
-    """Read ``{"budgets": [{field: value, ...}, ...]}`` into budgets (DESIGN 4.6 v1.595)."""
+    """Read ``{"budgets": [{field: value, ...}, ...]}`` into budgets (DESIGN 4.6 v1.595 and v1.597)."""
     data = json.loads(Path(path).read_text(encoding="utf-8"))
     if not isinstance(data, dict) or not isinstance(data.get("budgets"), list):
         raise ValueError(f"{path}: expected an object with a 'budgets' list")

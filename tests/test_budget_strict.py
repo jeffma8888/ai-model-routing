@@ -192,10 +192,23 @@ def test_a_bad_bound_raises(value):
 def test_an_unknown_cost_settles_at_the_strict_bound_and_zero_elsewhere():
     ledger = BudgetLedger([Budget("s", 1.0, "refuse", strict=True), Budget("w", 1.0, "warn"),
                            Budget("r", 1.0, "refuse")])
-    ledger.settle(ledger.reserve("t", {}, 0.001, CAPPED, bound_usd=0.6), None)
+    hold = ledger.reserve("t", {}, 0.001, CAPPED, bound_usd=0.6)
+    with pytest.raises(ValueError):
+        ledger.settle(hold, None)
+    ledger.settle_unpriced(hold)
     assert ledger.spent_usd("s") == 0.6
     assert ledger.spent_usd("w") == 0.0 and ledger.spent_usd("r") == 0.0
-    assert ledger.events == ()
+    assert ledger.events == () and ledger.held_usd("s") == 0.0
+    with pytest.raises(ValueError):
+        ledger.settle_unpriced(hold)
+
+
+def test_an_unpriced_strict_hold_settles_in_its_window():
+    ledger = BudgetLedger([Budget("s", 1.0, "refuse", window="day", strict=True)])
+    hold = ledger.reserve("t", {}, 0.001, CAPPED, at="2026-11-23T23:59:59Z", bound_usd=0.5)
+    ledger.settle_unpriced(hold)
+    assert ledger.spent_usd("s", at="2026-11-23T12:00:00Z") == 0.5
+    assert ledger.spent_usd("s", at="2026-11-24T00:00:01Z") == 0.0
 
 
 # --- the executor ------------------------------------------------------------------------
@@ -311,6 +324,10 @@ class _Spy(BudgetLedger):
     def settle(self, hold, cost_usd):
         self.calls.append(("settle", cost_usd))
         return super().settle(hold, cost_usd)
+
+    def settle_unpriced(self, hold):
+        self.calls.append(("settle_unpriced",))
+        return super().settle_unpriced(hold)
 
 
 def test_without_a_strict_budget_the_executor_calls_the_ledger_as_in_v1_596():

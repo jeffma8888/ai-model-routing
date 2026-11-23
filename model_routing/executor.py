@@ -12,7 +12,7 @@ from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from typing import Callable, Dict, Iterable, List, Optional, Sequence, Tuple
 
-from .budget import BudgetExceeded, BudgetLedger
+from .budget import BudgetExceeded, BudgetLedger, billing_bound
 from .delegation import DELEGATE
 from .procedures import Procedure
 from .providers import Provider, ProviderError
@@ -121,6 +121,8 @@ class Executor:
         self.now = now if now is not None else _utc_now
         self.id_factory = id_factory if id_factory is not None else _new_id
         self.ledger = ledger
+        # DESIGN 7 v1.597: a strict budget reads each call's billing bound
+        self._strict = ledger is not None and any(budget.strict for budget in ledger.budgets)
 
     def call(self, task_name: str, messages: List[dict], flavor: str = "cost_effective",
              generator_model: Optional[str] = None, exclude_models: Iterable[str] = (),
@@ -248,6 +250,16 @@ class Executor:
                     raise moving  # a move never lands under the bar
                 moving = None
             proc = (procedures or {}).get(entry)
+            if proc is not None and scope is not None and self._strict:
+                try:  # DESIGN 7 v1.597: a strict budget cannot bound a procedure's tool cost
+                    self.ledger.settle(self.ledger.reserve(scope[0], scope[1], 0.0, proc.id,
+                                                           **self._at()), 0.0)
+                except BudgetExceeded as exc:
+                    if exc.budget.mode != "downgrade":
+                        raise
+                    moving = exc
+                    moves.append({"entry": entry, "model": exc.model, "budget": exc.budget.name})
+                    continue
             if proc is not None:  # a downgrade refusal inside the run ends the call (7 v1.596)
                 text = self._procedure(proc, messages, task, registry, validate, log, last,
                                        scope)
@@ -382,19 +394,26 @@ class Executor:
         name, tags, prompt, out, refused = scope
         size_in = estimate_prompt_tokens(messages) if prompt is None else prompt
         estimate = float(registry.get(model_id).cost(size_in, out)) if model_id in registry else 0.0
+        extra = self._at()
+        if self._strict:  # DESIGN 7 v1.597: None for a model outside the registry
+            extra["bound_usd"] = (billing_bound(registry.get(model_id))
+                                  if model_id in registry else None)
         try:
-            hold = self.ledger.reserve(name, tags, estimate, model_id, **self._at())
+            hold = self.ledger.reserve(name, tags, estimate, model_id, **extra)
         except BudgetExceeded as exc:
             if refused is not None and exc.budget.mode == "downgrade":
                 refused.append(exc)  # a refusal of this call's own reservation may move it
             raise
-        cost = 0.0
+        cost = None if self._strict else 0.0  # 7 v1.597: a raised call's cost is not known
         try:
             result = self._provider_call(model_id, messages, task, registry)
             cost = result[0].cost_usd
             return result
         finally:
-            self.ledger.settle(hold, cost)
+            if cost is None:  # DESIGN 7 v1.597: a strict budget adds the bound it held
+                self.ledger.settle_unpriced(hold)
+            else:
+                self.ledger.settle(hold, cost)
 
     def _provider_call(self, model_id: str, messages: List[dict], task, registry):
         options = registry.get(model_id).provider_options if model_id in registry else {}
