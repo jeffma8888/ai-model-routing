@@ -94,6 +94,8 @@ def _build_parser() -> argparse.ArgumentParser:
     rep.add_argument("--json", action="store_true")
     rep.add_argument("--audits", default=None, metavar="PATH",
                      help="a JSONL file of {call_id, correct} audits: adds cost per success")
+    rep.add_argument("--cache", action="store_true",
+                     help="adds each group's cache hit rate, from the records that carry a cached count")
 
     demo = sub.add_parser("demo", help="run the offline demo with fictional models")
     demo.add_argument("--out", default="model-routing-demo")
@@ -274,7 +276,7 @@ def _cmd_calibrate(args) -> int:
 
 def _cmd_report(args) -> int:
     audits = None if args.audits is None else load_audits(args.audits)
-    rows = report(load_records(args.log), by=args.by, audits=audits)
+    rows = report(load_records(args.log), by=args.by, audits=audits, cache=args.cache)
     if args.json:
         print(json.dumps(rows, indent=2))
         return EXIT_OK
@@ -294,12 +296,17 @@ def _cmd_report(args) -> int:
              + [f"{r['cost_usd']:.6f}", f"{r['routing_cost_usd']:.6f}",
                 fmt(r["p50_latency_ms"]), fmt(r["p95_latency_ms"])]
              + ([r["audited_calls"], r["correct_calls"], na(r["cost_per_success_usd"], 6),
-                 na(r["successes_per_100k_tokens"], 3)] if audited else []) for r in rows]
+                 na(r["successes_per_100k_tokens"], 3)] if audited else [])
+             # DESIGN 10 v1.590: three columns after those only with --cache
+             + ([r["cached_input_tokens"], r["cache_counted_input_tokens"],
+                 na(r["cache_hit_rate"], 3)] if args.cache else []) for r in rows]
     print(_table([args.by, "calls", "attempts", "errors", "invalid", "fallback_calls",
                   "fallback_rate"] + (["below_bar_calls"] if under else [])
                  + ["cost_usd", "routing_cost_usd", "p50_ms", "p95_ms"]
                  + (["audited_calls", "correct_calls", "cost_per_success_usd",
-                     "successes_per_100k_tokens"] if audited else []), table))
+                     "successes_per_100k_tokens"] if audited else [])
+                 + (["cached_input_tokens", "cache_counted_input_tokens", "cache_hit_rate"]
+                    if args.cache else []), table))
     return EXIT_OK
 
 

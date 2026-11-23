@@ -122,7 +122,7 @@ def _nearest_rank(sorted_values: List[float], q: float) -> Optional[float]:
 
 
 def report(records: Iterable[dict], by: str = "model",
-           audits: Optional[Mapping[str, bool]] = None) -> List[dict]:
+           audits: Optional[Mapping[str, bool]] = None, cache: bool = False) -> List[dict]:
     """Aggregate attempt records by ``by``.
 
     Attempt-level sums use each attempt; call-level counts (``calls``,
@@ -142,6 +142,13 @@ def report(records: Iterable[dict], by: str = "model",
     ``successes_per_100k_tokens`` (DESIGN 8.3, v1.569): every attempt of the group's calls over
     the calls whose final attempt is ``ok`` and audited ``True``, ``None`` until every call of the
     group is audited.
+
+    With ``cache=True`` each row also gains, last, ``cached_input_tokens``,
+    ``cache_counted_input_tokens`` and ``cache_hit_rate`` (DESIGN 8.3, v1.590): the group's
+    attempts that carry a ``cached_input_tokens`` count, their cached and their input tokens, and
+    the first over the second, ``None`` when no attempt of the group carries the count or their
+    input sums to 0. An attempt without the count is unknown, never a miss, and
+    ``cache_write_tokens`` enters no part of the rate.
     """
     group_of = _grouper(by)
     records = list(records)
@@ -197,6 +204,8 @@ def report(records: Iterable[dict], by: str = "model",
         rows.append(row)
     if audits is not None:
         _add_audit_keys(records, groups, group_of, audits)
+    if cache:
+        _add_cache_keys(records, groups, group_of)
     rows.sort(key=lambda r: (-r["cost_usd"], r["group"]))
     return rows
 
@@ -233,3 +242,24 @@ def _add_audit_keys(records: List[dict], groups: Dict[str, dict], group_of,
                                        if complete and correct else None)
         row["successes_per_100k_tokens"] = (round(correct * 100000 / tokens, 6)
                                             if complete and counted and tokens else None)
+
+
+def _add_cache_keys(records: List[dict], groups: Dict[str, dict], group_of) -> None:
+    """Add the three v1.590 keys to each row of ``groups`` (DESIGN 8.3)."""
+    cached = {group: 0 for group in groups}
+    counted = {group: 0 for group in groups}
+    for rec in records:
+        if "cached_input_tokens" not in rec:
+            continue                      # unknown, so neither a hit nor a miss
+        value, size = rec["cached_input_tokens"], int(rec.get("input_tokens", 0))
+        if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= size:
+            raise ValueError(f"call_id {rec.get('call_id')!r}: cached_input_tokens must be an "
+                             f"integer from 0 to its input_tokens ({size}), got {value!r}")
+        group = group_of(rec)
+        cached[group] += value
+        counted[group] += size
+    for group, row in groups.items():
+        row["cached_input_tokens"] = cached[group]
+        row["cache_counted_input_tokens"] = counted[group]
+        row["cache_hit_rate"] = (round(cached[group] / counted[group], 6)
+                                 if counted[group] else None)

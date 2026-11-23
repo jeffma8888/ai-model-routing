@@ -214,10 +214,12 @@ def test_no_packaged_row_or_evidence_file_names_a_cache_price():
 def test_only_the_registry_names_the_prices_and_the_counts():
     # v1.588 (row CACHE1b): the stats hold the measured counts and the router prices a route at
     # them; v1.589 (row CACHE1c): the provider's completion and the executor's records carry them,
-    # so no report, delegation decision, evidence file or README transcript changes
+    # so no delegation decision, evidence file or README transcript changes; v1.590 (row CACHE1f):
+    # the report and the CLI's `report --cache` read the cached count, behind an opt-in keyword
     naming = {path.name for path in PACKAGE.glob("*.py")
               if any(key in path.read_text(encoding="utf-8") for key in NAMES)}
-    assert naming == {"registry.py", "stats.py", "router.py", "providers.py", "executor.py"}
+    assert naming == {"registry.py", "stats.py", "router.py", "providers.py", "executor.py",
+                      "monitor.py", "cli.py"}
 
 
 def test_the_production_note_states_registry_cache_prices_as_shipped():

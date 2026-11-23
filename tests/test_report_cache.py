@@ -22,7 +22,6 @@ from model_routing import (Executor, Model, Monitor, OpenAICompatibleProvider, R
 from model_routing.cli import main
 
 ROOT = Path(__file__).resolve().parents[1]
-CONTRACT = pytest.mark.xfail(strict=True, reason="v1.590 (row CACHE1f) not implemented yet")
 A, B = "fiction/a", "fiction/b"
 V1_589_KEYS = ["group", "attempts", "ok", "errors", "invalid", "input_tokens", "output_tokens",
                "cost_usd", "routing_cost_usd", "calls", "failed_calls", "fallback_calls",
@@ -74,7 +73,6 @@ def _adapter_records(usages):
 
 # ---- 8.3 report(records, by, audits, cache) ---------------------------------------------------
 
-@CONTRACT
 def test_an_adapter_group_at_9000_of_10000_cached_gives_0_9():
     records = _adapter_records([
         {"prompt_tokens": 6_000, "completion_tokens": 50,
@@ -88,20 +86,17 @@ def test_an_adapter_group_at_9000_of_10000_cached_gives_0_9():
     assert {k: row[k] for k in V1_589_KEYS} == report(records)[0]
 
 
-@CONTRACT
 def test_cache_false_is_the_default():
     records = [_rec("c1", A, 0, True, "ok", 0.1, 1_000, 10, cached_input_tokens=900)]
     assert report(records, cache=False) == report(records)
     assert [list(row) for row in report(records, cache=False)] == [V1_589_KEYS]
 
 
-@CONTRACT
 def test_the_rate_is_rounded_to_6_decimals():
     records = [_rec("c1", A, 0, True, "ok", 0.1, 3_000, 10, cached_input_tokens=1_000)]
     assert _by_group(report(records, cache=True)) == {A: (1_000, 3_000, 0.333333)}
 
 
-@CONTRACT
 def test_a_mixed_group_counts_only_the_records_that_carry_the_count():
     records = [_rec("c1", A, 0, True, "ok", 0.1, 1_000, 10, cached_input_tokens=900),
                _rec("c2", A, 0, True, "ok", 0.1, 9_000, 10)]
@@ -110,20 +105,17 @@ def test_a_mixed_group_counts_only_the_records_that_carry_the_count():
     assert row["input_tokens"] == 10_000      # the attempt sum still counts every input token
 
 
-@CONTRACT
 def test_a_group_where_no_record_says_gives_none_never_zero():
     records = [_rec("c1", A, 0, True, "ok", 0.1, 1_000, 10),
                _rec("c2", B, 0, True, "ok", 0.3, 2_000, 20, cached_input_tokens=0)]
     assert _by_group(report(records, cache=True)) == {A: (0, 0, None), B: (0, 2_000, 0.0)}
 
 
-@CONTRACT
 def test_a_zero_input_sum_gives_none():
     records = [_rec("c1", A, 0, True, "ok", 0.0, 0, 0, cached_input_tokens=0)]
     assert _by_group(report(records, cache=True)) == {A: (0, 0, None)}
 
 
-@CONTRACT
 def test_the_write_count_enters_no_part_of_the_rate():
     both = [_rec("c1", A, 0, True, "ok", 0.1, 1_000, 10, cached_input_tokens=900,
                  cache_write_tokens=100)]
@@ -133,7 +125,6 @@ def test_the_write_count_enters_no_part_of_the_rate():
     assert _by_group(report(writes, cache=True)) == {A: (0, 0, None)}
 
 
-@CONTRACT
 def test_the_sums_are_attempt_level_like_input_tokens():
     # c1 is invalid on A (a billed call, so its record carries the count), then ends ok on B
     records = [_rec("c1", A, 0, False, "invalid", 0.1, 1_000, 10, cached_input_tokens=500),
@@ -144,7 +135,6 @@ def test_the_sums_are_attempt_level_like_input_tokens():
     assert _tail(row) == (500, 2_000, 0.25)
 
 
-@CONTRACT
 def test_with_audits_the_three_keys_come_last():
     records = [_rec("c1", A, 0, True, "ok", 0.1, 1_000, 10, cached_input_tokens=900)]
     (row,) = report(records, audits={"c1": True}, cache=True)
@@ -152,7 +142,6 @@ def test_with_audits_the_three_keys_come_last():
     assert (_tail(row), row["cost_per_success_usd"]) == ((900, 1_000, 0.9), 0.1)
 
 
-@CONTRACT
 @pytest.mark.parametrize("value", [-1, True, False, None, 1.5, "9", 1_001])
 def test_a_bad_carried_count_raises_naming_the_call_id(value):
     records = [_rec("c1", A, 0, True, "ok", 0.1, 1_000, 10, cached_input_tokens=900),
@@ -161,7 +150,6 @@ def test_a_bad_carried_count_raises_naming_the_call_id(value):
         report(records, cache=True)
 
 
-@CONTRACT
 def test_a_carried_count_beside_a_missing_input_count_is_above_it():
     record = _rec("c9", A, 0, True, "ok", 0.1, 1_000, 10, cached_input_tokens=5)
     record.pop("input_tokens")
@@ -217,7 +205,6 @@ def test_the_cli_without_cache_prints_v1_589_bytes(tmp_path, extra):
     assert counted == plain and counted[0] == 0
 
 
-@CONTRACT
 def test_the_cli_table_gains_three_columns_after_p95_with_n_a(tmp_path):
     code, out, err = _run(["report", "--log", str(_log(tmp_path, _cli_records())), "--cache"])
     assert (code, err) == (0, "")
@@ -234,7 +221,6 @@ def test_the_cli_table_gains_three_columns_after_p95_with_n_a(tmp_path):
         "0.100000          10.0    10.0    900                  1000                        0.900\n")
 
 
-@CONTRACT
 def test_the_cli_json_has_the_three_keys_with_null(tmp_path):
     code, out, err = _run(["report", "--log", str(_log(tmp_path, _cli_records())), "--cache", "--json"])
     assert (code, err) == (0, "")
@@ -243,7 +229,6 @@ def test_the_cli_json_has_the_three_keys_with_null(tmp_path):
     assert _by_group(rows) == {B: (0, 0, None), A: (900, 1_000, 0.9)}
 
 
-@CONTRACT
 def test_the_cli_with_audits_and_cache_puts_the_cache_columns_last(tmp_path):
     audits = tmp_path / "audits.jsonl"
     audits.write_text('{"call_id": "c1", "correct": true}\n{"call_id": "c2", "correct": false}\n',
@@ -255,7 +240,6 @@ def test_the_cli_with_audits_and_cache_puts_the_cache_columns_last(tmp_path):
     assert header[-7:] == AUDIT_KEYS + CACHE_KEYS
 
 
-@CONTRACT
 def test_a_refused_count_exits_2_with_one_error_line(tmp_path):
     records = _cli_records() + [_rec("c9", A, 0, True, "ok", 0.1, 10, 1, cached_input_tokens=11)]
     code, out, err = _run(["report", "--log", str(_log(tmp_path, records)), "--cache"])
