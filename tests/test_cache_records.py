@@ -342,8 +342,7 @@ def test_the_production_note_says_the_records_carry_the_counts():
                  "The change: cached and written tokens in the attempt records"):
         assert gone not in note, gone
     for kept in ("The attempt records carry the cached and written tokens a provider returns, each "
-                 "attempt priced at them. A cascade's legs, a procedure's model and the delegation "
-                 "decision pass none to model choice yet",
+                 "attempt priced at them. A cascade is priced at each leg's own measured counts",  # v1.591
                  "a record prices the cache writes its provider returns, as a route prices its "
                  "measured ones",
                  "the monitor records each attempt's input and output tokens, the cached and "

@@ -239,10 +239,12 @@ def test_the_production_note_states_registry_cache_prices_as_shipped():
     assert line[0].startswith("- In this library: a registry row may state `price_cached_in` and "
                               "`price_cache_write`, and `Model.cost` prices a call's cached reads and cache writes")
     assert "Model choice now passes those counts" in line[0]
-    # v1.589 (row CACHE1c): the attempt records carry the counts a provider returns
+    # v1.589 (row CACHE1c): the attempt records carry the counts a provider returns; v1.591
+    # (row CACHE1e): a cascade's legs and a procedure's model pass theirs
     assert ("The attempt records carry the cached and written tokens a provider returns, each attempt "
-            "priced at them. A cascade's legs, a procedure's model and the delegation decision pass "
-            "none to model choice yet") in line[0]
+            "priced at them. A cascade is priced at each leg's own measured counts, the strong "
+            "model's re-read never at the cheap model's cached share, and a procedure not yet "
+            "measured at its model's; the delegation decision passes none to model choice yet") in line[0]
     rate = note.split("\n### The cache hit rate is a cost number\n", 1)[1]
     rate_line = [x for x in rate.split("\n### ", 1)[0].splitlines() if x.startswith("- In this library: ")]
     assert len(rate_line) == 1

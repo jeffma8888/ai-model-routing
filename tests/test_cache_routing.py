@@ -7,8 +7,9 @@ but never hits the cache can lose to a pricier one whose reads are 90% cached, a
 premium can make the caching route the dearer one on a prompt read once. A candidate with
 measured counts carries a four-part `cost_breakdown` and names any cache price that was unknown
 and so read as the call's input price. A cascade's legs, a procedure's model, the delegation
-costs and the attempt records pass no count yet, so every decision from a stats file without the
-new keys keeps its bytes. The contract tests were written under strict xfail and the implementing
+costs and the attempt records pass no count yet (v1.591, row CACHE1e: the first two do, its own
+tests in tests/test_cache_cascades.py), so every decision from a stats file without the new keys
+keeps its bytes. The contract tests were written under strict xfail and the implementing
 commit removed the marks; the unmarked guards pin what v1.588 keeps and passed before and after it.
 """
 
@@ -328,7 +329,7 @@ def test_a_variants_breakdown_is_per_item():
         (1000 * 3.0 / 4e6, 9000 * 0.3 / 4e6, 0.0, 500 * 15.0 / 4e6))
 
 
-def test_a_cascades_legs_are_not_priced_at_their_cache_counts():
+def test_a_cascades_legs_are_priced_at_their_own_cache_counts():  # v1.591 (row CACHE1e)
     cascade = Cascade(CHEAP, PRICEY, "sig")
     task = Task("t", bar=0.7, min_samples=10, independent_of_generator=False,
                 expected_input_tokens=10_000, expected_output_tokens=500,
@@ -341,10 +342,13 @@ def test_a_cascades_legs_are_not_priced_at_their_cache_counts():
     decision = _router(stats, task=task).select("t", cascades=True)
     candidate = _by_id(decision)[cascade.id]
     cheap, pricey = REGISTRY.get(CHEAP), REGISTRY.get(PRICEY)
+    # v1.588 priced both legs uncached; from v1.591 each leg reads its own model's 9,000 cached,
+    # the cheap model's at its unknown cache price, so its input price, the strong model's at 0.3
     assert candidate.list_cost == pytest.approx(
-        cheap.cost(10_000, 500) + 0.2 * pricey.cost(10_500, 500), abs=1e-15)
-    assert candidate.cost_breakdown is None and candidate.cache_price_unknown == ()
-    assert "cost_breakdown" not in _dicts(decision)[cascade.id]
+        cheap.cost(10_000, 500) + 0.2 * pricey.cost(10_500, 500, cached_input_tokens=9_000),
+        abs=1e-15)
+    assert candidate.cache_price_unknown == ("price_cached_in",)
+    assert list(_dicts(decision)[cascade.id])[-2:] == ["cost_breakdown", "cache_price_unknown"]
 
 
 def test_without_a_cache_count_every_candidate_keeps_its_keys():

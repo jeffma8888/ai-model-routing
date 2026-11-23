@@ -65,20 +65,38 @@ def _sizes(stats: Stats, task: Task, model_id: str) -> Tuple[int, int]:
     return mean
 
 
-def _breakdown(model, size_in: int, size_out: int, cached: int,
-               write: int) -> Tuple[float, float, float, float]:
+def _breakdown(model, size_in: int, size_out: int, cached: int, write: int,
+               per_item: bool = True) -> Tuple[float, float, float, float]:
     """The USD parts of a candidate's list cost, per item (DESIGN 5.1 v1.588).
 
     Uncached input, cached reads, cache writes and output, each at the call's tier prices with
     an unknown cache price read as the input price, so the parts' ``math.fsum`` is the
-    ``list_cost`` that 5.3 orders by within a relative 1e-12.
+    ``list_cost`` that 5.3 orders by within a relative 1e-12. ``per_item`` False gives a whole
+    call's parts, as a cascade's legs and a procedure's model call are priced (5.2 v1.591).
     """
     price_in, price_out = _tier_prices(model, size_in)
     read = price_in if model.price_cached_in is None else model.price_cached_in
     written = price_in if model.price_cache_write is None else model.price_cache_write
-    per = 1_000_000 * model.items_per_call
+    per = 1_000_000 * (model.items_per_call if per_item else 1)
     return ((size_in - cached - write) * price_in / per, cached * read / per,
             write * written / per, size_out * price_out / per)
+
+
+def _fit(counts: Tuple[int, int], room: int) -> Tuple[int, int]:
+    """Cached reads and cache writes fitted inside a read of ``room`` tokens, the write first
+    (DESIGN 5.2 v1.588), as a hand-up read or a procedure's expected input takes them (v1.591)."""
+    cached, write = counts
+    write = min(write, room)
+    return min(cached, room - write), write
+
+
+def _call_cost(model, size_in: int, size_out: int, counts: Optional[Tuple[int, int]]) -> float:
+    """``model.cost`` given the counts only when there are any (DESIGN 5.2 v1.591), so a leg or a
+    model without them is priced as before, the evaluator's calibration-priced models (12.3) too."""
+    if counts is None:
+        return model.cost(size_in, size_out)
+    return model.cost(size_in, size_out, cached_input_tokens=counts[0],
+                      cache_write_tokens=counts[1])
 
 
 def _unknown_cache_prices(model, cached: int, write: int) -> Tuple[str, ...]:
@@ -99,7 +117,8 @@ class Candidate:
     (``"list"`` or ``"self_hosted"``) and None for a cascade or a procedure (5.1 v1.584).
     ``cost_breakdown`` holds the four USD parts of ``list_cost`` when the route has measured
     cache counts, and ``cache_price_unknown`` the cache prices those counts needed and the model
-    leaves unknown, so they were read at the call's input price (5.1 v1.588).
+    leaves unknown, so they were read at the call's input price (5.1 v1.588); a cascade's or a
+    procedure's when a leg's model or the procedure's priced model has them (5.2 v1.591).
     """
 
     model_id: str
@@ -448,7 +467,9 @@ class Router:
         own ``id``, then rules 1 to 5 on the cheap model and then the strong one, then rules 6
         to 8 on its own counts. Its cost is the cheap model's call at its sizes plus ``p``,
         the share of its trials that escalated, times the strong model reading the input and
-        the cheap model's output and writing that output again.
+        the cheap model's output and writing that output again. Each leg is priced at its own
+        model's measured cache counts, the strong model's fitted inside the hand-up read, never
+        the cheap model's share, with the breakdown and unknown prices of both (5.2 v1.591).
         """
         successes, trials = self.stats.get(task.name, cascade.id)
         quality_lb = wilson_lower_bound(successes, trials, task.confidence)
@@ -468,7 +489,22 @@ class Router:
             reason = self._measured_rule(task, successes, trials)
         size_in, size_out = _sizes(self.stats, task, cheap.id)
         p = self.stats.escalations(task.name, cascade.id) / trials if trials else 0.0
-        list_cost = cheap.cost(size_in, size_out) + p * strong.cost(size_in + size_out, size_out)
+        read = size_in + size_out
+        low = self._cache_counts(task, cheap)  # inside size_in, its own mean, already
+        high = self._cache_counts(task, strong)
+        high = None if high is None else _fit(high, read)
+        list_cost = (_call_cost(cheap, size_in, size_out, low)
+                     + p * _call_cost(strong, read, size_out, high))
+        breakdown, unknown = None, ()
+        if low is not None or high is not None:  # DESIGN 5.2 v1.591
+            low_counts = (0, 0) if low is None else low
+            high_counts = (0, 0) if high is None else high
+            parts = zip(_breakdown(cheap, size_in, size_out, *low_counts, per_item=False),
+                        _breakdown(strong, read, size_out, *high_counts, per_item=False))
+            breakdown = tuple(mine + p * theirs for mine, theirs in parts)
+            needed = (set(_unknown_cache_prices(cheap, *low_counts))
+                      | set(_unknown_cache_prices(strong, *high_counts)))
+            unknown = tuple(n for n in ("price_cached_in", "price_cache_write") if n in needed)
         return Candidate(
             model_id=cascade.id,
             family=strong.family,
@@ -480,6 +516,8 @@ class Router:
             eligible=reason in _ELIGIBLE_REASONS,
             passes=reason == PASSES,
             reason=reason,
+            cost_breakdown=breakdown,
+            cache_price_unknown=unknown,
         )
 
     def _procedure_candidate(self, task: Task, proc: Procedure, flavor: str, excluded: set,
@@ -491,7 +529,9 @@ class Router:
         ``procedure_unknown_model`` when the registry lacks its named model; else rule 1 on its
         own ``id``, then rules 1 to 5 on its named model, if any, then rules 6 to 8 on its own
         counts. Its cost is its mean cost per trial once measured, before that one call of its
-        model at the task's sizes, or 0.0 without a model.
+        model at the task's sizes, or 0.0 without a model. That one call is priced at its model's
+        measured cache counts fitted inside the task's input, undivided, with their breakdown and
+        unknown prices (5.2 v1.591).
         """
         successes, trials = self.stats.get(task.name, proc.id)
         quality_lb = wilson_lower_bound(successes, trials, task.confidence)
@@ -510,9 +550,17 @@ class Router:
         if reason is None:
             reason = self._measured_rule(task, successes, trials)
         list_cost = self.stats.mean_cost(task.name, proc.id)
-        if list_cost is None:
-            list_cost = 0.0 if model is None else model.cost(task.expected_input_tokens,
-                                                             task.expected_output_tokens)
+        breakdown, unknown = None, ()
+        if list_cost is None and model is None:
+            list_cost = 0.0
+        elif list_cost is None:
+            size_in, size_out = task.expected_input_tokens, task.expected_output_tokens
+            counts = self._cache_counts(task, model)
+            counts = None if counts is None else _fit(counts, size_in)  # DESIGN 5.2 v1.591
+            list_cost = _call_cost(model, size_in, size_out, counts)
+            if counts is not None:
+                breakdown = _breakdown(model, size_in, size_out, *counts, per_item=False)
+                unknown = _unknown_cache_prices(model, *counts)
         return Candidate(
             model_id=proc.id,
             family="" if model is None else model.family,
@@ -524,6 +572,8 @@ class Router:
             eligible=reason in _ELIGIBLE_REASONS,
             passes=reason == PASSES,
             reason=reason,
+            cost_breakdown=breakdown,
+            cache_price_unknown=unknown,
         )
 
     def _cache_counts(self, task: Task, model) -> Optional[Tuple[int, int]]:
@@ -533,7 +583,8 @@ class Router:
         inside the route's mean input with the write first, since a capped write would move its
         tokens to the input price and under-state a write premium. ``None`` when the stats hold
         no token totals, so no cache count either, or no cache count for the route: its price is
-        then v1.587's. The delegation routers of 13.3 return ``None``.
+        then v1.587's. The delegation routers of 13.3 return ``None``. A cascade's legs and a
+        procedure's model read them too (v1.591).
         """
         mean = self.stats.mean_tokens(task.name, model.id)
         if mean is None:

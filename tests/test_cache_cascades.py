@@ -22,7 +22,6 @@ from model_routing import (Cascade, Model, Procedure, ProcedureResult, Registry,
                            Task, Variant)
 
 ROOT = Path(__file__).resolve().parents[1]
-CONTRACT = pytest.mark.xfail(strict=True, reason="v1.591 (row CACHE1e) not implemented yet")
 CHEAP, STRONG = "fiction/cheap", "fiction/strong"
 # the 5.2 v1.591 example: the cheap model at 1.0 in, 0.1 cached, 1.25 written and 4.0 out, the
 # strong one at 3.0 in, 0.3 cached, 3.75 written and 15.0 out
@@ -88,7 +87,6 @@ def _cost(model_id, size_in, size_out, cached=0, write=0, registry=REGISTRY):
 
 # --- 5.2 v1.591: a cascade's legs ----------------------------------------------------------
 
-@CONTRACT
 def test_a_cascade_whose_cheap_leg_is_90_percent_cached_costs_less_than_unmeasured():
     plain = _by_id(_select(_stats()))[CID]
     cached = _by_id(_select(_stats(cheap={"cached_input_tokens": 900_000})))[CID]
@@ -99,7 +97,6 @@ def test_a_cascade_whose_cheap_leg_is_90_percent_cached_costs_less_than_unmeasur
     assert cached.routing_cost == cached.list_cost < plain.list_cost
 
 
-@CONTRACT
 def test_the_hand_up_read_is_never_priced_at_the_cheap_models_cached_share():
     candidate = _by_id(_select(_stats(cheap={"cached_input_tokens": 900_000})))[CID]
     # the strong leg's parts are its uncached read of 10,500 and its 500 out, times p
@@ -108,7 +105,6 @@ def test_the_hand_up_read_is_never_priced_at_the_cheap_models_cached_share():
          500 * 4.0 / 1e6 + 0.2 * 500 * 15.0 / 1e6))
 
 
-@CONTRACT
 def test_the_strong_leg_is_priced_at_its_own_counts():
     candidate = _by_id(_select(_stats(strong={"cached_input_tokens": 900_000})))[CID]
     # 0.012 + 0.2 * (1,500 * 3.0 + 9,000 * 0.3 + 500 * 15.0) / 1e6
@@ -118,7 +114,6 @@ def test_the_strong_leg_is_priced_at_its_own_counts():
          500 * 4.0 / 1e6 + 0.2 * 500 * 15.0 / 1e6))
 
 
-@CONTRACT
 @pytest.mark.parametrize("strong, strong_sizes, cached, write", [
     # the strong model reads 20,000 a call, 18,000 of them cached: the hand-up reads 10,500, all cached
     ({"cached_input_tokens": 1_800_000}, (20_000, 500), 10_500, 0),
@@ -135,7 +130,6 @@ def test_the_strong_legs_counts_are_fitted_inside_the_hand_up_read(strong, stron
     assert parts[2] == pytest.approx(0.2 * write * 3.75 / 1e6)
 
 
-@CONTRACT
 def test_a_cascades_breakdown_sums_to_its_cost_and_follows_its_reason():
     decision = _select(_stats(cheap={"cached_input_tokens": 900_000},
                               strong={"cached_input_tokens": 600_000,
@@ -153,7 +147,6 @@ def test_a_cascades_breakdown_sums_to_its_cost_and_follows_its_reason():
     json.dumps(decision.to_dict())
 
 
-@CONTRACT
 def test_a_cascade_names_each_cache_price_either_leg_needs_whatever_p_is():
     registry = Registry([Model(CHEAP, "fam-b", 1.0, 4.0, 200_000, price_cached_in=0.1),
                          Model(STRONG, "fam-a", 3.0, 15.0, 200_000, price_cache_write=3.75)])
@@ -171,7 +164,6 @@ def test_a_cascade_names_each_cache_price_either_leg_needs_whatever_p_is():
     assert _by_id(decision)[STRONG].cache_price_unknown == ("price_cached_in",)
 
 
-@CONTRACT
 def test_cost_blind_keeps_a_cascades_breakdown_and_a_zero_routing_cost():
     candidate = _by_id(_select(_stats(cheap={"cached_input_tokens": 900_000}),
                                flavor="cost_blind"))[CID]
@@ -180,7 +172,6 @@ def test_cost_blind_keeps_a_cascades_breakdown_and_a_zero_routing_cost():
     assert candidate.cost_breakdown is not None
 
 
-@CONTRACT
 def test_a_sliced_call_reads_the_legs_counts_on_its_slice_key():
     stats = _stats(key="t@deep", cheap={"cached_input_tokens": 900_000})
     stats.add("t", CHEAP, 95, 100, input_tokens=1_000_000, output_tokens=50_000)
@@ -194,7 +185,6 @@ def test_a_sliced_call_reads_the_legs_counts_on_its_slice_key():
 
 # --- 5.2 v1.591: a procedure's model -------------------------------------------------------
 
-@CONTRACT
 def test_an_unmeasured_procedure_prices_its_models_call_at_its_counts():
     decision = _select(_stats(cheap={"cached_input_tokens": 900_000}), procedures=[ON_CHEAP])
     candidate = _by_id(decision)[ON_CHEAP.id]
@@ -205,7 +195,6 @@ def test_an_unmeasured_procedure_prices_its_models_call_at_its_counts():
     assert list(_dicts(decision)[ON_CHEAP.id])[-1] == "cost_breakdown"
 
 
-@CONTRACT
 def test_a_procedures_counts_are_fitted_inside_the_tasks_expected_input():
     task = _task(expected_input_tokens=4_000)
     candidate = _by_id(_select(_stats(cheap={"cached_input_tokens": 900_000,
@@ -218,7 +207,6 @@ def test_a_procedures_counts_are_fitted_inside_the_tasks_expected_input():
                                                       500 * 4.0 / 1e6))
 
 
-@CONTRACT
 def test_a_procedure_on_a_batch_variant_prices_its_call_undivided():
     route = f"{CHEAP}@batch"
     registry = Registry([Model(route, "fam-b", 1.0, 4.0, 200_000, price_cached_in=0.1,
@@ -314,7 +302,6 @@ def test_design_and_the_changelog_state_the_version():
     assert len(mine) == 1 and "(5.1, 5.2, 7, row CACHE1e)" in mine[0]
 
 
-@CONTRACT
 def test_the_production_note_says_a_cascade_and_a_procedure_pass_their_counts():
     note = (ROOT / "research" / "production-lessons.md").read_text(encoding="utf-8")
     for gone in ("A cascade's legs, a procedure's model and the delegation decision pass none",
