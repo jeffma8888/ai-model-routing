@@ -431,7 +431,8 @@ def test_design_and_changelog_name_the_contract():
     assert ("- v1.603 `pair_outcomes(records, *, task, current, challenger, slice=None, dataset_sha256=None) "
             "-> tuple[dict, dict, str]` (row GATE1c): ") in seven
     assert "`model_routing.__all__` gains `pair_outcomes`, after `item_outcomes`.\n" in seven
-    assert "(row GATE1c), which v1.603 adds (10); the README paragraph (row GATE1d).\n" in seven
+    # v1.605 (row GATE1d) adds the README paragraph (tests/test_promote_docs.py)
+    assert "(row GATE1c), which v1.603 adds (10); the README paragraph (row GATE1d), which v1.605 adds (5.2).\n" in seven
     ten = design[design.index("## 10. "):design.index("## 11. ")]
     assert "- v1.603 `promote --task T --challenger ROUTE --margin M --outcomes FILE [--slice S] " in ten
     assert "`error: challenger ROUTE is not admitted on task T: REASON`" in ten
@@ -452,8 +453,9 @@ def test_the_note_names_the_command_as_shipped():
                          "route's on that hash, requires the bar to admit the challenger first, and prints the "
                          "check's decision without changing a route.")
     assert "The change still planned" not in line
-    assert note.count("its comparison `paired_promotion` from v1.601 and the command that runs it, "
-                      "`model-routing promote`, from v1.603.") == 1
+    # v1.605 (row GATE1d): the GitHub line names the paired check as shipped, not among its changes
+    assert note.count("from v1.603 `model-routing promote` compares a challenger with the current route on the "
+                      "items one labeled file graded both on, by `paired_promotion` (v1.601)") == 1
     assert "the command that runs it planned" not in note
 
 

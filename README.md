@@ -516,6 +516,51 @@ A budget tracks what the executor spends and can warn, refuse or move a call. A 
 
 The estimate is no bound: a call that reads or writes more than its estimate, or pays a cache-write price, costs more than its hold, so a `refuse` budget can end past its limit by the overrun of the calls in flight. A `strict=True` budget holds each call's `billing_bound` instead, the most it can cost given a `max_tokens`, `max_completion_tokens` or `max_output_tokens` in its route's `provider_options` and its model's context window, and refuses a call it cannot bound, a procedure's included; it charges that bound for a call that raised anything but a provider error, whose cost is then unknown, so its spend stays under its limit while providers bill within the bound. With a monitor the executor writes each warn crossing and each refusal to the log as a budget record, which `report` skips, and `budget_report(records, budgets)` gives each budget's `budget_used_pct` in each window, as the example at the end of [Monitoring and cost attribution](#monitoring-and-cost-attribution) shows; `model-routing demo --budgets FILE` runs the demo under a file of budgets and exits 4 when a call is refused. The ledger is one process's: a limit shared by many processes still needs a gateway or the provider's own (`DESIGN.md` 4.6, 7, 8.1, 8.3, 10 and 11). Uber describes one spend tier across its interactive tools: "To avoid imposing strict caps, we implemented real-time spend tracking and automated nudges", with "Alerts at 50/80/100% of expected spend so engineers have time to plan." ([production lessons](research/production-lessons.md#spend-tiers-and-nudges-not-strict-caps)): its policy, for which it gives no saving, not a measurement of this library.
 
+A challenger route replaces the current one only on the items both were graded on. The Wilson bar admits each route on its own counts, so a challenger that clears it can still do worse than the route it would replace on the same items, and two routes measured on different labeled items cannot be told apart by their bounds. `calibrate --outcomes FILE` appends each labeled row's outcome, with the sha256 of the results file, to FILE, apart from the stats, and `model-routing promote --task T --challenger ROUTE --margin M --outcomes FILE` pairs the challenger's outcomes with those of `select`'s primary on that one hash, so two routes pair only when one results file graded both. It requires the bar to admit the challenger first and exits 3 when it does not, so the check complements the bar and never replaces it. Then it prints `promote` on an exact McNemar result at `--alpha` (default 0.05) or, for a challenger cheaper per item at list prices, on a paired lower bound above `-M`; `hold` otherwise; and `insufficient_overlap` under the task's `min_samples` pairs. It is advisory and changes no route or file (`DESIGN.md` 4.7 and 10). Declare M before the run and keep its reference route fixed, since each non-inferior promotion can lose up to M and a chain of k of them up to k times M against the first route. The bound is wide on few pairs: at 30 pairs it is -0.0866 with no discordant pair and -0.1500 with two each way, so a margin of 0.03 needs 91 pairs with none and 442 with 5% of the pairs going each way. Under `cost_effective` the primary is already the cheapest passing route, so a cheaper challenger arises under `cost_blind`, or on a `retry_same` task, whose primary is the cheapest per success. Calibrate each labeled file once, since a second run doubles the trials the admission reads while the pairs count each item once, and to check k challengers on one file at a false-promotion rate of at most about 0.05 pass `--alpha` 0.05 divided by k. Harvey compares models on fixed sets: "once a collection of evaluation samples is “published,” it becomes locked, ensuring that iterative experiments have a fixed baseline for comparing new features, models, or methods." ([production lessons](research/production-lessons.md#switch-models-only-on-locked-data-and-a-significant-result))
+
+The demo's `outcomes.jsonl` has one line per judge and item with `task`, `model`, `item` and `correct`, so it is a results file too. After `model-routing demo --out ./demo-run` these two commands check `demo/atlas-max` against the current `demo/atlas-mid`, calibrating into a stats file of their own so that the demo's `stats.json` does not count the set twice:
+
+```text
+$ model-routing calibrate --results demo-run/outcomes.jsonl --stats demo-run/paired-stats.json --outcomes demo-run/paired.jsonl
+task                     model            successes  trials  lower_bound_95
+-----------------------  ---------------  ---------  ------  --------------
+demo_faithfulness_judge  demo/atlas-max   286        300     0.9232
+demo_faithfulness_judge  demo/atlas-mid   274        300     0.8760
+demo_faithfulness_judge  demo/birch-nano  218        300     0.6736
+demo_faithfulness_judge  demo/birch-pro   273        300     0.8722
+
+wrote demo-run/paired-stats.json
+appended 1200 outcomes to demo-run/paired.jsonl, dataset_sha256 5490bfdc336c30558f21dfd2e047fc5af923399ed9239f33ac10b9105c6918ec
+```
+
+```text
+$ model-routing promote --task demo_faithfulness_judge --challenger demo/atlas-max --margin 0.02 --outcomes demo-run/paired.jsonl --registry demo-run/models.json --tasks demo-run/tasks.json --stats demo-run/paired-stats.json
+task:                 demo_faithfulness_judge
+flavor:               cost_effective
+current:              demo/atlas-mid
+challenger:           demo/atlas-max
+dataset_sha256:       5490bfdc336c30558f21dfd2e047fc5af923399ed9239f33ac10b9105c6918ec
+current_list_cost:    0.004000
+challenger_list_cost: 0.020000
+decision:             hold
+basis:                n/a
+pairs:                300
+unpaired:             0
+current_only:         12
+challenger_only:      24
+current_rate:         0.913333
+challenger_rate:      0.953333
+difference:           0.040000
+p_value:              0.065245
+lower_bound:          -0.000020
+margin:               0.02
+cheaper:              false
+alpha:                0.05
+min_pairs:            50
+```
+
+`demo/atlas-max` clears the bar and measures 0.953 against 0.913 on the same 300 items, yet it is right on 24 items where `demo/atlas-mid` is wrong and wrong on 12 where it is right, and p 0.065 is over 0.05, so `promote` holds. The margin is not read, since `demo/atlas-max` is not cheaper.
+
 ## Evidence: held-out results on public data
 
 Each dataset here already holds every model's answer to every item, a label for whether it was good enough (right or wrong on RouterBench, a Delta-Hit from a judge committee's scores on AutoBench, agreement with the other judges' grades for a judge model's grade in AutoBench judges, whether an agent's conversation passed the run's program checks on tau2-bench, whether a model's first sample passed the problem's test cases on LiveCodeBench, whether the record scored 1 on LLMRouterBench, whether the response scored 1 on the LLM Routing Response Bank, and whether the release marked it right on the registry pair) and the cost of each call (of each whole conversation on tau2-bench) or the token counts to estimate it at list prices (LiveCodeBench records neither, so it is `cost_blind` evidence only), so the router is tested offline with no API key: for each task and seed, calibrate on one half of the items, route at a bar, and score the routed model on the other half, next to fixed baselines (`model-routing evaluate`, `DESIGN.md` 12). The test suite rebuilds every number in these tables from that dataset's committed results file, so they cannot drift from it. On GitHub, the `evidence` workflow ([.github/workflows/evidence.yml](.github/workflows/evidence.yml)) reruns the regenerate commands of the AutoBench, AutoBench judges, tau2-bench, LiveCodeBench, LLMRouterBench, LLM Routing Response Bank, registry pair and delegation subsections and of the ledger hand-off results below, downloading the pinned files, and fails if one of the 14 results files those commands write changes by a byte; RouterBench is left out of it, since its source is a 99,567,659-byte pickle that needs pandas and its evaluate step takes about 70 seconds.

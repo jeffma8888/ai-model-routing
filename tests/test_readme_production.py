@@ -4,7 +4,8 @@ From v1.604 README `## Running it in production`, after `## Monitoring and cost 
 before `## Evidence: held-out results on public data`, opens with one sentence that links
 `## How a model is chosen` and then holds the seven paragraphs that section held at 16a8fd6 after
 its context-window ones (variants, procedures, self-hosted rows, `scope_tasks`, the prompt cache and
-the two on budgets), word for word and in their order: no link target in them changes, since each
+the two on budgets), word for word and in their order (from v1.605 a paragraph on `promote` and its
+transcripts follow them, tests/test_promote_docs.py): no link target in them changes, since each
 names a section or file that stays. `## How a model is chosen` keeps one sentence in their place
 and is at most CHOSEN_CAP bytes by the 12.8 measure (v1.335): its size at v1.604 plus MARGIN, which
 is under the shortest of the seven, so a later production option goes in the new section. Every
@@ -155,8 +156,11 @@ def test_the_new_section_follows_monitoring_and_precedes_evidence():
 def test_the_new_section_is_the_lead_and_the_seven_paragraphs_word_for_word():
     found = paragraphs(read("README.md"), PRODUCTION)
     assert found[0] == LEAD
-    moved = found[1:]
+    # v1.605 (row GATE1d): the paragraph on `promote` and its transcripts follow the seven
+    # (tests/test_promote_docs.py)
+    moved = found[1:8]
     assert len(moved) == len(MOVED) == 7
+    assert found[8].startswith("A challenger route replaces the current one only on the items ")
     for paragraph, (opening, length, digest) in zip(moved, MOVED):
         assert paragraph.startswith(opening), opening
         assert len(paragraph.encode("utf-8")) == length, opening
@@ -232,9 +236,8 @@ def test_design_states_the_section_and_the_changelog_the_version():
                   "  - README and note: README `## How a model is chosen`" + pointer + "a paragraph, after the "
                   "one on procedures"):
         assert sum(line.startswith(owner) and pointer in line for line in design.splitlines()) == 1, owner
-    status = design.splitlines()[2]
-    assert status.startswith("Status: v1.604, 2026-11-23 (v1.604, docs and tests: README `## Running it in "
-                             "production`")
+    # the Status line keeps five versions (tests/test_design_status.py), so the version is pinned by its
+    # changelog line, which stays (review iter-453 nit 1)
     [line] = [x for x in read("CHANGELOG.md").splitlines() if x.startswith("- v1.604 (")]
     assert line.startswith("- v1.604 (2026-11-23): docs and tests (4.6, 5.2, 6, 11, row PROD1a). ")
     assert len(line.encode("utf-8")) <= 600
