@@ -111,6 +111,12 @@ def test_a_group_where_no_record_says_gives_none_never_zero():
     assert _by_group(report(records, cache=True)) == {A: (0, 0, None), B: (0, 2_000, 0.0)}
 
 
+def test_a_whole_input_cached_gives_1_0():
+    # review iter-438 should-fix 2: a count equal to its input is a count, the top of the range
+    records = [_rec("c1", A, 0, True, "ok", 0.1, 1_000, 10, cached_input_tokens=1_000)]
+    assert _by_group(report(records, cache=True)) == {A: (1_000, 1_000, 1.0)}
+
+
 def test_a_zero_input_sum_gives_none():
     records = [_rec("c1", A, 0, True, "ok", 0.0, 0, 0, cached_input_tokens=0)]
     assert _by_group(report(records, cache=True)) == {A: (0, 0, None)}
@@ -142,7 +148,15 @@ def test_with_audits_the_three_keys_come_last():
     assert (_tail(row), row["cost_per_success_usd"]) == ((900, 1_000, 0.9), 0.1)
 
 
-@pytest.mark.parametrize("value", [-1, True, False, None, 1.5, "9", 1_001])
+@pytest.mark.parametrize("write", [None, -1, True, 1.5, "x", 10_000])
+def test_a_bad_write_count_is_never_read(write):
+    # review iter-438 should-fix 1: the write count is read by nothing, so no value of it raises
+    records = [_rec("c1", A, 0, True, "ok", 0.1, 1_000, 10, cached_input_tokens=900,
+                    cache_write_tokens=write)]
+    assert _by_group(report(records, cache=True)) == {A: (900, 1_000, 0.9)}
+
+
+@pytest.mark.parametrize("value", [-1, True, False, None, 1.5, 900.0, "9", 1_001])
 def test_a_bad_carried_count_raises_naming_the_call_id(value):
     records = [_rec("c1", A, 0, True, "ok", 0.1, 1_000, 10, cached_input_tokens=900),
                _rec("c9", A, 0, True, "ok", 0.1, 1_000, 10, cached_input_tokens=value)]
@@ -219,6 +233,20 @@ def test_the_cli_table_gains_three_columns_after_p95_with_n_a(tmp_path):
         "0.300000          10.0    10.0    0                    0                           n/a\n"
         "fiction/a  1      1         0       0        0               0.000          0.100000  "
         "0.100000          10.0    10.0    900                  1000                        0.900\n")
+
+
+def test_the_cache_columns_follow_p95_when_below_bar_calls_shows(tmp_path):
+    # review iter-438 should-fix 3: v1.203's column after fallback_rate leaves the three after p95_ms
+    records = _cli_records()
+    records[0]["below_bar"] = True             # c1 ends ok on A under the bar
+    code, out, err = _run(["report", "--log", str(_log(tmp_path, records)), "--cache"])
+    assert (code, err) == (0, "")
+    header, _, row_b, row_a = out.splitlines()
+    assert header.split() == ["model", "calls", "attempts", "errors", "invalid", "fallback_calls",
+                              "fallback_rate", "below_bar_calls", "cost_usd", "routing_cost_usd",
+                              "p50_ms", "p95_ms"] + CACHE_KEYS
+    assert row_a.split()[7:] == ["1", "0.100000", "0.100000", "10.0", "10.0", "900", "1000", "0.900"]
+    assert row_b.split()[7:] == ["0", "0.300000", "0.300000", "10.0", "10.0", "0", "0", "n/a"]
 
 
 def test_the_cli_json_has_the_three_keys_with_null(tmp_path):
