@@ -81,7 +81,7 @@ def run_blocks(text, folder, monkeypatch, capsys):
 
 
 def check(after, sent, printed, folder):
-    """What the README says each block does, and its bullets say of the second."""
+    """What the README says each block does, and its bullets say of the second and the fourth."""
     assert len(after) == len(FIRST_LINES)
     first, second, third, fourth = after
     request = {"url": URL, "auth": "Bearer fake_key", "timeout": 60.0,

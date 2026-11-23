@@ -62,9 +62,9 @@ def slug(heading):
 def test_the_paragraph_follows_the_scope_paragraph_and_ends_the_part():
     paragraphs = chosen_paragraphs()
     at = paragraphs.index(paragraph())
-    # v1.600 (row B1d): the budget paragraph follows it and now ends the part
-    assert at == len(paragraphs) - 2
-    assert paragraphs[at + 1].startswith("A budget caps what the executor spends. ")
+    # v1.600 (row B1d): the two budget paragraphs follow it and now end the part
+    assert at == len(paragraphs) - 3
+    assert paragraphs[at + 1].startswith("A budget tracks what the executor spends ")
     assert paragraphs[at - 1].startswith("A model built for some tasks can be kept to them. ")
 
 

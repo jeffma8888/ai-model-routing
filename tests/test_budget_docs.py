@@ -1,6 +1,6 @@
 """DESIGN 4.6 and 3 v1.600 (row B1d): the docs on budgets.
 
-README `## How a model is chosen` gains a paragraph, after the one on the prompt cache, on
+README `## How a model is chosen` gains two paragraphs, after the one on the prompt cache, on
 `Budget` and `load_budgets`, the scopes, windows and modes, `BudgetLedger` and the executor's hold
 and settle, that the estimate is no bound, a strict budget's `billing_bound`, the budget records,
 `budget_report` and `demo --budgets FILE`, and that a limit shared across processes still needs a
@@ -27,7 +27,8 @@ ROOT = Path(__file__).resolve().parents[1]
 CAPS = "\"To avoid imposing strict caps, we implemented real-time spend tracking and automated nudges\""
 ALERTS = "\"Alerts at 50/80/100% of expected spend so engineers have time to plan.\""
 LESSON = "Spend tiers and nudges, not strict caps"
-OPENER = "A budget caps what the executor spends. "
+OPENER = "A budget tracks what the executor spends and can warn, refuse or move a call. "
+SECOND = "The estimate is no bound: "  # review iter-448 should-fix 2: two paragraphs
 
 
 def read(name):
@@ -43,10 +44,17 @@ def chosen_paragraphs():
     return part.strip().split("\n\n")
 
 
-def paragraph():
-    found = [p for p in chosen_paragraphs() if p.startswith(OPENER)]
+def both():
+    paragraphs = chosen_paragraphs()
+    found = [i for i, p in enumerate(paragraphs) if p.startswith(OPENER)]
     assert len(found) == 1
-    return found[0]
+    first, second = paragraphs[found[0]:found[0] + 2]
+    assert second.startswith(SECOND)
+    return first, second
+
+
+def paragraph():
+    return "\n\n".join(both())
 
 
 def slug(heading):
@@ -55,11 +63,14 @@ def slug(heading):
 
 # --- README: the paragraph ---------------------------------------------------------------------
 
-def test_the_paragraph_follows_the_cache_paragraph_and_ends_the_part():
+def test_the_paragraphs_follow_the_cache_paragraph_and_end_the_part():
     paragraphs = chosen_paragraphs()
-    at = paragraphs.index(paragraph())
-    assert at == len(paragraphs) - 1
+    first, second = both()
+    at = paragraphs.index(first)
+    assert at == len(paragraphs) - 2 and paragraphs[at + 1] == second
     assert paragraphs[at - 1].startswith("A prompt cache changes what a call costs")
+    # review iter-448 must-fix 2: a `warn` budget caps nothing, so the opener says what each mode does
+    assert "A budget caps" not in first
 
 
 def test_the_paragraph_names_each_part_once():
@@ -73,7 +84,8 @@ def test_the_paragraph_names_each_part_once():
                  "`Executor(..., ledger=BudgetLedger(budgets))`",
                  "a fallback's, a cascade leg's, a procedure's model call and a hand-off's included",
                  "holds the call's list-price estimate on every budget that applies",
-                 "its output the task's `expected_output_tokens`",
+                 # review iter-448 must-fix 3: the estimate reads a slice's output size first
+                 "its output the slice's or the task's `expected_output_tokens`",
                  "after the call it settles the measured cost, 0.0 for a call that failed with a provider error",
                  "so tokens a provider bills for a failed call are in no budget",
                  "A `warn` budget notes the first time its spend reaches 50, 80 and 100 percent of its limit in a window",
@@ -85,6 +97,9 @@ def test_the_paragraph_names_each_part_once():
                  "A `strict=True` budget holds each call's `billing_bound` instead",
                  "`max_tokens`, `max_completion_tokens` or `max_output_tokens` in its route's `provider_options`",
                  "refuses a call it cannot bound, a procedure's included",
+                 # review iter-448 should-fix 1: a strict hold of a call that raised settles at its bound
+                 "it charges that bound for a call that raised anything but a provider error, whose cost "
+                 "is then unknown",
                  "so its spend stays under its limit while providers bill within the bound",
                  "as a budget record, which `report` skips",
                  "`budget_report(records, budgets)` gives each budget's `budget_used_pct` in each window",
@@ -158,7 +173,8 @@ def test_monitoring_ends_with_the_budget_block_and_its_bullets():
     assert tail.count("```python") == 1 and tail.count("\n```\n") == 1
     bullets = tail.split("\n```\n", 1)[1].strip().split("\n")
     assert len(bullets) == 2 and all(b.startswith("- ") for b in bullets)
-    assert bullets[0].endswith("0.00062 spent and 0.000375 held would pass the judge's 0.0009")
+    # review iter-448 must-fix 1: the sum, and that it is over the limit
+    assert bullets[0].endswith("0.00062 spent and 0.000375 held come to 0.000995, over the judge's 0.0009")
     assert "`report` reads the same log as before, since it skips budget records" in bullets[1]
 
 
@@ -181,7 +197,8 @@ def test_design_states_the_docs_and_the_changelog_the_version():
     design = read("DESIGN.md")
     four6 = design[design.index("### 4.6 Budgets"):design.index("## 5. ")]
     [mine] = [line for line in four6.splitlines() if line.startswith("- v1.600 README and note (row B1d): ")]
-    for kept in ("gains a paragraph, after the one on the prompt cache",
+    for kept in ("gains two paragraphs, after the one on the prompt cache",
+                 "a strict hold of a call that raised anything else settling at its bound",
                  "a strict budget's `billing_bound` and the three output keys it reads",
                  "quoting Uber's spend tiers only through `research/production-lessons.md`",
                  "ends with a ```python block that runs three judge calls under a ledger (3 v1.600)",
