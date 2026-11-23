@@ -455,7 +455,7 @@ def test_the_note_names_the_command_as_shipped():
     assert "The change still planned" not in line
     # v1.605 (row GATE1d): the GitHub line names the paired check as shipped, not among its changes
     assert note.count("from v1.603 `model-routing promote` compares a challenger with the current route on the "
-                      "items one labeled file graded both on, by `paired_promotion` (v1.601)") == 1
+                      "items that one labeled file graded for both, by `paired_promotion` (v1.601)") == 1
     assert "the command that runs it planned" not in note
 
 

@@ -160,7 +160,7 @@ def test_the_new_section_is_the_lead_and_the_seven_paragraphs_word_for_word():
     # (tests/test_promote_docs.py)
     moved = found[1:8]
     assert len(moved) == len(MOVED) == 7
-    assert found[8].startswith("A challenger route replaces the current one only on the items ")
+    assert found[8].startswith("Judge a challenger route against the current one only on the items ")
     for paragraph, (opening, length, digest) in zip(moved, MOVED):
         assert paragraph.startswith(opening), opening
         assert len(paragraph.encode("utf-8")) == length, opening

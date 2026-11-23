@@ -65,7 +65,7 @@ def test_the_paragraph_follows_the_scope_paragraph_and_ends_the_part():
     at = paragraphs.index(paragraph())
     # v1.600 (row B1d): the two budget paragraphs follow it; from v1.605 (row GATE1d) the part on `promote`
     # follows them (tests/test_promote_docs.py)
-    assert paragraphs[at + 3].startswith("A challenger route replaces the current one only on the items ")
+    assert paragraphs[at + 3].startswith("Judge a challenger route against the current one only on the items ")
     assert paragraphs[at + 1].startswith("A budget tracks what the executor spends ")
     assert paragraphs[at - 1].startswith("A model built for some tasks can be kept to them. ")
 

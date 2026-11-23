@@ -330,8 +330,9 @@ def test_the_note_names_the_check_as_shipped():
     assert "The change still planned" not in line  # restated at v1.603, row GATE1c: the command ships
     assert "an advisory paired check of a challenger" not in note
     assert ", `hold` otherwise or `insufficient_overlap` on too few shared items, and changes nothing. " in line
-    assert note.count("its comparison `paired_promotion` from v1.601 and the command that runs it, "
-                      "`model-routing promote`, from v1.603.") == 1
+    # v1.605 (row GATE1d, review iter-454 must-fix 1): the GitHub line names the paired check as shipped, not
+    # among its changes (tests/test_promote_docs.py)
+    assert note.count("by `paired_promotion` (v1.601), after the bar admits the challenger, ") == 1
     layout = (ROOT / "README.md").read_text(encoding="utf-8")
     assert layout.count("\n  promotion.py  a challenger route against the current one on the same items (advisory)\n") == 1
 

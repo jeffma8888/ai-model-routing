@@ -20,7 +20,7 @@ from model_routing.demo import OUTPUTS
 
 ROOT = Path(__file__).resolve().parents[1]
 BLOCK = re.compile(r"```text\n(\$ model-routing [^\n]*\n.*?)```", re.S)  # gates.py's and tests/test_readme.py's
-OPENING = "A challenger route replaces the current one only on the items both were graded on. "
+OPENING = "Judge a challenger route against the current one only on the items both were graded on. "
 DEMO = "The demo's `outcomes.jsonl` has one line per judge and item with `task`, `model`, `item` and `correct`, "
 AFTER = "`demo/atlas-max` clears the bar and measures 0.953 against 0.913 on the same 300 items, "
 LAST_BUDGET = "The estimate is no bound: "
@@ -91,7 +91,10 @@ def test_the_paragraph_follows_the_two_on_budgets_and_ends_the_section():
     assert body[:at].rstrip().endswith("not a measurement of this library.")
     assert body.index(DEMO) > at and body.index(CALIBRATE) > body.index(DEMO)
     assert body.index(PROMOTE) > body.index(CALIBRATE) and body.index(AFTER) > body.index(PROMOTE)
-    assert body.rstrip().endswith("The margin is not read, since `demo/atlas-max` is not cheaper.")
+    # review iter-454 should-fix 3: the last sentence says the hold is the point and nothing was switched
+    assert body.rstrip().endswith("This hold is the point of the example: a gap of 0.040 on 300 items, at five "
+                                  "times the list cost per item, is not yet evidence that `demo/atlas-max` is "
+                                  "better, and `promote` changed no route or file.")
     assert "\n### " not in body
 
 
@@ -101,12 +104,19 @@ def test_the_paragraph_says_the_check_complements_the_bar_and_how_to_use_it():
                    "so two routes pair only when one results file graded both",
                    "It requires the bar to admit the challenger first and exits 3 when it does not, so the check "
                    "complements the bar and never replaces it.",
-                   "Then it prints `promote` on an exact McNemar result at `--alpha` (default 0.05) or, for a challenger "
+                   "Then it prints `promote` on an exact McNemar result in the challenger's favor at `--alpha` "
+                   "(default 0.05) or, for a challenger "
                    "cheaper per item at list prices, on a paired lower bound above `-M`; `hold` otherwise; and "
                    "`insufficient_overlap` under the task's `min_samples` pairs.",
                    "It is advisory and changes no route or file (`DESIGN.md` 4.7 and 10).",
-                   "Declare M before the run and keep its reference route fixed, since each non-inferior promotion can "
-                   "lose up to M and a chain of k of them up to k times M against the first route.",
+                   # review iter-454 should-fix 1: `promote` pairs with `select`'s primary, so the paragraph says
+                   # how to check a later challenger against the first route
+                   "Declare M before the run, and once a challenger is promoted on non-inferiority, check the next "
+                   "one against the first route, not the promoted one: each promotion against the route before it "
+                   "can lose up to M by the interval's reading, so a chain of k of them can lose up to k times M "
+                   "against the first route.",
+                   "`promote` always pairs with `select`'s primary, so for that check call `pair_outcomes` with the "
+                   "first route as `current` and pass its two maps to `paired_promotion`.",
                    "so a cheaper challenger arises under `cost_blind`, or on a `retry_same` task, whose primary is the "
                    "cheapest per success.",
                    "Calibrate each labeled file once, since a second run doubles the trials the admission reads while "
@@ -135,7 +145,9 @@ def test_the_bound_numbers_are_the_checks():
     each = next(n for n in range(1, 1000) if bound(n, round(0.05 * n), round(0.05 * n)).decision == "promote")
     assert (none, each) == (91, 442)
     assert bound(90, 0, 0).decision == "hold" and bound(441, 22, 22).decision == "hold"
-    assert f"so a margin of 0.03 needs {none} pairs with none and {each} with 5% of the pairs going each way" in text
+    assert (f"so at the default `--alpha` a cheaper challenger needs {none} pairs to clear a margin of 0.03 with no "
+            f"discordant pair and {each} with 5% of the pairs going each way, and never fewer than the task's "
+            f"`min_samples`.") in text
 
 
 def test_bound_counts_its_pairs_as_said():
@@ -159,10 +171,13 @@ def test_the_two_transcripts_come_last_and_the_ten_before_keep_their_v1_601_byte
         assert " promote " not in command and not (" calibrate " in command and "--outcomes" in command)
 
 
-def test_the_transcripts_write_no_file_the_demo_or_an_earlier_transcript_reads():
+def test_the_two_write_only_files_the_demo_does_not_and_no_earlier_transcript_names():
+    # review iter-454 should-fix 4: what this shows is that the demo writes neither file and no README text
+    # before the calibrate block names one; that no earlier block prints otherwise is the fresh runs' check
+    # (tests/test_readme.py and gates.py) on the ten pinned blocks above
+    before = read("README.md").split(CALIBRATE, 1)[0]
     for name in ("paired-stats.json", "paired.jsonl"):
         assert name not in OUTPUTS
-        before = read("README.md").split(CALIBRATE, 1)[0]
         assert "demo-run/" + name not in before, name
 
 
@@ -177,6 +192,10 @@ def test_the_text_states_the_transcripts_numbers():
     assert f"measures {rates[0]:.3f} against {rates[1]:.3f} on the same {got['pairs']} items" in text
     assert f"right on {got['challenger_only']} items where `demo/atlas-mid` is wrong and wrong on " \
            f"{got['current_only']} where it is right" in text
+    # review iter-454 should-fix 3: the gap and the cost ratio the last sentence names
+    assert got["difference"] == "0.040000" and "a gap of 0.040 on 300 items" in text
+    ratio = float(got["challenger_list_cost"]) / float(got["current_list_cost"])
+    assert math.isclose(ratio, 5.0) and "at five times the list cost per item" in text
     p = float(got["p_value"])
     assert p > float(got["alpha"]) and f"p {p:.3f} is over {got['alpha']}" in text
     # the exact McNemar p of 24 against 12, two-sided
@@ -210,9 +229,9 @@ def test_the_notes_github_line_names_the_paired_check_as_shipped():
     [line] = [x for x in note.splitlines()
               if x.startswith("- In this library: the caller calls a task, not a model, ")]
     assert ("The paired check of the Harvey lesson on locked data can run before a route changes: from v1.603 "
-            "`model-routing promote` compares a challenger with the current route on the items one labeled file "
-            "graded both on, by `paired_promotion` (v1.601), after the bar admits the challenger, so re-running a "
-            "fixed labeled set after a model or price change says whether to switch. ") in line
+            "`model-routing promote` compares a challenger with the current route on the items that one labeled "
+            "file graded for both, by `paired_promotion` (v1.601), after the bar admits the challenger, so "
+            "re-running a fixed labeled set after a model or price change says whether to promote. ") in line
     changes = line.split(" The changes: ", 1)[1].split(" Which measure counts ", 1)[0]
     assert "paired" not in changes and "promote" not in changes
     assert changes.endswith("and a set share of routed calls also sent to a reference route, so a quality loss "
@@ -227,10 +246,12 @@ def test_design_states_the_paragraph_and_the_changelog_the_version():
     [mine] = [line for line in five2.splitlines() if line.startswith("- v1.605 README and note (row GATE1d): ")]
     for kept in ("gains, after the two paragraphs on budgets, one on promotion checks (4.7, 10)",
                  "so the check complements the bar and never replaces it",
-                 "since a chain of k non-inferior promotions can lose up to k times M (review iter-449 should-fix 3(b))",
+                 "and a chain of k of them up to k times M (review iter-449 should-fix 3(b))",
+                 "(review iter-454 should-fix 1)", "(review iter-454 should-fix 3)",
                  "at 30 pairs -0.0866 with no discordant pair and -0.1500 with two each way (review iter-449 nit 5)",
-                 "so a margin of 0.03 needs 91 pairs with none and 442 with 5% of the pairs going each way",
-                 "(10 v1.603, review iter-452 should-fix 1)", "(review iter-452 should-fix 2)",
+                 "a cheaper challenger needs 91 pairs to clear a margin of 0.03 with none and 442 with 5% of the "
+                 "pairs going each way",
+                 "(10 v1.603, review iter-452 should-fix 1, review iter-454 nit 5)", "(review iter-452 should-fix 2)",
                  "(review iter-449 should-fix 3(a))",
                  "`calibrate --results demo-run/outcomes.jsonl --stats demo-run/paired-stats.json --outcomes "
                  "demo-run/paired.jsonl`",

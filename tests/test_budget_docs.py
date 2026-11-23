@@ -70,7 +70,7 @@ def test_the_paragraphs_follow_the_cache_paragraph_and_end_the_part():
     at = paragraphs.index(first)
     assert paragraphs[at + 1] == second
     # v1.605 (row GATE1d): the paragraph on `promote` follows them (tests/test_promote_docs.py)
-    assert paragraphs[at + 2].startswith("A challenger route replaces the current one only on the items ")
+    assert paragraphs[at + 2].startswith("Judge a challenger route against the current one only on the items ")
     assert paragraphs[at - 1].startswith("A prompt cache changes what a call costs")
     # review iter-448 must-fix 2: a `warn` budget caps nothing, so the opener says what each mode does
     assert "A budget caps" not in first
