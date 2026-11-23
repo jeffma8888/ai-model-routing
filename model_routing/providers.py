@@ -16,11 +16,18 @@ from typing import Callable, Dict, List, Optional, Protocol, Tuple
 
 @dataclass(frozen=True)
 class Completion:
-    """A model response with its billed token counts."""
+    """A model response with its billed token counts.
+
+    ``cached_input_tokens`` and ``cache_write_tokens`` are the input tokens the provider says the
+    call read from its prompt cache and wrote to it, each counted inside ``input_tokens``; ``None``
+    means it did not say, unknown and never 0 (DESIGN 6 v1.589). The executor checks them.
+    """
 
     text: str
     input_tokens: int
     output_tokens: int
+    cached_input_tokens: Optional[int] = None
+    cache_write_tokens: Optional[int] = None
 
 
 class ProviderError(Exception):
@@ -124,6 +131,11 @@ class OpenAICompatibleProvider:
                  options: Optional[Mapping] = None) -> Completion:
         """POST the messages and parse the first choice and the token usage.
 
+        ``usage.prompt_tokens_details.cached_tokens`` is the completion's ``cached_input_tokens``,
+        ``None`` when absent or null; a malformed one, or one above ``prompt_tokens``, is a bad
+        response. The usage object reports no cache write, so ``cache_write_tokens`` is ``None``
+        (DESIGN 6 v1.589).
+
         Every :class:`ProviderError` raised here has the API key value
         replaced with ``[redacted]``, shows URLs without userinfo, query string
         or fragment, and carries no exception chain.
@@ -180,6 +192,15 @@ class OpenAICompatibleProvider:
             output_tokens = usage["completion_tokens"]
             shape_ok = isinstance(text, str) and _is_count(input_tokens) \
                 and _is_count(output_tokens)
+            details = usage.get("prompt_tokens_details")
+            cached = None
+            if details is not None:  # DESIGN 6 v1.589: absent or null is unknown
+                if isinstance(details, dict):
+                    cached = details.get("cached_tokens")
+                    if cached is not None and shape_ok:
+                        shape_ok = _is_count(cached) and cached <= input_tokens
+                else:
+                    shape_ok = False
         except Exception as exc:
             failure = ProviderError(self._clean(f"unparseable response from {self.display_url}: "
                                                 + _name_and_detail(exc), key))
@@ -188,7 +209,7 @@ class OpenAICompatibleProvider:
                 failure = ProviderError(f"unexpected response shape from {self.display_url}")
         if failure is not None:
             raise failure from None
-        return Completion(text, input_tokens, output_tokens)
+        return Completion(text, input_tokens, output_tokens, cached)
 
 
 BODY_SNIPPET_CHARS = 200

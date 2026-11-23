@@ -213,10 +213,11 @@ def test_no_packaged_row_or_evidence_file_names_a_cache_price():
 
 def test_only_the_registry_names_the_prices_and_the_counts():
     # v1.588 (row CACHE1b): the stats hold the measured counts and the router prices a route at
-    # them, so no record, report, delegation decision, evidence file or README transcript changes
+    # them; v1.589 (row CACHE1c): the provider's completion and the executor's records carry them,
+    # so no report, delegation decision, evidence file or README transcript changes
     naming = {path.name for path in PACKAGE.glob("*.py")
               if any(key in path.read_text(encoding="utf-8") for key in NAMES)}
-    assert naming == {"registry.py", "stats.py", "router.py"}
+    assert naming == {"registry.py", "stats.py", "router.py", "providers.py", "executor.py"}
 
 
 def test_the_production_note_states_registry_cache_prices_as_shipped():
@@ -236,8 +237,10 @@ def test_the_production_note_states_registry_cache_prices_as_shipped():
     assert line[0].startswith("- In this library: a registry row may state `price_cached_in` and "
                               "`price_cache_write`, and `Model.cost` prices a call's cached reads and cache writes")
     assert "Model choice now passes those counts" in line[0]
-    assert ("A cascade's legs, a procedure's model, the delegation decision and the attempt records "
-            "pass none yet") in line[0]
+    # v1.589 (row CACHE1c): the attempt records carry the counts a provider returns
+    assert ("The attempt records carry the cached and written tokens a provider returns, each attempt "
+            "priced at them. A cascade's legs, a procedure's model and the delegation decision pass "
+            "none yet") in line[0]
     rate = note.split("\n### The cache hit rate is a cost number\n", 1)[1]
     rate_line = [x for x in rate.split("\n### ", 1)[0].splitlines() if x.startswith("- In this library: ")]
     assert len(rate_line) == 1

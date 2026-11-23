@@ -23,7 +23,6 @@ from model_routing import (Attempt, Cascade, Completion, Executor, FakeProvider,
                            Registry, Router, Stats, Task, report, run_demo)
 
 ROOT = Path(__file__).resolve().parents[1]
-CONTRACT = pytest.mark.xfail(strict=True, reason="v1.589 (row CACHE1c) not implemented yet")
 TS = "2026-11-22T00:00:00Z"
 PRICEY, CHEAP = "fiction/pricey", "fiction/cheap"
 # the 4.1 v1.587 worked example: 3.0 in, 0.3 cached, 3.75 written, 15.0 out, against 2.0 in
@@ -76,7 +75,6 @@ def cost(model_id, *args, **counts):
 
 # --- 6: the completion and the adapter -------------------------------------------------------
 
-@CONTRACT
 def test_completion_gains_the_two_counts_last_both_unknown_by_default():
     assert [f.name for f in dataclasses.fields(Completion)] == [
         "text", "input_tokens", "output_tokens", "cached_input_tokens", "cache_write_tokens"]
@@ -85,14 +83,12 @@ def test_completion_gains_the_two_counts_last_both_unknown_by_default():
     assert plain == Completion("a", 10, 2, None, None) != Completion("a", 10, 2, 0, None)
 
 
-@CONTRACT
 def test_the_adapter_reads_cached_tokens_counted_inside_prompt_tokens():
     usage = {"prompt_tokens": 10_000, "completion_tokens": 500,
              "prompt_tokens_details": {"cached_tokens": 9_000, "audio_tokens": 0}}
     assert adapter(usage).complete("fiction/a", MSGS, 5) == Completion("v", 10_000, 500, 9_000, None)
 
 
-@CONTRACT
 @pytest.mark.parametrize("cached", [0, 13])
 def test_a_zero_or_whole_prompt_count_is_a_count(cached):
     usage = {"prompt_tokens": 13, "completion_tokens": 5,
@@ -101,7 +97,6 @@ def test_a_zero_or_whole_prompt_count_is_a_count(cached):
     assert got.cached_input_tokens == cached and got.cached_input_tokens is not None
 
 
-@CONTRACT
 def test_the_adapter_never_reports_a_cache_write():
     usage = {"prompt_tokens": 13, "completion_tokens": 5,
              "prompt_tokens_details": {"cached_tokens": 3, "cache_write_tokens": 4}}
@@ -121,7 +116,6 @@ def test_an_absent_or_null_count_is_unknown(details):
     assert getattr(got, "cache_write_tokens", None) is None
 
 
-@CONTRACT
 @pytest.mark.parametrize("details", [
     "x", [9], 5, False, {"cached_tokens": -1}, {"cached_tokens": True}, {"cached_tokens": 1.5},
     {"cached_tokens": "9"}, {"cached_tokens": 14}])
@@ -134,7 +128,6 @@ def test_a_malformed_count_or_details_is_a_bad_response(details):
 
 # --- 7 and 8.1: the attempt, its cost and its record -----------------------------------------
 
-@CONTRACT
 def test_attempt_gains_the_two_counts_last_both_unknown_by_default():
     names = [f.name for f in dataclasses.fields(Attempt)]
     assert names[-2:] == ["cached_input_tokens", "cache_write_tokens"] and len(names) == 9
@@ -142,7 +135,6 @@ def test_attempt_gains_the_two_counts_last_both_unknown_by_default():
     assert (plain.cached_input_tokens, plain.cache_write_tokens) == (None, None)
 
 
-@CONTRACT
 def test_a_call_with_cached_reads_is_priced_at_the_cached_price():
     run, monitor = executor({PRICEY: answer(cached_input_tokens=9_000)})
     result = run.call("t", MSGS, exclude_models=[CHEAP])
@@ -157,7 +149,6 @@ def test_a_call_with_cached_reads_is_priced_at_the_cached_price():
     assert rec["cost_usd"] == rec["routing_cost_usd"] == attempt.cost_usd
 
 
-@CONTRACT
 def test_a_write_is_priced_at_its_premium_and_both_keys_keep_their_order():
     run, monitor = executor({PRICEY: answer(cached_input_tokens=0, cache_write_tokens=9_000)})
     [attempt] = run.call("t", MSGS, exclude_models=[CHEAP]).attempts
@@ -168,7 +159,6 @@ def test_a_write_is_priced_at_its_premium_and_both_keys_keep_their_order():
     assert (rec["cached_input_tokens"], rec["cache_write_tokens"]) == (0, 9_000)
 
 
-@CONTRACT
 def test_a_write_alone_writes_its_key_alone():
     run, monitor = executor({PRICEY: answer(cache_write_tokens=9_000)})
     [attempt] = run.call("t", MSGS, exclude_models=[CHEAP]).attempts
@@ -178,7 +168,6 @@ def test_a_write_alone_writes_its_key_alone():
     assert list(rec) == WITH_WRITE
 
 
-@CONTRACT
 def test_an_unknown_cache_price_is_the_input_price_in_the_record():
     run, monitor = executor({CHEAP: answer(cached_input_tokens=9_000)})
     [attempt] = run.call("t", MSGS, exclude_models=[PRICEY]).attempts
@@ -187,7 +176,6 @@ def test_an_unknown_cache_price_is_the_input_price_in_the_record():
     assert list(rec) == WITH_CACHED and rec["cached_input_tokens"] == 9_000
 
 
-@CONTRACT
 def test_an_invalid_attempt_keeps_its_counts_and_the_fallback_has_its_own():
     run, monitor = executor({CHEAP: answer("bad", cached_input_tokens=100),
                              PRICEY: answer("good", cached_input_tokens=9_000)})
@@ -201,7 +189,6 @@ def test_an_invalid_attempt_keeps_its_counts_and_the_fallback_has_its_own():
     assert all(list(r) == WITH_CACHED for r in monitor.records)
 
 
-@CONTRACT
 def test_an_error_attempt_has_no_counts():
     def down(messages):
         raise ProviderError("down")
@@ -213,7 +200,6 @@ def test_an_error_attempt_has_no_counts():
     assert list(first) == V1_588_KEYS and list(second) == WITH_CACHED
 
 
-@CONTRACT
 @pytest.mark.parametrize("counts, named", [
     ({"cached_input_tokens": 10_001}, "is over input_tokens"),
     ({"cached_input_tokens": 6_000, "cache_write_tokens": 5_000}, "is over input_tokens"),
@@ -229,7 +215,6 @@ def test_counts_the_cost_refuses_raise_before_any_record(counts, named):
     assert monitor.records == []
 
 
-@CONTRACT
 def test_each_leg_of_a_cascade_carries_its_own_counts():
     task = Task("t", bar=0.7, min_samples=10, cascades=(Cascade(CHEAP, PRICEY, "sig"),))
     planted = stats(pricey=(0, 100), cheap=(0, 100))
@@ -247,7 +232,6 @@ def test_each_leg_of_a_cascade_carries_its_own_counts():
         assert keys.index("cached_input_tokens") == keys.index("output_tokens") + 1
 
 
-@CONTRACT
 def test_a_procedures_model_call_carries_the_counts_and_its_closing_record_does_not():
     proc = Procedure("poll", "v1", lambda value, call: ProcedureResult("shaped " + call(value)),
                      max_model_calls=1, max_tool_calls=0, model=PRICEY)
@@ -263,7 +247,6 @@ def test_a_procedures_model_call_carries_the_counts_and_its_closing_record_does_
     assert (result.attempts[-1].cached_input_tokens, result.attempts[-1].cache_write_tokens) == (None, None)
 
 
-@CONTRACT
 def test_a_delegated_hand_off_carries_the_counts():
     router = Router(REGISTRY, {"t": Task("t", bar=0.7, min_samples=10)}, stats())
     decision = router.decide_delegation("t", PRICEY, "cost_effective", context_tokens=50_000,
@@ -341,7 +324,6 @@ def test_design_and_the_changelog_state_the_version():
     assert len(mine) == 1 and "(6, 7, 8.1, row CACHE1c)" in mine[0]
 
 
-@CONTRACT
 def test_the_production_note_says_the_records_carry_the_counts():
     note = (ROOT / "research" / "production-lessons.md").read_text(encoding="utf-8")
     for gone in ("the delegation decision and the attempt records pass none yet",

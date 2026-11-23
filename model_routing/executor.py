@@ -20,7 +20,11 @@ from .router import RouteDecision, Router, _check_prompt_tokens
 
 @dataclass(frozen=True)
 class Attempt:
-    """One provider call within a routed call."""
+    """One provider call within a routed call.
+
+    ``cached_input_tokens`` and ``cache_write_tokens`` are its completion's counts, ``None`` when
+    the provider gave none and on an error or a procedure's closing attempt (DESIGN 7 v1.589).
+    """
 
     model: str
     outcome: str
@@ -29,6 +33,8 @@ class Attempt:
     input_tokens: int
     output_tokens: int
     cost_usd: float
+    cached_input_tokens: Optional[int] = None
+    cache_write_tokens: Optional[int] = None
 
 
 @dataclass(frozen=True)
@@ -320,10 +326,15 @@ class Executor:
             return Attempt(model_id, "error", f"{type(exc).__name__}: {exc}",
                            latency_ms, 0, 0, 0.0), None, exc
         latency_ms = float((self.clock() - start) * 1000.0)
-        cost = float(registry.get(model_id).cost(completion.input_tokens,
-                                                  completion.output_tokens))
+        # DESIGN 7 v1.589: a provider's own completion type may hold only the three v1.588 fields
+        cached = getattr(completion, "cached_input_tokens", None)
+        write = getattr(completion, "cache_write_tokens", None)
+        cost = float(registry.get(model_id).cost(
+            completion.input_tokens, completion.output_tokens,
+            cached_input_tokens=0 if cached is None else cached,
+            cache_write_tokens=0 if write is None else write))  # a refused count is a bug: raise
         return Attempt(model_id, "ok", None, latency_ms, completion.input_tokens,
-                       completion.output_tokens, cost), completion, None
+                       completion.output_tokens, cost, cached, write), completion, None
 
     @staticmethod
     def _checked(attempt: Attempt, completion, validate):
@@ -354,9 +365,14 @@ class Executor:
             "latency_ms": attempt.latency_ms,
             "input_tokens": attempt.input_tokens,
             "output_tokens": attempt.output_tokens,
+        }
+        for name in ("cached_input_tokens", "cache_write_tokens"):  # DESIGN 8.1 v1.589
+            if getattr(attempt, name) is not None:
+                record[name] = getattr(attempt, name)
+        record.update({
             "cost_usd": attempt.cost_usd,
             "routing_cost_usd": attempt.cost_usd if decision.flavor == "cost_effective" else 0.0,
-        }
+        })
         if model is not None and model.pricing_basis == "self_hosted":  # DESIGN 8.1 v1.584
             record["pricing_basis"] = "self_hosted"
         record["below_bar"] = decision.below_bar
