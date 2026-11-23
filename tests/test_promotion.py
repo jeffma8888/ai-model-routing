@@ -304,7 +304,7 @@ def test_design_specifies_the_check_and_defers_the_rest_of_gate1():
     text = (ROOT / "DESIGN.md").read_text(encoding="utf-8")
     assert text.count("### 4.7 Promotion checks (`promotion.py`, v1.601, row GATE1a)") == 1
     layout = text[text.index("## 3. "):text.index("## 4. ")]
-    assert "  promotion.py    paired_promotion, PromotionCheck (v1.601, 4.7)" in layout
+    assert "  promotion.py    paired_promotion, PromotionCheck (v1.601, 4.7), pair_outcomes (v1.603, 4.7)" in layout
     seven = text[text.index("### 4.7 Promotion checks"):text.index("## 5. ")]
     assert "`paired_promotion(current, challenger, *, margin, cheaper=False, alpha=0.05, min_pairs=30) -> PromotionCheck`" in seven
     assert "`min(1.0, 2 * T / 2 ** (b + c))`" in seven
@@ -322,22 +322,22 @@ def test_the_changelog_line_names_the_row():
     assert "(3, 4.7, row GATE1a)" in mine[0]
 
 
-def test_the_note_names_the_check_as_shipped_and_the_rest_as_planned():
+def test_the_note_names_the_check_as_shipped():
     note = (ROOT / "research" / "production-lessons.md").read_text(encoding="utf-8")
     locked = note[note.index("### Switch models only on locked data and a significant result"):]
     line = [x for x in locked.splitlines() if x.startswith("- In this library: ")][0]
     assert "From v1.601 `paired_promotion` compares a challenger with the current route on the items both were graded on" in line
-    assert line.endswith("The change still planned: a `promote` command that pairs the two routes' outcomes "
-                         "on that hash before a route changes.")  # restated at v1.602, row GATE1b
+    assert "The change still planned" not in line  # restated at v1.603, row GATE1c: the command ships
     assert "an advisory paired check of a challenger" not in note
     assert ", `hold` otherwise or `insufficient_overlap` on too few shared items, and changes nothing. " in line
-    assert note.count("its comparison `paired_promotion` from v1.601 and the command that runs it planned.") == 1
+    assert note.count("its comparison `paired_promotion` from v1.601 and the command that runs it, "
+                      "`model-routing promote`, from v1.603.") == 1
     layout = (ROOT / "README.md").read_text(encoding="utf-8")
     assert layout.count("\n  promotion.py  a challenger route against the current one on the same items (advisory)\n") == 1
 
 
-def test_the_module_adds_no_public_name_but_the_two_exports():
+def test_the_module_adds_no_public_name_but_the_three_exports():
     public = sorted(name for name in vars(model_routing.promotion)
                     if not name.startswith("_") and name not in {"annotations", "math", "Mapping", "dataclass",
                                                                   "NormalDist", "Optional"})
-    assert public == ["PromotionCheck", "paired_promotion"]
+    assert public == ["PromotionCheck", "pair_outcomes", "paired_promotion"]  # pair_outcomes v1.603
