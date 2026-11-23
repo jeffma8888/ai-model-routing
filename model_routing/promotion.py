@@ -3,7 +3,8 @@
 A route the Wilson bound admits may still do worse than the route it would replace on the same
 items. `paired_promotion` compares the two routes' outcomes on the items both were graded on and
 says `promote`, `hold` or `insufficient_overlap`. It is advisory: it changes no route, stats or
-file, and it complements the task's bar, never replaces it.
+file, and it complements the task's bar, never replaces it. `pair_outcomes` reads the two
+mappings from outcome records as `calibrate --outcomes` writes them (v1.603).
 """
 
 from __future__ import annotations
@@ -17,6 +18,8 @@ from typing import Optional
 _PROMOTE = "promote"
 _HOLD = "hold"
 _INSUFFICIENT_OVERLAP = "insufficient_overlap"
+_HEX = frozenset("0123456789abcdef")
+_RECORD_KEYS = ("task", "slice", "route", "item", "correct", "dataset_sha256")
 
 
 @dataclass(frozen=True)
@@ -72,6 +75,89 @@ def _paired_lower_bound(b: int, c: int, n: int, alpha: float) -> float:
     bt = (b + 1) / (n + 2)
     ct = (c + 1) / (n + 2)
     return max(-1.0, (ct - bt) - z * math.sqrt((bt + ct - (ct - bt) ** 2) / (n + 2)))
+
+
+def _name(value) -> bool:
+    return isinstance(value, str) and bool(value)
+
+
+def _slice(value) -> bool:
+    return value is None or (_name(value) and "@" not in value)
+
+
+def _sha256(value) -> bool:
+    return isinstance(value, str) and len(value) == 64 and set(value) <= _HEX
+
+
+def _check_record(position: int, record) -> None:
+    where = f"outcome record {position}"
+    if not isinstance(record, Mapping):
+        raise ValueError(f"{where} must be a mapping, got {record!r}")
+    for key in _RECORD_KEYS:
+        if key not in record:
+            raise ValueError(f"{where} has no {key!r}")
+    for key in ("task", "route", "item"):
+        if not _name(record[key]):
+            raise ValueError(f"{where}: {key} must be a non-empty string, got {record[key]!r}")
+    if not _slice(record["slice"]):
+        raise ValueError(f"{where}: slice must be null or a non-empty string without '@', "
+                         f"got {record['slice']!r}")
+    if type(record["correct"]) is not bool:
+        raise ValueError(f"{where}: correct must be true or false, got {record['correct']!r}")
+    if not _sha256(record["dataset_sha256"]):
+        raise ValueError(f"{where}: dataset_sha256 must be 64 lowercase hexadecimal digits, "
+                         f"got {record['dataset_sha256']!r}")
+
+
+def pair_outcomes(records, *, task, current, challenger, slice=None, dataset_sha256=None):
+    """The current route's and the challenger's outcome mappings on one labeled file, and its hash.
+
+    `records` are outcome records as `item_outcomes` gives them. Every record and argument is
+    checked first; a record is read when it is of `task`, of one of the two routes and, with a
+    `slice`, of that slice. The records read must carry one hash between them, or `dataset_sha256`
+    picks the ones that carry it; a route with none, two hashes and two disagreeing outcomes of
+    one item raise `ValueError` (DESIGN 4.7 v1.603).
+    """
+    for key, value in (("task", task), ("current", current), ("challenger", challenger)):
+        if not _name(value):
+            raise ValueError(f"{key} must be a non-empty string, got {value!r}")
+    if current == challenger:
+        raise ValueError(f"current and challenger must differ, both are {current!r}")
+    if not _slice(slice):
+        raise ValueError(f"slice must be None or a non-empty string without '@', got {slice!r}")
+    if dataset_sha256 is not None and not _sha256(dataset_sha256):
+        raise ValueError("dataset_sha256 must be 64 lowercase hexadecimal digits, "
+                         f"got {dataset_sha256!r}")
+    records = list(records)
+    for position, record in enumerate(records, start=1):
+        _check_record(position, record)
+    read = [r for r in records if r["task"] == task and r["route"] in (current, challenger)
+            and (slice is None or r["slice"] == slice)]
+    if dataset_sha256 is not None:
+        read = [r for r in read if r["dataset_sha256"] == dataset_sha256]
+    else:
+        hashes = sorted({r["dataset_sha256"] for r in read})
+        if len(hashes) > 1:
+            raise ValueError(f"the outcomes of {current!r} and {challenger!r} on task {task!r} "
+                             f"carry {len(hashes)} dataset hashes ({', '.join(hashes)}); "
+                             "name one with dataset_sha256")
+    where = f"task {task!r}" + ("" if slice is None else f" slice {slice!r}")
+    mappings = []
+    for route in (current, challenger):
+        outcomes = {}
+        for r in read:
+            if r["route"] != route:
+                continue
+            seen = outcomes.setdefault(r["item"], r["correct"])
+            if seen is not r["correct"]:
+                raise ValueError(f"route {route!r} has conflicting outcomes for item "
+                                 f"{r['item']!r} on task {task!r}")
+        if not outcomes:
+            raise ValueError(f"route {route!r} has no outcome on {where}"
+                             + ("" if dataset_sha256 is None
+                                else f" with dataset_sha256 {dataset_sha256}"))
+        mappings.append(outcomes)
+    return mappings[0], mappings[1], read[0]["dataset_sha256"]
 
 
 def paired_promotion(current, challenger, *, margin, cheaper=False, alpha=0.05,

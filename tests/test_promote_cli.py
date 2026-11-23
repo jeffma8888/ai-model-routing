@@ -182,8 +182,9 @@ def test_the_slice_reads_only_its_records_and_its_min_samples(tmp_path, capsys):
 def test_a_file_calibrated_twice_pairs_as_once(tmp_path, capsys):
     (tmp_path / "a").mkdir()
     (tmp_path / "b").mkdir()
-    once = run_json(capsys, setup(tmp_path / "a", win_rows()), STRONG)
-    twice = run_json(capsys, setup(tmp_path / "b", win_rows(), win_rows()), STRONG)
+    files_once, files_twice = setup(tmp_path / "a", win_rows()), setup(tmp_path / "b", win_rows(), win_rows())
+    capsys.readouterr()
+    once, twice = run_json(capsys, files_once, STRONG), run_json(capsys, files_twice, STRONG)
     keys = ["decision", "basis", "pairs", "unpaired", "current_only", "challenger_only", "p_value"]
     assert [twice[k] for k in keys] == [once[k] for k in keys]
     assert twice["dataset_sha256"] == once["dataset_sha256"]
@@ -335,7 +336,7 @@ def test_pair_outcomes_filters_by_slice_and_by_a_named_hash():
         pair_outcomes(mixed, task="t", current="x", challenger="y")
     assert pair_outcomes(mixed, task="t", current="x", challenger="y", dataset_sha256=H1)[0] == {
         "a": True, "b": True}
-    with pytest.raises(ValueError, match="route 'y' has no outcome on task 't' slice 'deep' with dataset_sha256"):
+    with pytest.raises(ValueError, match="route 'x' has no outcome on task 't' slice 'deep' with dataset_sha256"):
         pair_outcomes(mixed, task="t", current="x", challenger="y", slice="deep", dataset_sha256=H2)
 
 

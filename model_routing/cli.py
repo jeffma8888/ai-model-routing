@@ -1,4 +1,4 @@
-"""Command line interface: ``model-routing select|calibrate|report|demo|evaluate|delegate|plan``."""
+"""Command line interface: ``model-routing select|calibrate|report|demo|evaluate|delegate|plan|promote``."""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ import argparse
 import hashlib
 import json
 import sys
+from dataclasses import asdict
 from datetime import date
 from pathlib import Path
 from typing import List, Optional
@@ -15,6 +16,7 @@ from .budget import BudgetExceeded, load_budgets
 from .demo import run_demo
 from .monitor import budget_report, load_audits, load_records, report
 from .priors import Priors
+from .promotion import pair_outcomes, paired_promotion
 from .registry import Registry
 from .router import FLAVORS, NoModelClearsBar, Router
 from .stats import (Stats, _planned_successes, calibrate_from_results, item_outcomes,
@@ -168,6 +170,25 @@ def _build_parser() -> argparse.ArgumentParser:
     plan.add_argument("--bar", required=True, type=float)
     plan.add_argument("--confidence", type=float, default=0.95)
     plan.add_argument("--max-items", type=int, default=10_000)
+
+    pr = sub.add_parser("promote", help="whether a challenger route should replace a task's "
+                                        "current route, on the items both were graded on")
+    pr.add_argument("--task", required=True)
+    pr.add_argument("--challenger", required=True, metavar="ROUTE")
+    pr.add_argument("--margin", required=True, type=float, metavar="M",
+                    help="the loss in success rate a cheaper challenger may have, declared first")
+    pr.add_argument("--outcomes", required=True, metavar="FILE",
+                    help="the outcomes file calibrate --outcomes appends to")
+    pr.add_argument("--slice", type=_slice_name, default=None, metavar="S")
+    pr.add_argument("--flavor", default="cost_effective", help="cost_effective or cost_blind")
+    pr.add_argument("--dataset-sha256", default=None, metavar="HEX",
+                    help="pair on the outcomes of this labeled file only")
+    pr.add_argument("--alpha", type=float, default=0.05, metavar="A")
+    pr.add_argument("--registry", default=str(DATA_DIR / "models.json"))
+    pr.add_argument("--tasks", default=str(DATA_DIR / "example_tasks.json"))
+    pr.add_argument("--stats", default="stats.json")
+    pr.add_argument("--priors", default=str(DATA_DIR / "priors.json"))
+    pr.add_argument("--json", action="store_true")
     return parser
 
 
@@ -501,14 +522,73 @@ def _cmd_plan(args) -> int:
     return EXIT_OK
 
 
+def _cmd_promote(args) -> int:
+    """DESIGN 10 v1.603: advisory, it writes no file; every check in the spec's order."""
+    paired_promotion({}, {}, margin=args.margin, alpha=args.alpha)  # checks M and A first
+    registry = Registry.load(args.registry)
+    tasks = load_tasks(args.tasks)
+    stats = Stats.load(args.stats) if Path(args.stats).exists() else Stats()
+    priors = Priors.load(args.priors) if Path(args.priors).exists() else None
+    if args.task not in tasks:
+        raise _BadInput(f"unknown task: {args.task!r}")
+    registry.get(args.challenger)
+    records = load_records(args.outcomes)
+    where = f"task {args.task}" + ("" if args.slice is None else f" slice {args.slice}")
+    try:
+        decision = Router(registry, tasks, stats, priors).select(
+            args.task, flavor=args.flavor, slice=args.slice)
+        candidates = decision.candidates
+    except NoModelClearsBar as exc:
+        decision, candidates = None, exc.candidates
+    challenger = next(c for c in candidates if c.model_id == args.challenger)
+    if decision is None or not challenger.passes:
+        print(f"error: challenger {args.challenger} is not admitted on {where}: "
+              f"{challenger.reason}", file=sys.stderr)
+        return EXIT_NO_MODEL
+    current = next(c for c in candidates if c.model_id == decision.primary)
+    mine, theirs, digest = pair_outcomes(records, task=args.task, current=current.model_id,
+                                         challenger=challenger.model_id, slice=args.slice,
+                                         dataset_sha256=args.dataset_sha256)
+    task = tasks[args.task]
+    min_pairs = task.slices.get(args.slice, {}).get("min_samples", task.min_samples) \
+        if args.slice is not None else task.min_samples
+    check = paired_promotion(mine, theirs, margin=args.margin,
+                             cheaper=challenger.list_cost < current.list_cost, alpha=args.alpha,
+                             min_pairs=min_pairs)
+    data = {"task": args.task, "slice": args.slice, "flavor": args.flavor,
+            "current": current.model_id, "challenger": challenger.model_id,
+            "dataset_sha256": digest, "current_list_cost": current.list_cost,
+            "challenger_list_cost": challenger.list_cost, **asdict(check)}
+    if args.json:
+        print(json.dumps(data, indent=2))
+    else:
+        six = {"current_list_cost", "challenger_list_cost", "current_rate", "challenger_rate",
+               "difference", "p_value", "lower_bound"}
+        for key, value in data.items():
+            if key == "slice" and value is None:
+                continue
+            if value is None:
+                shown = "n/a"
+            elif key in six:
+                shown = f"{value:.6f}"
+            elif isinstance(value, bool):
+                shown = str(value).lower()
+            else:
+                shown = str(value)
+            print(f"{key + ':':<22}{shown}")
+    _warn_expired_prices(registry, args.today, _eligible(candidates))
+    return EXIT_OK
+
+
 _COMMANDS = {"select": _cmd_select, "calibrate": _cmd_calibrate, "report": _cmd_report,
              "demo": _cmd_demo, "evaluate": _cmd_evaluate, "delegate": _cmd_delegate,
-             "plan": _cmd_plan}
+             "plan": _cmd_plan, "promote": _cmd_promote}
 
 
 def main(argv: Optional[List[str]] = None, *, today: Optional[date] = None) -> int:
-    """Run the CLI and return its exit code: 0 ok, 2 bad input, 3 no model clears the bar,
-    4 a budget refused a call (``demo --budgets``, v1.599).
+    """Run the CLI and return its exit code: 0 ok, 2 bad input, 3 no model clears the bar (or,
+    from v1.603, ``promote``'s challenger is not admitted), 4 a budget refused a call
+    (``demo --budgets``, v1.599).
 
     ``today`` dates the price expiry check of ``select``, ``delegate`` and, from v1.411,
     ``evaluate``; ``None`` means ``datetime.date.today()``.
