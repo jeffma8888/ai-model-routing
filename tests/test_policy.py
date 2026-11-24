@@ -8,14 +8,15 @@ leaves out fails closed. With no policy, or `Policy()`, every decision keeps its
 """
 
 import dataclasses
+import hashlib
 import json
 
 import pytest
 
 import model_routing
-from model_routing import (CONTEXT_TOO_SMALL, DATA_DIR, EXCLUDED_MODEL, PASSES, Cascade, Model,
-                           NoModelClearsBar, Procedure, ProcedureResult, Registry, Router, Stats, Task,
-                           Variant, load_tasks)
+from model_routing import (CASCADE_UNKNOWN_MODEL, CONTEXT_TOO_SMALL, DATA_DIR, EXCLUDED_MODEL, PASSES, Cascade,
+                           Model, NoModelClearsBar, Priors, Procedure, ProcedureResult, Registry, Router, Stats,
+                           Task, Variant, load_tasks)
 
 REGION = "eu-west"
 
@@ -87,7 +88,8 @@ def test_cost_blind_keeps_the_policy_too():
         stats.add("t", m.id, 99 if m.id == "y/cheap" else 95, 100)
     r = Router(Registry(models), {"t": task()}, stats)
     assert r.select("t", "cost_blind").primary == "y/cheap"
-    assert r.select("t", "cost_blind", policy=policy(**TENANT)).primary in {"x/small", "x/big"}
+    # x/small and x/big tie on their lower bound, so cost_blind takes the lower model ID (5.3)
+    assert r.select("t", "cost_blind", policy=policy(**TENANT)).primary == "x/big"
 
 
 def test_below_bar_fallbacks_and_the_best_available_path_never_leave_the_allowed_set():
@@ -104,6 +106,15 @@ def test_below_bar_fallbacks_and_the_best_available_path_never_leave_the_allowed
     r = Router(Registry(models), {"t": task(on_no_model="best_available")}, stats2)
     decision = r.select("t", policy=policy(**TENANT))
     assert decision.below_bar and {decision.primary, *decision.fallbacks} == {"x/small", "x/big"}
+
+
+def test_a_prior_pick_never_leaves_the_allowed_set():
+    models = tenant_models()
+    priors = Priors({"c": {"scores": {"y/cheap": 0.99, "x/small": 0.5, "x/big": 0.6}}})
+    r = Router(Registry(models), {"t": task(on_no_model="best_available", prior_category="c")}, Stats(), priors)
+    assert (r.select("t").primary, r.select("t").basis) == ("y/cheap", "prior")
+    decision = r.select("t", policy=policy(**TENANT))
+    assert (decision.primary, decision.fallbacks, decision.basis) == ("x/big", ("x/small",), "prior")
 
 
 def test_no_allowed_route_raises_no_model_clears_bar_with_the_policy_reasons():
@@ -192,6 +203,31 @@ def test_a_cascade_meets_the_policy_on_each_leg_and_needs_its_own_id_allowed():
     decision = r.select("t", cascades=True, policy=policy(region=REGION))
     assert reasons(decision)[cascade.id] == model_routing.REGION_UNAVAILABLE
     assert decision.primary == "c/strong" and cascade.id not in decision.fallbacks
+
+
+def test_the_cascade_id_check_comes_before_any_rule_on_its_legs():
+    r, cascade = cascade_router(cheap_regions=("us-east",))
+    legs_only = policy(allowed_routes=("c/cheap", "c/strong"), region=REGION)
+    got = reasons(r.select("t", cascades=True, policy=legs_only))
+    assert (got[cascade.id], got["c/cheap"]) == (model_routing.POLICY_EXCLUDED, model_routing.REGION_UNAVAILABLE)
+    r, cascade = cascade_router()
+    unallowed = r.select("t", cascades=True, exclude_models=("c/strong",),
+                         policy=policy(allowed_routes=("c/cheap", "c/strong")))
+    assert reasons(unallowed)[cascade.id] == model_routing.POLICY_EXCLUDED
+    allowed = r.select("t", cascades=True, exclude_models=("c/strong",),
+                       policy=policy(allowed_routes=("c/cheap", "c/strong", cascade.id)))
+    assert reasons(allowed)[cascade.id] == EXCLUDED_MODEL  # a leg's rule 1 before its policy rules
+
+
+def test_an_unknown_cascade_model_still_comes_first():
+    cheap = model("c/cheap", "c", 0.1)
+    cascade = Cascade("c/cheap", "c/missing", "sig")
+    stats = Stats()
+    stats.add("t", cheap.id, 95, 100)
+    r = Router(Registry([cheap]), {"t": task(cascades=(cascade,))}, stats)
+    with pytest.raises(NoModelClearsBar) as error:
+        r.select("t", cascades=True, policy=policy(allowed_routes=()))
+    assert reasons(error.value)[cascade.id] == CASCADE_UNKNOWN_MODEL
 
 
 def test_rule_1_on_a_cascade_id_comes_before_its_policy_id_check():
@@ -332,27 +368,42 @@ def test_select_refuses_a_policy_that_is_no_policy_after_the_procedures_check():
 
 # --- defaults: no policy, or Policy(), keeps every decision's bytes ------------------------
 
-def _shipped_router():
+# sha256 of the 160 decisions below, computed on the v1.621 tree (0c8233a), where select takes no policy
+V1_621_DIGEST = "f00882e06e0638c8d7f869f7178e3fe715089fcc6c63edfc519de85f43a8a156"
+
+
+def _decisions(extra):
+    """Every example task, both flavors, five call shapes, measured and on priors (one string each)."""
     registry = Registry.load(DATA_DIR / "models.json")
     tasks = load_tasks(DATA_DIR / "example_tasks.json")
-    stats = Stats()
+    first = registry.models[0].id
+    proc = Procedure("p", "1", _fn, max_model_calls=1, max_tool_calls=0, model=first)
+    measured = Stats()
     for name in tasks:
         for i, m in enumerate(registry.models):
-            stats.add(name, m.id, 90 + i % 10, 100)
-    return Router(registry, tasks, stats)
+            measured.add(name, m.id, 90 + i % 10, 100)
+        measured.add(name, proc.id, 97, 100, cost_usd=0.001)
+    routers = (Router(registry, tasks, measured),
+               Router(registry, {n: dataclasses.replace(t, on_no_model="best_available") for n, t in tasks.items()},
+                      Stats(), Priors.load(DATA_DIR / "priors.json")))
+    cases = ({}, {"prompt_tokens": 150_000}, {"exclude_models": (first,)}, {"generator_model": first},
+             {"procedures": (proc,)})
+    out = []
+    for r in routers:
+        for name in r.tasks:
+            for flavor in ("cost_effective", "cost_blind"):
+                for case in cases:
+                    try:
+                        got = json.dumps(r.select(name, flavor, **case, **extra).to_dict(), sort_keys=True)
+                    except NoModelClearsBar as error:
+                        got = repr([dataclasses.asdict(c) for c in error.candidates])
+                    out.append(got)
+    return out
 
 
-@pytest.mark.parametrize("flavor", ["cost_effective", "cost_blind"])
-def test_no_policy_and_an_empty_policy_keep_every_decision_on_the_shipped_data(flavor):
-    r = _shipped_router()
-    for name in r.tasks:
-        try:
-            want = json.dumps(r.select(name, flavor).to_dict(), sort_keys=True)
-        except NoModelClearsBar as error:
-            want = repr([dataclasses.asdict(c) for c in error.candidates])
-        for given in (None, policy()):
-            try:
-                got = json.dumps(r.select(name, flavor, policy=given).to_dict(), sort_keys=True)
-            except NoModelClearsBar as error:
-                got = repr([dataclasses.asdict(c) for c in error.candidates])
-            assert got == want, name
+@pytest.mark.parametrize("extra", [{}, {"policy": None}, {"policy": model_routing.Policy()}],
+                         ids=["no keyword", "None", "Policy()"])
+def test_no_policy_and_an_empty_policy_keep_every_v1_621_decision_on_the_shipped_data(extra):
+    out = _decisions(extra)
+    assert len(out) == 160
+    assert hashlib.sha256("\n".join(out).encode("utf-8")).hexdigest() == V1_621_DIGEST
