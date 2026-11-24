@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from math import ceil, fsum
+from math import ceil, fsum, isfinite
 from pathlib import Path
 from typing import Dict, Iterable, List, Mapping, Optional, Sequence, Union
 
@@ -422,7 +422,8 @@ def shadow_pairs(records: Iterable[dict], *, checked: bool = False,
     return result
 
 
-def pair_results(pairs: Iterable[dict]) -> List[dict]:
+def pair_results(pairs: Iterable[dict], *, records: Optional[Iterable[dict]] = None,
+                 routes: Optional[Sequence[str]] = None) -> List[dict]:
     """The labeled results rows of a pair file, two per pair with both sides labelled (DESIGN 8.3 v1.613).
 
     Each such pair gives ``{"task", "model", "item", "correct"}`` for its routed route, then for its
@@ -431,7 +432,22 @@ def pair_results(pairs: Iterable[dict]) -> List[dict]:
     row. Every pair is checked before any row is returned, and a bad one raises ``ValueError``
     naming its 1-based position; a cascade or procedure route is refused, since its row would
     need ``escalated`` or ``cost_usd``, which a pair does not hold.
+
+    v1.614: with ``records``, the monitor log the pairs came from, each row gains ``cost_usd``
+    right after ``correct``, its side's final record's alone (a fallback's row is not charged for
+    the failed attempt before it); with ``routes``, ``(routed, shadow)``, only that route pair's
+    pairs give rows, so ``evaluate`` (DESIGN 12.3) reads them as a complete outcome matrix.
     """
+    if routes is not None and (not isinstance(routes, (list, tuple)) or len(routes) != 2
+                               or not all(isinstance(r, str) and r for r in routes)
+                               or routes[0] == routes[1]):
+        raise ValueError(f"routes must be None or a list or tuple of two different non-empty "
+                         f"strings, got {routes!r}")
+    if records is not None:
+        records = list(records)
+        for position, rec in enumerate(records, start=1):
+            if not isinstance(rec, Mapping):
+                raise ValueError(f"record {position} must be a mapping, got {rec!r}")
     pairs = list(pairs)
     seen: Dict[str, int] = {}
     for position, item in enumerate(pairs, start=1):
@@ -462,17 +478,74 @@ def pair_results(pairs: Iterable[dict]) -> List[dict]:
             raise ValueError(f"{where}: pair_id {item['pair_id']!r} is also pair "
                              f"{seen[item['pair_id']]}'s")
         seen[item["pair_id"]] = position
+    kept = [(position, item) for position, item in enumerate(pairs, start=1)
+            if item.get("routed_correct") is not None and item.get("shadow_correct") is not None
+            and (routes is None or (item["routed_route"], item["shadow_route"]) == tuple(routes))]
+    costs = None if records is None else _pair_costs(kept, records)
     rows = []
-    for item in pairs:
-        if item.get("routed_correct") is None or item.get("shadow_correct") is None:
-            continue
-        for route, correct in (("routed_route", "routed_correct"), ("shadow_route", "shadow_correct")):
+    for position, item in kept:
+        for side, route, correct in (("routed", "routed_route", "routed_correct"),
+                                     ("shadow", "shadow_route", "shadow_correct")):
             out = {"task": item["task"], "model": item[route], "item": item["pair_id"],
                    "correct": item[correct]}
+            if costs is not None:
+                out["cost_usd"] = costs[position, side]
             if item.get("slice") is not None:
                 out["slice"] = item["slice"]
             rows.append(out)
     return rows
+
+
+def _pair_costs(kept: List[tuple], records: List[Mapping]) -> Dict[tuple, object]:
+    """Each kept pair's side costs, ``{(position, side): cost_usd}``, read from the final record of
+    its routed call and of its shadow call in the log (DESIGN 8.3 v1.614)."""
+    records = [rec for rec in records if "budget_event" not in rec]
+    routed: Dict[str, List[Mapping]] = {}
+    shadow: Dict[tuple, List[Mapping]] = {}
+    for rec in records:
+        if rec.get("final") is not True:
+            continue
+        call_id, pair_id = rec.get("call_id"), rec.get("pair_id")
+        if not isinstance(call_id, str) or not isinstance(pair_id, str):
+            continue
+        if rec.get("shadow") is True:
+            shadow.setdefault((pair_id, call_id), []).append(rec)
+        elif call_id == pair_id:
+            routed.setdefault(pair_id, []).append(rec)
+    costs: Dict[tuple, object] = {}
+    for position, item in kept:
+        where, pair_id = f"pair {position}", item["pair_id"]
+        found = routed.get(pair_id, [])
+        if len(found) != 1:
+            raise ValueError(f"{where}: its routed call {pair_id!r} has "
+                             f"{'no' if not found else len(found)} final record"
+                             f"{'s' if len(found) > 1 else ''} in the log")
+        routed_rec = found[0]
+        call_id = item.get("shadow_call_id")
+        if not isinstance(call_id, str) or not call_id:
+            raise ValueError(f"{where}: shadow_call_id must be a non-empty string, got {call_id!r}")
+        found = shadow.get((pair_id, call_id), [])
+        if len(found) != 1:
+            raise ValueError(f"{where}: its shadow call {call_id!r} has "
+                             f"{'no' if not found else len(found)} final record"
+                             f"{'s' if len(found) > 1 else ''} in the log")
+        shadow_rec = found[0]
+        if _entry(routed_rec) != item["routed_route"]:  # the pair is not of this log
+            raise ValueError(f"{where}: the log's routed call {pair_id!r} ends on "
+                             f"{_entry(routed_rec)!r}, not on its routed_route "
+                             f"{item['routed_route']!r}")
+        if shadow_rec.get("model") != item["shadow_route"]:
+            raise ValueError(f"{where}: the log's shadow call {call_id!r} ran "
+                             f"{shadow_rec.get('model')!r}, not its shadow_route "
+                             f"{item['shadow_route']!r}")
+        for side, rec in (("routed", routed_rec), ("shadow", shadow_rec)):
+            cost = rec.get("cost_usd")
+            if isinstance(cost, bool) or not isinstance(cost, (int, float)) \
+                    or not isfinite(cost) or cost < 0:
+                raise ValueError(f"{where}: the {side} final record's cost_usd must be a finite "
+                                 f"number >= 0, got {cost!r}")
+            costs[position, side] = cost
+    return costs
 
 
 def _window(budget: Budget, rec: dict) -> Optional[str]:
