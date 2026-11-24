@@ -422,6 +422,57 @@ def shadow_pairs(records: Iterable[dict], *, checked: bool = False,
     return result
 
 
+def pair_results(pairs: Iterable[dict]) -> List[dict]:
+    """The labeled results rows of a pair file, two per pair with both sides labelled (DESIGN 8.3 v1.613).
+
+    Each such pair gives ``{"task", "model", "item", "correct"}`` for its routed route, then for its
+    shadow route, the item its ``pair_id``, with ``slice`` last when the pair's is not None, so
+    ``calibrate_from_results`` and ``item_outcomes`` read them; a pair with a None side adds no
+    row. Every pair is checked before any row is returned, and a bad one raises ``ValueError``
+    naming its 1-based position; a cascade or procedure route is refused, since its row would
+    need ``escalated`` or ``cost_usd``, which a pair does not hold.
+    """
+    pairs = list(pairs)
+    seen: Dict[str, int] = {}
+    for position, item in enumerate(pairs, start=1):
+        where = f"pair {position}"
+        if not isinstance(item, Mapping):
+            raise ValueError(f"{where} must be a mapping, got {item!r}")
+        for key in ("pair_id", "task", "routed_route", "shadow_route"):
+            value = item.get(key)
+            if not isinstance(value, str) or not value:
+                raise ValueError(f"{where}: {key} must be a non-empty string, got {value!r}")
+        name = item.get("slice")
+        if name is not None and (not isinstance(name, str) or not name or "@" in name):
+            raise ValueError(f"{where}: slice must be null or a non-empty string without '@', "
+                             f"got {name!r}")
+        for key in ("routed_correct", "shadow_correct"):
+            if item.get(key) is not None and type(item.get(key)) is not bool:
+                raise ValueError(f"{where}: {key} must be true, false or null, got {item.get(key)!r}")
+        if item["routed_route"] == item["shadow_route"]:
+            raise ValueError(f"{where}: routed_route and shadow_route are both "
+                             f"{item['routed_route']!r}, so it compares no two routes")
+        for key in ("routed_route", "shadow_route"):
+            if ">" in item[key] or item[key].startswith("proc:"):
+                raise ValueError(f"{where}: {key} {item[key]!r} is a cascade's or a procedure's, "
+                                 "whose row needs escalated or cost_usd, which a pair does not hold")
+        if item["pair_id"] in seen:
+            raise ValueError(f"{where}: pair_id {item['pair_id']!r} is also pair "
+                             f"{seen[item['pair_id']]}'s")
+        seen[item["pair_id"]] = position
+    rows = []
+    for item in pairs:
+        if item.get("routed_correct") is None or item.get("shadow_correct") is None:
+            continue
+        for route, correct in (("routed_route", "routed_correct"), ("shadow_route", "shadow_correct")):
+            out = {"task": item["task"], "model": item[route], "item": item["pair_id"],
+                   "correct": item[correct]}
+            if item.get("slice") is not None:
+                out["slice"] = item["slice"]
+            rows.append(out)
+    return rows
+
+
 def _window(budget: Budget, rec: dict) -> Optional[str]:
     """The label of ``budget``'s window that holds the record's ``ts``, None for ``total``."""
     if budget.window == "total":
