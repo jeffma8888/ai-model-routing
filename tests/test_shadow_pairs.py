@@ -94,7 +94,12 @@ def test_audits_label_the_audited_sides_and_never_an_error_side():
     audits = {"call-0": False, "call-1": True, "call-3": True, "call-5": True}
     result = pairs(three_shadows(), audits=audits)
     assert [(p["routed_correct"], p["shadow_correct"]) for p in result] == [
-        (False, True), (None, True), (None, None)]
+        (False, True), (None, False), (None, None)]  # call-3 is invalid (should-fix 2)
+
+
+def test_an_invalid_side_is_false_under_audits_audited_or_not():
+    for audits in ({"call-3": True}, {}):
+        assert pairs(three_shadows(), audits=audits)[1]["shadow_correct"] is False
 
 
 def test_a_fallback_s_answer_names_the_fallback_as_the_routed_route():
@@ -157,6 +162,26 @@ def test_bad_label_arguments_are_value_errors(kwargs):
 def test_a_log_the_executor_cannot_write_is_a_value_error_naming_the_pair(records, name):
     with pytest.raises(ValueError, match=name):
         pairs(records)
+
+
+@pytest.mark.parametrize("call_id", ["", None, [1], 7])
+def test_a_shadow_record_s_bad_call_id_is_a_value_error_naming_the_pair(call_id):
+    records = [rec("r1", "r1", False), rec(call_id, "r1", True, model=BEST)]
+    for kwargs in ({}, {"audits": {"r1": True}}):  # review iter-461 should-fix 3
+        with pytest.raises(ValueError, match="'r1'"):
+            pairs(records, **kwargs)
+
+
+def test_pairs_follow_the_shadow_records_not_the_routed_ones():
+    records = [rec("r2", "r2", False), rec("r1", "r1", False),
+               rec("s1", "r1", True, model=BEST), rec("s2", "r2", True, model=BEST)]
+    assert [p["pair_id"] for p in pairs(records)] == ["r1", "r2"]  # should-fix 4
+
+
+def test_a_routed_record_without_the_pair_keys_is_no_routed_side():
+    plain = {k: v for k, v in rec("r1", "r1", False).items() if k not in ("pair_id", "shadow")}
+    with pytest.raises(ValueError, match="'r1'"):  # should-fix 1
+        pairs([plain, rec("s1", "r1", True, model=BEST)])
 
 
 def test_an_empty_log_or_one_without_shadows_has_no_pairs():

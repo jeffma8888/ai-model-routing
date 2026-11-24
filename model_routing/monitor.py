@@ -312,9 +312,12 @@ def shadow_pairs(records: Iterable[dict], *, checked: bool = False,
     """One pair record per shadow that ran, in the order of its shadow records (DESIGN 8.3 v1.610).
 
     A shadow record is an attempt record whose ``shadow`` is true; its routed side is the
-    ``final`` record of the call whose ``call_id`` is its ``pair_id``. Each side's ``correct``
-    comes from ``checked=True`` (``ok`` true, ``invalid`` false) or from ``audits`` by call ID,
-    never both, and is None on an ``error`` side or with neither. Budget records are dropped
+    ``final`` record whose ``call_id`` and ``pair_id`` are both its ``pair_id``. Each side's ``correct``
+    comes from ``checked=True`` (``ok`` true, ``invalid`` false) or from ``audits`` by call ID
+    (an ``invalid`` side false whatever its audit), never both, and is None on an ``error`` side
+    or with neither. ``checked=True`` is the caller's word that every call ran with a
+    ``validate``: no record says whether one ran, so on a log of unchecked calls every ``ok``
+    side reads true (review iter-461 should-fix 5). Budget records are dropped
     first, so a shadow that was not sent or whose hold was refused has no pair. A bad argument,
     or a log the executor cannot write, raises ``ValueError`` before any pair is returned.
     """
@@ -341,6 +344,10 @@ def shadow_pairs(records: Iterable[dict], *, checked: bool = False,
         pair_id = rec.get("pair_id")
         if not isinstance(pair_id, str) or not pair_id:
             raise ValueError(f"a shadow record's pair_id must be a non-empty string, got {pair_id!r}")
+        call_id = rec.get("call_id")
+        if not isinstance(call_id, str) or not call_id:  # review iter-461 should-fix 3
+            raise ValueError(f"pair_id {pair_id!r}: its shadow record's call_id must be a "
+                             f"non-empty string, got {call_id!r}")
         if pair_id in seen:
             raise ValueError(f"pair_id {pair_id!r} has more than one shadow record")
         seen.add(pair_id)
@@ -363,8 +370,8 @@ def shadow_pairs(records: Iterable[dict], *, checked: bool = False,
             return None                   # no answer, so never a wrong one
         if checked:
             return {"ok": True, "invalid": False}.get(outcome)
-        if audits is not None:
-            return audits.get(side.get("call_id"))
+        if audits is not None:  # review iter-461 should-fix 2: the check rejected it
+            return False if outcome == "invalid" else audits.get(side.get("call_id"))
         return None
 
     result = []
