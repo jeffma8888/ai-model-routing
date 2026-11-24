@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pytest
 
-from decision_hash import decision_sha256
+from decision_hash import candidate_fields, decision_sha256
 from model_routing import (AllModelsFailed, Completion, DATA_DIR, Executor, FakeProvider, Model,
                            NoModelClearsBar, Policy, ProviderError, Registry, Router, Stats, Task,
                            load_tasks)
@@ -259,7 +259,7 @@ def _decisions(extra):
                         got = r.decide_delegation(name, parent, flavor, **work, **extra).to_dict()
                     except NoModelClearsBar as error:
                         got = {"error": str(error),
-                               "candidates": [dataclasses.asdict(c) for c in error.candidates]}
+                               "candidates": [candidate_fields(c) for c in error.candidates]}
                     out.append(got)
     return out
 

@@ -322,8 +322,9 @@ def test_a_cascade_candidate_dict_has_the_ten_candidate_keys():
     # v1.584 (row SELF1c): the eleventh field, pricing_basis, is None on a cascade, so no key,
     # and v1.588 (row CACHE1b) adds two more a cascade leaves at their defaults
     keys = [f.name for f in dataclasses.fields(model_routing.Candidate)]
-    assert len(keys) == 13 and keys[10:] == ["pricing_basis", "cost_breakdown",
-                                             "cache_price_unknown"]
+    # and v1.628 (row LAT1b) a fourteenth, p95_latency_ms, a key only under a latency bar
+    assert len(keys) == 14 and keys[10:] == ["pricing_basis", "cost_breakdown",
+                                             "cache_price_unknown", "p95_latency_ms"]
     keys = keys[:10]
     assert list(data["candidates"][-1]) == keys
     assert data["candidates"][-1]["model_id"] == CID

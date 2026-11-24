@@ -32,6 +32,19 @@ def neutral(value):
     return value
 
 
+def candidate_fields(candidate):
+    """``dataclasses.asdict(candidate)`` less ``p95_latency_ms`` when it is None (DESIGN 5.1 v1.628).
+
+    A pin computed before v1.628 hashed a candidate's fields when `Candidate` had none for a time; a
+    call whose task sets no bar leaves that field None, so dropping it keeps such a pin's meaning.
+    """
+    import dataclasses
+    data = dataclasses.asdict(candidate)
+    if data.get("p95_latency_ms", 0) is None:
+        del data["p95_latency_ms"]
+    return data
+
+
 def decision_sha256(value, *, sort_keys=True):
     """The sha256 of ``value``'s JSON, its bounds rounded first (``neutral``)."""
     return hashlib.sha256(json.dumps(neutral(value), sort_keys=sort_keys).encode()).hexdigest()

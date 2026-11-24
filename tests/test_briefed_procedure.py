@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pytest
 
-from decision_hash import decision_sha256
+from decision_hash import candidate_fields, decision_sha256
 from model_routing import (DATA_DIR, Model, NoModelClearsBar, Registry, Router, Stats, Task,
                            load_tasks)
 from model_routing import delegation
@@ -91,9 +91,9 @@ def test_the_briefed_copy_keeps_each_procedure_key_as_it_is():
     assert copy.tokens("t", "x/small") == (120_000 + 300 * 100, 21_000, 100)
     assert copy.tokens("t", "x/mid") == (90_000 + 300 * 80, 15_000, 80)
     assert copy.get("t", "y/big") == (99, 100) and copy.tokens("t", "y/big") == (0, 0, 0)
-    # as 13.3 v1.627 states, the copy holds no times (4.3 v1.626) and no cache counts (v1.588)
-    # (review iter-479 nit 2); LAT1b copies the times
-    assert stats.latencies("t", "proc:sum@1") == (40.0,) and copy.latencies("t", "proc:sum@1") == ()
+    # from 13.3 v1.628 (row LAT1b, review iter-479 nit 2) the copy keeps the times (4.3 v1.626) as
+    # they are, while it still holds no cache counts (v1.588)
+    assert stats.latencies("t", "proc:sum@1") == (40.0,) and copy.latencies("t", "proc:sum@1") == (40.0,)
     assert stats.cache_tokens("t", "z/cached") == (2_000, 5, 0, 0)
     assert copy.cache_tokens("t", "z/cached") == (0, 0, 0, 0)
     assert copy.tokens("t", "z/cached") == (5_000 + 300 * 5, 500, 5)
@@ -151,7 +151,7 @@ def _decisions_with_a_procedure_trial():
                         got = r.decide_delegation(name, parent, flavor, **work).to_dict()
                     except NoModelClearsBar as error:
                         got = {"error": str(error),
-                               "candidates": [dataclasses.asdict(c) for c in error.candidates]}
+                               "candidates": [candidate_fields(c) for c in error.candidates]}
                     out.append(got)
     return out
 

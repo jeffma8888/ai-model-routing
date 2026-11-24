@@ -12,6 +12,7 @@ import hashlib
 import json
 
 import pytest
+from decision_hash import candidate_fields
 
 import model_routing
 from model_routing import (CASCADE_UNKNOWN_MODEL, CONTEXT_TOO_SMALL, DATA_DIR, EXCLUDED_MODEL, PASSES, Cascade,
@@ -396,7 +397,7 @@ def _decisions(extra):
                     try:
                         got = json.dumps(r.select(name, flavor, **case, **extra).to_dict(), sort_keys=True)
                     except NoModelClearsBar as error:
-                        got = repr([dataclasses.asdict(c) for c in error.candidates])
+                        got = repr([candidate_fields(c) for c in error.candidates])  # v1.628: no bar, no time
                     out.append(got)
     return out
 

@@ -14,7 +14,7 @@ import itertools
 
 import pytest
 
-from decision_hash import decision_sha256
+from decision_hash import candidate_fields, decision_sha256
 from model_routing import (AllModelsFailed, Budget, BudgetExceeded, BudgetLedger, Cascade, Completion,
                            DATA_DIR, Executor, FakeProvider, Model, Monitor, NoModelClearsBar, Policy,
                            Procedure, ProcedureResult, ProviderError, Registry, Router, Stats, Task,
@@ -352,7 +352,7 @@ def _outcomes(extra):
                                "decision": error.decision.to_dict()}
                     except NoModelClearsBar as error:
                         got = {"error": "NoModelClearsBar", "message": str(error),
-                               "candidates": [dataclasses.asdict(c) for c in error.candidates]}
+                               "candidates": [candidate_fields(c) for c in error.candidates]}
                     out.append(got)
     return out, monitor.records
 
