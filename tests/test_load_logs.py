@@ -136,6 +136,19 @@ def test_bad_paths_raise_before_any_file_is_opened(tmp_path):
             load_logs(bad)
 
 
+def test_a_bad_later_element_raises_before_the_first_file_is_read(tmp_path, monkeypatch):
+    # review iter-472 should-fix 1: an existing first path, and no file is read at all
+    a, _ = two_processes(tmp_path)
+    import model_routing.monitor as monitor
+
+    def no_read(path):
+        raise AssertionError(f"{path} was read before the paths were checked")
+    monkeypatch.setattr(monitor, "_numbered_objects", no_read)
+    for bad in ([a, 3], (a, None), [a, str(a), b"calls.jsonl"]):
+        with pytest.raises(ValueError, match="paths"):
+            load_logs(bad)
+
+
 def test_a_missing_or_bad_file_raises_as_load_records_does(tmp_path):
     a, _ = two_processes(tmp_path)
     with pytest.raises(OSError):
@@ -232,6 +245,20 @@ def test_pairs_a_missing_or_repeated_log_exits_2_writing_nothing(tmp_path, capsy
         code, stdout, err = run(capsys, "pairs", "--log", logs[0], "--log", logs[1], "--out", out)
         assert (code, stdout) == (2, "") and err.startswith("error: ")
         assert not out.exists()
+
+
+def test_pairs_a_missing_second_log_exits_2_keeping_out_and_results(tmp_path, capsys):
+    # review iter-472 should-fix 2: the second flag, which argparse kept alone until v1.620
+    _, routed, _ = split_pair(tmp_path)
+    out, rows = tmp_path / "pairs.jsonl", tmp_path / "rows.jsonl"
+    out.write_text("old pairs\n", encoding="utf-8")
+    rows.write_text("old rows\n", encoding="utf-8")
+    code, stdout, err = run(capsys, "pairs", "--log", routed, "--log", tmp_path / "absent.jsonl",
+                            "--out", out, "--checked", "--results", rows)
+    assert (code, stdout) == (2, "")
+    assert err.startswith("error: ") and "absent.jsonl" in err and err.count("\n") == 1
+    assert out.read_text(encoding="utf-8") == "old pairs\n"
+    assert rows.read_text(encoding="utf-8") == "old rows\n"
 
 
 # --- the spec and the README ----------------------------------------------------------------
