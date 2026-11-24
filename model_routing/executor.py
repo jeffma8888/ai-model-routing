@@ -179,7 +179,8 @@ class Executor:
         falls back, and its records carry the procedure keys (DESIGN 7 and 8.1 v1.578).
         A task with a ``shadow_rate`` above 0 may shadow the call: once the routed call has
         returned, one call of the shadow route on the same messages, whose failure never fails
-        the routed call, both calls' records paired by ``pair_id`` (DESIGN 7 and 8.1 v1.607);
+        the routed call, both calls' records paired by ``pair_id`` (DESIGN 7 and 8.1 v1.607),
+        each saying by ``checked`` whether ``validate`` was given (7 and 8.1 v1.618);
         none when the routed answer came from the shadow route's model (7 and 8.1 v1.609).
         With a ``shadow_runner`` the shadow is handed to it as one job, on a deep copy of
         ``messages``, and ``.call`` returns once the runner has taken it (7 v1.617).
@@ -280,7 +281,8 @@ class Executor:
             shadow_id = self.id_factory()
             if shadow_id == call_id:  # review iter-456 must-fix 1
                 raise ValueError(f"id_factory returned {call_id!r} again for the call's shadow")
-            pair = {"pair_id": call_id, "shadow": False}
+            # 8.1 v1.618: and whether the call was given a check, on both calls' records
+            pair = {"pair_id": call_id, "shadow": False, "checked": validate is not None}
         order = (decision.primary, *decision.fallbacks)
         attempts: List[Attempt] = []
         moves: List[dict] = []  # DESIGN 7 v1.596: each downgrade move so far, in order
@@ -350,7 +352,7 @@ class Executor:
         """
         registry = self.router.registry
         tags = dict(call_tags, shadow="true")
-        pair = {"pair_id": pair_id, "shadow": True}
+        pair = {"pair_id": pair_id, "shadow": True, "checked": validate is not None}  # 8.1 v1.618
         scope, refused = None, []
         if self.ledger is not None:
             out = dict(task.slices.get(decision.slice) or {}).get(

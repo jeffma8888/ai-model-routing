@@ -11,7 +11,7 @@ call that is not shadowed writes no new key.
 import pytest
 from model_routing import (
     Budget, BudgetLedger, Cascade, Completion, Executor, FakeProvider, Model, Monitor, Procedure,
-    ProcedureResult, Registry, Router, Stats, Task, load_records, shadow_pairs,
+    ProcedureResult, ProviderError, Registry, Router, Stats, Task, load_records, shadow_pairs,
 )
 from model_routing.cli import main
 
@@ -39,14 +39,20 @@ def answer(text):
     return lambda messages: Completion(text, 1000, 200)
 
 
-def provider():
-    return FakeProvider({CHEAP: answer("cheap"), MID: answer("mid"), BEST: answer("best")})
+def provider(**overrides):
+    script = {CHEAP: answer("cheap"), MID: answer("mid"), BEST: answer("best")}
+    script.update(overrides)
+    return FakeProvider(script)
 
 
-def make(route, monitor, *, random=lambda: 0.0, **kwargs):
+def outage(messages):
+    raise ProviderError("outage")
+
+
+def make(route, monitor, *, random=lambda: 0.0, prov=None, **kwargs):
     ticks = iter(float(i) for i in range(10_000))
     ids = iter(f"call-{i}" for i in range(10_000))
-    return Executor(route, provider(), monitor=monitor, clock=lambda: next(ticks),
+    return Executor(route, prov or provider(), monitor=monitor, clock=lambda: next(ticks),
                     now=lambda: "2026-11-24T00:00:00Z", id_factory=lambda: next(ids),
                     random=random, **kwargs)
 
@@ -134,11 +140,13 @@ def test_a_runner_s_job_writes_the_value_of_the_call_that_handed_it_over(first, 
 @CHECKS
 def test_a_skipped_shadow_s_routed_record_carries_it(validate, value):
     monitor = Monitor()
-    make(router(shadow_rate=1.0, shadow_route=CHEAP), monitor).call(
-        "judge", MESSAGES, validate=validate)
-    [routed] = monitor.records  # the answer came from the shadow route's model (7 v1.609)
-    assert (routed["model"], routed["pair_id"], routed["shadow"]) == (CHEAP, "call-0", False)
-    assert after_slice(routed, 3) == PAIR_KEYS and routed["checked"] is value
+    result = make(router(shadow_rate=1.0, shadow_route=MID), monitor,
+                  prov=provider(**{CHEAP: outage})).call("judge", MESSAGES, validate=validate)
+    assert result.model == MID  # a fallback onto the shadow route answered (7 v1.609)
+    assert [(r["model"], r["outcome"], r["pair_id"], r["shadow"]) for r in monitor.records] == [
+        (CHEAP, "error", "call-0", False), (MID, "ok", "call-0", False)]
+    for rec in monitor.records:
+        assert after_slice(rec, 3) == PAIR_KEYS and rec["checked"] is value
 
 
 CASCADE = Cascade(CHEAP, MID, "sig")

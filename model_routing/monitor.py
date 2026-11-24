@@ -362,8 +362,10 @@ def shadow_pairs(records: Iterable[dict], *, checked: bool = False,
     comes from ``checked=True`` (``ok`` true, ``invalid`` false) or from ``audits`` by call ID
     (an ``invalid`` side false whatever its audit), never both, and is None on an ``error`` side
     or with neither. ``checked=True`` is the caller's word that every call ran with a
-    ``validate``: no record says whether one ran, so on a log of unchecked calls every ``ok``
-    side reads true (review iter-461 should-fix 5). Budget records are dropped
+    ``validate``, checked against the records from v1.618: a pair whose routed final record or
+    shadow record says ``checked: false`` is refused, while a record without the key, from an
+    older log, is taken on that word (DESIGN 8.3 v1.618, review iter-461 should-fix 5); a
+    ``checked`` key that is not a real bool is refused whatever the labels. Budget records are dropped
     first, so a shadow that was not sent or whose hold was refused has no pair. A bad argument,
     or a log the executor cannot write, raises ``ValueError`` before any pair is returned.
     """
@@ -409,6 +411,18 @@ def shadow_pairs(records: Iterable[dict], *, checked: bool = False,
         if count != 1:
             raise ValueError(f"pair_id {rec['pair_id']!r}: its routed call has "
                              f"{'no' if count == 0 else count} final records, so it is no pair")
+    for rec in shadows:  # DESIGN 8.3 v1.618: what the records say about the check
+        for side, record in (("routed", finals[rec["pair_id"]][0]), ("shadow", rec)):
+            if "checked" not in record:
+                continue  # a record from before v1.618: the caller's word, as in v1.610
+            value = record["checked"]
+            if type(value) is not bool:
+                raise ValueError(f"pair_id {rec['pair_id']!r}: its {side} record's checked must "
+                                 f"be true or false, got {value!r}")
+            if checked and not value:
+                raise ValueError(f"pair_id {rec['pair_id']!r}: its {side} record says checked "
+                                 f"false, so its call ran no validate and the check cannot "
+                                 f"label it")
 
     def correct(side: dict) -> Optional[bool]:
         outcome = side.get("outcome")
