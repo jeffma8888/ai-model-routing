@@ -312,6 +312,15 @@ def test_the_cli_and_delegation_do_not_read_procedures_yet():
     # v1.579 (row RPT2): monitor.py's report reads its record keys to tell a call's route
     # entries apart (8.3 v1.579); v1.580 (row PROC1d): demo.py runs one (11 v1.580)
     assert mod().__file__ == str(PACKAGE / "procedures.py")
+    # v1.627 (row BRIEF1): delegation.py's briefed stats copy keeps a procedure key's counts
+    # and cost (13.3), its one use of the word, and it still passes select no procedures
+    imported = "from .stats import Stats, _is_cascade_key, _is_procedure_key, wilson_lower_bound\n"
     for module in ("cli.py", "delegation.py"):
         text = (PACKAGE / module).read_text(encoding="utf-8")
+        if module == "delegation.py":
+            assert text.count(imported) == 1 and "procedures=" not in text
+            start = text.index("\ndef _briefed_stats(")
+            end = text.index("\ndef ", start + 1)
+            assert "_is_procedure_key(model_id)" in text[start:end]
+            text = (text[:start] + text[end:]).replace(imported, "", 1)
         assert "procedure" not in text.lower(), module

@@ -73,10 +73,12 @@ def test_both_paths_are_reached_with_a_procedure_trial_on_the_task():
 
 def test_the_briefed_copy_keeps_each_procedure_key_as_it_is():
     stats = _stats()
-    stats.add("t", "proc:sum@1", 1, 1, cost_usd=0.1)
+    stats.add("t", "proc:sum@1", 1, 1, cost_usd=0.1, latencies_ms=[40.0])
     stats.add("t", "proc:sum@1", 1, 2, cost_usd=0.2)  # summed: 0.30000000000000004
     stats.add("t", "proc:none@1", 0, 0, cost_usd=0)
     stats.add("other", "proc:sum@1", 3, 3, cost_usd=0.5)
+    stats.add("t", "z/cached", 5, 5, input_tokens=5_000, output_tokens=500,
+              cached_input_tokens=2_000, cached_trials=5)
     copy = delegation._briefed_stats(stats, "t", 300)
     assert copy is not stats
     assert copy.get("t", "proc:sum@1") == (2, 3)
@@ -89,8 +91,15 @@ def test_the_briefed_copy_keeps_each_procedure_key_as_it_is():
     assert copy.tokens("t", "x/small") == (120_000 + 300 * 100, 21_000, 100)
     assert copy.tokens("t", "x/mid") == (90_000 + 300 * 80, 15_000, 80)
     assert copy.get("t", "y/big") == (99, 100) and copy.tokens("t", "y/big") == (0, 0, 0)
+    # as 13.3 v1.627 states, the copy holds no times (4.3 v1.626) and no cache counts (v1.588)
+    # (review iter-479 nit 2); LAT1b copies the times
+    assert stats.latencies("t", "proc:sum@1") == (40.0,) and copy.latencies("t", "proc:sum@1") == ()
+    assert stats.cache_tokens("t", "z/cached") == (2_000, 5, 0, 0)
+    assert copy.cache_tokens("t", "z/cached") == (0, 0, 0, 0)
+    assert copy.tokens("t", "z/cached") == (5_000 + 300 * 5, 500, 5)
     assert {key for key, _ in copy.items()} == {
-        ("t", "x/small"), ("t", "x/mid"), ("t", "y/big"), ("t", "proc:sum@1"), ("t", "proc:none@1")}
+        ("t", "x/small"), ("t", "x/mid"), ("t", "y/big"), ("t", "z/cached"), ("t", "proc:sum@1"),
+        ("t", "proc:none@1")}
 
 
 def test_the_router_stats_save_the_same_bytes_after_the_call(tmp_path):
@@ -151,6 +160,7 @@ def test_a_procedure_trial_on_every_task_keeps_the_960_shipped_decisions():
     out = _decisions_with_a_procedure_trial()
     assert len(out) == 960
     assert {d.get("mode", "error") for d in out} == {"inline", "delegate", "error"}
+    assert "parent_context_full" in {d["reason"] for d in out if "reason" in d}  # review iter-479 nit 1
     assert decision_sha256(out) == V1_623_DIGEST
 
 
