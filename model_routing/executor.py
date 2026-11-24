@@ -6,6 +6,7 @@ import copy
 import json
 import math
 import random as _random
+import threading
 import time
 import uuid
 from collections.abc import Mapping
@@ -106,7 +107,10 @@ class Executor:
     measured cost after (DESIGN 7 v1.595); a ``downgrade`` budget moves a call to the next route
     entry that clears the bar, and a ``day`` or ``month`` budget reads its window from ``now``
     (DESIGN 7 v1.596). ``random``, None for ``random.random``, draws whether a call of a task
-    with a ``shadow_rate`` is shadowed (DESIGN 7 v1.607).
+    with a ``shadow_rate`` is shadowed (DESIGN 7 v1.607). ``shadow_runner``, None or a callable
+    such as a ``concurrent.futures.ThreadPoolExecutor``'s ``submit``, takes each shadow as one job
+    with no argument, so ``.call`` returns without waiting for the shadow's provider call; with
+    None the shadow runs on the caller's thread before ``.call`` returns (DESIGN 7 v1.617).
 
     One executor, with its router, a :class:`Monitor` and a :class:`BudgetLedger`, may serve many
     threads at once: a call keeps its state in its own locals and sets no attribute of the executor
@@ -121,11 +125,15 @@ class Executor:
                  now: Optional[Callable[[], str]] = None,
                  id_factory: Optional[Callable[[], str]] = None,
                  ledger: Optional[BudgetLedger] = None,
-                 random: Optional[Callable[[], float]] = None):
+                 random: Optional[Callable[[], float]] = None,
+                 shadow_runner: Optional[Callable[[Callable[[], None]], object]] = None):
         if ledger is not None and not isinstance(ledger, BudgetLedger):
             raise ValueError(f"ledger must be None or a BudgetLedger, got {type(ledger).__name__}")
         if random is not None and not callable(random):
             raise ValueError(f"random must be None or a callable, got {type(random).__name__}")
+        if shadow_runner is not None and not callable(shadow_runner):  # DESIGN 7 v1.617
+            raise ValueError(f"shadow_runner must be None or a callable, "
+                             f"got {type(shadow_runner).__name__}")
         self.router = router
         self.provider = provider
         self.monitor = monitor
@@ -134,6 +142,7 @@ class Executor:
         self.id_factory = id_factory if id_factory is not None else _new_id
         self.ledger = ledger
         self.random = random if random is not None else _random.random  # DESIGN 7 v1.607
+        self.shadow_runner = shadow_runner  # DESIGN 7 v1.617
         # DESIGN 7 v1.597: a strict budget reads each call's billing bound
         self._strict = ledger is not None and any(budget.strict for budget in ledger.budgets)
 
@@ -170,6 +179,8 @@ class Executor:
         returned, one call of the shadow route on the same messages, whose failure never fails
         the routed call, both calls' records paired by ``pair_id`` (DESIGN 7 and 8.1 v1.607);
         none when the routed answer came from the shadow route's model (7 and 8.1 v1.609).
+        With a ``shadow_runner`` the shadow is handed to it as one job, on a deep copy of
+        ``messages``, and ``.call`` returns once the runner has taken it (7 v1.617).
         """
         _check_prompt_tokens(prompt_tokens)
         if signals is not None and not isinstance(signals, Mapping):
@@ -303,9 +314,29 @@ class Executor:
         # DESIGN 7 v1.607: only once the routed call has returned; v1.609: and never on an
         # answer of the shadow route's own model, a fallback or a cascade leg onto it
         if shadow is not None and result.model != shadow:
-            self._shadow(shadow, task_name, task, decision, messages, call_tags, validate, size,
-                         call_id, shadow_id)
+            if self.shadow_runner is None:
+                self._shadow(shadow, task_name, task, decision, messages, call_tags, validate,
+                             size, call_id, shadow_id)
+            else:  # DESIGN 7 v1.617: off the caller's path, on its own copy of the messages
+                self.shadow_runner(self._job(shadow, task_name, task, decision,
+                                             copy.deepcopy(messages), call_tags, validate, size,
+                                             call_id, shadow_id))
         return result
+
+    def _job(self, *args) -> Callable[[], None]:
+        """The shadow as one job with no argument, which runs it once (DESIGN 7 v1.617).
+
+        A second call raises ``RuntimeError`` and writes nothing, so a runner that retries a job
+        cannot give one pair two shadow records.
+        """
+        once = threading.Lock()
+
+        def job() -> None:
+            if not once.acquire(blocking=False):
+                raise RuntimeError("this shadow job has already run; a job runs its shadow once")
+            self._shadow(*args)
+
+        return job
 
     def _shadow(self, model_id: str, task_name: str, task, decision: RouteDecision,
                 messages: List[dict],
