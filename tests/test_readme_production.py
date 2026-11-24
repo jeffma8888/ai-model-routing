@@ -11,6 +11,12 @@ and is at most CHOSEN_CAP bytes by the 12.8 measure (v1.335): its size at v1.604
 is under the shortest of the seven, so a later production option goes in the new section. Every
 README link to a heading, in the README or in another Markdown file of the repo, resolves. A docs
 slice: no package module changes, so these tests passed when they were written.
+
+DESIGN 5.2 v1.629 (row PROD1f): `## Running it in production` is at most PRODUCTION_CAP bytes by the
+same measure: its size at v1.629 plus PRODUCTION_MARGIN, room for two paragraphs the size of its
+longest (LONGEST, the one on `promote`) but not three. A later version whose text does not fit trims
+an older paragraph or moves its detail to DESIGN; only a version that states its reason raises the
+cap. A docs slice too: no README text changes, so these tests passed when they were written.
 """
 
 import hashlib
@@ -22,6 +28,11 @@ CHOSEN = "## How a model is chosen"
 PRODUCTION = "## Running it in production"
 CHOSEN_SIZE, MARGIN = 6_216, 1_000  # v1.604: the section after the move, and room for one short paragraph
 CHOSEN_CAP = CHOSEN_SIZE + MARGIN
+# v1.629 (row PROD1f): the production section at v1.629, its margin, and its longest paragraph then
+# (the one on `promote`, v1.605); 12,318 bytes at v1.604 (`git show bba6e7c:README.md`)
+PRODUCTION_SIZE, PRODUCTION_MARGIN, LONGEST, PRODUCTION_AT_V1_604 = 23_294, 6_706, 2_847, 12_318
+PRODUCTION_CAP = PRODUCTION_SIZE + PRODUCTION_MARGIN
+EVIDENCE = "\n## Evidence: held-out results on public data\n"
 # The seven paragraphs of `## How a model is chosen` at 16a8fd6 after the context-window ones, in
 # order: their opening words, UTF-8 bytes and sha256 (`git show 16a8fd6:README.md`).
 MOVED = [
@@ -72,9 +83,9 @@ def paragraphs(text, heading):
     return body.split("\n### ", 1)[0].strip().split("\n\n")
 
 
-def cap_problems(text, cap=CHOSEN_CAP):
-    found = size(text, CHOSEN)
-    return [] if found <= cap else [f"`{CHOSEN}` is {found:,} bytes, over its {cap:,}-byte cap"]
+def cap_problems(text, cap=CHOSEN_CAP, heading=CHOSEN):
+    found = size(text, heading)
+    return [] if found <= cap else [f"`{heading}` is {found:,} bytes, over its {cap:,}-byte cap"]
 
 
 def slug(heading):
@@ -134,6 +145,29 @@ def test_the_cap_fails_one_byte_over():
     over = text.replace("\n### The quality bar", "\n" + "x" * room + "\n### The quality bar", 1)
     assert size(over, CHOSEN) == CHOSEN_CAP + 1
     assert cap_problems(over) == [f"`{CHOSEN}` is {CHOSEN_CAP + 1:,} bytes, over its {CHOSEN_CAP:,}-byte cap"]
+
+
+def test_running_it_in_production_is_under_its_cap():
+    text = read("README.md")
+    assert size(text, PRODUCTION) <= PRODUCTION_CAP == 30_000
+    assert cap_problems(text, PRODUCTION_CAP, PRODUCTION) == []
+    # the margin holds two paragraphs the size of the longest at v1.629, not three
+    assert 2 * LONGEST <= PRODUCTION_MARGIN < 3 * LONGEST
+    assert PRODUCTION_SIZE - PRODUCTION_AT_V1_604 == 10_976
+
+
+def test_the_production_cap_fails_one_byte_over():
+    text = read("README.md")
+    assert text.count(EVIDENCE) == 1
+    room = PRODUCTION_CAP - size(text, PRODUCTION)
+    at = text.replace(EVIDENCE, "\n" + "x" * (room - 1) + EVIDENCE, 1)
+    assert size(at, PRODUCTION) == PRODUCTION_CAP and cap_problems(at, PRODUCTION_CAP, PRODUCTION) == []
+    over = text.replace(EVIDENCE, "\n" + "x" * room + EVIDENCE, 1)
+    assert size(over, PRODUCTION) == PRODUCTION_CAP + 1
+    assert cap_problems(over, PRODUCTION_CAP, PRODUCTION) == [
+        f"`{PRODUCTION}` is {PRODUCTION_CAP + 1:,} bytes, over its {PRODUCTION_CAP:,}-byte cap"]
+    # the padding lands in the production section only
+    assert size(over, CHOSEN) == size(text, CHOSEN)
 
 
 def test_the_measure_reads_the_heading_through_the_line_before_the_next_section():
@@ -240,4 +274,24 @@ def test_design_states_the_section_and_the_changelog_the_version():
     # changelog line, which stays (review iter-453 nit 1)
     [line] = [x for x in read("CHANGELOG.md").splitlines() if x.startswith("- v1.604 (")]
     assert line.startswith("- v1.604 (2026-11-23): docs and tests (4.6, 5.2, 6, 11, row PROD1a). ")
+    assert len(line.encode("utf-8")) <= 600
+
+
+def test_design_and_the_changelog_name_the_production_cap():
+    design = read("DESIGN.md")
+    five2 = design[design.index("### 5.2 "):design.index("### 5.3 ")]
+    [mine] = [line for line in five2.splitlines() if line.startswith("- v1.629 README cap (row PROD1f): ")]
+    for kept in (f"`## Running it in production` is at most {PRODUCTION_CAP:,} bytes by the 12.8 measure (v1.335): "
+                 f"its {PRODUCTION_SIZE:,} at v1.629 plus a margin of {PRODUCTION_MARGIN:,}",
+                 f"room for two paragraphs the size of its longest (the {LONGEST:,}-byte one on `promote`, v1.605) "
+                 "but not three",
+                 f"the section held {PRODUCTION_AT_V1_604:,} bytes at v1.604 and grew by 10,976 from v1.605 to v1.625",
+                 "trims an older paragraph of the section, or moves its detail to this file and links the clause",
+                 "only a version that states its reason raises the cap",
+                 "No package module, evidence file, README text or README transcript changes"):
+        assert mine.count(kept) == 1, kept
+    [line] = [x for x in read("CHANGELOG.md").splitlines() if x.startswith("- v1.629 (")]
+    assert line.startswith("- v1.629 (2026-11-24): docs and tests (5.2, row PROD1f). ")
+    assert line.count(f"at most {PRODUCTION_CAP:,} bytes by the 12.8 measure, its {PRODUCTION_SIZE:,} at v1.629 "
+                      f"plus a margin of {PRODUCTION_MARGIN:,}") == 1
     assert len(line.encode("utf-8")) <= 600
