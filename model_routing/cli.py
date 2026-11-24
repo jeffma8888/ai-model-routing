@@ -6,6 +6,7 @@ import argparse
 import hashlib
 import json
 import sys
+from collections import Counter
 from dataclasses import asdict
 from datetime import date
 from pathlib import Path
@@ -14,7 +15,8 @@ from typing import List, Optional
 from . import DATA_DIR
 from .budget import BudgetExceeded, load_budgets
 from .demo import run_demo
-from .monitor import budget_report, load_audits, load_records, report, shadow_pairs
+from .monitor import (budget_report, load_audits, load_records, pair_results, report,
+                      shadow_pairs)
 from .priors import Priors
 from .promotion import pair_outcomes, paired_promotion
 from .registry import Registry
@@ -200,6 +202,10 @@ def _build_parser() -> argparse.ArgumentParser:
                     help="every call of the log ran with an acceptance check: label by it")
     pa.add_argument("--audits", default=None, metavar="PATH",
                     help="a JSONL file of {call_id, correct} audits: label by them")
+    pa.add_argument("--results", default=None, metavar="RESULTS",
+                    help="also write the pairs' labeled results rows, each with its cost_usd")
+    pa.add_argument("--routes", nargs=2, default=None, metavar=("ROUTED", "SHADOW"),
+                    help="with --results: write the rows of this route pair's pairs alone")
     return parser
 
 
@@ -598,23 +604,71 @@ def _cmd_promote(args) -> int:
 
 
 def _cmd_pairs(args) -> int:
-    """DESIGN 10 v1.612: every check before FILE is written, then FILE written whole."""
+    """DESIGN 10 v1.612 and v1.615: every check before FILE or RESULTS is written, then each
+    written whole."""
     if args.checked and args.audits is not None:
         raise _BadInput("pass --checked or --audits, not both: their labels could disagree")
+    routes = None if args.routes is None else tuple(args.routes)
+    if routes is not None:
+        if args.results is None:
+            raise _BadInput("--routes needs --results: it picks the route pair of the rows "
+                            "--results writes")
+        if not all(routes) or routes[0] == routes[1]:
+            raise _BadInput(f"--routes needs two different non-empty routes, got {routes[0]!r} "
+                            f"{routes[1]!r}")
     out = Path(args.out)
     inputs = [Path(args.log)] + ([] if args.audits is None else [Path(args.audits)])
     if out.resolve() in [path.resolve() for path in inputs]:
         raise _BadInput(f"--out {args.out} names the log or the audits file")
+    results = None if args.results is None else Path(args.results)
+    if results is not None and results.resolve() in [path.resolve() for path in inputs + [out]]:
+        raise _BadInput(f"--results {args.results} names the log, the audits file or --out")
     records = load_records(args.log)
     audits = None if args.audits is None else load_audits(args.audits)
     pairs = shadow_pairs(records, checked=args.checked, audits=audits)
-    text = "".join(json.dumps(pair) + "\n" for pair in pairs)
-    with out.open("w", encoding="utf-8", newline="") as handle:
-        handle.write(text)
-    both = sum(pair["routed_correct"] is not None and pair["shadow_correct"] is not None
-               for pair in pairs)
-    print(f"wrote {len(pairs)} pairs to {out}: {both} with both sides labelled")
+    files = [(out, "".join(json.dumps(pair) + "\n" for pair in pairs))]
+    if results is not None:
+        rows = pair_results(pairs, records=records, routes=routes)
+        files.append((results, "".join(json.dumps(row) + "\n" for row in rows)))
+    _write_whole(files)
+    labelled = [pair for pair in pairs
+                if pair["routed_correct"] is not None and pair["shadow_correct"] is not None]
+    print(f"wrote {len(pairs)} pairs to {out}: {len(labelled)} with both sides labelled")
+    if results is None:
+        return EXIT_OK
+    if routes is None:
+        print(f"wrote {len(rows)} results rows to {results}")
+        return EXIT_OK
+    print(f"wrote {len(rows)} results rows to {results}: routed {routes[0]}, shadow {routes[1]}")
+    others = Counter((pair["routed_route"], pair["shadow_route"]) for pair in labelled
+                     if (pair["routed_route"], pair["shadow_route"]) != routes)
+    print(f"labelled pairs of other route pairs left out: {sum(others.values())}")
+    for (routed, shadow), count in sorted(others.items()):
+        print(f"  routed {routed}, shadow {shadow}: {count}")
     return EXIT_OK
+
+
+def _write_whole(files) -> None:
+    """Open each ``(path, text)``'s path without changing it, a missing one created empty, then
+    replace each whole with its text (DESIGN 10 v1.615): a path that cannot be opened leaves
+    every file as it was, removing one this call created."""
+    handles, created = [], []
+    try:
+        for path, _ in files:
+            existed = path.exists()
+            handles.append(path.open("a", encoding="utf-8", newline=""))
+            if not existed:
+                created.append(path)
+    except OSError:
+        for handle in handles:
+            handle.close()
+        for path in created:
+            path.unlink()
+        raise
+    for handle, (_, text) in zip(handles, files):
+        with handle:
+            handle.truncate(0)
+            handle.write(text)
 
 
 _COMMANDS = {"select": _cmd_select, "calibrate": _cmd_calibrate, "report": _cmd_report,
