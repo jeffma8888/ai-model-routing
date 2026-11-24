@@ -231,6 +231,30 @@ def test_a_file_that_names_a_missing_log_is_refused_before_the_log_is_read(tmp_p
     assert not log.exists()
 
 
+@pytest.mark.parametrize("where", ["a directory", "a missing directory"])
+def test_a_file_that_cannot_be_opened_exits_two_and_writes_nothing(tmp_path, capsys, where):
+    # review iter-463 nit 1: main's OSError handler, after every check and before any write
+    log = shadowed_log(tmp_path / "calls.jsonl")
+    out = tmp_path / "pairs"
+    if where == "a directory":
+        out.mkdir()
+    else:
+        out = out / "pairs.jsonl"
+    before = sorted(p.name for p in tmp_path.rglob("*"))
+    code, stdout, stderr = run(capsys, "--log", log, "--out", out)
+    assert (code, stdout) == (2, "")
+    assert stderr.startswith("error: ") and stderr.count("\n") == 1
+    assert sorted(p.name for p in tmp_path.rglob("*")) == before
+
+
+def test_the_wrote_line_prints_file_as_a_path_prints_it(tmp_path, capsys):
+    # review iter-463 nit 2: as calibrate --outcomes prints its FILE; a refusal prints FILE as given
+    log = shadowed_log(tmp_path / "calls.jsonl")
+    code, stdout, stderr = run(capsys, "--log", log, "--out", f"{tmp_path}/./pairs.jsonl")
+    assert (code, stderr) == (0, "")
+    assert stdout == f"wrote 3 pairs to {tmp_path / 'pairs.jsonl'}: 0 with both sides labelled\n"
+
+
 @pytest.mark.parametrize("missing", ["--log", "--out"])
 def test_log_and_out_are_required(tmp_path, capsys, missing):
     argv = {"--log": str(tmp_path / "calls.jsonl"), "--out": str(tmp_path / "pairs.jsonl")}
@@ -258,6 +282,8 @@ def test_design_and_the_changelog_state_the_version():
     assert "`wrote N pairs to FILE: M with both sides labelled`" in ten
     assert "`error: pass --checked or --audits, not both: their labels could disagree`" in ten
     assert "`error: --out FILE names the log or the audits file`" in ten
+    assert "while a refusal prints FILE as given (review iter-463 nit 2). " in ten
+    assert "nothing on stdout and nothing written (review iter-463 nit 1). " in ten
     eight3 = design[design.index("### 8.3 "):design.index("## 9. ")]
     assert "is the pair file, which `pairs` writes (10 v1.612, row CANARY1k); " in eight3
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").splitlines()
