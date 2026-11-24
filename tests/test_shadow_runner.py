@@ -223,6 +223,35 @@ def test_a_runner_s_own_exception_leaves_the_call_after_the_routed_records():
         ("call-0", False, "ok")]
 
 
+def test_a_deep_copy_that_raises_leaves_the_call_with_no_shadow_sent():  # review iter-468 nit 1
+    class Uncopyable:
+        def __deepcopy__(self, memo):
+            raise TypeError("this content cannot be copied")
+
+    monitor, prov, runner = Monitor(), provider(), Deferring()
+    executor = make(router(shadow_rate=1.0), prov, monitor, Draws(0.0), shadow_runner=runner)
+    with pytest.raises(TypeError, match="cannot be copied"):
+        executor.call("judge", [{"role": "user", "content": "judge", "extra": Uncopyable()}])
+    assert runner.jobs == [] and [m for m, _ in prov.calls] == [CHEAP]
+    assert [(rec["shadow"], rec["outcome"]) for rec in monitor.records] == [(False, "ok")]
+
+
+def test_a_runner_that_runs_its_job_at_once_makes_the_call_wait_and_passes_a_bug_on():
+    # review iter-468 should-fix 1: the library cannot tell such a runner from one on a thread
+    def bug(messages):
+        raise RuntimeError("a bug in the provider")
+
+    inline, at_once = Monitor(), Monitor()
+    make(router(shadow_rate=1.0), provider(), inline, Draws(0.0)).call("judge", MESSAGES)
+    prov = provider()
+    make(router(shadow_rate=1.0), prov, at_once, Draws(0.0),
+         shadow_runner=lambda job: job()).call("judge", MESSAGES)
+    assert at_once.records == inline.records and [m for m, _ in prov.calls] == [CHEAP, BEST]
+    with pytest.raises(RuntimeError, match="a bug in the provider"):
+        make(router(shadow_rate=1.0), provider(**{BEST: bug}), Monitor(), Draws(0.0),
+             shadow_runner=lambda job: job()).call("judge", MESSAGES)
+
+
 @pytest.mark.parametrize("case", ["rate zero", "draw at the rate", "answer from the shadow route",
                                   "routed call raises", "delegated"])
 def test_a_call_that_is_not_shadowed_never_calls_the_runner(case):

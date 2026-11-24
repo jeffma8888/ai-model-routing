@@ -107,10 +107,12 @@ class Executor:
     measured cost after (DESIGN 7 v1.595); a ``downgrade`` budget moves a call to the next route
     entry that clears the bar, and a ``day`` or ``month`` budget reads its window from ``now``
     (DESIGN 7 v1.596). ``random``, None for ``random.random``, draws whether a call of a task
-    with a ``shadow_rate`` is shadowed (DESIGN 7 v1.607). ``shadow_runner``, None or a callable
-    such as a ``concurrent.futures.ThreadPoolExecutor``'s ``submit``, takes each shadow as one job
-    with no argument, so ``.call`` returns without waiting for the shadow's provider call; with
-    None the shadow runs on the caller's thread before ``.call`` returns (DESIGN 7 v1.617).
+    with a ``shadow_rate`` is shadowed (DESIGN 7 v1.607). ``shadow_runner``, None or a callable,
+    takes each shadow as one job with no argument: one that runs the job on another thread, such as
+    a ``concurrent.futures.ThreadPoolExecutor``'s ``submit``, lets ``.call`` return without waiting
+    for the shadow's provider call or its errors, while one that runs it at once, and None, make
+    ``.call`` wait for the shadow on the caller's thread (DESIGN 7 v1.617, review iter-468
+    should-fix 1).
 
     One executor, with its router, a :class:`Monitor` and a :class:`BudgetLedger`, may serve many
     threads at once: a call keeps its state in its own locals and sets no attribute of the executor
