@@ -19,7 +19,7 @@ from model_routing.monitor import report
 from model_routing.stats import item_outcomes
 
 ROOT = Path(__file__).resolve().parents[1]
-CASCADE = "fiction/cheap>fiction/strong"
+CASCADE = "fiction/cheap>fiction/strong@low-score"
 PROC = "proc:triage@1"
 
 

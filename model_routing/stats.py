@@ -1,14 +1,14 @@
 """Measured quality: Wilson lower bounds, the items a bar needs, and per (task, model) counts,
-token totals and cache totals."""
+token totals, cache totals and trial times."""
 
 from __future__ import annotations
 
 import json
 from fractions import Fraction
-from math import floor, isfinite, sqrt
+from math import ceil, floor, isfinite, sqrt
 from pathlib import Path
 from statistics import NormalDist
-from typing import Dict, Iterable, List, Optional, Tuple, Union
+from typing import Dict, Iterable, List, Optional, Sequence, Tuple, Union
 
 from .procedures import is_procedure_id
 from .tasks import is_slice_name, parse_cascade_id
@@ -144,6 +144,22 @@ def _check_cache(n: int, input_tokens: Optional[int], cached: Optional[int],
     return out[0], out[1], out[2], out[3]
 
 
+def _check_latencies(trials: int, latencies_ms: object) -> Optional[Tuple[float, ...]]:
+    """Validate ``latencies_ms``: ``None``, or 1 to ``trials`` times, each as ``cost_usd`` is
+    checked; return them as floats (DESIGN 4.3 v1.626)."""
+    if latencies_ms is None:
+        return None
+    if not isinstance(latencies_ms, (list, tuple)):
+        raise ValueError(f"latencies_ms must be a list or tuple of times, got {latencies_ms!r}")
+    if not 1 <= len(latencies_ms) <= trials:
+        raise ValueError(f"latencies_ms must hold 1 to trials={trials} times, "
+                         f"got {len(latencies_ms)}")
+    for value in latencies_ms:
+        if not _is_cost(value):
+            raise ValueError(f"latencies_ms values must be finite numbers >= 0, got {value!r}")
+    return tuple(float(value) for value in latencies_ms)
+
+
 def wilson_lower_bound(successes: int, trials: int, confidence: float = 0.95) -> float:
     """Return the lower end of the two-sided Wilson score interval.
 
@@ -207,6 +223,7 @@ class Stats:
     ``>``) holds no token totals but an escalation count, the trials on which its cheap
     model handed the call up (DESIGN 7 v1.532). A procedure key (its ``id`` starts with
     ``proc:``) holds no token totals but the summed cost of its trials (DESIGN 4.3 v1.577).
+    Any key may hold the time in milliseconds of each timed trial (DESIGN 4.3 v1.626).
     """
 
     def __init__(self) -> None:
@@ -215,6 +232,7 @@ class Stats:
         self._escalated: Dict[Tuple[str, str], int] = {}
         self._cost: Dict[Tuple[str, str], float] = {}
         self._cache: Dict[Tuple[str, str], Tuple[int, int, int, int]] = {}
+        self._latency: Dict[Tuple[str, str], List[float]] = {}
 
     def get(self, task: str, model_id: str) -> Tuple[int, int]:
         """Return ``(successes, trials)``, or ``(0, 0)`` when nothing is recorded."""
@@ -225,7 +243,8 @@ class Stats:
             token_trials: Optional[int] = None, escalated: Optional[int] = None,
             cost_usd: Optional[float] = None, cached_input_tokens: Optional[int] = None,
             cached_trials: Optional[int] = None, cache_write_tokens: Optional[int] = None,
-            cache_write_trials: Optional[int] = None) -> None:
+            cache_write_trials: Optional[int] = None,
+            latencies_ms: Optional[Sequence[float]] = None) -> None:
         """Add these counts, and any token totals, to the existing ones for the key.
 
         ``input_tokens`` and ``output_tokens`` go together and are totals over
@@ -235,7 +254,9 @@ class Stats:
         v1.577). ``cached_input_tokens`` and ``cache_write_tokens``, the cached reads and the
         cache writes of these calls, each need the token totals and are totals over their own
         trials, ``cached_trials`` and ``cache_write_trials`` of these token trials (DESIGN 4.3
-        v1.588). Raises ``ValueError`` and adds nothing when any argument is invalid.
+        v1.588). ``latencies_ms`` is 1 to ``trials`` times in milliseconds, one per timed trial,
+        on any key (DESIGN 4.3 v1.626). Raises ``ValueError`` and adds nothing when any
+        argument is invalid.
         """
         _check_counts(successes, trials)
         n = _check_tokens(trials, input_tokens, output_tokens, token_trials)
@@ -243,6 +264,7 @@ class Stats:
         c = _check_cost(model_id, trials, cost_usd, input_tokens is not None)
         cache = _check_cache(n, input_tokens, cached_input_tokens, cached_trials,
                              cache_write_tokens, cache_write_trials)
+        times = _check_latencies(trials, latencies_ms)
         key = (task, model_id)
         if c is not None and not isfinite(self._cost.get(key, 0.0) + c):  # review iter-424 must-fix 1
             raise ValueError(f"cost_usd {c!r} would take the summed cost of {model_id!r} on "
@@ -260,6 +282,8 @@ class Stats:
             held = self.cache_tokens(task, model_id)
             self._cache[key] = (held[0] + cache[0], held[1] + cache[1],
                                 held[2] + cache[2], held[3] + cache[3])
+        if times is not None:
+            self._latency.setdefault(key, []).extend(times)
 
     def tokens(self, task: str, model_id: str) -> Tuple[int, int, int]:
         """Return ``(input_tokens, output_tokens, token_trials)``, ``(0, 0, 0)`` when none."""
@@ -280,6 +304,19 @@ class Stats:
         cached, cached_trials, write, write_trials = self.cache_tokens(task, model_id)
         return (cached // cached_trials if cached_trials else None,
                 write // write_trials if write_trials else None)
+
+    def latencies(self, task: str, model_id: str) -> Tuple[float, ...]:
+        """Return the key's times in milliseconds sorted ascending, ``()`` when none
+        (DESIGN 4.3 v1.626)."""
+        return tuple(sorted(self._latency.get((task, model_id), ())))
+
+    def p95_latency_ms(self, task: str, model_id: str) -> Optional[float]:
+        """Return the 95th percentile of the key's times by ``report``'s nearest-rank rule,
+        ``None`` when none is recorded (DESIGN 4.3 v1.626, 8.3)."""
+        times = self.latencies(task, model_id)
+        if not times:
+            return None
+        return times[max(0, ceil(0.95 * len(times)) - 1)]
 
     def escalations(self, task: str, cascade_id: str) -> int:
         """Return how many of a cascade's trials escalated, 0 when nothing is recorded."""
@@ -309,7 +346,7 @@ class Stats:
 
     def merge(self, other: "Stats") -> "Stats":
         """Return a new Stats with the summed counts, token totals, cache totals, escalations
-        and costs."""
+        and costs, and both sides' times."""
         merged = Stats()
         for source in (self, other):
             for key, (s, t) in source._counts.items():
@@ -321,6 +358,8 @@ class Stats:
             for key, values in source._cache.items():  # DESIGN 4.3 v1.588
                 held = merged._cache.get(key, (0, 0, 0, 0))
                 merged._cache[key] = tuple(x + y for x, y in zip(held, values))
+            for key, values in source._latency.items():  # DESIGN 4.3 v1.626
+                merged._latency.setdefault(key, []).extend(values)
         return merged
 
     def items(self):
@@ -380,6 +419,10 @@ class Stats:
                 if "cost_usd" not in row:
                     raise ValueError(f"{path}: a procedure row needs cost_usd: {row!r}")
                 tokens["cost_usd"] = row["cost_usd"]
+            if "latencies_ms" in row:  # DESIGN 4.3 v1.626: null is no array, never no time
+                if not isinstance(row["latencies_ms"], list):
+                    raise ValueError(f"{path}: latencies_ms must be a JSON array of times: {row!r}")
+                tokens["latencies_ms"] = row["latencies_ms"]
             try:
                 stats.add(str(task), str(model_id), successes, trials, **tokens)
             except ValueError as exc:
@@ -403,6 +446,9 @@ class Stats:
                 row.update(cached_input_tokens=cached, cached_trials=cached_trials)
             if write_trials:
                 row.update(cache_write_tokens=write, cache_write_trials=write_trials)
+            times = self.latencies(task, model_id)
+            if times:  # DESIGN 4.3 v1.626, the row's last key
+                row["latencies_ms"] = list(times)
             rows.append(row)
         Path(path).write_text(json.dumps({"stats": rows}, indent=2) + "\n", encoding="utf-8")
 
@@ -418,7 +464,8 @@ def calibrate_from_results(rows: Iterable[dict]) -> Stats:
     (DESIGN 4.3 v1.511). A cascade row (its ``model`` holds ``>``) carries a boolean
     ``escalated`` and no token counts, and no other row carries ``escalated`` (DESIGN 7). A
     procedure row carries ``cost_usd``, its trial's cost, and no token counts; any other row's
-    ``cost_usd`` is ignored (DESIGN 4.3 v1.577).
+    ``cost_usd`` is ignored (DESIGN 4.3 v1.577). Any row may carry ``latency_ms``, its trial's
+    time in milliseconds (DESIGN 4.3 v1.626).
     Every row is validated before the returned Stats exists, so a bad row anywhere
     raises ``ValueError``.
     """
@@ -469,6 +516,10 @@ def calibrate_from_results(rows: Iterable[dict]) -> Stats:
             tokens["escalated"] = 1 if row["escalated"] else 0
         elif "escalated" in row:
             raise ValueError(f"only a cascade row carries 'escalated': {row!r}")
+        if "latency_ms" in row:  # DESIGN 4.3 v1.626: this one trial's time, on any key
+            if not _is_cost(row["latency_ms"]):
+                raise ValueError(f"'latency_ms' must be a finite number >= 0: {row!r}")
+            tokens["latencies_ms"] = [row["latency_ms"]]
         slice_name = row.get("slice")
         keys = [task]
         if slice_name is not None:
