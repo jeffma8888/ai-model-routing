@@ -14,7 +14,8 @@ from math import fsum
 from typing import Iterable, List, Optional, Sequence
 
 from .registry import _tier_prices
-from .router import FLAVORS, NoModelClearsBar, RouteDecision, Router, _sizes
+from .router import FLAVORS, NoModelClearsBar, Policy, RouteDecision, Router, _policy_rule, _sizes
+from .router import POLICY_EXCLUDED, REGION_UNAVAILABLE, ZDR_REQUIRED
 from .stats import Stats, _is_cascade_key, wilson_lower_bound
 from .tasks import Task
 
@@ -24,6 +25,9 @@ DELEGATE = "delegate"
 PARENT_EXCLUDED_FAMILY = "parent_excluded_family"
 PARENT_NOT_INDEPENDENT = "parent_not_independent"
 PARENT_CONTEXT_FULL = "parent_context_full"
+PARENT_POLICY_EXCLUDED = "parent_policy_excluded"  # DESIGN 13.4 rule 4 (v1.624)
+PARENT_REGION_UNAVAILABLE = "parent_region_unavailable"
+PARENT_ZDR_REQUIRED = "parent_zdr_required"
 PARENT_BELOW_BAR = "parent_below_bar"
 DELEGATE_CHEAPER = "delegate_cheaper"
 INLINE_CHEAPER = "inline_cheaper"
@@ -31,6 +35,10 @@ DELEGATE_BETTER = "delegate_better"
 INLINE_AS_GOOD = "inline_as_good"
 ONLY_PARENT_CLEARS = "only_parent_clears"
 NONE_CLEAR = "none_clear"
+
+# 5.2 rules 5b to 5d on the parent, as its 13.4 rule 4 codes
+_PARENT_POLICY_CODES = {POLICY_EXCLUDED: PARENT_POLICY_EXCLUDED, REGION_UNAVAILABLE: PARENT_REGION_UNAVAILABLE,
+                        ZDR_REQUIRED: PARENT_ZDR_REQUIRED}
 
 
 @dataclass(frozen=True)
@@ -218,7 +226,8 @@ def decide_delegation(router: Router, task_name: str, parent_model: str,
                       output_reread_share: float = 1.0,
                       brief_output_tokens: Optional[int] = None,
                       generator_model: Optional[str] = None,
-                      exclude_models: Iterable[str] = ()) -> DelegationDecision:
+                      exclude_models: Iterable[str] = (),
+                      policy: Optional[Policy] = None) -> DelegationDecision:
     """The logic of :meth:`Router.decide_delegation` (DESIGN 13.1 to 13.5)."""
     if flavor not in FLAVORS:
         raise ValueError(f"unknown flavor {flavor!r}; expected one of {FLAVORS}")
@@ -242,6 +251,8 @@ def decide_delegation(router: Router, task_name: str, parent_model: str,
         raise ValueError(f"output_reread_share must be a number from 0 to 1, got {sigma!r}")
     # 13.1 v1.405: what the decision turn writes for the brief, B unless stated
     w = b if brief_output_tokens is None else _count("brief_output_tokens", brief_output_tokens)
+    if policy is not None and not isinstance(policy, Policy):  # DESIGN 13.1 v1.624
+        raise ValueError(f"policy must be None or a Policy, got {type(policy).__name__}")
     parent = router.registry.get(parent_model)
     generator_family = None
     if generator_model is not None:
@@ -269,7 +280,8 @@ def decide_delegation(router: Router, task_name: str, parent_model: str,
         inline_cost = (_work_cost(parent, k, (k - 1) * c * rho, p_in, p_out, c, c * rho, sigma)
                        + t * parent.base_cost(k * (p_in + sigma * p_out), 0))
 
-    # 13.4: the first rule that applies blocks inline
+    # 13.4: the first rule that applies blocks inline; rule 4 is 5.2 rules 5b to 5d on the parent (v1.624)
+    parent_rule = _policy_rule(policy, parent)
     block = None
     if parent.family in task.exclude_families:
         block = PARENT_EXCLUDED_FAMILY
@@ -278,6 +290,8 @@ def decide_delegation(router: Router, task_name: str, parent_model: str,
         block = PARENT_NOT_INDEPENDENT
     elif parent.context_window < c + k * (s_in + s_out):
         block = PARENT_CONTEXT_FULL
+    elif parent_rule is not None:
+        block = _PARENT_POLICY_CODES[parent_rule]
 
     # 13.3: the delegate reads the brief as well as the work's input; with K = 1 this
     # is the v1.34 select, and K > 1 checks the last call and prices the K calls
@@ -291,7 +305,7 @@ def decide_delegation(router: Router, task_name: str, parent_model: str,
     failed: Optional[NoModelClearsBar] = None
     try:
         route = sub.select(task.name, flavor=flavor, generator_model=generator_model,
-                           exclude_models=excluded)
+                           exclude_models=excluded, policy=policy)
     except NoModelClearsBar as exc:
         failed = exc
 

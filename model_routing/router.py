@@ -426,7 +426,8 @@ class Router:
                           output_reread_share: float = 1.0,
                           brief_output_tokens: Optional[int] = None,
                           generator_model: Optional[str] = None,
-                          exclude_models: Iterable[str] = ()):
+                          exclude_models: Iterable[str] = (),
+                          policy: Optional[Policy] = None):
         """Decide whether ``parent_model`` does the work inline or delegates it.
 
         The work is ``work_calls`` successive calls of the task, one by default.
@@ -442,12 +443,13 @@ class Router:
         written output or a context check (DESIGN 13.1, 13.2). ``brief_output_tokens`` is
         what the call that writes the brief outputs, by default ``brief_tokens``; it prices
         that output alone, while every read of the brief keeps ``brief_tokens`` (DESIGN
-        13.1). Raises
+        13.1). A ``policy`` runs the delegate's ``select`` under it and keeps a parent it
+        rules out from working inline (DESIGN 13.3 and 13.4 v1.624). Raises
         ``KeyError`` for an unknown task, parent or generator, ``ValueError`` for an
         unknown flavor, an invalid token count (``brief_output_tokens`` included, unless
         None), ``work_calls`` below 1 or a
         ``cached_read_ratio`` or ``output_reread_share`` that is not a number from 0
-        to 1, and
+        to 1, or a ``policy`` that is not None or a ``Policy``, and
         :class:`NoModelClearsBar` when neither path is allowed (DESIGN section 13).
         """
         from .delegation import decide_delegation
@@ -460,7 +462,7 @@ class Router:
                                  output_reread_share=output_reread_share,
                                  brief_output_tokens=brief_output_tokens,
                                  generator_model=generator_model,
-                                 exclude_models=exclude_models)
+                                 exclude_models=exclude_models, policy=policy)
 
     @staticmethod
     def _model_rule(task: Task, model, excluded: set, generator_base: Optional[str],
