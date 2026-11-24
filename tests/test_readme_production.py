@@ -32,7 +32,6 @@ CHOSEN_CAP = CHOSEN_SIZE + MARGIN
 # (the one on `promote`, v1.605); 12,318 bytes at v1.604 (`git show bba6e7c:README.md`)
 PRODUCTION_SIZE, PRODUCTION_MARGIN, LONGEST, PRODUCTION_AT_V1_604 = 23_294, 6_706, 2_847, 12_318
 PRODUCTION_CAP = PRODUCTION_SIZE + PRODUCTION_MARGIN
-EVIDENCE = "\n## Evidence: held-out results on public data\n"
 # The seven paragraphs of `## How a model is chosen` at 16a8fd6 after the context-window ones, in
 # order: their opening words, UTF-8 bytes and sha256 (`git show 16a8fd6:README.md`).
 MOVED = [
@@ -88,6 +87,15 @@ def cap_problems(text, cap=CHOSEN_CAP, heading=CHOSEN):
     return [] if found <= cap else [f"`{heading}` is {found:,} bytes, over its {cap:,}-byte cap"]
 
 
+def padded(text, heading, n):
+    """`text` with n `x` bytes before the first line after `heading` and its blank line, so the section
+    grows by exactly n whatever section follows it, and padding again finds the same place (review
+    iter-482 should-fix 1 and 2: at the cap a pad of 0 then 1 is the one-byte-over case)."""
+    head = "\n" + heading + "\n\n"
+    assert text.count(head) == 1, heading
+    return text.replace(head, head + "x" * n, 1)
+
+
 def slug(heading):
     """GitHub's anchor for a heading: lower case, drop what is not a letter, digit, space, `-` or `_`."""
     return re.sub(r"[^\w\- ]", "", heading.strip().lower()).replace(" ", "-")
@@ -140,9 +148,9 @@ def test_how_a_model_is_chosen_is_under_its_cap():
 def test_the_cap_fails_one_byte_over():
     text = read("README.md")
     room = CHOSEN_CAP - size(text, CHOSEN)
-    at = text.replace("\n### The quality bar", "\n" + "x" * (room - 1) + "\n### The quality bar", 1)
+    at = padded(text, CHOSEN, room)
     assert size(at, CHOSEN) == CHOSEN_CAP and cap_problems(at) == []
-    over = text.replace("\n### The quality bar", "\n" + "x" * room + "\n### The quality bar", 1)
+    over = padded(at, CHOSEN, 1)
     assert size(over, CHOSEN) == CHOSEN_CAP + 1
     assert cap_problems(over) == [f"`{CHOSEN}` is {CHOSEN_CAP + 1:,} bytes, over its {CHOSEN_CAP:,}-byte cap"]
 
@@ -158,16 +166,26 @@ def test_running_it_in_production_is_under_its_cap():
 
 def test_the_production_cap_fails_one_byte_over():
     text = read("README.md")
-    assert text.count(EVIDENCE) == 1
     room = PRODUCTION_CAP - size(text, PRODUCTION)
-    at = text.replace(EVIDENCE, "\n" + "x" * (room - 1) + EVIDENCE, 1)
+    at = padded(text, PRODUCTION, room)
     assert size(at, PRODUCTION) == PRODUCTION_CAP and cap_problems(at, PRODUCTION_CAP, PRODUCTION) == []
-    over = text.replace(EVIDENCE, "\n" + "x" * room + EVIDENCE, 1)
+    over = padded(at, PRODUCTION, 1)
     assert size(over, PRODUCTION) == PRODUCTION_CAP + 1
     assert cap_problems(over, PRODUCTION_CAP, PRODUCTION) == [
         f"`{PRODUCTION}` is {PRODUCTION_CAP + 1:,} bytes, over its {PRODUCTION_CAP:,}-byte cap"]
     # the padding lands in the production section only
     assert size(over, CHOSEN) == size(text, CHOSEN)
+    evidence = "## Evidence: held-out results on public data"
+    assert size(over, evidence) == size(text, evidence)
+
+
+def test_a_pad_adds_exactly_its_bytes_to_its_section_only():
+    text = "intro\n## A\n\nab\n\n## B\n\ncd\n"
+    assert padded(text, "## A", 0) == text
+    for n in (0, 1, 5):
+        once = padded(text, "## A", n)
+        assert size(once, "## A") == size(text, "## A") + n and size(once, "## B") == size(text, "## B")
+        assert size(padded(once, "## A", 1), "## A") == size(text, "## A") + n + 1
 
 
 def test_the_measure_reads_the_heading_through_the_line_before_the_next_section():
