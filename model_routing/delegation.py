@@ -16,7 +16,7 @@ from typing import Iterable, List, Optional, Sequence
 from .registry import _tier_prices
 from .router import FLAVORS, NoModelClearsBar, Policy, RouteDecision, Router, _policy_rule, _sizes
 from .router import POLICY_EXCLUDED, REGION_UNAVAILABLE, ZDR_REQUIRED
-from .stats import Stats, _is_cascade_key, wilson_lower_bound
+from .stats import Stats, _is_cascade_key, _is_procedure_key, wilson_lower_bound
 from .tasks import Task
 
 INLINE = "inline"
@@ -200,7 +200,7 @@ def _briefed_stats(stats: Stats, task_name: str, brief_tokens: int) -> Stats:
     the delegate's ``select`` prices a measured model at its mean input plus B (13.3).
     With no brief or no token totals on the task, ``stats`` itself is returned, as v1.32
     passed it. A cascade key keeps its escalation count and holds no token totals (DESIGN 7
-    v1.536).
+    v1.536); a procedure key keeps its summed cost and holds none either (13.3 v1.627).
     """
     rows = [(key, counts) for key, counts in stats.items() if key[0] == task_name]
     if brief_tokens == 0 or not any(stats.tokens(*key)[2] for key, _ in rows):
@@ -214,6 +214,8 @@ def _briefed_stats(stats: Stats, task_name: str, brief_tokens: int) -> Stats:
                       "token_trials": n}
         if _is_cascade_key(model_id):
             tokens["escalated"] = stats.escalations(name, model_id)
+        elif _is_procedure_key(model_id):  # 13.3 v1.627, review iter-478 should-fix 3
+            tokens["cost_usd"] = stats.cost(name, model_id)
         copy.add(name, model_id, successes, trials, **tokens)
     return copy
 
