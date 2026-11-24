@@ -243,11 +243,12 @@ def test_checked_true_refuses_a_pair_whose_record_says_no_check_ran(side):
     log = log_of(("p1", YES, YES), ("p2", *bad), ("p3", YES, YES))
     with pytest.raises(ValueError) as exc:
         shadow_pairs(log, checked=True)
-    assert str(exc.value) == (f"pair_id 'p2': its {side} record says checked false, so its call "
-                              f"ran no validate and the check cannot label it")
+    assert str(exc.value) == (f"pair_id 'p2': its {side} record says checked false: its call ran "
+                              f"no acceptance check (validate), so checked=True (--checked) "
+                              f"cannot label it; label it by audits or leave it unlabelled")
 
 
-def test_the_first_refused_pair_is_named_its_routed_side_first():
+def test_pairs_are_checked_in_shadow_record_order_the_routed_side_first():  # iter-469 nit 2
     log = log_of(("p1", YES, NO), ("p2", NO, YES))
     with pytest.raises(ValueError, match="^pair_id 'p1': its shadow record says checked false"):
         shadow_pairs(log, checked=True)
@@ -313,8 +314,9 @@ def test_pairs_checked_on_a_log_of_unchecked_calls_exits_two_and_writes_nothing(
     code = main(["pairs", "--log", str(log), "--out", str(out), "--checked"])
     captured = capsys.readouterr()
     assert (code, captured.out) == (2, "")
-    assert captured.err == ("error: pair_id 'call-0': its routed record says checked false, so its "
-                            "call ran no validate and the check cannot label it\n")
+    assert captured.err == ("error: pair_id 'call-0': its routed record says checked false: its "
+                            "call ran no acceptance check (validate), so checked=True (--checked) "
+                            "cannot label it; label it by audits or leave it unlabelled\n")
     if existing:
         assert out.read_text(encoding="utf-8") == "an older pair file\n"
     else:

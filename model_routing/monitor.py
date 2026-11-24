@@ -365,9 +365,10 @@ def shadow_pairs(records: Iterable[dict], *, checked: bool = False,
     ``validate``, checked against the records from v1.618: a pair whose routed final record or
     shadow record says ``checked: false`` is refused, while a record without the key, from an
     older log, is taken on that word (DESIGN 8.3 v1.618, review iter-461 should-fix 5); a
-    ``checked`` key that is not a real bool is refused whatever the labels. Budget records are dropped
-    first, so a shadow that was not sent or whose hold was refused has no pair. A bad argument,
-    or a log the executor cannot write, raises ``ValueError`` before any pair is returned.
+    ``checked`` key that is not a real bool is refused whatever the labels. Budget records
+    are dropped first, so a shadow that was not sent or whose hold was refused has no pair.
+    A bad argument, or a log the executor cannot write, raises ``ValueError`` before any pair
+    is returned.
     """
     if type(checked) is not bool:
         raise ValueError(f"checked must be true or false, got {checked!r}")
@@ -421,8 +422,9 @@ def shadow_pairs(records: Iterable[dict], *, checked: bool = False,
                                  f"be true or false, got {value!r}")
             if checked and not value:
                 raise ValueError(f"pair_id {rec['pair_id']!r}: its {side} record says checked "
-                                 f"false, so its call ran no validate and the check cannot "
-                                 f"label it")
+                                 f"false: its call ran no acceptance check (validate), so "
+                                 f"checked=True (--checked) cannot label it; label it by "
+                                 f"audits or leave it unlabelled")
 
     def correct(side: dict) -> Optional[bool]:
         outcome = side.get("outcome")
