@@ -269,7 +269,8 @@ def test_design_changelog_and_readme_state_the_rule():
     assert "  - v1.620 `--log PATH` once per log (row PROD1d)" in design
     assert "- v1.620 `pairs --log PATH [--log PATH ...]` (row PROD1d, 8.2 v1.620)" in design
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-    assert changelog.rstrip("\n").split("\n")[-1].startswith("- v1.620 (2026-11-24): spec, code")
+    assert [line for line in changelog.split("\n")  # any line, so a later version keeps it
+            if line.startswith("- v1.620 (2026-11-24): spec, code")] != []
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     section = readme.split("## Running it in production", 1)[1].split("\n## ", 1)[0]
     sentence = [line for line in section.split("\n") if line.startswith("One `Executor`, with its")]

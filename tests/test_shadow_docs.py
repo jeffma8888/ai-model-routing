@@ -167,8 +167,9 @@ def test_the_second_paragraph_says_what_writes_labels_and_reads_the_pairs():
             "so `calibrate --outcomes` and then `promote` with the shadow route as `--challenger` compare the two "
             "routes on the same production calls, naming the rows file's hash with `--dataset-sha256` once the "
             "outcomes file holds the two routes' outcomes from another file too",  # review iter-471 nit 1
-            "and with `--routes ROUTED SHADOW` `evaluate --outcomes` reads them as a complete outcome matrix "
-            "(`DESIGN.md` 8.3 and 10).",
+            "and with `--routes ROUTED SHADOW` `evaluate --outcomes` reads them as a complete outcome matrix; "
+            "a cascade's rows carry `escalated` and both legs' cost, which `calibrate` reads, while `evaluate` "
+            "refuses them, as it needs rows of the cascade's two models too (`DESIGN.md` 8.3 and 10).",  # v1.621
             f"([production lessons](research/production-lessons.md#{ANCHOR}))",
             "there the staff get the new model's answers, while a shadow's answer reaches no one, and the post gives "
             "no count of what its checks caught."):

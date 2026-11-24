@@ -184,10 +184,14 @@ CHECKS = {
         "its final record alone, and the log holds 2 records of it"),
     "a leg that says final": (
         [rec(CHEAP, 0.001, escalated=True), rec(MID, 0.004, attempt=1, escalated=True), shadow_rec()],
-        "pair 1: its routed call has 2 final records"),
-    "model_calls missing": ([proc_call(), proc_rec(0.0005, attempt=1), shadow_rec()],
-                            "pair 1: its routed procedure's closing record's model_calls must be an "
-                            "integer >= 0, got None"),
+        "pair 1: its routed call 'c0' has 2 final records in the log"),
+    "model_calls negative": ([proc_call(), proc_rec(0.0005, attempt=1, model_calls=-1), shadow_rec()],
+                             "pair 1: its routed procedure's closing record's model_calls must be an "
+                             "integer >= 0, got -1"),
+    "model_calls missing reads as a model call": (  # v1.579's entry check comes first (v1.614)
+        [proc_call(), proc_rec(0.0005, attempt=1), shadow_rec()],
+        f"pair 1: the log's routed call 'c0' ends on 'proc:poll@v1+{POLLING.id}', not on its "
+        f"routed_route {POLLING.id!r}"),
     "model_calls a bool": ([proc_rec(0.0005, model_calls=True), shadow_rec()],
                            "pair 1: its routed procedure's closing record's model_calls must be an "
                            "integer >= 0, got True"),
@@ -269,4 +273,5 @@ def test_the_spec_and_changelog_name_the_rule():
     assert "- v1.621 `pair_results(..., records=...)` reads a cascade's or a procedure's routed side (row CANARY2" in design
     assert "- v1.621 `pairs --results` on a cascade's or a procedure's pair (row CANARY2, 8.3 v1.621)" in design
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-    assert changelog.splitlines()[-1].startswith("- v1.621 (2026-11-24): spec, code and tests (8.3, 10, row CANARY2).")
+    assert [line for line in changelog.splitlines()  # any line, so a later version keeps it
+            if line.startswith("- v1.621 (2026-11-24): spec, code, docs and tests (8.3, 10, row CANARY2).")] != []

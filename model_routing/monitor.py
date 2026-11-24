@@ -494,6 +494,10 @@ def pair_results(pairs: Iterable[dict], *, records: Optional[Iterable[dict]] = N
     right after ``correct``, its side's final record's alone (a fallback's row is not charged for
     the failed attempt before it); with ``routes``, ``(routed, shadow)``, only that route pair's
     pairs give rows, so ``evaluate`` (DESIGN 12.3) reads them as a complete outcome matrix.
+
+    v1.621: with ``records``, a routed side that is a cascade or a procedure gives its row too, at
+    the summed cost of its route entry's records, a cascade's row with ``escalated`` after
+    ``cost_usd``; a cascade or procedure ``shadow_route`` is still refused (DESIGN 8.3 v1.621).
     """
     if routes is not None and (not isinstance(routes, (list, tuple)) or len(routes) != 2
                                or not all(isinstance(r, str) and r for r in routes)
@@ -528,9 +532,15 @@ def pair_results(pairs: Iterable[dict], *, records: Optional[Iterable[dict]] = N
             raise ValueError(f"{where}: routed_route and shadow_route are both "
                              f"{item['routed_route']!r}, so it compares no two routes")
         for key in ("routed_route", "shadow_route"):
-            if ">" in item[key] or item[key].startswith("proc:"):
+            if _entry_kind(item[key]) is None:
+                continue
+            if records is None:
                 raise ValueError(f"{where}: {key} {item[key]!r} is a cascade's or a procedure's, "
                                  "whose row needs escalated or cost_usd, which a pair does not hold")
+            if key == "shadow_route":  # DESIGN 8.3 v1.621: 4.2 v1.607 shadows on a registry model
+                raise ValueError(f"{where}: {key} {item[key]!r} is a cascade's or a procedure's, "
+                                 "which the executor never shadows on, since it shadows on a "
+                                 "registry model only, so the pair is not of a monitor log")
         if item["pair_id"] in seen:
             raise ValueError(f"{where}: pair_id {item['pair_id']!r} is also pair "
                              f"{seen[item['pair_id']]}'s")
@@ -547,23 +557,38 @@ def pair_results(pairs: Iterable[dict], *, records: Optional[Iterable[dict]] = N
                    "correct": item[correct]}
             if costs is not None:
                 out["cost_usd"] = costs[position, side]
+                if side == "routed" and (position, "escalated") in costs:  # DESIGN 8.3 v1.621
+                    out["escalated"] = costs[position, "escalated"]
             if item.get("slice") is not None:
                 out["slice"] = item["slice"]
             rows.append(out)
     return rows
 
 
+def _entry_kind(route: str) -> Optional[str]:
+    """``"procedure"`` for a ``proc:`` route, ``"cascade"`` for any other holding ``>``, else None,
+    as stats keys are read (DESIGN 4.3 v1.577, 8.3 v1.621)."""
+    if route.startswith("proc:"):
+        return "procedure"
+    return "cascade" if ">" in route else None
+
+
 def _pair_costs(kept: List[tuple], records: List[Mapping]) -> Dict[tuple, object]:
     """Each kept pair's side costs, ``{(position, side): cost_usd}``, read from the final record of
-    its routed call and of its shadow call in the log (DESIGN 8.3 v1.614)."""
+    its routed call and of its shadow call in the log (DESIGN 8.3 v1.614); a cascade's or a
+    procedure's routed side sums its route entry's records, and a cascade's adds
+    ``(position, "escalated")`` (v1.621)."""
     records = [rec for rec in records if "budget_event" not in rec]
     routed: Dict[str, List[Mapping]] = {}
     shadow: Dict[tuple, List[Mapping]] = {}
+    calls: Dict[str, List[Mapping]] = {}  # v1.621: every record of each routed call, in log order
     for rec in records:
-        if rec.get("final") is not True:
-            continue
         call_id, pair_id = rec.get("call_id"), rec.get("pair_id")
         if not isinstance(call_id, str) or not isinstance(pair_id, str):
+            continue
+        if rec.get("shadow") is not True and call_id == pair_id:
+            calls.setdefault(pair_id, []).append(rec)
+        if rec.get("final") is not True:
             continue
         if rec.get("shadow") is True:
             shadow.setdefault((pair_id, call_id), []).append(rec)
@@ -595,6 +620,35 @@ def _pair_costs(kept: List[tuple], records: List[Mapping]) -> Dict[tuple, object
             raise ValueError(f"{where}: the log's shadow call {call_id!r} ran "
                              f"{shadow_rec.get('model')!r}, not its shadow_route "
                              f"{item['shadow_route']!r}")
+        route = item["routed_route"]
+        kind = _entry_kind(route)
+        legs = [rec for rec in calls.get(pair_id, []) if _entry(rec) == route]
+        earlier = [rec for rec in legs if rec is not routed_rec]
+        if kind == "cascade":  # DESIGN 8.3 v1.621: the cheap leg, then the strong one if handed up
+            escalated = routed_rec.get("escalated")
+            if type(escalated) is not bool:
+                raise ValueError(f"{where}: its routed cascade's final record's escalated must "
+                                 f"be true or false, got {escalated!r}")
+            if escalated and (len(earlier) != 1 or earlier[0].get("escalated") is not True
+                              or earlier[0].get("final") is True):
+                raise ValueError(f"{where}: its routed cascade {route!r} handed up, so its route "
+                                 "entry needs its cheap leg's record (escalated true, final not "
+                                 "true) and its final record, and the log holds "
+                                 f"{len(legs)} record{'' if len(legs) == 1 else 's'} of it")
+            if not escalated and earlier:
+                raise ValueError(f"{where}: its routed cascade {route!r} kept its cheap answer, so "
+                                 "its route entry needs its final record alone, and the log holds "
+                                 f"{len(legs)} records of it")
+            costs[position, "escalated"] = escalated
+        elif kind == "procedure":  # its model calls, then the closing record
+            count = routed_rec.get("model_calls")
+            if type(count) is not int or count < 0:
+                raise ValueError(f"{where}: its routed procedure's closing record's model_calls "
+                                 f"must be an integer >= 0, got {count!r}")
+            if len(earlier) != count:
+                raise ValueError(f"{where}: its routed procedure {route!r} made {count} model "
+                                 f"call{'' if count == 1 else 's'}, and the log holds "
+                                 f"{len(earlier)} record{'' if len(earlier) == 1 else 's'} of them")
         for side, rec in (("routed", routed_rec), ("shadow", shadow_rec)):
             cost = rec.get("cost_usd")
             if isinstance(cost, bool) or not isinstance(cost, (int, float)) \
@@ -602,6 +656,21 @@ def _pair_costs(kept: List[tuple], records: List[Mapping]) -> Dict[tuple, object
                 raise ValueError(f"{where}: the {side} final record's cost_usd must be a finite "
                                  f"number >= 0, got {cost!r}")
             costs[position, side] = cost
+        if kind is not None:
+            for rec in earlier:
+                cost = rec.get("cost_usd")
+                if isinstance(cost, bool) or not isinstance(cost, (int, float)) \
+                        or not isfinite(cost) or cost < 0:
+                    raise ValueError(f"{where}: a record of its routed entry {route!r} before its "
+                                     f"final one has cost_usd {cost!r}, not a finite number >= 0")
+            try:
+                total = fsum(rec["cost_usd"] for rec in legs)
+            except OverflowError:
+                total = float("inf")
+            if not isfinite(total):
+                raise ValueError(f"{where}: the costs of its routed entry {route!r} sum past the "
+                                 "largest float")
+            costs[position, "routed"] = total
     return costs
 
 
