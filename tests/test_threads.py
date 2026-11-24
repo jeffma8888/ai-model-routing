@@ -213,13 +213,15 @@ def test_design_7_and_8_2_hold_the_v1_616_clauses():
     assert line.startswith("- v1.616 (2026-11-23): spec, code, docs and tests (7, 8.2, row PROD1c). ")
 
 
-def test_the_production_section_ends_with_the_sentence_on_threads():
+def test_the_production_section_ends_with_the_sentence_on_threads_then_the_policy():
     text = read("README.md")
     body = text.split("\n## Running it in production\n", 1)[1].split("\n## ", 1)[0]
     paragraphs = body.strip().split("\n\n")
-    assert paragraphs[-1] == THREADS_SENTENCE and text.count(THREADS_SENTENCE) == 1
+    # v1.625 (row POL1d): the paragraph on a tenant's policy follows it (tests/test_policy_cli.py)
+    assert paragraphs[-2] == THREADS_SENTENCE and text.count(THREADS_SENTENCE) == 1
+    assert paragraphs[-1].startswith("A tenant's rules hold whatever a route costs. ")
     # v1.619 (row CANARY1e): the two paragraphs on shadow calls sit between the promotion check and it
-    assert paragraphs[-3].startswith("A share of routed calls can also go to a reference route, ")
-    assert paragraphs[-2].startswith("Every record of a shadowed call carries `pair_id`, ")
-    assert paragraphs[-4].endswith("and `promote` changed no route or file.")
+    assert paragraphs[-4].startswith("A share of routed calls can also go to a reference route, ")
+    assert paragraphs[-3].startswith("Every record of a shadowed call carries `pair_id`, ")
+    assert paragraphs[-5].endswith("and `promote` changed no route or file.")
     assert ". " not in THREADS_SENTENCE      # one sentence, as the row asks
