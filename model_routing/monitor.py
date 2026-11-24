@@ -307,6 +307,77 @@ def budget_report(records: Iterable[dict], budgets: Sequence[Budget]) -> List[di
     return rows
 
 
+def shadow_pairs(records: Iterable[dict], *, checked: bool = False,
+                 audits: Optional[Mapping[str, bool]] = None) -> List[dict]:
+    """One pair record per shadow that ran, in the order of its shadow records (DESIGN 8.3 v1.610).
+
+    A shadow record is an attempt record whose ``shadow`` is true; its routed side is the
+    ``final`` record of the call whose ``call_id`` is its ``pair_id``. Each side's ``correct``
+    comes from ``checked=True`` (``ok`` true, ``invalid`` false) or from ``audits`` by call ID,
+    never both, and is None on an ``error`` side or with neither. Budget records are dropped
+    first, so a shadow that was not sent or whose hold was refused has no pair. A bad argument,
+    or a log the executor cannot write, raises ``ValueError`` before any pair is returned.
+    """
+    if type(checked) is not bool:
+        raise ValueError(f"checked must be true or false, got {checked!r}")
+    if audits is not None:
+        if not isinstance(audits, Mapping):
+            raise ValueError(f"audits must be None or a mapping of call ID to true or false, "
+                             f"got {type(audits).__name__}")
+        for call_id, correct in audits.items():
+            if not isinstance(call_id, str) or not call_id:
+                raise ValueError(f"audits: a call ID must be a non-empty string, got {call_id!r}")
+            if type(correct) is not bool:
+                raise ValueError(f"audits: the audit of {call_id!r} must be true or false, "
+                                 f"got {correct!r}")
+        if checked:
+            raise ValueError("pass checked=True or audits, not both: their labels could disagree")
+    records = [rec for rec in records if "budget_event" not in rec]
+    shadows: List[dict] = []
+    seen = set()
+    for rec in records:
+        if rec.get("shadow") is not True:
+            continue
+        pair_id = rec.get("pair_id")
+        if not isinstance(pair_id, str) or not pair_id:
+            raise ValueError(f"a shadow record's pair_id must be a non-empty string, got {pair_id!r}")
+        if pair_id in seen:
+            raise ValueError(f"pair_id {pair_id!r} has more than one shadow record")
+        seen.add(pair_id)
+        shadows.append(rec)
+    finals: Dict[str, List[dict]] = {}
+    for rec in records:
+        pair_id = rec.get("pair_id")
+        if rec.get("shadow") is not True and isinstance(pair_id, str) and pair_id in seen \
+                and rec.get("call_id") == pair_id and rec.get("final") is True:
+            finals.setdefault(pair_id, []).append(rec)
+    for rec in shadows:
+        count = len(finals.get(rec["pair_id"], ()))
+        if count != 1:
+            raise ValueError(f"pair_id {rec['pair_id']!r}: its routed call has "
+                             f"{'no' if count == 0 else count} final records, so it is no pair")
+
+    def correct(side: dict) -> Optional[bool]:
+        outcome = side.get("outcome")
+        if outcome == "error":
+            return None                   # no answer, so never a wrong one
+        if checked:
+            return {"ok": True, "invalid": False}.get(outcome)
+        if audits is not None:
+            return audits.get(side.get("call_id"))
+        return None
+
+    result = []
+    for rec in shadows:
+        routed = finals[rec["pair_id"]][0]
+        result.append({"pair_id": rec["pair_id"], "task": routed.get("task"),
+                       "slice": routed.get("slice"), "routed_route": _entry(routed),
+                       "shadow_route": rec.get("model"), "shadow_call_id": rec.get("call_id"),
+                       "shadow_outcome": rec.get("outcome"), "routed_correct": correct(routed),
+                       "shadow_correct": correct(rec)})
+    return result
+
+
 def _window(budget: Budget, rec: dict) -> Optional[str]:
     """The label of ``budget``'s window that holds the record's ``ts``, None for ``total``."""
     if budget.window == "total":

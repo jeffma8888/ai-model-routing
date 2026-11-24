@@ -403,7 +403,8 @@ def test_design_and_the_note_state_the_records_as_shipped():
     assert text[text.index("## 7. "):text.index("## 8. ")].count("- v1.598 budget records (row B1e): ") == 1
     eight = text[text.index("## 8. "):text.index("## 9. ")]
     assert eight.count("- v1.598 budget records (row B1e") == 2
-    assert "  monitor.py      Monitor, load_records, load_audits, report, budget_report (v1.598)\n" in text
+    assert "  monitor.py      Monitor, load_records, load_audits, report, budget_report (v1.598), "\
+        "shadow_pairs (v1.610)\n" in text  # v1.610 (row CANARY1b) adds shadow_pairs
     note = (ROOT / "research" / "production-lessons.md").read_text(encoding="utf-8")
     [spend] = [line for line in note.splitlines()
                if line.startswith("- In this library: ") and "`BudgetExceeded`" in line]
