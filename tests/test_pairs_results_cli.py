@@ -3,6 +3,7 @@ results rows (DESIGN 10 v1.615, row CANARY1n; the rows are `pair_results`, 8.3 v
 
 import hashlib
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -178,7 +179,6 @@ def test_calibrate_outcomes_then_promote_read_the_file_it_writes(tmp_path, capsy
                "source": "https://example.org/prices"}
               for m, f, pin, pout in ((CHEAP, "small", 1.0, 2.0), (MID, "medium", 3.0, 6.0),
                                       (BEST, "large", 10.0, 20.0))]
-    write_jsonl(tmp_path / "unused.jsonl", [])
     (tmp_path / "models.json").write_text(json.dumps(
         {"version": "1", "as_of": "2026-01-01", "currency": "USD", "models": models}))
     (tmp_path / "tasks.json").write_text(json.dumps({"tasks": [
@@ -192,7 +192,7 @@ def test_calibrate_outcomes_then_promote_read_the_file_it_writes(tmp_path, capsy
     assert main(["promote", "--task", "judge", "--challenger", BEST, "--margin", "0.05",
                  "--outcomes", str(outcomes), "--registry", str(tmp_path / "models.json"),
                  "--tasks", str(tmp_path / "tasks.json"), "--stats", str(stats),
-                 "--priors", str(tmp_path / "none.json"), "--json"]) == 0
+                 "--priors", str(tmp_path / "none.json"), "--json"]) == 0  # no priors file: none
     data = json.loads(capsys.readouterr().out)
     # by hand: CHEAP right on 6 of the 8 items (0.75), BEST on 7 (0.875); CHEAP is the primary
     check = paired_promotion(OK_CHEAP, OK_BEST, margin=0.05, cheaper=False, alpha=0.05, min_pairs=5)
@@ -202,6 +202,24 @@ def test_calibrate_outcomes_then_promote_read_the_file_it_writes(tmp_path, capsy
 
 
 # --- refusals: exit 2, one error line, nothing on stdout, neither file created nor changed -------
+
+def _cascade_pair(tmp):
+    # review iter-466 should-fix 1: a cascade's pair beside the CHEAP, BEST ones, refused
+    # whatever --routes says, since pair_results checks every pair before it applies routes
+    cascade = "fiction/cheap>fiction/mid"
+    extra = [dict(rec("c1", CHEAP, 0.002, pair_id="c1"), cascade=cascade),
+             rec("c1-s", BEST, 0.02, pair_id="c1", shadow=True)]
+    return write_jsonl(tmp / "calls.jsonl", hand_log() + extra)
+
+
+def _two_faults(tmp):
+    # review iter-466 should-fix 2: shadow_pairs' fault (two shadows of p0) is named before
+    # pair_results' (p1's routed record has no cost_usd)
+    bad = hand_log()
+    bad.append(rec("p0-s2", BEST, 0.01, pair_id="p0", shadow=True))
+    del bad[2]["cost_usd"]
+    return write_jsonl(tmp / "calls.jsonl", bad)
+
 
 def _cost_missing(tmp):
     bad = hand_log()
@@ -217,6 +235,15 @@ REFUSALS = {
                      f"error: --routes needs two different non-empty routes, got {CHEAP!r} {CHEAP!r}\n"),
     "an empty route": (lambda tmp: ["--results", tmp / "rows.jsonl", "--routes", "", BEST],
                        f"error: --routes needs two different non-empty routes, got '' {BEST!r}\n"),
+    "an empty shadow route": (lambda tmp: ["--results", tmp / "rows.jsonl", "--routes", CHEAP, ""],
+                              f"error: --routes needs two different non-empty routes, got {CHEAP!r} ''\n"),
+    "a cascade pair whatever --routes says": (
+        lambda tmp: ["--log", _cascade_pair(tmp), "--results", tmp / "rows.jsonl", "--routes", CHEAP, BEST],
+        "error: pair 12: routed_route 'fiction/cheap>fiction/mid' is a cascade's or a procedure's, "
+        "whose row needs escalated or cost_usd, which a pair does not hold\n"),
+    "shadow_pairs before pair_results": (
+        lambda tmp: ["--log", _two_faults(tmp), "--results", tmp / "rows.jsonl"],
+        "error: pair_id 'p0' has more than one shadow record\n"),
     "results names the log": (lambda tmp: ["--results", tmp / "calls.jsonl"],
                               f"error: --results {{tmp}}/calls.jsonl names the log, the audits file or "
                               "--out\n"),
@@ -260,6 +287,52 @@ def test_the_route_checks_come_before_any_path_is_read(tmp_path, capsys):
     assert not absent.exists()
 
 
+def test_a_results_that_names_the_log_is_refused_before_the_log_is_read(tmp_path, capsys):
+    # review iter-466 should-fix 2: right after the FILE check, so an absent log is never read
+    absent = tmp_path / "absent.jsonl"
+    code, stdout, stderr = run(capsys, "--log", absent, "--out", tmp_path / "p.jsonl",
+                               "--results", absent)
+    assert (code, stdout) == (2, "")
+    assert stderr == f"error: --results {absent} names the log, the audits file or --out\n"
+    assert sorted(tmp_path.iterdir()) == []
+
+
+def test_a_dangling_symlink_is_left_as_it_was(tmp_path, capsys, log, audits):
+    # review iter-466 should-fix 3: the target this run created is removed, the link kept
+    out = tmp_path / "pairs.jsonl"
+    out.symlink_to(tmp_path / "target.jsonl")
+    code, stdout, _ = run(capsys, "--log", log, "--out", out, "--audits", audits,
+                          "--results", tmp_path / "missing" / "rows.jsonl")
+    assert (code, stdout) == (2, "")
+    assert out.is_symlink() and not (tmp_path / "target.jsonl").exists()
+
+
+@pytest.mark.skipif(not os.path.exists("/dev/null"), reason="no /dev/null")
+def test_a_device_file_serves_as_out(tmp_path, capsys, log, audits):
+    # review iter-466 should-fix 4: only a regular file is truncated, as open("w") let it
+    results = tmp_path / "rows.jsonl"
+    code, stdout, stderr = run(capsys, "--log", log, "--out", "/dev/null", "--audits", audits,
+                               "--results", results)
+    assert (code, stderr) == (0, "")
+    assert stdout == ("wrote 11 pairs to /dev/null: 10 with both sides labelled\n"
+                      f"wrote 20 results rows to {results}\n")
+    assert len(results.read_text(encoding="utf-8").splitlines()) == 20
+
+
+def test_an_empty_log_gives_empty_files_and_a_zero_left_out_line(tmp_path, capsys):
+    # review iter-466 nit 6
+    log = tmp_path / "calls.jsonl"
+    log.write_text("", encoding="utf-8")
+    out, results = tmp_path / "pairs.jsonl", tmp_path / "rows.jsonl"
+    code, stdout, stderr = run(capsys, "--log", log, "--out", out, "--checked", "--results", results,
+                               "--routes", CHEAP, BEST)
+    assert (code, stderr) == (0, "")
+    assert out.read_bytes() == b"" and results.read_bytes() == b""
+    assert stdout == (f"wrote 0 pairs to {out}: 0 with both sides labelled\n"
+                      f"wrote 0 results rows to {results}: routed {CHEAP}, shadow {BEST}\n"
+                      "labelled pairs of other route pairs left out: 0\n")
+
+
 @pytest.mark.parametrize("existing", [False, True])
 @pytest.mark.parametrize("where", ["a directory", "a missing directory"])
 def test_a_results_that_cannot_be_opened_leaves_both_files_as_they_were(
@@ -298,7 +371,8 @@ def test_design_and_the_changelog_state_the_version():
                  "`error: --results RESULTS names the log, the audits file or --out`",
                  "`wrote K results rows to RESULTS`", "`: routed ROUTED, shadow SHADOW`",
                  "`labelled pairs of other route pairs left out: L`", "`  routed A, shadow B: n`",
-                 "(review iter-465 should-fix 2)"):
+                 "(review iter-465 should-fix 2)", "(review iter-466 nit 3)",
+                 "never the link (review iter-466 should-fix 3)", "(should-fix 4)", "(nit 2)"):
         assert text in ten, text
     eight3 = design[design.index("### 8.3 "):design.index("## 9. ")]
     assert "`pairs --results RESULTS --routes ROUTED SHADOW` counts and names them (10 v1.615, row CANARY1n)." in eight3

@@ -5,6 +5,8 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
+import stat
 import sys
 from collections import Counter
 from dataclasses import asdict
@@ -649,26 +651,32 @@ def _cmd_pairs(args) -> int:
 
 
 def _write_whole(files) -> None:
-    """Open each ``(path, text)``'s path without changing it, a missing one created empty, then
+    """Open each ``(path, text)``'s path without changing it, a missing file created empty, then
     replace each whole with its text (DESIGN 10 v1.615): a path that cannot be opened leaves
-    every file as it was, removing one this call created."""
+    every file as it was, removing a file this call created, a dangling symlink's target and
+    never the link (review iter-466 should-fix 3). Only a regular file is truncated, so a device
+    such as ``/dev/null`` serves as v1.612's ``open("w")`` let it (should-fix 4)."""
     handles, created = [], []
     try:
         for path, _ in files:
-            existed = path.exists()
+            target = None if path.exists() else path.resolve()
             handles.append(path.open("a", encoding="utf-8", newline=""))
-            if not existed:
-                created.append(path)
+            if target is not None:
+                created.append(target)
     except OSError:
         for handle in handles:
             handle.close()
-        for path in created:
-            path.unlink()
+        for target in created:
+            target.unlink()
         raise
-    for handle, (_, text) in zip(handles, files):
-        with handle:
-            handle.truncate(0)
+    try:
+        for handle, (_, text) in zip(handles, files):
+            if stat.S_ISREG(os.fstat(handle.fileno()).st_mode):
+                handle.truncate(0)
             handle.write(text)
+    finally:  # review iter-466 nit 1: every handle closed, a write error too
+        for handle in handles:
+            handle.close()
 
 
 _COMMANDS = {"select": _cmd_select, "calibrate": _cmd_calibrate, "report": _cmd_report,
