@@ -107,6 +107,11 @@ class Executor:
     entry that clears the bar, and a ``day`` or ``month`` budget reads its window from ``now``
     (DESIGN 7 v1.596). ``random``, None for ``random.random``, draws whether a call of a task
     with a ``shadow_rate`` is shadowed (DESIGN 7 v1.607).
+
+    One executor, with its router, a :class:`Monitor` and a :class:`BudgetLedger`, may serve many
+    threads at once: a call keeps its state in its own locals and sets no attribute of the executor
+    or its router. The provider, an injected ``clock``, ``now``, ``id_factory`` or ``random``, and
+    a change to the router's stats while calls run are the caller's to guard (DESIGN 7 v1.616).
     """
 
     def __init__(self, router: Router, provider: Provider, monitor=None,

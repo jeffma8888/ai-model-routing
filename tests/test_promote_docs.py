@@ -87,17 +87,20 @@ def bound(n, b, c, margin=0.03):
 
 # --- the paragraphs ---------------------------------------------------------------------------
 
-def test_the_paragraph_follows_the_two_on_budgets_and_ends_the_section():
+def test_the_paragraph_follows_the_two_on_budgets_and_precedes_the_one_on_threads():
     body = production()
     at = body.index("\n\n" + OPENING)
     assert body.index("\n\n" + LAST_BUDGET) < at
     assert body[:at].rstrip().endswith("not a measurement of this library.")
     assert body.index(DEMO) > at and body.index(CALIBRATE) > body.index(DEMO)
     assert body.index(PROMOTE) > body.index(CALIBRATE) and body.index(AFTER) > body.index(PROMOTE)
-    # review iter-454 should-fix 3: the last sentence says the hold is the point and nothing was switched
-    assert body.rstrip().endswith("This hold is the point of the example: a gap of 0.040 on 300 items, at five "
-                                  "times the list cost per item, is not yet evidence that `demo/atlas-max` is "
-                                  "better, and `promote` changed no route or file.")
+    # review iter-454 should-fix 3: the last sentence says the hold is the point and nothing was switched;
+    # v1.616 (row PROD1c): the one-sentence paragraph on threads follows it (tests/test_threads.py)
+    last = body.rstrip().rsplit("\n\n", 1)
+    assert last[1].startswith("One `Executor`, with its `Monitor` and `BudgetLedger`, can serve ")
+    assert last[0].endswith("This hold is the point of the example: a gap of 0.040 on 300 items, at five "
+                            "times the list cost per item, is not yet evidence that `demo/atlas-max` is "
+                            "better, and `promote` changed no route or file.")
     assert "\n### " not in body
 
 

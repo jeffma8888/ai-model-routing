@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import threading
 from math import ceil, fsum, isfinite
 from pathlib import Path
 from typing import Dict, Iterable, List, Mapping, Optional, Sequence, Union
@@ -16,18 +17,26 @@ NO_TAG = "(none)"
 
 
 class Monitor:
-    """Collects attempt records in memory and optionally appends them to a JSONL file."""
+    """Collects attempt records in memory and optionally appends them to a JSONL file.
+
+    One monitor may be shared by the threads of a process (DESIGN 8.2 v1.616): ``record`` holds a
+    lock from its append to ``records`` through the close of the file, so each record is one whole
+    line and ``records`` and the file hold the records in one order. Two monitors on one path, or
+    two processes, are not guarded by it.
+    """
 
     def __init__(self, path: Optional[PathLike] = None):
         self.path = Path(path) if path is not None else None
         self.records: List[dict] = []
+        self._lock = threading.Lock()
 
     def record(self, rec: dict) -> None:
-        """Store one attempt record and append it to the log file when set."""
-        self.records.append(rec)
-        if self.path is not None:
-            with self.path.open("a", encoding="utf-8") as handle:
-                handle.write(json.dumps(rec) + "\n")
+        """Store one attempt record and append it to the log file when set, under the lock."""
+        with self._lock:
+            self.records.append(rec)
+            if self.path is not None:
+                with self.path.open("a", encoding="utf-8") as handle:
+                    handle.write(json.dumps(rec) + "\n")
 
 
 def load_records(path: PathLike) -> List[dict]:
