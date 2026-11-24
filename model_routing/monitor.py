@@ -124,7 +124,8 @@ def _nearest_rank(sorted_values: List[float], q: float) -> Optional[float]:
 
 
 def report(records: Iterable[dict], by: str = "model",
-           audits: Optional[Mapping[str, bool]] = None, cache: bool = False) -> List[dict]:
+           audits: Optional[Mapping[str, bool]] = None, cache: bool = False,
+           shadow: bool = False) -> List[dict]:
     """Aggregate attempt records by ``by``.
 
     Attempt-level sums use each attempt; call-level counts (``calls``,
@@ -151,17 +152,27 @@ def report(records: Iterable[dict], by: str = "model",
     the first over the second, ``None`` when no attempt of the group carries the count or their
     input sums to 0. An attempt without the count is unknown, never a miss, and
     ``cache_write_tokens`` enters no part of the rate.
+
+    With ``shadow=True`` (DESIGN 8.3, v1.611) a shadow record, one whose ``shadow`` is JSON
+    ``true`` (7 v1.607), enters none of the keys above, so they read the routed records alone, and
+    each row gains, last, ``shadow_calls``, ``shadow_failed_calls`` and ``shadow_cost_usd``, read from
+    the group's shadow records alone; a group that only shadow records reach has a row of routed
+    zeros. A ``shadow`` that is not a ``bool`` raises ``ValueError`` before any record is read.
     """
+    if not isinstance(shadow, bool):
+        raise ValueError(f"shadow must be True or False, got {shadow!r}")
     group_of = _grouper(by)
     records = [rec for rec in records if "budget_event" not in rec]  # DESIGN 8.3 v1.598
+    shadows: List[dict] = []
+    if shadow:  # DESIGN 8.3 v1.611: only a JSON true marks a shadow record
+        shadows = [rec for rec in records if rec.get("shadow") is True]
+        records = [rec for rec in records if rec.get("shadow") is not True]
     groups: Dict[str, dict] = {}
     latencies: Dict[str, List[float]] = {}
     under: Dict[str, int] = {}
     first: Dict[object, object] = {}
-    for rec in records:
-        if rec.get("attempt", 0) == 0 and _key(rec) is not None:
-            first[_key(rec)] = _entry(rec)
-        group = group_of(rec)
+
+    def row_of(group: str) -> dict:
         row = groups.get(group)
         if row is None:
             row = groups[group] = {
@@ -172,6 +183,13 @@ def report(records: Iterable[dict], by: str = "model",
             }
             latencies[group] = []
             under[group] = 0
+        return row
+
+    for rec in records:
+        if rec.get("attempt", 0) == 0 and _key(rec) is not None:
+            first[_key(rec)] = _entry(rec)
+        group = group_of(rec)
+        row = row_of(group)
         outcome = rec.get("outcome")
         row["attempts"] += 1
         if outcome == "ok":
@@ -194,6 +212,8 @@ def report(records: Iterable[dict], by: str = "model",
             if outcome == "ok" and (rec.get("below_bar") is True
                                     or rec.get("below_bar_fallback") is True):
                 under[group] += 1
+    for rec in shadows:  # a group that only shadow records reach still has a row
+        row_of(group_of(rec))
     rows = []
     for group, row in groups.items():
         row["cost_usd"] = round(row["cost_usd"], 6)
@@ -208,6 +228,8 @@ def report(records: Iterable[dict], by: str = "model",
         _add_audit_keys(records, groups, group_of, audits)
     if cache:
         _add_cache_keys(records, groups, group_of)
+    if shadow:
+        _add_shadow_keys(shadows, groups, group_of)
     rows.sort(key=lambda r: (-r["cost_usd"], r["group"]))
     return rows
 
@@ -265,6 +287,21 @@ def _add_cache_keys(records: List[dict], groups: Dict[str, dict], group_of) -> N
         row["cache_counted_input_tokens"] = counted[group]
         row["cache_hit_rate"] = (round(cached[group] / counted[group], 6)
                                  if counted[group] else None)
+
+
+def _add_shadow_keys(shadows: List[dict], groups: Dict[str, dict], group_of) -> None:
+    """Add the three v1.611 keys to each row of ``groups``, from the shadow records (DESIGN 8.3)."""
+    for row in groups.values():
+        row.update(shadow_calls=0, shadow_failed_calls=0, shadow_cost_usd=0.0)
+    for rec in shadows:
+        row = groups[group_of(rec)]
+        row["shadow_cost_usd"] += float(rec.get("cost_usd", 0.0))
+        if rec.get("final") is True:
+            row["shadow_calls"] += 1
+            if rec.get("outcome") != "ok":
+                row["shadow_failed_calls"] += 1
+    for row in groups.values():
+        row["shadow_cost_usd"] = round(row["shadow_cost_usd"], 6)
 
 
 def budget_report(records: Iterable[dict], budgets: Sequence[Budget]) -> List[dict]:
