@@ -18,7 +18,7 @@ from .budget import BudgetExceeded, BudgetLedger, billing_bound
 from .delegation import DELEGATE
 from .procedures import Procedure
 from .providers import Provider, ProviderError
-from .router import RouteDecision, Router, _check_prompt_tokens
+from .router import Policy, RouteDecision, Router, _check_prompt_tokens
 
 
 @dataclass(frozen=True)
@@ -155,7 +155,8 @@ class Executor:
              prompt_tokens: Optional[int] = None,
              slice: Optional[str] = None,
              signals: Optional[Mapping] = None,
-             procedures: Sequence[Procedure] = ()) -> CallResult:
+             procedures: Sequence[Procedure] = (),
+             policy: Optional[Policy] = None) -> CallResult:
         """Route and execute one call; raise :class:`AllModelsFailed` if none succeeds.
 
         ``prompt_tokens`` is the request's size in tokens; when None it is estimated with
@@ -184,6 +185,11 @@ class Executor:
         none when the routed answer came from the shadow route's model (7 and 8.1 v1.609).
         With a ``shadow_runner`` the shadow is handed to it as one job, on a deep copy of
         ``messages``, and ``.call`` returns once the runner has taken it (7 v1.617).
+        ``policy``, None or a :class:`Policy`, is passed to ``select``, which checks it before any
+        call: every entry the call can reach, its fallbacks, a cascade's two models, a procedure's
+        model and a downgrade move's landing included, is one the policy allows, and a shadow
+        route it rules out is not sent, with no draw and no pair keys. The records gain no key
+        (DESIGN 7 v1.623).
         """
         _check_prompt_tokens(prompt_tokens)
         if signals is not None and not isinstance(signals, Mapping):
@@ -195,7 +201,7 @@ class Executor:
                                       generator_model=generator_model,
                                       exclude_models=exclude_models, prompt_tokens=size,
                                       slice=slice, cascades=signals is not None,
-                                      procedures=procedures)
+                                      procedures=procedures, policy=policy)
         cascades = {}
         if signals is not None:
             by_id = {cascade.id: cascade for cascade in self.router.tasks[task_name].cascades}
