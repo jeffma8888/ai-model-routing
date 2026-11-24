@@ -22,7 +22,7 @@ from .monitor import (budget_report, load_audits, load_logs, load_records, pair_
 from .priors import Priors
 from .promotion import pair_outcomes, paired_promotion
 from .registry import Registry
-from .router import FLAVORS, NoModelClearsBar, Router
+from .router import FLAVORS, NoModelClearsBar, Policy, Router
 from .stats import (Stats, _planned_successes, calibrate_from_results, item_outcomes,
                     items_needed, wilson_lower_bound)
 from .tasks import is_slice_name, load_tasks
@@ -87,6 +87,9 @@ def _build_parser() -> argparse.ArgumentParser:
     select.add_argument("--exclude", nargs="+", action="extend", default=[])
     select.add_argument("--prompt-tokens", type=_prompt_token_count, default=None, metavar="N")
     select.add_argument("--slice", type=_slice_name, default=None, metavar="S")
+    select.add_argument("--policy", default=None, metavar="FILE",
+                        help="a tenant's Policy as a JSON object of allowed_routes, "
+                        "allowed_families, region and require_zdr")
     select.add_argument("--registry", default=str(DATA_DIR / "models.json"))
     select.add_argument("--tasks", default=str(DATA_DIR / "example_tasks.json"))
     select.add_argument("--stats", default="stats.json")
@@ -164,6 +167,9 @@ def _build_parser() -> argparse.ArgumentParser:
     dg.add_argument("--flavor", default="cost_effective", help="cost_effective or cost_blind")
     dg.add_argument("--generator", default=None)
     dg.add_argument("--exclude", nargs="+", action="extend", default=[])
+    dg.add_argument("--policy", default=None, metavar="FILE",
+                    help="a tenant's Policy as a JSON object of allowed_routes, "
+                    "allowed_families, region and require_zdr")
     dg.add_argument("--registry", default=str(DATA_DIR / "models.json"))
     dg.add_argument("--tasks", default=str(DATA_DIR / "example_tasks.json"))
     dg.add_argument("--stats", default="stats.json")
@@ -264,6 +270,29 @@ def _candidate_table(candidates, registry=None) -> str:
     return table + "\n" + PER_ITEM_LINE if per_item else table
 
 
+_POLICY_KEYS = ("allowed_routes", "allowed_families", "region", "require_zdr")
+_JSON_TYPES = {list: "array", str: "string", int: "number", float: "number", bool: "boolean",
+               type(None): "null"}
+
+
+def _load_policy(path: Optional[str]) -> Optional[Policy]:
+    """``--policy FILE`` (DESIGN 10 and 13.7 v1.625): None without the option, else the file's
+    JSON object of `Policy` keys as a `Policy`; a ValueError naming the file otherwise."""
+    if path is None:
+        return None
+    data = json.loads(Path(path).read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise ValueError(f"{path}: expected a JSON object of policy keys, got {_JSON_TYPES[type(data)]}")
+    unknown = sorted(set(data) - set(_POLICY_KEYS))
+    if unknown:
+        raise ValueError(f"{path}: unknown policy keys {unknown}; a policy holds allowed_routes, "
+                         "allowed_families, region and require_zdr")
+    try:
+        return Policy(**data)
+    except ValueError as exc:
+        raise ValueError(f"{path}: {exc}") from None
+
+
 def _cmd_select(args) -> int:
     registry = Registry.load(args.registry)
     tasks = load_tasks(args.tasks)
@@ -272,12 +301,13 @@ def _cmd_select(args) -> int:
     for model_id in [args.generator, *args.exclude]:
         if model_id is not None:
             registry.get(model_id)
+    policy = _load_policy(args.policy)  # v1.625: after the IDs, before select
     router = Router(registry, tasks, stats, priors)
     try:
         decision = router.select(args.task, flavor=args.flavor,
                                  generator_model=args.generator,
                                  exclude_models=tuple(args.exclude),
-                                 prompt_tokens=args.prompt_tokens, slice=args.slice)
+                                 prompt_tokens=args.prompt_tokens, slice=args.slice, policy=policy)
     except NoModelClearsBar as exc:
         print(f"error: {exc}", file=sys.stderr)
         print(_candidate_table(exc.candidates, registry), file=sys.stderr)
@@ -496,6 +526,7 @@ def _cmd_delegate(args) -> int:
         if model_id is not None:
             registry.get(model_id)
     parent = registry.get(args.parent).id
+    policy = _load_policy(args.policy)  # v1.625: after the IDs, before decide_delegation
     router = Router(registry, tasks, stats, priors)
     try:
         decision = router.decide_delegation(
@@ -506,7 +537,7 @@ def _cmd_delegate(args) -> int:
             cached_read_ratio=args.cached_read_ratio,
             output_reread_share=args.output_reread_share,
             brief_output_tokens=args.brief_output_tokens,
-            generator_model=args.generator, exclude_models=tuple(args.exclude))
+            generator_model=args.generator, exclude_models=tuple(args.exclude), policy=policy)
     except NoModelClearsBar as exc:
         print(f"error: {exc}", file=sys.stderr)
         print(_candidate_table(exc.candidates), file=sys.stderr)
