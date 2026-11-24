@@ -17,7 +17,7 @@ from .priors import Priors  # noqa: E402
 from .router import (  # noqa: E402
     BELOW_BAR, CASCADE_UNKNOWN_MODEL, CHEAPER_PER_SUCCESS, CONTEXT_TOO_SMALL, EXCLUDED_FAMILY, EXCLUDED_MODEL,
     GENERATOR, GENERATOR_FAMILY, INSUFFICIENT_SAMPLES, OUT_OF_SCOPE, PASSES, POLICY_EXCLUDED, PROCEDURE_UNKNOWN_MODEL,
-    REGION_UNAVAILABLE, ZDR_REQUIRED, Candidate, NoModelClearsBar, Policy,
+    LATENCY_UNKNOWN, REGION_UNAVAILABLE, TOO_SLOW, ZDR_REQUIRED, Candidate, NoModelClearsBar, Policy,
     RouteDecision, Router,
 )
 from .providers import (  # noqa: E402
@@ -45,7 +45,7 @@ __all__ = [
     "RouteDecision", "Router", "NoModelClearsBar", "EXCLUDED_MODEL", "EXCLUDED_FAMILY",
     "GENERATOR", "GENERATOR_FAMILY", "CONTEXT_TOO_SMALL", "INSUFFICIENT_SAMPLES",
     "BELOW_BAR", "PASSES", "CASCADE_UNKNOWN_MODEL", "CHEAPER_PER_SUCCESS", "PROCEDURE_UNKNOWN_MODEL", "OUT_OF_SCOPE",
-    "POLICY_EXCLUDED", "REGION_UNAVAILABLE", "ZDR_REQUIRED", "Policy", "Completion", "ProviderError", "Provider", "FakeProvider",
+    "POLICY_EXCLUDED", "REGION_UNAVAILABLE", "ZDR_REQUIRED", "Policy", "TOO_SLOW", "LATENCY_UNKNOWN", "Completion", "ProviderError", "Provider", "FakeProvider",
     "OpenAICompatibleProvider", "Attempt", "CallResult", "Executor", "AllModelsFailed",
     "json_validator", "estimate_prompt_tokens", "Monitor", "load_records", "load_audits", "load_logs", "report", "budget_report",
     "shadow_pairs", "pair_results",

@@ -200,7 +200,8 @@ def _briefed_stats(stats: Stats, task_name: str, brief_tokens: int) -> Stats:
     the delegate's ``select`` prices a measured model at its mean input plus B (13.3).
     With no brief or no token totals on the task, ``stats`` itself is returned, as v1.32
     passed it. A cascade key keeps its escalation count and holds no token totals (DESIGN 7
-    v1.536); a procedure key keeps its summed cost and holds none either (13.3 v1.627).
+    v1.536); a procedure key keeps its summed cost and holds none either (13.3 v1.627). Every key
+    keeps its times, so a latency bar reads in the delegate what it reads in the router (v1.628).
     """
     rows = [(key, counts) for key, counts in stats.items() if key[0] == task_name]
     if brief_tokens == 0 or not any(stats.tokens(*key)[2] for key, _ in rows):
@@ -216,6 +217,9 @@ def _briefed_stats(stats: Stats, task_name: str, brief_tokens: int) -> Stats:
             tokens["escalated"] = stats.escalations(name, model_id)
         elif _is_procedure_key(model_id):  # 13.3 v1.627, review iter-478 should-fix 3
             tokens["cost_usd"] = stats.cost(name, model_id)
+        times = stats.latencies(name, model_id)  # 13.3 v1.628, review iter-478 should-fix 3
+        if times:
+            tokens["latencies_ms"] = list(times)
         copy.add(name, model_id, successes, trials, **tokens)
     return copy
 

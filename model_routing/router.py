@@ -28,6 +28,8 @@ OUT_OF_SCOPE = "out_of_scope"
 POLICY_EXCLUDED = "policy_excluded"  # DESIGN 5.1 v1.622, rules 5b to 5d
 REGION_UNAVAILABLE = "region_unavailable"
 ZDR_REQUIRED = "zdr_required"
+TOO_SLOW = "too_slow"  # DESIGN 5.1 v1.628, rules 5e and 5f
+LATENCY_UNKNOWN = "latency_unknown"
 
 FLAVORS = ("cost_effective", "cost_blind")
 _BREAKDOWN_KEYS = ("uncached_input_usd", "cached_read_usd", "cache_write_usd", "output_usd")
@@ -177,6 +179,8 @@ class Candidate:
     cache counts, and ``cache_price_unknown`` the cache prices those counts needed and the model
     leaves unknown, so they were read at the call's input price (5.1 v1.588); a cascade's or a
     procedure's when a leg's model or the procedure's priced model has them (5.2 v1.591).
+    ``p95_latency_ms`` is, under the task's ``max_p95_ms``, the route's time that rule 5e reads, None
+    when it is unknown or the task sets no bar (5.1 and 5.2 v1.628).
     """
 
     model_id: str
@@ -192,6 +196,7 @@ class Candidate:
     pricing_basis: Optional[str] = None
     cost_breakdown: Optional[Tuple[float, float, float, float]] = None
     cache_price_unknown: Tuple[str, ...] = ()
+    p95_latency_ms: Optional[float] = None
 
 
 @dataclass(frozen=True)
@@ -215,6 +220,7 @@ class RouteDecision:
     failure_policy: str = "none"
     expected_cost_per_success_usd: Optional[float] = None
     pick_reason: Optional[str] = None
+    max_p95_ms: Optional[float] = None
 
     def to_dict(self) -> dict:
         """Return the decision as plain JSON-able types.
@@ -223,7 +229,8 @@ class RouteDecision:
         success keys only when ``failure_policy`` is not ``"none"`` (v1.567); a candidate's
         ``pricing_basis`` only when it is ``"self_hosted"`` (v1.584), its ``cost_breakdown``
         only with measured cache counts and its ``cache_price_unknown`` only when that list is
-        not empty (v1.588).
+        not empty (v1.588); ``max_p95_ms`` and each candidate's ``p95_latency_ms`` only when the
+        task sets a latency bar (v1.628).
         """
         data = {"task": self.task}
         if self.slice is not None:
@@ -241,17 +248,22 @@ class RouteDecision:
             data["expected_cost_per_success_usd"] = self.expected_cost_per_success_usd
             if self.pick_reason is not None:
                 data["pick_reason"] = self.pick_reason
-        data["candidates"] = [_candidate_dict(c) for c in self.candidates]
+        timed = self.max_p95_ms is not None  # DESIGN 5.1 v1.628
+        if timed:
+            data["max_p95_ms"] = self.max_p95_ms
+        data["candidates"] = [_candidate_dict(c, timed) for c in self.candidates]
         return data
 
 
-def _candidate_dict(candidate: Candidate) -> dict:
+def _candidate_dict(candidate: Candidate, timed: bool = False) -> dict:
     """A candidate's dict, its ``pricing_basis`` key only for a self-hosted model (5.1 v1.584).
 
     Its last two fields, the cache ones of v1.588, are keys only when they hold something: the
-    breakdown as an object of the four USD parts, then the unknown cache prices as a list.
+    breakdown as an object of the four USD parts, then the unknown cache prices as a list. Its time
+    is its last key only under a latency bar (``timed``), a number or null (v1.628).
     """
     data = asdict(candidate)
+    p95 = data.pop("p95_latency_ms")
     if data["pricing_basis"] != "self_hosted":
         del data["pricing_basis"]
     parts = data.pop("cost_breakdown")
@@ -260,6 +272,8 @@ def _candidate_dict(candidate: Candidate) -> dict:
         data["cost_breakdown"] = dict(zip(_BREAKDOWN_KEYS, parts))
         if unknown:
             data["cache_price_unknown"] = list(unknown)
+    if timed:
+        data["p95_latency_ms"] = p95
     return data
 
 
@@ -304,7 +318,9 @@ class Router:
         never on a prior (DESIGN 5.2 v1.577). A ``policy`` rules out, after rule 5a, each route
         that reaches a model outside its allowed routes or families, its region or its retention
         rule, and a cascade or procedure whose own ID ``allowed_routes`` leaves out (DESIGN 5.2
-        v1.622). Raises ``KeyError``
+        v1.622). Under the task's ``max_p95_ms`` a route whose p95 on the call's key is above it is
+        ``too_slow``, and with ``latency_unknown`` ``"deny"`` one whose time is unknown is
+        ``latency_unknown`` (5.2 v1.628). Raises ``KeyError``
         for an unknown task or generator, ``ValueError`` for an unknown flavor, a
         ``prompt_tokens`` that is not an integer >= 0, a ``slice`` that is not a non-empty
         string without '@', a sliced task whose name holds '@' or whose slice key is
@@ -491,6 +507,21 @@ class Router:
             return OUT_OF_SCOPE
         return _policy_rule(policy, model)
 
+    def _latency_rule(self, task: Task, route_id: str) -> Tuple[Optional[str], Optional[float]]:
+        """Rules 5e and 5f (DESIGN 5.2 v1.628) on a route's own key: its reason or None, and its time.
+
+        The time is the key's p95 once it holds at least ``min_samples`` times, else unknown (None),
+        which ``latency_unknown`` ``"deny"`` rules out. Without a bar, (None, None).
+        """
+        if task.max_p95_ms is None:
+            return None, None
+        p95 = None
+        if len(self.stats.latencies(task.name, route_id)) >= task.min_samples:
+            p95 = self.stats.p95_latency_ms(task.name, route_id)
+        if p95 is None:
+            return (LATENCY_UNKNOWN if task.latency_unknown == "deny" else None), None
+        return (TOO_SLOW if p95 > task.max_p95_ms else None), p95
+
     @staticmethod
     def _measured_rule(task: Task, successes: int, trials: int) -> str:
         """Rules 6 to 8 (DESIGN 5.2) on these counts."""
@@ -505,8 +536,10 @@ class Router:
                    generator_family: Optional[str], fit_input: int,
                    names: Tuple[str, Optional[str]], policy: Optional[Policy] = None) -> Candidate:
         successes, trials = self.stats.get(task.name, model.id)
-        reason = self._model_rule(task, model, excluded, generator_base, generator_family,
-                                  fit_input, names, policy) or self._measured_rule(task, successes, trials)
+        slow, p95 = self._latency_rule(task, model.id)  # DESIGN 5.2 v1.628: after 5d, before 6
+        reason = (self._model_rule(task, model, excluded, generator_base, generator_family,
+                                   fit_input, names, policy)
+                  or slow or self._measured_rule(task, successes, trials))
         list_cost = self._list_cost(task, model)
         counts = self._cache_counts(task, model)
         mean = self.stats.mean_tokens(task.name, model.id)
@@ -524,6 +557,7 @@ class Router:
             pricing_basis=model.pricing_basis,
             cost_breakdown=None if counts is None else _breakdown(model, *mean, *counts),
             cache_price_unknown=() if counts is None else _unknown_cache_prices(model, *counts),
+            p95_latency_ms=p95,
         )
 
     def _cascade_candidate(self, task: Task, cascade: Cascade, flavor: str, excluded: set,
@@ -543,11 +577,12 @@ class Router:
         """
         successes, trials = self.stats.get(task.name, cascade.id)
         quality_lb = wilson_lower_bound(successes, trials, task.confidence)
+        slow, p95 = self._latency_rule(task, cascade.id)  # its own key's times (5.2 v1.628)
         if cascade.cheap not in self.registry or cascade.strong not in self.registry:
             return Candidate(model_id=cascade.id, family="", successes=successes,
                              trials=trials, quality_lb=quality_lb, routing_cost=0.0,
                              list_cost=0.0, eligible=False, passes=False,
-                             reason=CASCADE_UNKNOWN_MODEL)
+                             reason=CASCADE_UNKNOWN_MODEL, p95_latency_ms=p95)
         cheap = self.registry.get(cascade.cheap)
         strong = self.registry.get(cascade.strong)
         reason = EXCLUDED_MODEL if cascade.id in excluded else _route_id_rule(policy, cascade.id)
@@ -556,7 +591,7 @@ class Router:
                 reason = self._model_rule(task, model, excluded, generator_base,
                                           generator_family, fit_input, names, policy)
         if reason is None:
-            reason = self._measured_rule(task, successes, trials)
+            reason = slow or self._measured_rule(task, successes, trials)
         size_in, size_out = _sizes(self.stats, task, cheap.id)
         p = self.stats.escalations(task.name, cascade.id) / trials if trials else 0.0
         read = size_in + size_out
@@ -588,6 +623,7 @@ class Router:
             reason=reason,
             cost_breakdown=breakdown,
             cache_price_unknown=unknown,
+            p95_latency_ms=p95,
         )
 
     def _procedure_candidate(self, task: Task, proc: Procedure, flavor: str, excluded: set,
@@ -606,20 +642,21 @@ class Router:
         """
         successes, trials = self.stats.get(task.name, proc.id)
         quality_lb = wilson_lower_bound(successes, trials, task.confidence)
+        slow, p95 = self._latency_rule(task, proc.id)  # its own key's times (5.2 v1.628)
         model = None
         if proc.model is not None:
             if proc.model not in self.registry:
                 return Candidate(model_id=proc.id, family="", successes=successes,
                                  trials=trials, quality_lb=quality_lb, routing_cost=0.0,
                                  list_cost=0.0, eligible=False, passes=False,
-                                 reason=PROCEDURE_UNKNOWN_MODEL)
+                                 reason=PROCEDURE_UNKNOWN_MODEL, p95_latency_ms=p95)
             model = self.registry.get(proc.model)
         reason = EXCLUDED_MODEL if proc.id in excluded else _route_id_rule(policy, proc.id)
         if reason is None and model is not None:
             reason = self._model_rule(task, model, excluded, generator_base, generator_family,
                                       fit_input, names, policy)
         if reason is None:
-            reason = self._measured_rule(task, successes, trials)
+            reason = slow or self._measured_rule(task, successes, trials)
         list_cost = self.stats.mean_cost(task.name, proc.id)
         breakdown, unknown = None, ()
         if list_cost is None and model is None:
@@ -645,6 +682,7 @@ class Router:
             reason=reason,
             cost_breakdown=breakdown,
             cache_price_unknown=unknown,
+            p95_latency_ms=p95,
         )
 
     def _cache_counts(self, task: Task, model) -> Optional[Tuple[int, int]]:
@@ -706,4 +744,5 @@ class Router:
             failure_policy=task.failure_policy,
             expected_cost_per_success_usd=per_success,
             pick_reason=pick_reason,
+            max_p95_ms=task.max_p95_ms,
         )

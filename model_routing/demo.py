@@ -113,6 +113,10 @@ def _tasks_json(task: Task) -> str:
         del row["shadow_rate"]
     if row["shadow_route"] is None:
         del row["shadow_route"]
+    if row["max_p95_ms"] is None:  # DESIGN 4.2 v1.628
+        del row["max_p95_ms"]
+    if row["latency_unknown"] == "allow":
+        del row["latency_unknown"]
     return json.dumps({"tasks": [row]}, indent=2) + "\n"
 
 

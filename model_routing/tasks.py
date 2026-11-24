@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 from dataclasses import dataclass, field, fields
 from pathlib import Path
@@ -12,9 +13,21 @@ PathLike = Union[str, Path]
 
 ON_NO_MODEL_CHOICES = ("refuse", "best_available")
 FAILURE_POLICIES = ("none", "retry_same")
+LATENCY_UNKNOWN_CHOICES = ("allow", "deny")  # DESIGN 4.2 v1.628
 SLICE_KEYS = ("bar", "min_samples", "expected_input_tokens", "expected_output_tokens")
 CASCADE_KEYS = ("cheap", "strong", "signal")
 _SIGNAL = re.compile(r"[a-z0-9][a-z0-9._-]*")
+
+
+def _is_bar_ms(value) -> bool:
+    """A latency bar (DESIGN 4.2 v1.628): a finite int or float above 0 that is not a bool."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return False
+    try:
+        value = float(value)
+    except OverflowError:  # an int too large for a float
+        return False
+    return math.isfinite(value) and value > 0
 
 
 def is_slice_name(value) -> bool:
@@ -107,7 +120,10 @@ class Task:
     ``"none"`` or ``"retry_same"``, which ranks the routes by expected cost per success
     (DESIGN 4.2 and 5.3 v1.567). ``shadow_rate`` is the share of the task's calls also sent to
     a shadow route, ``shadow_route`` that route's model ID or None for the default
-    (DESIGN 4.2 and 7 v1.607). Invalid values raise ``ValueError`` at construction.
+    (DESIGN 4.2 and 7 v1.607). ``max_p95_ms`` is the highest 95th-percentile time in milliseconds a
+    route may take on the task's calls, None for no bar, and ``latency_unknown`` says whether a route
+    whose time is unknown is ``"allow"``-ed or ``"deny"``-ed under it (DESIGN 4.2 and 5.2 v1.628).
+    Invalid values raise ``ValueError`` at construction.
     """
 
     name: str
@@ -128,6 +144,8 @@ class Task:
     failure_policy: str = "none"
     shadow_rate: float = 0.0
     shadow_route: Optional[str] = None
+    max_p95_ms: Optional[float] = None
+    latency_unknown: str = "allow"
 
     def __post_init__(self) -> None:
         if not isinstance(self.exclude_families, tuple):
@@ -183,6 +201,12 @@ class Task:
                 and (not isinstance(self.shadow_route, str) or not self.shadow_route):
             raise ValueError(f"task {self.name!r}: shadow_route must be None or a non-empty "
                              f"str, got {self.shadow_route!r}")
+        if self.max_p95_ms is not None and not _is_bar_ms(self.max_p95_ms):  # DESIGN 4.2 v1.628
+            raise ValueError(f"task {self.name!r}: max_p95_ms must be None or a finite number above 0 "
+                             f"that is not a bool, got {self.max_p95_ms!r}")
+        if not isinstance(self.latency_unknown, str) or self.latency_unknown not in LATENCY_UNKNOWN_CHOICES:
+            raise ValueError(f"task {self.name!r}: latency_unknown must be one of "
+                             f"{LATENCY_UNKNOWN_CHOICES}, got {self.latency_unknown!r}")
 
 
 _TASK_FIELDS = {f.name for f in fields(Task)}
