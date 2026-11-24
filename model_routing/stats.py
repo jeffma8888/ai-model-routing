@@ -8,7 +8,7 @@ from fractions import Fraction
 from math import ceil, floor, isfinite, sqrt
 from pathlib import Path
 from statistics import NormalDist
-from typing import Dict, Iterable, List, Optional, Sequence, Tuple, Union
+from typing import Dict, Iterable, List, Optional, Tuple, Union
 
 from .procedures import is_procedure_id
 from .tasks import is_slice_name, parse_cascade_id
@@ -244,7 +244,7 @@ class Stats:
             cost_usd: Optional[float] = None, cached_input_tokens: Optional[int] = None,
             cached_trials: Optional[int] = None, cache_write_tokens: Optional[int] = None,
             cache_write_trials: Optional[int] = None,
-            latencies_ms: Optional[Sequence[float]] = None) -> None:
+            latencies_ms: Optional[Union[List[float], Tuple[float, ...]]] = None) -> None:
         """Add these counts, and any token totals, to the existing ones for the key.
 
         ``input_tokens`` and ``output_tokens`` go together and are totals over
@@ -376,7 +376,8 @@ class Stats:
         (DESIGN 4.3 v1.588). A cascade row (its ``model`` holds ``>``) carries ``escalated``
         and no token keys, and no other row carries ``escalated``. A procedure row (its
         ``model`` starts with ``proc:``) carries ``cost_usd`` and no token keys; any other
-        row's ``cost_usd`` is ignored (DESIGN 4.3 v1.577).
+        row's ``cost_usd`` is ignored (DESIGN 4.3 v1.577). Any row may carry ``latencies_ms``,
+        a JSON array of 1 to ``trials`` times in milliseconds (DESIGN 4.3 v1.626).
         """
         raw = json.loads(Path(path).read_text(encoding="utf-8"))
         if not isinstance(raw, dict) or not isinstance(raw.get("stats"), list):
@@ -430,7 +431,11 @@ class Stats:
         return stats
 
     def save(self, path: PathLike) -> None:
-        """Write stats as JSON with rows sorted by (task, model)."""
+        """Write stats as JSON with rows sorted by (task, model).
+
+        A key holding times gets ``latencies_ms``, sorted, as its row's last key (DESIGN 4.3
+        v1.626); a key without one gets no such key.
+        """
         rows = []
         for (task, model_id), (s, t) in self.items():
             row = {"task": task, "model": model_id, "successes": s, "trials": t}

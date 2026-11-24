@@ -81,6 +81,23 @@ def test_a_bad_time_raises_and_adds_nothing(bad):
     assert stats.latencies("t", "m") == ()
 
 
+def test_zero_and_a_large_finite_time_are_times():
+    stats = Stats()
+    stats.add("t", "m", 3, 3, latencies_ms=[0, 10 ** 308, 0.0])
+    assert stats.latencies("t", "m") == (0.0, 0.0, 1e308)
+    assert stats.p95_latency_ms("t", "m") == 1e308
+
+
+def test_a_bad_time_on_a_cascade_or_procedure_key_adds_no_escalation_or_cost():
+    stats = Stats()
+    with pytest.raises(ValueError, match="latencies_ms"):
+        stats.add("t", CASCADE, 1, 1, escalated=1, latencies_ms=[-1])
+    with pytest.raises(ValueError, match="latencies_ms"):
+        stats.add("t", PROC, 1, 1, cost_usd=0.5, latencies_ms=[-1])
+    assert stats.get("t", CASCADE) == (0, 0) and stats.escalations("t", CASCADE) == 0
+    assert stats.get("t", PROC) == (0, 0) and stats.cost("t", PROC) == 0.0
+
+
 def test_a_time_needs_a_trial():
     stats = Stats()
     with pytest.raises(ValueError, match="latencies_ms"):
@@ -121,21 +138,28 @@ def test_merge_joins_both_sides_and_changes_neither():
 def test_save_writes_the_times_last_and_sorted_and_loads_back(tmp_path):
     stats = Stats()
     stats.add("t", "m", 2, 3, input_tokens=30, output_tokens=6, cached_input_tokens=9,
-              latencies_ms=[300.0, 120])
+              cache_write_tokens=3, latencies_ms=[300.0, 120])
     stats.add("t", CASCADE, 1, 1, escalated=0, latencies_ms=[700])
+    stats.add("t", PROC, 1, 1, cost_usd=0.25, latencies_ms=[60])
     stats.add("t", "untimed", 1, 1)
     path = tmp_path / "stats.json"
     stats.save(path)
     rows = {row["model"]: row for row in json.loads(path.read_text(encoding="utf-8"))["stats"]}
     assert list(rows["m"]) == ["task", "model", "successes", "trials", "input_tokens",
                                "output_tokens", "token_trials", "cached_input_tokens",
-                               "cached_trials", "latencies_ms"]
+                               "cached_trials", "cache_write_tokens", "cache_write_trials",
+                               "latencies_ms"]
     assert rows["m"]["latencies_ms"] == [120.0, 300.0]
-    assert list(rows[CASCADE])[-1] == "latencies_ms"
+    assert list(rows[CASCADE]) == ["task", "model", "successes", "trials", "escalated",
+                                   "latencies_ms"]
+    assert list(rows[PROC]) == ["task", "model", "successes", "trials", "cost_usd",
+                                "latencies_ms"]
     assert "latencies_ms" not in rows["untimed"]
     loaded = Stats.load(path)
     assert loaded.latencies("t", "m") == (120.0, 300.0)
     assert loaded.latencies("t", CASCADE) == (700.0,)
+    assert loaded.latencies("t", PROC) == (60.0,)
+    assert loaded.cost("t", PROC) == 0.25
     again = tmp_path / "again.json"
     loaded.save(again)
     assert again.read_bytes() == path.read_bytes()
@@ -225,10 +249,26 @@ def test_calibrate_writes_the_times_and_prints_the_same_table(tmp_path, capsys):
     assert "latencies_ms" not in (tmp_path / "b.json").read_text(encoding="utf-8")
 
 
+@pytest.mark.parametrize("held", [[400.0, 20.0], None])
+def test_calibrate_into_a_stats_file_keeps_its_times(tmp_path, held):
+    stats_path = tmp_path / "stats.json"
+    existing = Stats()
+    existing.add("t", "m", 2, 2, latencies_ms=held)
+    existing.save(stats_path)
+    results = tmp_path / "results.jsonl"
+    results.write_text(json.dumps({"task": "t", "model": "m", "correct": True,
+                                   "latency_ms": 150}) + "\n", encoding="utf-8")
+    assert main(["calibrate", "--results", str(results), "--stats", str(stats_path)]) == 0
+    loaded = Stats.load(stats_path)
+    assert loaded.get("t", "m") == (3, 3)
+    assert loaded.latencies("t", "m") == tuple(sorted((held or []) + [150.0]))
+
+
 def test_design_and_changelog_state_v1_626():
     design = (ROOT / "DESIGN.md").read_text(encoding="utf-8")
     assert "- v1.626 measured latency (row LAT1a):" in design
     assert "`.p95_latency_ms(task, model_id) -> float | None`" in design
     assert "- v1.626 files and calibration:" in design
-    changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").splitlines()
-    assert changelog[-1].startswith("- v1.626 (2026-11-24): spec, code and tests (4.3, row LAT1a).")
+    [line] = [x for x in (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").splitlines()
+              if x.startswith("- v1.626 (")]
+    assert line.startswith("- v1.626 (2026-11-24): spec, code and tests (4.3, row LAT1a).")
