@@ -25,6 +25,9 @@ CASCADE_UNKNOWN_MODEL = "cascade_unknown_model"
 CHEAPER_PER_SUCCESS = "cheaper_per_success"  # a decision's reason, never a candidate's
 PROCEDURE_UNKNOWN_MODEL = "procedure_unknown_model"
 OUT_OF_SCOPE = "out_of_scope"
+POLICY_EXCLUDED = "policy_excluded"  # DESIGN 5.1 v1.622, rules 5b to 5d
+REGION_UNAVAILABLE = "region_unavailable"
+ZDR_REQUIRED = "zdr_required"
 
 FLAVORS = ("cost_effective", "cost_blind")
 _BREAKDOWN_KEYS = ("uncached_input_usd", "cached_read_usd", "cache_write_usd", "output_usd")
@@ -44,6 +47,61 @@ def _in_scope(patterns: Tuple[str, ...], name: str, key: Optional[str]) -> bool:
     """Rule 5a (DESIGN 5.2 v1.586): on a sliced call a pattern with '@' reads the key, any other the name."""
     return any(fnmatchcase(key if key is not None and "@" in pattern else name, pattern)
                for pattern in patterns)
+
+
+def _names(value, field_name: str) -> Optional[Tuple[str, ...]]:
+    """A policy list (DESIGN 5.1 v1.622): None, or a list or tuple of non-empty strings, as a tuple."""
+    if value is None:
+        return None
+    if not isinstance(value, (list, tuple)) or not all(isinstance(v, str) and v for v in value):
+        raise ValueError(f"{field_name} must be None or a list or tuple of non-empty strings, got {value!r}")
+    return tuple(value)
+
+
+@dataclass(frozen=True)
+class Policy:
+    """The rules a tenant's calls keep whatever they cost (DESIGN 5.1 and 5.2 v1.622).
+
+    ``allowed_routes`` and ``allowed_families`` are None (no limit) or the route IDs and families a
+    call may reach; ``region`` is the region its calls must be served in, and ``require_zdr`` asks for
+    zero data retention. A value the registry does not state fails closed. ``Policy()`` limits nothing.
+    """
+
+    allowed_routes: Optional[Tuple[str, ...]] = None
+    allowed_families: Optional[Tuple[str, ...]] = None
+    region: Optional[str] = None
+    require_zdr: bool = False
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "allowed_routes", _names(self.allowed_routes, "allowed_routes"))
+        object.__setattr__(self, "allowed_families", _names(self.allowed_families, "allowed_families"))
+        if self.region is not None and (not isinstance(self.region, str) or not self.region):
+            raise ValueError(f"region must be None or a non-empty string, got {self.region!r}")
+        if not isinstance(self.require_zdr, bool):
+            raise ValueError(f"require_zdr must be a bool, got {self.require_zdr!r}")
+
+
+def _policy_rule(policy: Optional[Policy], model) -> Optional[str]:
+    """Rules 5b to 5d (DESIGN 5.2 v1.622) on a registry model, or None."""
+    if policy is None:
+        return None
+    if policy.allowed_routes is not None and model.id not in policy.allowed_routes \
+            and model.base_id not in policy.allowed_routes:
+        return POLICY_EXCLUDED
+    if policy.allowed_families is not None and model.family not in policy.allowed_families:
+        return POLICY_EXCLUDED
+    if policy.region is not None and policy.region not in model.regions:
+        return REGION_UNAVAILABLE
+    if policy.require_zdr and model.zero_data_retention is not True:
+        return ZDR_REQUIRED
+    return None
+
+
+def _route_id_rule(policy: Optional[Policy], route_id: str) -> Optional[str]:
+    """A cascade's or a procedure's own ID under ``allowed_routes`` (DESIGN 5.2 v1.622), or None."""
+    if policy is not None and policy.allowed_routes is not None and route_id not in policy.allowed_routes:
+        return POLICY_EXCLUDED
+    return None
 
 
 def _per_success(candidate: "Candidate") -> float:
@@ -228,7 +286,8 @@ class Router:
                exclude_models: Iterable[str] = (), *,
                prompt_tokens: Optional[int] = None,
                slice: Optional[str] = None, cascades: bool = False,
-               procedures: Sequence[Procedure] = ()) -> RouteDecision:
+               procedures: Sequence[Procedure] = (),
+               policy: Optional[Policy] = None) -> RouteDecision:
         """Route ``task_name`` and return a :class:`RouteDecision`.
 
         ``prompt_tokens`` is the size of the one request being routed: when given, the
@@ -242,14 +301,17 @@ class Router:
         its strong model, never on a prior (DESIGN 7 v1.532 and v1.536). Each of
         ``procedures`` is a candidate after those, judged by rules 1 to 5 on its named model
         and by its own trials under its ``proc:`` ID, at its measured mean cost per trial,
-        never on a prior (DESIGN 5.2 v1.577). Raises ``KeyError``
+        never on a prior (DESIGN 5.2 v1.577). A ``policy`` rules out, after rule 5a, each route
+        that reaches a model outside its allowed routes or families, its region or its retention
+        rule, and a cascade or procedure whose own ID ``allowed_routes`` leaves out (DESIGN 5.2
+        v1.622). Raises ``KeyError``
         for an unknown task or generator, ``ValueError`` for an unknown flavor, a
         ``prompt_tokens`` that is not an integer >= 0, a ``slice`` that is not a non-empty
         string without '@', a sliced task whose name holds '@' or whose slice key is
         another task, a ``cascades`` that is not a bool, or, with ``cascades`` True, a
         registry ID equal to a cascade's ``id``, ``procedures`` that is not a list or tuple of
         ``Procedure``, two of them with one ``id`` or a registry ID equal to one's ``id``,
-        and :class:`NoModelClearsBar` when nothing
+        a ``policy`` that is not None or a ``Policy``, and :class:`NoModelClearsBar` when nothing
         can be chosen under the task's ``on_no_model`` policy.
         """
         if flavor not in FLAVORS:
@@ -263,6 +325,8 @@ class Router:
                 or not all(isinstance(proc, Procedure) for proc in procedures):
             raise ValueError("procedures must be a list or tuple of Procedure, "
                              f"got {type(procedures).__name__}")
+        if policy is not None and not isinstance(policy, Policy):  # DESIGN 5.2 v1.622
+            raise ValueError(f"policy must be None or a Policy, got {type(policy).__name__}")
         if task_name not in self.tasks:
             raise KeyError(f"unknown task: {task_name!r}")
         base = self.tasks[task_name]
@@ -295,15 +359,16 @@ class Router:
         fit_input = task.expected_input_tokens if prompt_tokens is None else prompt_tokens
         names = (base.name, None if slice is None else task.name)  # DESIGN 5.2 v1.586
         candidates = tuple(self._candidate(task, model, flavor, excluded,
-                                           generator_base, generator_family, fit_input, names)
+                                           generator_base, generator_family, fit_input, names,
+                                           policy)
                            for model in self.registry.models)
         candidates += tuple(self._cascade_candidate(task, cascade, flavor, excluded,
                                                     generator_base, generator_family, fit_input,
-                                                    names)
+                                                    names, policy)
                             for cascade in routed)
         candidates += tuple(self._procedure_candidate(task, proc, flavor, excluded,
                                                       generator_base, generator_family, fit_input,
-                                                      names)
+                                                      names, policy)
                             for proc in procedures)
 
         passing = [c for c in candidates if c.passes]
@@ -400,11 +465,13 @@ class Router:
     @staticmethod
     def _model_rule(task: Task, model, excluded: set, generator_base: Optional[str],
                     generator_family: Optional[str], fit_input: int,
-                    names: Tuple[str, Optional[str]]) -> Optional[str]:
-        """The first of rules 1 to 5a (DESIGN 5.2) that applies to ``model``, or None.
+                    names: Tuple[str, Optional[str]],
+                    policy: Optional[Policy] = None) -> Optional[str]:
+        """The first of rules 1 to 5d (DESIGN 5.2) that applies to ``model``, or None.
 
         Rules 1 and 3 read ``base_id`` too, so they cover a model's variants (v1.572). Rule 5a
         (v1.586) matches ``scope_tasks`` against ``names``, the task's name and a sliced call's key.
+        Rules 5b to 5d are the ``policy``'s (v1.622).
         """
         if model.id in excluded or model.base_id in excluded:  # DESIGN 5.2 v1.572
             return EXCLUDED_MODEL
@@ -420,7 +487,7 @@ class Router:
             return CONTEXT_TOO_SMALL
         if model.scope_tasks and not _in_scope(model.scope_tasks, *names):
             return OUT_OF_SCOPE
-        return None
+        return _policy_rule(policy, model)
 
     @staticmethod
     def _measured_rule(task: Task, successes: int, trials: int) -> str:
@@ -434,10 +501,10 @@ class Router:
     def _candidate(self, task: Task, model, flavor: str, excluded: set,
                    generator_base: Optional[str],
                    generator_family: Optional[str], fit_input: int,
-                   names: Tuple[str, Optional[str]]) -> Candidate:
+                   names: Tuple[str, Optional[str]], policy: Optional[Policy] = None) -> Candidate:
         successes, trials = self.stats.get(task.name, model.id)
         reason = self._model_rule(task, model, excluded, generator_base, generator_family,
-                                  fit_input, names) or self._measured_rule(task, successes, trials)
+                                  fit_input, names, policy) or self._measured_rule(task, successes, trials)
         list_cost = self._list_cost(task, model)
         counts = self._cache_counts(task, model)
         mean = self.stats.mean_tokens(task.name, model.id)
@@ -460,7 +527,8 @@ class Router:
     def _cascade_candidate(self, task: Task, cascade: Cascade, flavor: str, excluded: set,
                            generator_base: Optional[str],
                            generator_family: Optional[str], fit_input: int,
-                           names: Tuple[str, Optional[str]]) -> Candidate:
+                           names: Tuple[str, Optional[str]],
+                           policy: Optional[Policy] = None) -> Candidate:
         """A cascade as one candidate (DESIGN 7 v1.532 and v1.536).
 
         ``cascade_unknown_model`` when the registry lacks either model; else rule 1 on its
@@ -480,11 +548,11 @@ class Router:
                              reason=CASCADE_UNKNOWN_MODEL)
         cheap = self.registry.get(cascade.cheap)
         strong = self.registry.get(cascade.strong)
-        reason = EXCLUDED_MODEL if cascade.id in excluded else None
+        reason = EXCLUDED_MODEL if cascade.id in excluded else _route_id_rule(policy, cascade.id)
         for model in (cheap, strong):
             if reason is None:
                 reason = self._model_rule(task, model, excluded, generator_base,
-                                          generator_family, fit_input, names)
+                                          generator_family, fit_input, names, policy)
         if reason is None:
             reason = self._measured_rule(task, successes, trials)
         size_in, size_out = _sizes(self.stats, task, cheap.id)
@@ -523,7 +591,8 @@ class Router:
     def _procedure_candidate(self, task: Task, proc: Procedure, flavor: str, excluded: set,
                              generator_base: Optional[str],
                              generator_family: Optional[str], fit_input: int,
-                             names: Tuple[str, Optional[str]]) -> Candidate:
+                             names: Tuple[str, Optional[str]],
+                             policy: Optional[Policy] = None) -> Candidate:
         """A procedure as one candidate (DESIGN 5.2 v1.577).
 
         ``procedure_unknown_model`` when the registry lacks its named model; else rule 1 on its
@@ -543,10 +612,10 @@ class Router:
                                  list_cost=0.0, eligible=False, passes=False,
                                  reason=PROCEDURE_UNKNOWN_MODEL)
             model = self.registry.get(proc.model)
-        reason = EXCLUDED_MODEL if proc.id in excluded else None
+        reason = EXCLUDED_MODEL if proc.id in excluded else _route_id_rule(policy, proc.id)
         if reason is None and model is not None:
             reason = self._model_rule(task, model, excluded, generator_base, generator_family,
-                                      fit_input, names)
+                                      fit_input, names, policy)
         if reason is None:
             reason = self._measured_rule(task, successes, trials)
         list_cost = self.stats.mean_cost(task.name, proc.id)

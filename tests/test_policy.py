@@ -231,9 +231,8 @@ def test_a_procedure_without_a_model_meets_only_the_id_check():
     decision = r.select("t", procedures=(proc,), policy=policy(region="nowhere", require_zdr=True,
                                                               allowed_families=()))
     assert decision.primary == proc.id and reasons(decision)[proc.id] == PASSES
-    with pytest.raises(NoModelClearsBar) as error:
-        r.select("t", procedures=(proc,), policy=policy(allowed_routes=("p/m",)))
-    assert reasons(error.value)[proc.id] == model_routing.POLICY_EXCLUDED
+    decision = r.select("t", procedures=(proc,), policy=policy(allowed_routes=("p/m",)))
+    assert decision.primary == "p/m" and reasons(decision)[proc.id] == model_routing.POLICY_EXCLUDED
 
 
 # --- the registry fields --------------------------------------------------------------------

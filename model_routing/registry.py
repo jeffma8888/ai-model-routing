@@ -192,6 +192,9 @@ class Model:
     or glob patterns the model is a candidate on, ``()`` meaning every task (4.1 v1.586).
     ``price_cached_in`` and ``price_cache_write`` are USD per 1M input tokens read from and written to
     the provider's prompt cache, ``None`` meaning unknown, so the call's input price (4.1 v1.587).
+    ``regions`` names the regions in which the caller's calls of it are served, ``()`` none stated, and
+    ``zero_data_retention`` whether the provider keeps none of their prompts or outputs, ``None`` not
+    stated: what the registry's owner states, never a certification, read only by a ``Policy`` (4.1 v1.622).
     """
 
     id: str
@@ -209,6 +212,8 @@ class Model:
     scope_tasks: Tuple[str, ...] = ()
     price_cached_in: Optional[float] = None
     price_cache_write: Optional[float] = None
+    regions: Tuple[str, ...] = ()
+    zero_data_retention: Optional[bool] = None
 
     def __post_init__(self):
         if not isinstance(self.pricing_basis, str) or self.pricing_basis not in _PRICING_BASES:
@@ -228,6 +233,12 @@ class Model:
         scope = self.scope_tasks  # DESIGN 4.1 v1.586: a tuple, so a frozen model's scope cannot change
         if not isinstance(scope, tuple) or not all(isinstance(p, str) and p for p in scope):
             raise ValueError(f"scope_tasks must be a tuple of non-empty strings, got {scope!r}")
+        regions = self.regions  # DESIGN 4.1 v1.622: a tuple, as scope_tasks
+        if not isinstance(regions, tuple) or not all(isinstance(r, str) and r for r in regions):
+            raise ValueError(f"regions must be a tuple of non-empty strings, got {regions!r}")
+        retention = self.zero_data_retention
+        if retention is not None and not isinstance(retention, bool):
+            raise ValueError(f"zero_data_retention must be None or a bool, got {retention!r}")
         for name in _CACHE_PRICES:  # DESIGN 4.1 v1.587
             value = getattr(self, name)
             if value is None:
@@ -361,6 +372,15 @@ def _load_scope(value) -> Tuple[str, ...]:
         return ()
     if not isinstance(value, list):
         raise ValueError(f"scope_tasks must be a list of task names or patterns, got {value!r}")
+    return tuple(value)
+
+
+def _load_regions(value) -> Tuple[str, ...]:
+    """The ``regions`` of a models.json row: absent or null is none stated (DESIGN 4.1 v1.622)."""
+    if value is None:
+        return ()
+    if not isinstance(value, list):  # a string would be read as its characters
+        raise ValueError(f"regions must be a list of region names, got {value!r}")
     return tuple(value)
 
 
@@ -512,6 +532,8 @@ class Registry:
                     scope_tasks=_load_scope(row.get("scope_tasks")),
                     price_cached_in=row.get("price_cached_in"),  # DESIGN 4.1 v1.587: as is, so "0.3" raises
                     price_cache_write=row.get("price_cache_write"),
+                    regions=_load_regions(row.get("regions")),  # DESIGN 4.1 v1.622
+                    zero_data_retention=row.get("zero_data_retention"),
                 )
                 if "@" in base.id:
                     raise ValueError("a row id must not hold '@', which joins a model and "
