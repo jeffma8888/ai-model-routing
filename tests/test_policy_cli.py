@@ -119,7 +119,7 @@ def test_a_tenant_in_one_region_with_one_family_disabled_gets_the_cheapest_allow
     code, out, err = run(["select", "t", "--flavor", flavor, "--policy", path, "--json", *base(files)])
     assert (code, err) == (0, "")       # y/cheap's expired price is not read: the policy rules it out
     decision = json.loads(out)
-    assert decision["primary"] == primary and set(decision["fallbacks"]) <= ALLOWED - {primary}
+    assert decision["primary"] == primary and set(decision["fallbacks"]) == ALLOWED - {primary}  # nit 1
     assert {c["model_id"]: c["reason"] for c in decision["candidates"] if not c["eligible"]} == RULED_OUT
     expected = router(files).select("t", flavor=flavor, policy=Policy(**TENANT))
     assert out == json.dumps(expected.to_dict(), indent=2) + "\n"
@@ -196,6 +196,8 @@ def test_the_model_ids_are_checked_before_the_policy_file_is_read(files):
     bad = policy_file(files, "[]")
     code, out, err = run(["select", "t", "--exclude", "nope/x", "--policy", bad, *base(files)])
     assert (code, out, err) == (2, "", "error: unknown model: 'nope/x'\n")
+    code, out, err = run(["select", "t", "--generator", "nope/g", "--policy", bad, *base(files)])  # nit 3
+    assert (code, out, err) == (2, "", "error: unknown model: 'nope/g'\n")
     code, out, err = run(["delegate", "t", "--parent", "nope/x", *WORK, "--policy", bad, *base(files)])
     assert (code, out, err) == (2, "", "error: unknown model: 'nope/x'\n")
 
@@ -260,7 +262,9 @@ def test_no_policy_and_an_empty_one_keep_every_shipped_output_of_v1_624(tmp_path
 def test_no_readme_transcript_script_or_workflow_passes_a_policy():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     commands = [line for line in readme.splitlines() if line.startswith("$ model-routing")]
-    assert len(commands) >= 12 and not [c for c in commands if "--policy" in c]
+    # review iter-477 nit 2: and the indented `model-routing ...` instruction lines
+    told = [line for line in readme.splitlines() if line.lstrip().startswith("model-routing ")]
+    assert len(commands) >= 12 and len(told) >= 3 and not [c for c in commands + told if "--policy" in c]
     scripts = [p for folder in ("evidence", "research", ".github") for p in (ROOT / folder).rglob("*")
                if p.is_file() and p.suffix in (".py", ".yml", ".yaml", ".sh")]
     assert len(scripts) >= 20
@@ -280,8 +284,8 @@ POLICY_PARAGRAPH = (
     "delegate stay inside the allowed set, and a parent the policy rules out does not work inline. The "
     "candidate table names each ruled-out model's reason, `policy_excluded`, `region_unavailable` or "
     "`zdr_required`. A row's `regions` and `zero_data_retention` are what the registry's owner states, "
-    "not a certification: the library checks only that the row states them, and a row that states "
-    "neither fails closed. On one shared `Executor` each call may carry its own tenant's policy.")
+    "not a certification: the library checks only that the row states them, and a value a row leaves "
+    "out fails closed. On one shared `Executor` each call may carry its own tenant's policy.")  # should-fix 1
 HARVEY_LINE = (
     "- In this library: from v1.622 a tenant's `Policy`, its allowed route IDs and model families, the "
     "region its calls must be served in and whether they need zero data retention, rules out every model "
@@ -289,8 +293,8 @@ HARVEY_LINE = (
     "delegation decision, so no primary, fallback, cascade leg, shadow call or sub-agent leaves the "
     "allowed set, and a parent model the policy rules out does not work inline; from v1.625 "
     "`select --policy FILE` and `delegate --policy FILE` read one from a JSON file. A registry row's "
-    "regions and retention are what the registry's owner states, not a certification, and a row that "
-    "states none fails closed. The executor still moves to the next model of the route when a call "
+    "regions and retention are what the registry's owner states, not a certification, and a value a "
+    "row leaves out fails closed. The executor still moves to the next model of the route when a call "
     "fails or the caller's check rejects its answer, and a task can exclude model families. The change: "
     "a pinned call that skips the ranking but keeps the hard checks, with the pin logged.")
 OLD_HARVEY = ("- In this library: the executor moves to the next model of the route when a call fails or the "

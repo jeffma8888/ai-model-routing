@@ -282,7 +282,8 @@ def _load_policy(path: Optional[str]) -> Optional[Policy]:
         return None
     data = json.loads(Path(path).read_text(encoding="utf-8"))
     if not isinstance(data, dict):
-        raise ValueError(f"{path}: expected a JSON object of policy keys, got {_JSON_TYPES[type(data)]}")
+        got = _JSON_TYPES.get(type(data), type(data).__name__)  # review iter-477 nit 4
+        raise ValueError(f"{path}: expected a JSON object of policy keys, got {got}")
     unknown = sorted(set(data) - set(_POLICY_KEYS))
     if unknown:
         raise ValueError(f"{path}: unknown policy keys {unknown}; a policy holds allowed_routes, "

@@ -96,8 +96,10 @@ def test_the_paragraph_follows_the_two_on_budgets_and_precedes_the_one_on_thread
     assert body.index(PROMOTE) > body.index(CALIBRATE) and body.index(AFTER) > body.index(PROMOTE)
     # review iter-454 should-fix 3: the last sentence says the hold is the point and nothing was switched;
     # v1.616 (row PROD1c): the one-sentence paragraph on threads follows it (tests/test_threads.py);
-    # v1.619 (row CANARY1e): the two on shadow calls come between (tests/test_shadow_docs.py)
-    last = body.rstrip().rsplit("\n\n", 3)
+    # v1.619 (row CANARY1e): the two on shadow calls come between (tests/test_shadow_docs.py);
+    # v1.625 (row POL1d): the paragraph on a tenant's policy follows the threads one (tests/test_policy_cli.py)
+    last = body.rstrip().rsplit("\n\n", 4)
+    assert last[4].startswith("A tenant's rules hold whatever a route costs. ")
     assert last[3].startswith("One `Executor`, with its `Monitor` and `BudgetLedger`, can serve ")
     assert last[1].startswith("A share of routed calls can also go to a reference route, ")
     assert last[2].startswith("Every record of a shadowed call carries `pair_id`, ")
