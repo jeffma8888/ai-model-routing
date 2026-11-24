@@ -95,9 +95,12 @@ def test_the_paragraph_follows_the_two_on_budgets_and_precedes_the_one_on_thread
     assert body.index(DEMO) > at and body.index(CALIBRATE) > body.index(DEMO)
     assert body.index(PROMOTE) > body.index(CALIBRATE) and body.index(AFTER) > body.index(PROMOTE)
     # review iter-454 should-fix 3: the last sentence says the hold is the point and nothing was switched;
-    # v1.616 (row PROD1c): the one-sentence paragraph on threads follows it (tests/test_threads.py)
-    last = body.rstrip().rsplit("\n\n", 1)
-    assert last[1].startswith("One `Executor`, with its `Monitor` and `BudgetLedger`, can serve ")
+    # v1.616 (row PROD1c): the one-sentence paragraph on threads follows it (tests/test_threads.py);
+    # v1.619 (row CANARY1e): the two on shadow calls come between (tests/test_shadow_docs.py)
+    last = body.rstrip().rsplit("\n\n", 3)
+    assert last[3].startswith("One `Executor`, with its `Monitor` and `BudgetLedger`, can serve ")
+    assert last[1].startswith("A share of routed calls can also go to a reference route, ")
+    assert last[2].startswith("Every record of a shadowed call carries `pair_id`, ")
     assert last[0].endswith("This hold is the point of the example: a gap of 0.040 on 300 items, at five "
                             "times the list cost per item, is not yet evidence that `demo/atlas-max` is "
                             "better, and `promote` changed no route or file.")
@@ -239,10 +242,11 @@ def test_the_notes_github_line_names_the_paired_check_as_shipped():
             "`model-routing promote` compares a challenger with the current route on the items that one labeled "
             "file graded for both, by `paired_promotion` (v1.601), after the bar admits the challenger, so "
             "re-running a fixed labeled set after a model or price change says whether to promote. ") in line
-    changes = line.split(" The changes: ", 1)[1].split(" Which measure counts ", 1)[0]
+    # v1.619 (row CANARY1e): the shadow share is shipped too, so the drift check is the one change left
+    # (tests/test_shadow_docs.py)
+    changes = line.split(" The change still planned: ", 1)[1].split(" Which measure counts ", 1)[0]
     assert "paired" not in changes and "promote" not in changes
-    assert changes.endswith("and a set share of routed calls also sent to a reference route, so a quality loss "
-                            "nobody labeled shows up in pairs to label.")
+    assert changes.startswith("a drift check over audited production calls in a recent window, ")
 
 
 # --- DESIGN and the changelog -----------------------------------------------------------------

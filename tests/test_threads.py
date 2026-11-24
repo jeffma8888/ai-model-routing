@@ -216,5 +216,8 @@ def test_the_production_section_ends_with_the_sentence_on_threads():
     body = text.split("\n## Running it in production\n", 1)[1].split("\n## ", 1)[0]
     paragraphs = body.strip().split("\n\n")
     assert paragraphs[-1] == THREADS_SENTENCE and text.count(THREADS_SENTENCE) == 1
-    assert paragraphs[-2].endswith("and `promote` changed no route or file.")
+    # v1.619 (row CANARY1e): the two paragraphs on shadow calls sit between the promotion check and it
+    assert paragraphs[-3].startswith("A share of routed calls can also go to a reference route, ")
+    assert paragraphs[-2].startswith("Every record of a shadowed call carries `pair_id`, ")
+    assert paragraphs[-4].endswith("and `promote` changed no route or file.")
     assert ". " not in THREADS_SENTENCE      # one sentence, as the row asks
