@@ -165,7 +165,8 @@ def test_the_second_paragraph_says_what_writes_labels_and_reads_the_pairs():
             "`--results RESULTS` also writes the labelled pairs as results rows, each with its side's `cost_usd` "
             "from the log and the routed call's ID as its item",
             "so `calibrate --outcomes` and then `promote` with the shadow route as `--challenger` compare the two "
-            "routes on the same production calls",
+            "routes on the same production calls, naming the rows file's hash with `--dataset-sha256` once the "
+            "outcomes file holds the two routes' outcomes from another file too",  # review iter-471 nit 1
             "and with `--routes ROUTED SHADOW` `evaluate --outcomes` reads them as a complete outcome matrix "
             "(`DESIGN.md` 8.3 and 10).",
             f"([production lessons](research/production-lessons.md#{ANCHOR}))",
@@ -309,6 +310,7 @@ def test_design_states_the_paragraphs_and_the_changelog_the_version():
     for kept in ("after the paragraphs on promotion checks and before the sentence on threads, two paragraphs on shadow calls",
                  "(7 v1.617, review iter-468 should-fix 1)", "`checked` included (8.1 v1.618)",
                  "the synopsis `model-routing pairs --log PATH --out FILE`", "(10 v1.612 and v1.615)",
+                 "since `pair_outcomes` refuses two hashes (4.7 v1.603, review iter-471 nit 1)",
                  "keeps the drift check as the change still planned", "README's package line says `about 7,000 lines`",
                  "Defaults (tests/test_shadow_docs.py)", "the README's twelve transcripts keep their v1.606 bytes",
                  "No package module or evidence file changes"):
