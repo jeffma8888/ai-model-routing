@@ -144,6 +144,7 @@ def test_400_calls_on_8_threads_share_one_executor_monitor_and_ledger(tmp_path):
     prov = provider()
     results = run_threads(Executor(router(), prov, monitor=monitor, ledger=ledger))
     assert len(results) == THREADS * CALLS == 400 and len(prov.calls) == 400
+    assert len(prov.call_options) == 400     # review iter-467 nit 2
     costs = [result.attempts[0].cost_usd for result in results.values()]
     assert all(len(result.attempts) == 1 and result.model == CHEAP for result in results.values())
 

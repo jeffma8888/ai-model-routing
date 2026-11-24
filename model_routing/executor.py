@@ -110,8 +110,10 @@ class Executor:
 
     One executor, with its router, a :class:`Monitor` and a :class:`BudgetLedger`, may serve many
     threads at once: a call keeps its state in its own locals and sets no attribute of the executor
-    or its router. The provider, an injected ``clock``, ``now``, ``id_factory`` or ``random``, and
-    a change to the router's stats while calls run are the caller's to guard (DESIGN 7 v1.616).
+    or its router. The provider, an injected ``clock``, ``now``, ``id_factory`` or ``random``, a
+    ``monitor`` that is no :class:`Monitor`, ``validate``, the ``signals`` callables and a
+    procedure's ``fn``, and a change to the router's registry, tasks, stats or priors while calls
+    run are the caller's to guard (DESIGN 7 v1.616, review iter-467 nit 1).
     """
 
     def __init__(self, router: Router, provider: Provider, monitor=None,
