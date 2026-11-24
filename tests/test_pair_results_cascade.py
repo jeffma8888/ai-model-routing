@@ -209,6 +209,39 @@ CHECKS = {
 }
 
 
+@pytest.mark.parametrize("records", [
+    [proc_rec(0.0005, model_calls=0), shadow_rec()],  # review iter-473 nit 4: no model call
+    [rec(CHEAP, 0.5, final=False, outcome="invalid", cascade=False),  # a fallback onto it
+     proc_call(), proc_rec(0.0005, attempt=2, model_calls=1), shadow_rec()],
+])
+def test_a_procedure_with_no_model_call_or_after_a_fallback_costs_its_own_records(records):
+    pairs = [{"pair_id": "c0", "task": "judge", "slice": None, "routed_route": POLLING.id,
+              "shadow_route": BEST, "shadow_call_id": "c0-s", "shadow_outcome": "ok",
+              "routed_correct": True, "shadow_correct": True}]
+    rows = pair_results(pairs, records=records)
+    calls = [r for r in records if r.get("procedure") == "poll"]
+    assert rows[0]["cost_usd"] == math.fsum(r["cost_usd"] for r in calls)
+    assert rows[0]["cost_usd"] == (0.0005 if len(calls) == 1 else 0.0014 + 0.0005)
+    assert "escalated" not in rows[0]
+
+
+def test_two_faults_name_the_one_the_spec_orders_first():
+    # review iter-473 should-fix 1: the entry's shape before v1.614's cost checks, and the two
+    # final records' costs before the other records of the entry
+    pairs = [{"pair_id": "c0", "task": "judge", "slice": None, "routed_route": CASCADE.id,
+              "shadow_route": BEST, "shadow_call_id": "c0-s", "shadow_outcome": "ok",
+              "routed_correct": True, "shadow_correct": True}]
+    with pytest.raises(ValueError, match="escalated must be true or false, got 1"):
+        pair_results(pairs, records=[rec(CHEAP, 0.001, escalated=1), shadow_rec(cost_usd=-1.0)])
+    handed_up = [rec(CHEAP, -2.0, final=False, escalated=True),
+                 rec(MID, 0.004, attempt=1, escalated=True), shadow_rec(cost_usd=-1.0)]
+    with pytest.raises(ValueError, match="the shadow final record's cost_usd"):
+        pair_results(pairs, records=handed_up)
+    handed_up[-1] = shadow_rec()
+    with pytest.raises(ValueError, match="before its final one has cost_usd -2.0"):
+        pair_results(pairs, records=handed_up)
+
+
 @pytest.mark.parametrize("case", sorted(CHECKS))
 def test_a_routed_entry_whose_records_are_not_whole_is_refused(case):
     records, message = CHECKS[case]
