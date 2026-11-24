@@ -48,6 +48,38 @@ def load_records(path: PathLike) -> List[dict]:
     return [value for _, value in _numbered_objects(path)]
 
 
+def load_logs(paths: Sequence[PathLike]) -> List[dict]:
+    """Read many monitor logs as one record stream, in the order given (DESIGN 8.2 v1.620).
+
+    ``paths`` is a non-empty list or tuple of paths, each read with ``load_records``' rules; a
+    ``call_id`` in two files is one call's records (a log rotated between two of its attempts),
+    so give a rotated log's files in the order they were written. A record equal to a record of an earlier file,
+    compared as ``json.dumps(record, sort_keys=True)``, raises ``ValueError`` naming both
+    ``<path>:<line number>``s: one attempt in two files is a log given twice or a copy of one.
+    No record is compared with another of its own file, so ``load_logs([path])`` is
+    ``load_records(path)``.
+    """
+    if not isinstance(paths, (list, tuple)) or not paths \
+            or not all(isinstance(path, (str, Path)) for path in paths):
+        raise ValueError(f"paths must be a non-empty list or tuple of paths, got {paths!r}")
+    records: List[dict] = []
+    earlier: Dict[str, str] = {}
+    compare = len(paths) > 1
+    for path in paths:
+        here: Dict[str, str] = {}
+        for number, value in _numbered_objects(path):
+            if compare:
+                key = json.dumps(value, sort_keys=True)
+                if key in earlier:
+                    raise ValueError(f"{path}:{number}: the same record as {earlier[key]}: a log "
+                                     f"given twice, or a copy of one, would count it twice")
+                here.setdefault(key, f"{path}:{number}")
+            records.append(value)
+        for key, where in here.items():
+            earlier.setdefault(key, where)
+    return records
+
+
 def _numbered_objects(path: PathLike):
     """Yield ``(line number, object)`` for each non-blank line of a JSONL file of objects."""
     with Path(path).open(encoding="utf-8") as handle:

@@ -17,7 +17,7 @@ from typing import List, Optional
 from . import DATA_DIR
 from .budget import BudgetExceeded, load_budgets
 from .demo import run_demo
-from .monitor import (budget_report, load_audits, load_records, pair_results, report,
+from .monitor import (budget_report, load_audits, load_logs, load_records, pair_results, report,
                       shadow_pairs)
 from .priors import Priors
 from .promotion import pair_outcomes, paired_promotion
@@ -100,7 +100,8 @@ def _build_parser() -> argparse.ArgumentParser:
                            help="append one outcome per row, with the results file's sha256")
 
     rep = sub.add_parser("report", help="aggregate a calls.jsonl log")
-    rep.add_argument("--log", required=True)
+    rep.add_argument("--log", required=True, action="append",
+                     help="a monitor log; give --log once per log to read them together")
     rep.add_argument("--by", default="model")
     rep.add_argument("--json", action="store_true")
     rep.add_argument("--audits", default=None, metavar="PATH",
@@ -197,7 +198,8 @@ def _build_parser() -> argparse.ArgumentParser:
     pr.add_argument("--json", action="store_true")
 
     pa = sub.add_parser("pairs", help="write the pair file of a monitor log's shadow calls")
-    pa.add_argument("--log", required=True, metavar="PATH")
+    pa.add_argument("--log", required=True, metavar="PATH", action="append",
+                    help="a monitor log; give --log once per log to read them together")
     pa.add_argument("--out", required=True, metavar="FILE",
                     help="the pair file, written whole: one JSON object per pair")
     pa.add_argument("--checked", action="store_true",
@@ -347,7 +349,7 @@ def _append_outcomes(path: Path, records) -> None:
 
 def _cmd_report(args) -> int:
     audits = None if args.audits is None else load_audits(args.audits)
-    rows = report(load_records(args.log), by=args.by, audits=audits, cache=args.cache,
+    rows = report(load_logs(args.log), by=args.by, audits=audits, cache=args.cache,
                   shadow=args.shadow)
     if args.json:
         print(json.dumps(rows, indent=2))
@@ -619,13 +621,13 @@ def _cmd_pairs(args) -> int:
             raise _BadInput(f"--routes needs two different non-empty routes, got {routes[0]!r} "
                             f"{routes[1]!r}")
     out = Path(args.out)
-    inputs = [Path(args.log)] + ([] if args.audits is None else [Path(args.audits)])
+    inputs = [Path(log) for log in args.log] + ([] if args.audits is None else [Path(args.audits)])
     if out.resolve() in [path.resolve() for path in inputs]:
         raise _BadInput(f"--out {args.out} names the log or the audits file")
     results = None if args.results is None else Path(args.results)
     if results is not None and results.resolve() in [path.resolve() for path in inputs + [out]]:
         raise _BadInput(f"--results {args.results} names the log, the audits file or --out")
-    records = load_records(args.log)
+    records = load_logs(args.log)  # DESIGN 10 v1.620: --log once per log
     audits = None if args.audits is None else load_audits(args.audits)
     pairs = shadow_pairs(records, checked=args.checked, audits=audits)
     files = [(out, "".join(json.dumps(pair) + "\n" for pair in pairs))]

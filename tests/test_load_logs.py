@@ -247,5 +247,7 @@ def test_design_changelog_and_readme_state_the_rule():
     section = readme.split("## Running it in production", 1)[1].split("\n## ", 1)[0]
     sentence = [line for line in section.split("\n") if line.startswith("One `Executor`, with its")]
     assert len(sentence) == 1
-    assert ("`model-routing report` and `model-routing pairs` read every process's log together "
-            "when given `--log PATH` once per log") in sentence[0]
+    assert sentence[0].endswith(
+        "and each process needs a log of its own, which `report` and `pairs` "
+        "read together when given `--log PATH` once per log (a rotated log's files oldest first), "
+        "refusing a record found in two of them, since a log given twice would count it twice.")

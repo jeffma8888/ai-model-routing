@@ -33,7 +33,9 @@ THREADS_SENTENCE = (
     "the ledger and the monitor each work under a lock, so a budget counts the calls in flight on all "
     "threads and each record is one whole line of the log, while your provider, any `id_factory`, "
     "`random`, `now` or `clock` you pass and any change to the stats while calls run are yours to guard, "
-    "and each process needs a log of its own.")
+    "and each process needs a log of its own, which `report` and `pairs` "
+    "read together when given `--log PATH` once per log (a rotated log's files oldest first), refusing "
+    "a record found in two of them, since a log given twice would count it twice.")  # v1.620, row PROD1d
 
 
 def router(**fields):

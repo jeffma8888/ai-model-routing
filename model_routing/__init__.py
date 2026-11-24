@@ -27,7 +27,7 @@ from .executor import (  # noqa: E402
     AllModelsFailed, Attempt, CallResult, Executor, estimate_prompt_tokens, json_validator,
 )
 from .monitor import (  # noqa: E402
-    Monitor, budget_report, load_audits, load_records, pair_results, report, shadow_pairs,
+    Monitor, budget_report, load_audits, load_logs, load_records, pair_results, report, shadow_pairs,
 )
 from .demo import run_demo  # noqa: E402
 from .evaluate import Outcome, evaluate, load_outcomes, outcomes_from_rows, split_items  # noqa: E402
@@ -46,7 +46,7 @@ __all__ = [
     "GENERATOR", "GENERATOR_FAMILY", "CONTEXT_TOO_SMALL", "INSUFFICIENT_SAMPLES",
     "BELOW_BAR", "PASSES", "CASCADE_UNKNOWN_MODEL", "CHEAPER_PER_SUCCESS", "PROCEDURE_UNKNOWN_MODEL", "OUT_OF_SCOPE", "Completion", "ProviderError", "Provider", "FakeProvider",
     "OpenAICompatibleProvider", "Attempt", "CallResult", "Executor", "AllModelsFailed",
-    "json_validator", "estimate_prompt_tokens", "Monitor", "load_records", "load_audits", "report", "budget_report",
+    "json_validator", "estimate_prompt_tokens", "Monitor", "load_records", "load_audits", "load_logs", "report", "budget_report",
     "shadow_pairs", "pair_results",
     "run_demo",
     "main", "Outcome", "outcomes_from_rows", "load_outcomes", "split_items", "evaluate",
