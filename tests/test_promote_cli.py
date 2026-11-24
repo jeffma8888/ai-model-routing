@@ -461,5 +461,6 @@ def test_the_note_names_the_command_as_shipped():
 
 def test_the_readme_layout_names_the_subcommand():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    # v1.612 (row CANARY1k) names pairs after promote
     assert ("  cli.py        model-routing select | calibrate | report | demo | evaluate | delegate | plan "
-            "| promote\n") in readme
+            "| promote | pairs\n") in readme

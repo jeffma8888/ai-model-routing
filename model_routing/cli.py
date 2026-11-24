@@ -1,4 +1,4 @@
-"""Command line interface: ``model-routing select|calibrate|report|demo|evaluate|delegate|plan|promote``."""
+"""Command line interface: ``model-routing select|calibrate|report|demo|evaluate|delegate|plan|promote|pairs``."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from typing import List, Optional
 from . import DATA_DIR
 from .budget import BudgetExceeded, load_budgets
 from .demo import run_demo
-from .monitor import budget_report, load_audits, load_records, report
+from .monitor import budget_report, load_audits, load_records, report, shadow_pairs
 from .priors import Priors
 from .promotion import pair_outcomes, paired_promotion
 from .registry import Registry
@@ -191,6 +191,15 @@ def _build_parser() -> argparse.ArgumentParser:
     pr.add_argument("--stats", default="stats.json")
     pr.add_argument("--priors", default=str(DATA_DIR / "priors.json"))
     pr.add_argument("--json", action="store_true")
+
+    pa = sub.add_parser("pairs", help="write the pair file of a monitor log's shadow calls")
+    pa.add_argument("--log", required=True, metavar="PATH")
+    pa.add_argument("--out", required=True, metavar="FILE",
+                    help="the pair file, written whole: one JSON object per pair")
+    pa.add_argument("--checked", action="store_true",
+                    help="every call of the log ran with an acceptance check: label by it")
+    pa.add_argument("--audits", default=None, metavar="PATH",
+                    help="a JSONL file of {call_id, correct} audits: label by them")
     return parser
 
 
@@ -588,9 +597,29 @@ def _cmd_promote(args) -> int:
     return EXIT_OK
 
 
+def _cmd_pairs(args) -> int:
+    """DESIGN 10 v1.612: every check before FILE is written, then FILE written whole."""
+    if args.checked and args.audits is not None:
+        raise _BadInput("pass --checked or --audits, not both: their labels could disagree")
+    out = Path(args.out)
+    inputs = [Path(args.log)] + ([] if args.audits is None else [Path(args.audits)])
+    if out.resolve() in [path.resolve() for path in inputs]:
+        raise _BadInput(f"--out {args.out} names the log or the audits file")
+    records = load_records(args.log)
+    audits = None if args.audits is None else load_audits(args.audits)
+    pairs = shadow_pairs(records, checked=args.checked, audits=audits)
+    text = "".join(json.dumps(pair) + "\n" for pair in pairs)
+    with out.open("w", encoding="utf-8", newline="") as handle:
+        handle.write(text)
+    both = sum(pair["routed_correct"] is not None and pair["shadow_correct"] is not None
+               for pair in pairs)
+    print(f"wrote {len(pairs)} pairs to {out}: {both} with both sides labelled")
+    return EXIT_OK
+
+
 _COMMANDS = {"select": _cmd_select, "calibrate": _cmd_calibrate, "report": _cmd_report,
              "demo": _cmd_demo, "evaluate": _cmd_evaluate, "delegate": _cmd_delegate,
-             "plan": _cmd_plan, "promote": _cmd_promote}
+             "plan": _cmd_plan, "promote": _cmd_promote, "pairs": _cmd_pairs}
 
 
 def main(argv: Optional[List[str]] = None, *, today: Optional[date] = None) -> int:

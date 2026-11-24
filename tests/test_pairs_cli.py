@@ -202,13 +202,21 @@ def test_the_flag_pair_is_refused_before_any_path_is_read(tmp_path, capsys):
     assert stderr == "error: pass --checked or --audits, not both: their labels could disagree\n"
 
 
+@pytest.mark.parametrize("alias", ["same", "dot", "symlink"])
 @pytest.mark.parametrize("target", ["log", "audits"])
-def test_a_file_that_names_the_log_or_the_audits_file_is_refused(tmp_path, capsys, target):
+def test_a_file_that_names_the_log_or_the_audits_file_is_refused(tmp_path, capsys, target, alias):
     log = shadowed_log(tmp_path / "calls.jsonl")
     audits = write_jsonl(tmp_path / "audits.jsonl", [{"call_id": "call-0", "correct": True}])
     before = {log: log.read_bytes(), audits: audits.read_bytes()}
     named = {"log": log, "audits": audits}[target]
-    alias = tmp_path / "." / named.name   # the same file once resolved
+    if alias == "same":
+        alias = str(named)
+    elif alias == "dot":   # a string, since pathlib drops a "." part: the same file once resolved
+        alias = f"{tmp_path}/./{named.name}"
+    else:
+        link = tmp_path / "link.jsonl"
+        link.symlink_to(named)
+        alias = str(link)
     code, stdout, stderr = run(capsys, "--log", log, "--audits", audits, "--out", alias)
     assert (code, stdout) == (2, "")
     assert stderr == f"error: --out {alias} names the log or the audits file\n"

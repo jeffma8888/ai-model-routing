@@ -1239,7 +1239,7 @@ model_routing/
   evaluate.py   offline evaluation on an outcome matrix, held-out split, baselines
   delegation.py inline or sub-agent for one piece of work, in both flavors
   delegation_eval.py  offline evidence for that choice on an outcome matrix with token counts
-  cli.py        model-routing select | calibrate | report | demo | evaluate | delegate | plan | promote
+  cli.py        model-routing select | calibrate | report | demo | evaluate | delegate | plan | promote | pairs
   py.typed      empty PEP 561 marker: type checkers read the package's annotations
   data/         models.json, priors.json, example_tasks.json
 research/       public evidence behind the defaults
