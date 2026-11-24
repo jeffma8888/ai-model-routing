@@ -181,7 +181,7 @@ def test_400_shadowed_calls_on_8_threads_pair_each_routed_call_with_its_own_shad
     lines = whole_lines(path)
     assert lines == monitor.records and len(lines) == 800
     assert len({rec["call_id"] for rec in lines}) == 800
-    pairs = shadow_pairs(monitor.records, checked=True)
+    pairs = shadow_pairs(monitor.records)  # 8.3 v1.618: these calls ran no validate
     assert len(pairs) == 400
     assert {pair["pair_id"] for pair in pairs} == {result.call_id for result in results.values()}
     shadows = {rec["call_id"]: rec for rec in lines if rec["shadow"] is True}

@@ -177,14 +177,14 @@ def test_rate_zero_never_draws_and_writes_the_records_of_v1_606():
     assert "pair_id" not in plain.records[0] and "shadow" not in plain.records[0]
 
 
-def test_the_two_keys_follow_slice_in_order():
+def test_the_pair_keys_follow_slice_in_order():  # 8.1 v1.618: checked after shadow
     base, shadowed = Monitor(), Monitor()
     make(router(), provider(), base).call("judge", MESSAGES, tags={"team": "a"})
     make(router(shadow_rate=1.0), provider(), shadowed, random=Draws(0.5)).call(
         "judge", MESSAGES, tags={"team": "a"})
     keys = list(base.records[0])
     at = keys.index("slice") + 1
-    assert list(shadowed.records[0]) == keys[:at] + ["pair_id", "shadow"] + keys[at:]
+    assert list(shadowed.records[0]) == keys[:at] + ["pair_id", "shadow", "checked"] + keys[at:]
     assert list(shadowed.records[1]) == list(shadowed.records[0])
     assert shadowed.records[1]["tags"] == {"team": "a", "shadow": "true"}
 
@@ -337,8 +337,8 @@ def test_the_budget_records_of_both_calls_carry_the_pair_keys_after_tags():
     make(router(shadow_rate=1.0), provider(), monitor, random=Draws(0.0),
          ledger=ledger).call("judge", MESSAGES)
     warns = [rec for rec in monitor.records if rec.get("budget_event") == "warn"]
-    assert warns and all(list(rec)[:6] == ["ts", "call_id", "task", "tags", "pair_id", "shadow"]
-                         for rec in warns)
+    assert warns and all(list(rec)[:7] == ["ts", "call_id", "task", "tags", "pair_id", "shadow",
+                                          "checked"] for rec in warns)
     assert {(rec["call_id"], rec["shadow"]) for rec in warns} == {("call-0", False)}
     assert all(rec["pair_id"] == "call-0" for rec in monitor.records)
     assert [rec["shadow"] for rec in attempts_of(monitor.records)] == [False, True]
@@ -552,7 +552,7 @@ def test_a_cascade_primary_s_shadow_goes_to_the_default_route_after_its_attempts
         assert (rec["cascade"], rec["escalated"]) == (CASCADE.id, way != "kept")
         keys = list(rec)
         at = keys.index("slice") + 1
-        assert keys[at:at + 4] == ["pair_id", "shadow", "cascade", "escalated"]
+        assert keys[at:at + 5] == ["pair_id", "shadow", "checked", "cascade", "escalated"]
     check_shadow(shadow, [key for key in legs[-1] if key not in ("cascade", "escalated")])
 
 
@@ -586,10 +586,11 @@ def test_a_procedure_primary_s_shadow_goes_to_the_default_route_after_its_closin
         keys = list(rec)
         at = keys.index("slice") + 1
         if position <= closing:  # the handle's model calls and the closing record
-            assert keys[at:at + 4] == ["pair_id", "shadow", "procedure", "procedure_version"]
+            assert keys[at:at + 5] == ["pair_id", "shadow", "checked", "procedure",
+                                       "procedure_version"]
             assert (rec["procedure"], rec["procedure_version"]) == (proc.name, proc.version)
         else:  # a fallback entry after the procedure: a plain record
-            assert keys[at:at + 2] == ["pair_id", "shadow"]
+            assert keys[at:at + 3] == ["pair_id", "shadow", "checked"]
             assert not set(PROC_KEYS) & set(keys)
     assert legs[closing]["model_calls"] == closing
     check_shadow(shadow, [key for key in legs[closing] if key not in PROC_KEYS])

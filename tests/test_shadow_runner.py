@@ -304,7 +304,8 @@ def test_a_thread_pool_runner_over_50_shadowed_calls_returns_before_each_shadow(
     try:
         executor = Executor(router(shadow_rate=1.0), prov, monitor=monitor, ledger=ledger,
                             shadow_runner=pool.submit)
-        results = [executor.call("judge", [{"role": "user", "content": str(k)}]) for k in range(50)]
+        results = [executor.call("judge", [{"role": "user", "content": str(k)}],
+                                 validate=lambda text: True) for k in range(50)]  # 8.3 v1.618
         # every call has returned while its shadow waits: 50 routed records, shadows in flight
         assert [rec["shadow"] for rec in monitor.records] == [False] * 50
         assert entered.wait(10)  # a shadow holds its estimate before its provider call
