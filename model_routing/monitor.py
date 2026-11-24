@@ -296,7 +296,7 @@ def _add_shadow_keys(shadows: List[dict], groups: Dict[str, dict], group_of) -> 
     for rec in shadows:
         row = groups[group_of(rec)]
         row["shadow_cost_usd"] += float(rec.get("cost_usd", 0.0))
-        if rec.get("final") is True:
+        if rec.get("final") is True:  # a JSON true, as shadow_pairs reads it; calls reads truthiness
             row["shadow_calls"] += 1
             if rec.get("outcome") != "ok":
                 row["shadow_failed_calls"] += 1

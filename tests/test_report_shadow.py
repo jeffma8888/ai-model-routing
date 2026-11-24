@@ -10,9 +10,9 @@ every byte of the CLI output is v1.610's, where a shadow call counts as a call o
 
 import contextlib
 import copy
+import inspect
 import io
 import json
-import inspect
 from pathlib import Path
 
 import pytest
@@ -216,6 +216,28 @@ def test_rows_sort_by_the_routed_spend():
     assert [r["group"] for r in report(three_shadows(), shadow=True)] == [CHEAP, BEST]
 
 
+def test_shadow_calls_read_a_json_true_final_and_a_missing_cost_or_outcome():
+    # review iter-462 should-fix 1: no executor-built log bends these keys
+    no_final, no_cost, no_outcome = (rec(f"s{i}", True, model=BEST) for i in (3, 4, 5))
+    del no_final["final"], no_cost["cost_usd"], no_outcome["outcome"]
+    records = [rec("s1", True, model=BEST, final=False), rec("s2", True, model=BEST, final=1),
+               no_final, no_cost, no_outcome]
+    assert tails(report(records, shadow=True)) == {BEST: (2, 1, 0.4)}  # s4 ok, s5 failed
+
+
+def test_the_shadow_cost_is_rounded_to_6_decimals():
+    records = [rec("s1", True, model=BEST, cost=0.1), rec("s2", True, model=BEST, cost=0.2)]
+    assert 0.1 + 0.2 != 0.3
+    assert tails(report(records, shadow=True)) == {BEST: (2, 0, 0.3)}
+
+
+def test_a_shadow_only_group_has_the_audit_and_cache_keys_of_a_group_with_no_calls():
+    # review iter-462 should-fix 2
+    rows = report(three_shadows(), audits={"call-0": True, "call-1": True}, cache=True, shadow=True)
+    best, = [row for row in rows if row["group"] == BEST]
+    assert [best[k] for k in AUDIT_KEYS + CACHE_KEYS] == [0, 0, None, None, 0, 0, None]
+
+
 @pytest.mark.parametrize("by", ["model", "task", "family", "tag:shadow"])
 def test_the_spend_is_split_and_none_is_lost(by):
     total = sum(r["cost_usd"] for r in report(three_shadows(), by=by))
@@ -324,6 +346,15 @@ def test_the_below_bar_column_follows_the_routed_count(tmp_path):
     plain = _run(["report", "--log", str(path)])[1].splitlines()[0].split()
     kept = _run(["report", "--log", str(path), "--shadow"])[1].splitlines()[0].split()
     assert "below_bar_calls" in plain and "below_bar_calls" not in kept
+
+
+def test_the_below_bar_column_stays_after_fallback_rate_with_shadow(tmp_path):
+    # review iter-462 should-fix 4
+    path = _log(tmp_path, [rec("r", False, below_bar=True), rec("s", True, model=BEST)])
+    header = _run(["report", "--log", str(path), "--shadow"])[1].splitlines()[0].split()
+    assert header == ["model", "calls", "attempts", "errors", "invalid", "fallback_calls",
+                      "fallback_rate", "below_bar_calls", "cost_usd", "routing_cost_usd", "p50_ms",
+                      "p95_ms"] + SHADOW_KEYS
 
 
 # ---- the spec -------------------------------------------------------------------------------------
