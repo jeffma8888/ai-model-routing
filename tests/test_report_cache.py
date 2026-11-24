@@ -285,7 +285,8 @@ def test_design_and_the_changelog_state_the_version():
             ("## 10. ", "## 11. ", "  - v1.590 `--cache` (row CACHE1f)")]:
         part = design[design.index(start):design.index(end)]
         assert part.count(opening) == 1, start
-    assert "- `report --log PATH [--by KEY] [--json] [--audits PATH] [--cache]`" in design
+    # v1.611 (row CANARY1c) adds `[--shadow]` after `[--cache]`
+    assert "- `report --log PATH [--by KEY] [--json] [--audits PATH] [--cache] [--shadow]`" in design
     assert "its hit rate is row CACHE1f (done in v1.590, 8.3 and 10" in design
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").splitlines()
     mine = [line for line in changelog if line.startswith("- v1.590 (")]

@@ -648,7 +648,7 @@ def test_a_named_below_bar_shadow_carries_below_bar_fallback_only_when_the_route
         assert list(shadow) == keys[:at] + ["below_bar_fallback"] + keys[at:]
     else:
         assert "below_bar_fallback" not in shadow and list(shadow) == keys
-    # until row CANARY1c, report counts the shadow as a call of its own
+    # with shadow=False, its default, report counts the shadow as a call of its own (8.3 v1.611)
     assert under_bar_calls(monitor.records) == {CHEAP: 0, SMALL: int(held and outcome == "ok")}
 
 
