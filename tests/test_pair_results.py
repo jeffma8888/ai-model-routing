@@ -155,6 +155,8 @@ def test_a_checked_run_gives_rows_for_its_ok_and_invalid_shadows_and_none_for_an
     ({**HAND[0], "shadow_route": None}, "pair 2: shadow_route must be a non-empty string"),
     ({**HAND[0], "pair_id": "c9", "slice": "a@b"}, "pair 2: slice must be null or a non-empty string without '@'"),
     ({**HAND[0], "pair_id": "c9", "slice": ""}, "pair 2: slice must be null or a non-empty string without '@'"),
+    ({**HAND[0], "pair_id": "c9", "task": "a@b", "slice": "long"},
+     "pair 2: a sliced pair's task must hold no '@', got 'a@b'"),  # review iter-464 must-fix 1
     ({**HAND[0], "pair_id": "c9", "routed_correct": 1}, "pair 2: routed_correct must be true, false or null"),
     ({**HAND[0], "pair_id": "c9", "shadow_correct": "yes"}, "pair 2: shadow_correct must be true, false or null"),
     ({**HAND[0], "pair_id": "c9", "shadow_route": CHEAP}, "pair 2: routed_route and shadow_route are both"),
@@ -170,6 +172,12 @@ def test_a_bad_pair_raises_naming_its_position(bad, message):
     with pytest.raises(ValueError) as exc:
         results([HAND[0], bad])
     assert message in str(exc.value)
+
+
+def test_a_variant_route_is_read_as_any_model_is():  # review iter-464 nit 1
+    rows = results([pair("c0", True, False, routed=CHEAP + "@terse")])
+    assert rows == [row(CHEAP + "@terse", "c0", True), row(BEST, "c0", False)]
+    assert calibrate_from_results(rows).get("judge", CHEAP + "@terse") == (1, 1)
 
 
 def test_a_pair_with_a_none_side_is_checked_too():

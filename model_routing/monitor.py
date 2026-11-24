@@ -446,6 +446,8 @@ def pair_results(pairs: Iterable[dict]) -> List[dict]:
         if name is not None and (not isinstance(name, str) or not name or "@" in name):
             raise ValueError(f"{where}: slice must be null or a non-empty string without '@', "
                              f"got {name!r}")
+        if name is not None and "@" in item["task"]:  # review iter-464 must-fix 1 (4.3 v1.511)
+            raise ValueError(f"{where}: a sliced pair's task must hold no '@', got {item['task']!r}")
         for key in ("routed_correct", "shadow_correct"):
             if item.get(key) is not None and type(item.get(key)) is not bool:
                 raise ValueError(f"{where}: {key} must be true, false or null, got {item.get(key)!r}")
