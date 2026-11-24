@@ -47,10 +47,11 @@ def _hour():
 
 def test_the_two_prices_are_the_last_fields_and_default_to_unknown():
     names = [f.name for f in dataclasses.fields(Model)]
-    assert names[-3:] == ["scope_tasks", "price_cached_in", "price_cache_write"]
+    # the last two fields until v1.622 adds `regions` and `zero_data_retention` after them (DESIGN 4.1)
+    assert names[-5:] == ["scope_tasks", "price_cached_in", "price_cache_write", "regions", "zero_data_retention"]
     plain = Model("v/m", "v", 1.0, 2.0, 100_000)
     assert (plain.price_cached_in, plain.price_cache_write) == (None, None)
-    assert list(dataclasses.asdict(plain))[-2:] == ["price_cached_in", "price_cache_write"]
+    assert list(dataclasses.asdict(plain))[-4:-2] == ["price_cached_in", "price_cache_write"]
 
 
 def test_a_cache_price_is_stored_as_a_float():
