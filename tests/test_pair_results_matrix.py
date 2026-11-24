@@ -171,6 +171,16 @@ def test_calibrate_and_item_outcomes_read_the_rows_as_they_read_v1_613s(files):
                                                                          dataset_sha256=digest)
 
 
+def test_under_checked_labels_every_routed_row_is_true():  # review iter-465 should-fix 1
+    log = []
+    for i, outcome in enumerate(("ok", "invalid", "ok")):
+        log += [rec(f"q{i}", CHEAP, 0.001, pair_id=f"q{i}"),
+                rec(f"q{i}-s", BEST, 0.01, pair_id=f"q{i}", shadow=True, outcome=outcome)]
+    rows = results(shadow_pairs(log, checked=True), records=log, routes=(CHEAP, BEST))
+    assert [r["correct"] for r in rows if r["model"] == CHEAP] == [True, True, True]
+    assert [r["correct"] for r in rows if r["model"] == BEST] == [True, False, True]
+
+
 def test_a_real_shadowed_run_gives_each_side_its_list_price():
     task = Task("judge", bar=0.7, min_samples=10, shadow_rate=1.0)
     stats = Stats()
@@ -303,6 +313,23 @@ def test_a_missing_doubled_or_mismatched_record_raises_naming_the_pair(files, ed
     assert message in str(exc.value)
 
 
+def test_a_shadow_call_id_naming_no_record_raises():  # review iter-465 nit 5
+    log = [rec("p1", CHEAP, 0.002, pair_id="p1"), rec("p1-s", BEST, 0.02, pair_id="p1", shadow=True)]
+    pairs = [{**shadow_pairs(log, checked=True)[0], "shadow_call_id": "p1-x"}]
+    with pytest.raises(ValueError, match="pair 1: its shadow call 'p1-x' has no final record in the log"):
+        results(pairs, records=log)
+
+
+def test_a_budget_record_is_dropped_before_any_lookup():  # review iter-465 nit 1
+    log = [rec("p1", CHEAP, 0.002, pair_id="p1"), rec("p1-s", BEST, 0.02, pair_id="p1", shadow=True)]
+    pairs = shadow_pairs(log, checked=True)
+    # a hand-edited budget record that carries the routed call's keys and final true (8.1 v1.598
+    # writes neither), so only the drop keeps it from being a second final record
+    budget = {**log[0], "budget_event": "refused", "cost_usd": 9.0}
+    assert results(pairs, records=[budget] + log) == [row(CHEAP, "p1", True, 0.002),
+                                                      row(BEST, "p1", True, 0.02)]
+
+
 @pytest.mark.parametrize("cost", [None, True, -0.001, float("inf"), float("nan"), "0.002"])
 @pytest.mark.parametrize("side, call_id, name", [("routed", "p1", "routed"),
                                                  ("shadow", "p1-s", "shadow")])
@@ -356,6 +383,8 @@ def test_design_and_changelog_state_v1_614():
     assert "cannot read the rows (row CANARY1m, which v1.614 adds as the `records` and `routes` " \
         "keywords)" in section
     assert "as an outcome matrix for `evaluate` (v1.614, row CANARY1m)" in section
+    assert "So under `checked=True` every routed row is `true`" in section  # iter-465 should-fix 1
+    assert "the routed side's checked before the shadow's (review iter-465 nit 3)." in section
     seven = design[design.index("## 7. "):design.index("## 8. ")]
     assert "which v1.614 adds as `pair_results`' `records` and `routes`, 8.3);" in seven
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
