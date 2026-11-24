@@ -133,10 +133,10 @@ def test_a_slice_takes_the_task_s_shadow_fields():
 
 # --- 7 the random source -------------------------------------------------------------------
 
-def test_random_is_the_last_parameter_and_defaults_to_none():
+def test_random_follows_ledger_and_defaults_to_none():
     params = list(inspect.signature(Executor).parameters.values())
-    assert [p.name for p in params[-2:]] == ["ledger", "random"]
-    assert params[-1].default is None
+    assert [p.name for p in params[-3:-1]] == ["ledger", "random"]  # 7 v1.617: then shadow_runner
+    assert params[-2].default is None
 
 
 @pytest.mark.parametrize("value", [0.5, "random", 1])
