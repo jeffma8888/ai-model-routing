@@ -203,12 +203,16 @@ def test_calibrate_outcomes_then_promote_read_the_file_it_writes(tmp_path, capsy
 
 # --- refusals: exit 2, one error line, nothing on stdout, neither file created nor changed -------
 
-def _cascade_pair(tmp):
-    # review iter-466 should-fix 1: a cascade's pair beside the CHEAP, BEST ones, refused
-    # whatever --routes says, since pair_results checks every pair before it applies routes
+def _cascade_pair(tmp, shadowed_on=None):
+    # review iter-466 should-fix 1: a cascade's pair beside the CHEAP, BEST ones; from v1.621
+    # (row CANARY2) a routed cascade is read from the log, while a shadow record that ran a
+    # cascade is refused whatever --routes says, since pair_results checks every pair first
     cascade = "fiction/cheap>fiction/mid"
     extra = [dict(rec("c1", CHEAP, 0.002, pair_id="c1"), cascade=cascade),
              rec("c1-s", BEST, 0.02, pair_id="c1", shadow=True)]
+    if shadowed_on is not None:
+        extra = [rec("c1", CHEAP, 0.002, pair_id="c1"),
+                 rec("c1-s", shadowed_on, 0.02, pair_id="c1", shadow=True)]
     return write_jsonl(tmp / "calls.jsonl", hand_log() + extra)
 
 
@@ -237,10 +241,12 @@ REFUSALS = {
                        f"error: --routes needs two different non-empty routes, got '' {BEST!r}\n"),
     "an empty shadow route": (lambda tmp: ["--results", tmp / "rows.jsonl", "--routes", CHEAP, ""],
                               f"error: --routes needs two different non-empty routes, got {CHEAP!r} ''\n"),
-    "a cascade pair whatever --routes says": (
-        lambda tmp: ["--log", _cascade_pair(tmp), "--results", tmp / "rows.jsonl", "--routes", CHEAP, BEST],
-        "error: pair 12: routed_route 'fiction/cheap>fiction/mid' is a cascade's or a procedure's, "
-        "whose row needs escalated or cost_usd, which a pair does not hold\n"),
+    "a cascade shadow whatever --routes says": (
+        lambda tmp: ["--log", _cascade_pair(tmp, "a/x>b/y@s"), "--results", tmp / "rows.jsonl",
+                     "--routes", CHEAP, BEST],
+        "error: pair 12: shadow_route 'a/x>b/y@s' is a cascade's or a procedure's, which the "
+        "executor never shadows on, since it shadows on a registry model only, so the pair is not "
+        "of a monitor log\n"),
     "shadow_pairs before pair_results": (
         lambda tmp: ["--log", _two_faults(tmp), "--results", tmp / "rows.jsonl"],
         "error: pair_id 'p0' has more than one shadow record\n"),
@@ -274,6 +280,19 @@ def test_a_refusal_exits_two_and_writes_neither_file(tmp_path, capsys, log, audi
     assert (code, stdout) == (2, "")
     assert stderr == message.replace("{tmp}", str(tmp_path))
     assert {p: p.read_bytes() for p in tmp_path.iterdir() if p.is_file()} == before
+
+
+def test_a_routed_cascade_pair_is_read_from_the_log_where_v1_615_exited_2(tmp_path, capsys, audits):
+    # DESIGN 10 v1.621 (row CANARY2): the pair is unlabelled, so it gives no row and the
+    # labelled pairs' rows are those of the log without it
+    out, results = tmp_path / "pairs.jsonl", tmp_path / "rows.jsonl"
+    code, stdout, stderr = run(capsys, "--log", _cascade_pair(tmp_path), "--out", out,
+                               "--audits", audits, "--results", results, "--routes", CHEAP, BEST)
+    assert (code, stderr) == (0, "")
+    assert results.read_text(encoding="utf-8") == lines_of(
+        [r for i in ITEMS for r in (row(CHEAP, i, OK_CHEAP[i], COST_CHEAP[i]),
+                                    row(BEST, i, OK_BEST[i], COST_BEST[i]))])
+    assert stdout.startswith(f"wrote 12 pairs to {out}: 10 with both sides labelled\n")
 
 
 def test_the_route_checks_come_before_any_path_is_read(tmp_path, capsys):
