@@ -40,7 +40,7 @@ def times(fast=N, slow=0, fast_ms=100.0, slow_ms=900.0):
 
 
 def router(stats, **fields):
-    task = Task("t", 0.8, min_samples=N, **{"max_p95_ms": BAR, **fields})
+    task = Task("t", **{"bar": 0.8, "min_samples": N, "max_p95_ms": BAR, **fields})
     return Router(registry(), {"t": task}, stats)
 
 
@@ -109,7 +109,7 @@ def test_the_demo_tasks_file_holds_each_key_only_off_its_default():
 
 # --- 5.1 the codes, the candidate's time, the decision's bar ------------------------------------
 
-def test_the_codes_are_exported_after_policy():
+def test_the_codes_are_exported_after_policy_and_the_new_fields_are_last():
     assert (model_routing.TOO_SLOW, model_routing.LATENCY_UNKNOWN) == (TOO_SLOW, LATENCY_UNKNOWN)
     names = model_routing.__all__
     at = names.index("Policy")
@@ -143,6 +143,17 @@ def test_one_slow_outlier_in_thirty_and_a_p95_at_the_bar_do_not_rule_a_route_out
     at_bar.add("t", MID, N, N, latencies_ms=times())
     decision = router(at_bar).select("t")
     assert decision.primary == CHEAP and by_id(decision)[CHEAP].reason == "passes"
+
+
+@pytest.mark.parametrize("count, out", [(19, True), (20, False)])
+def test_one_slow_time_rules_a_route_out_at_a_min_samples_under_20_and_not_at_20(count, out):
+    # review iter-481 should-fix 1: by nearest rank the p95 of 19 or fewer times is their slowest
+    stats = Stats()
+    stats.add("t", CHEAP, count, count, latencies_ms=times(fast=count - 1, slow=1))
+    stats.add("t", MID, count, count, latencies_ms=times(fast=count))
+    decision = router(stats, min_samples=count, bar=0.5).select("t")
+    assert (by_id(decision)[CHEAP].reason == TOO_SLOW) is out
+    assert decision.primary == (MID if out else CHEAP)
 
 
 def test_fewer_times_than_min_samples_is_an_unknown_time_however_slow():

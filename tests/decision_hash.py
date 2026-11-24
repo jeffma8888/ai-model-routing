@@ -7,6 +7,7 @@ every other value is hashed exact. tests/test_decision_hash_pins.py fails when a
 JSON value without it, unless that site is on its list of values that hold no bound.
 """
 
+import dataclasses
 import hashlib
 import json
 
@@ -38,7 +39,6 @@ def candidate_fields(candidate):
     A pin computed before v1.628 hashed a candidate's fields when `Candidate` had none for a time; a
     call whose task sets no bar leaves that field None, so dropping it keeps such a pin's meaning.
     """
-    import dataclasses
     data = dataclasses.asdict(candidate)
     if data.get("p95_latency_ms", 0) is None:
         del data["p95_latency_ms"]

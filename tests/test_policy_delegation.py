@@ -9,7 +9,6 @@ cannot work inline (13.4 rule 4), with `parent_policy_excluded`, `parent_region_
 script passes a policy, so every delegation results file keeps its bytes.
 """
 
-import dataclasses
 import inspect
 import itertools
 import re

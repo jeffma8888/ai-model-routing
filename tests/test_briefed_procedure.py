@@ -11,7 +11,6 @@ tests/test_policy_delegation.py pins, which keep that digest here with a procedu
 task too).
 """
 
-import dataclasses
 import itertools
 from pathlib import Path
 
