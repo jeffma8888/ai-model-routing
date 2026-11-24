@@ -180,9 +180,11 @@ def test_guard_call_delegated_takes_no_procedures():
 # --- the keyword and its check (7 v1.578) ---------------------------------------------------
 
 def test_procedures_is_a_keyword_after_signals_defaulting_to_empty():
+    # v1.623 (row POL1b): `policy` follows it, so the two are read by name
     params = list(inspect.signature(Executor.call).parameters.values())
-    assert [p.name for p in params[-2:]] == ["signals", "procedures"]
-    assert params[-1].kind is inspect.Parameter.KEYWORD_ONLY and params[-1].default == ()
+    at = [p.name for p in params].index("procedures")
+    assert [p.name for p in params[at - 1:at + 1]] == ["signals", "procedures"]
+    assert params[at].kind is inspect.Parameter.KEYWORD_ONLY and params[at].default == ()
 
 
 @pytest.mark.parametrize("value", ["poll", {PID: POLL}, [POLL, "x"], None])
