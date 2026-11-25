@@ -35,7 +35,7 @@ SENTENCE = ("On one shared `Executor` each call may carry its own tenant's polic
             "`policy`, its `name` or else a digest of its rules, so `report --by policy` gives each tenant's "
             "spend a row; `call_delegated` names none.")
 OLD_SENTENCE = "On one shared `Executor` each call may carry its own tenant's policy."
-SECTION_BYTES = 29_997
+SECTION_BYTES = 29_996
 NOTE_SENTENCE = ("From v1.642 every record of a call under a policy with a rule or a name names it, by its name or "
                  "else a digest of its rules, from v1.643 `report --by policy` gives each tenant's spend a row, and "
                  "a hand-off run with `call_delegated` names none.")
