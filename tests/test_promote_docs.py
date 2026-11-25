@@ -247,11 +247,10 @@ def test_the_notes_github_line_names_the_paired_check_as_shipped():
             "`model-routing promote` compares a challenger with the current route on the items that one labeled "
             "file graded for both, by `paired_promotion` (v1.601), after the bar admits the challenger, so "
             "re-running a fixed labeled set after a model or price change says whether to promote. ") in line
-    # v1.619 (row CANARY1e): the shadow share is shipped too, so the drift check is the one change left
-    # (tests/test_shadow_docs.py)
-    changes = line.split(" The change still planned: ", 1)[1].split(" Which measure counts ", 1)[0]
-    assert "paired" not in changes and "promote" not in changes
-    assert changes.startswith("a drift check over audited production calls in a recent window, ")
+    # v1.619 (row CANARY1e): the shadow share is shipped too (tests/test_shadow_docs.py), and from v1.635
+    # (row M1e) the drift check, so no change is left on the line (tests/test_drift_docs.py)
+    assert " The change still planned: " not in line
+    assert "From v1.634 the drift check is `model-routing drift`: " in line
 
 
 # --- DESIGN and the changelog -----------------------------------------------------------------

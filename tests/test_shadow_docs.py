@@ -254,7 +254,7 @@ def test_checked_refuses_a_log_whose_shadowed_calls_ran_no_check_and_an_unlabell
 
 # --- the note -------------------------------------------------------------------------------
 
-def test_the_notes_github_line_names_the_shadow_share_as_shipped_and_the_drift_check_as_planned():
+def test_the_notes_github_line_names_the_shadow_share_as_shipped():
     note = read("research/production-lessons.md")
     [line] = [x for x in note.splitlines() if x.startswith("- In this library: the caller calls a task, not a model, ")]
     assert ("A set share of routed calls can also go to a reference route: from v1.607 a task's `shadow_rate` sends "
@@ -262,11 +262,11 @@ def test_the_notes_github_line_names_the_shadow_share_as_shipped_and_the_drift_c
             "from v1.615 `model-routing pairs --results` turns a monitor log's labeled pairs into results rows that "
             "`calibrate --outcomes` and `promote` read, so a quality loss nobody labeled shows up in pairs to "
             "label. ") in line
-    planned = line.split(" The change still planned: ", 1)[1].split(" Which measure counts ", 1)[0]
-    assert planned == ("a drift check over audited production calls in a recent window, kept apart from the "
-                       "all-time counts, that flags a route whose bound falls under the bar or rises over it.")
-    assert " The changes: " not in line and "reference route" not in planned
-    assert line.index("from v1.603 `model-routing promote`") < line.index("from v1.607 a task's `shadow_rate`")
+    # v1.635 (row M1e): the drift check, the change this line still planned at v1.619, shipped at v1.634
+    # (tests/test_drift_docs.py), so the line names no change still planned
+    assert " The change still planned: " not in line and " The changes: " not in line
+    assert (line.index("from v1.603 `model-routing promote`") < line.index("from v1.607 a task's `shadow_rate`")
+            < line.index("From v1.634 the drift check is `model-routing drift`: "))
 
 
 # --- no shadow field, no change -------------------------------------------------------------
