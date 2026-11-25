@@ -6,7 +6,8 @@ unknown (rule 5f, `latency_unknown`). A time is known once the key holds `min_sa
 slow outlier among a few does not rule a route out. A cascade and a procedure are judged on their own
 key. Under a bar each candidate holds the p95 it was judged on and the decision its bar; with no bar
 every decision on the shipped data keeps its v1.627 bytes (a sha256 pin). `decide_delegation`'s
-delegate keeps the bar with and without a brief, and its inline parent reads no time.
+delegate keeps the bar with and without a brief; from v1.631 its inline parent is held to the bar too
+(13.4 rule 5, tests/test_latency_parent.py).
 """
 
 import dataclasses
@@ -250,7 +251,7 @@ def test_with_no_bar_no_key_is_written_and_deny_changes_nothing():
         assert {c.p95_latency_ms for c in decision.candidates} == {None}
 
 
-# --- 13.3 and 13.4: the delegate keeps the bar, the parent reads no time -------------------------
+# --- 13.3 and 13.4: the delegate keeps the bar, and from v1.631 the parent is held to it ---------
 
 def _delegation_router():
     stats = Stats()
@@ -272,10 +273,11 @@ def test_a_measured_slow_route_is_too_slow_in_the_delegate_with_and_without_a_br
     assert by_id(decision.route)[CHEAP].p95_latency_ms == 900.0
 
 
-def test_a_slow_parent_may_still_work_inline():
+def test_a_slow_parent_cannot_work_inline_from_v1_631():
+    """Up to v1.630 this parent worked inline (13.4 v1.628); 13.4 rule 5 now blocks it (row LAT1d)."""
     decision = _delegation_router().decide_delegation("t", CHEAP, context_tokens=20_000, brief_tokens=400,
                                                       result_tokens=300)
-    assert decision.inline_allowed is True and not decision.reason.startswith("parent_")
+    assert (decision.inline_allowed, decision.reason, decision.model) == (False, "parent_too_slow", MID)
 
 
 # --- defaults: with no bar every decision on the shipped data keeps its v1.627 bytes -------------

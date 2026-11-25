@@ -47,15 +47,17 @@ LATENCY_PARAGRAPH = (
     "`model-routing report --shadow`, whose p50 and p95 leave shadow calls out, or drop the records whose `shadow` "
     "is JSON `true`: by default `report` puts a shadow attempt's time in its group's percentiles. Under a bar "
     "`select --json` and `delegate --json` print it as `max_p95_ms` and each candidate's time as `p95_latency_ms`, "
-    "`null` when unknown; the delegate keeps the bar, while a parent working inline is held to no time. A task with "
-    "no bar routes as before.")
+    "`null` when unknown; the delegate keeps the bar, and so does a parent: one whose own time on the task is above "
+    "the bar, or unknown under `deny`, may not work inline, and `delegate` names `parent_too_slow` or "
+    "`parent_latency_unknown`. A task with no bar routes as before.")
 HARVEY_LINE = (
     "- In this library: from v1.628 a task's `max_p95_ms` is a latency bar on each route's measured "
     "95th-percentile time on the task, applied like the success bar: `select` rules out a route whose time is above "
     "it as `too_slow`, before cost, once the route has as many timed trials as the task's `min_samples` (on a "
     "sliced call, the slice's), and a task that sets `latency_unknown` to `deny` rules out a route with fewer. The monitor reports p50 and p95 latency per "
-    "group, and a task sets a timeout per call. The change: the same bar on a parent's inline work in the "
-    "delegation decision.")
+    "group, and a task sets a timeout per call. From v1.631 the delegation decision holds a parent's inline work "
+    "to the same bar on the parent's own time on the task: a parent whose time is above it, or unknown under "
+    "`deny`, hands the work to a sub-agent.")
 OLD_HARVEY = "but no task can exclude a model for being too slow"
 UBER_TAIL = ("Its quality is a success rate on the task's acceptance check, not F1, and from v1.628 admission can also "
              "read a route's measured p95 time, the latency bar of the Harvey lessons above.")
