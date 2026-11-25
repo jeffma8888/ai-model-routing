@@ -346,9 +346,8 @@ def test_no_doc_says_a_cascade_or_procedure_route_gets_no_rows_yet():
     for name in ("README.md", "research/production-lessons.md"):
         assert "route gets no rows from the log yet" not in read(name), name
     readme = read("README.md")
-    assert readme.count("an audited call that a cascade answered counts once for the cascade, with "
-                        "whether it handed up, and one that a procedure answered once for the "
-                        "procedure, at its model calls' and tools' cost (`DESIGN.md` 8.3 and 10)") == 1
+    # v1.647 (row PROD1g): the README says it in a shorter form; how such a row is read stays in DESIGN 8.3
+    assert readme.count("and a cascade's or a procedure's audited call counts once for its route.") == 1
     assert read("research/production-lessons.md").count(
         "and from v1.636 a call that a cascade or a procedure answered counts for that route too. ") == 1
 
