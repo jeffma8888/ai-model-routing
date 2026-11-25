@@ -78,7 +78,8 @@ def test_the_costs_bounds_and_delegate_are_those_without_the_rule(shape):
     d = decide(router({CHEAP: SLOW, MID: FAST, PRICEY: FAST}), **shape)
     ref = decide(router({CHEAP: SLOW, MID: FAST, PRICEY: FAST}, max_p95_ms=None), exclude_models=(CHEAP,), **shape)
     assert ref.inline_allowed is True and ref.reason != TOO_SLOW
-    assert (d.model, d.inline_cost_usd, d.delegate_cost_usd) == (ref.model, ref.inline_cost_usd, ref.delegate_cost_usd)
+    assert d.model == d.route.primary == ref.route.primary  # ref may work inline: folded work is cheaper there
+    assert (d.inline_cost_usd, d.delegate_cost_usd) == (ref.inline_cost_usd, ref.delegate_cost_usd)
     assert (d.parent_quality_lb, d.delegate_quality_lb) == (ref.parent_quality_lb, ref.delegate_quality_lb)
 
 
@@ -220,7 +221,7 @@ def test_design_and_the_changelog_state_v1_631():
     assert five2.count("\n- v1.631 README and note (row LAT1d): ") == 1
     assert "and its inline parent reads no time (13.4 v1.628)" not in five2
     [line] = [x for x in read("CHANGELOG.md").splitlines() if x.startswith("- v1.631 (")]
-    assert line.startswith("- v1.631 (2026-11-24): spec, code and tests (5.2, 13.4 to 13.7, row LAT1d). ")
+    assert line.startswith("- v1.631 (2026-11-24): spec, code and tests (5.2, 13.4, 13.5, 13.6, 13.7, row LAT1d). ")
 
 
 def test_the_readme_and_the_note_no_longer_hold_the_parent_to_no_time():

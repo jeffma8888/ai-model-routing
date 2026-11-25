@@ -15,7 +15,7 @@ from typing import Iterable, List, Optional, Sequence
 
 from .registry import _tier_prices
 from .router import FLAVORS, NoModelClearsBar, Policy, RouteDecision, Router, _policy_rule, _sizes
-from .router import POLICY_EXCLUDED, REGION_UNAVAILABLE, ZDR_REQUIRED
+from .router import LATENCY_UNKNOWN, POLICY_EXCLUDED, REGION_UNAVAILABLE, TOO_SLOW, ZDR_REQUIRED
 from .stats import Stats, _is_cascade_key, _is_procedure_key, wilson_lower_bound
 from .tasks import Task
 
@@ -28,6 +28,8 @@ PARENT_CONTEXT_FULL = "parent_context_full"
 PARENT_POLICY_EXCLUDED = "parent_policy_excluded"  # DESIGN 13.4 rule 4 (v1.624)
 PARENT_REGION_UNAVAILABLE = "parent_region_unavailable"
 PARENT_ZDR_REQUIRED = "parent_zdr_required"
+PARENT_TOO_SLOW = "parent_too_slow"  # DESIGN 13.4 rule 5 (v1.631)
+PARENT_LATENCY_UNKNOWN = "parent_latency_unknown"
 PARENT_BELOW_BAR = "parent_below_bar"
 DELEGATE_CHEAPER = "delegate_cheaper"
 INLINE_CHEAPER = "inline_cheaper"
@@ -39,6 +41,8 @@ NONE_CLEAR = "none_clear"
 # 5.2 rules 5b to 5d on the parent, as its 13.4 rule 4 codes
 _PARENT_POLICY_CODES = {POLICY_EXCLUDED: PARENT_POLICY_EXCLUDED, REGION_UNAVAILABLE: PARENT_REGION_UNAVAILABLE,
                         ZDR_REQUIRED: PARENT_ZDR_REQUIRED}
+# 5.2 rules 5e and 5f on the parent's own key, as its 13.4 rule 5 codes
+_PARENT_LATENCY_CODES = {TOO_SLOW: PARENT_TOO_SLOW, LATENCY_UNKNOWN: PARENT_LATENCY_UNKNOWN}
 
 
 @dataclass(frozen=True)
@@ -286,7 +290,8 @@ def decide_delegation(router: Router, task_name: str, parent_model: str,
         inline_cost = (_work_cost(parent, k, (k - 1) * c * rho, p_in, p_out, c, c * rho, sigma)
                        + t * parent.base_cost(k * (p_in + sigma * p_out), 0))
 
-    # 13.4: the first rule that applies blocks inline; rule 4 is 5.2 rules 5b to 5d on the parent (v1.624)
+    # 13.4: the first rule that applies blocks inline; rule 4 is 5.2 rules 5b to 5d on the parent (v1.624),
+    # rule 5 is 5e and 5f on the parent's time on the task, read as a route's (v1.631)
     parent_rule = _policy_rule(policy, parent)
     block = None
     if parent.family in task.exclude_families:
@@ -298,6 +303,10 @@ def decide_delegation(router: Router, task_name: str, parent_model: str,
         block = PARENT_CONTEXT_FULL
     elif parent_rule is not None:
         block = _PARENT_POLICY_CODES[parent_rule]
+    else:
+        latency_rule = router._latency_rule(task, parent.id)[0]
+        if latency_rule is not None:
+            block = _PARENT_LATENCY_CODES[latency_rule]
 
     # 13.3: the delegate reads the brief as well as the work's input; with K = 1 this
     # is the v1.34 select, and K > 1 checks the last call and prices the K calls
