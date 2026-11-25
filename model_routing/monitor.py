@@ -747,6 +747,7 @@ def _finite_cost(value: object) -> bool:
 
 
 FELL_BELOW, ROSE_ABOVE = "fell_below", "rose_above"   # DESIGN 8.3 v1.633
+WENT_OVER, CAME_UNDER = "went_over", "came_under"     # DESIGN 8.3 v1.638
 
 
 def drift_check(all_time: Stats, window: Stats, tasks: Mapping[str, Task]) -> List[dict]:
@@ -763,6 +764,13 @@ def drift_check(all_time: Stats, window: Stats, tasks: Mapping[str, Task]) -> Li
     all-time side does not and the window does, else None. A ``<task>@<slice>`` key takes the
     slice's ``bar`` and ``min_samples`` where the task gives them, and a key of no task given has no
     row. A bad input raises ``ValueError`` before any row is returned.
+
+    From v1.638 (row LAT3) a row whose task sets ``max_p95_ms`` adds ``all_time_p95_ms`` and
+    ``window_p95_ms``, each side's p95 as rule 5e reads it (None under ``min_samples`` times), then
+    ``max_p95_ms``, ``latency_unknown`` and ``latency_flag``: ``"went_over"`` when the all-time side
+    is on time (its p95 at or under the bar, or none under ``"allow"``) and the window's p95 is over
+    the bar, ``"came_under"`` when the all-time side is not on time and the window's p95 is at or
+    under it, else None.
     """
     for name, value in (("all_time", all_time), ("window", window)):
         if not isinstance(value, Stats):
@@ -780,7 +788,7 @@ def drift_check(all_time: Stats, window: Stats, tasks: Mapping[str, Task]) -> Li
         judged = _drift_bar(task_key, tasks)
         if judged is None:
             continue                      # a key of no task given
-        bar, min_samples, confidence = judged
+        bar, min_samples, confidence, task = judged
         sides = []
         for stats in (all_time, window):
             successes, trials = stats.get(task_key, route)
@@ -794,15 +802,35 @@ def drift_check(all_time: Stats, window: Stats, tasks: Mapping[str, Task]) -> Li
                      "all_time_successes": s_all, "all_time_trials": t_all, "all_time_lb": lb_all,
                      "window_successes": s_win, "window_trials": t_win, "window_lb": lb_win,
                      "bar": bar, "min_samples": min_samples, "confidence": confidence, "flag": flag})
+        if task.max_p95_ms is not None:   # DESIGN 8.3 v1.638
+            rows[-1].update(_drift_latency(task, task_key, route, min_samples, all_time, window))
     return rows
 
 
-def _drift_bar(task_key: str, tasks: Mapping[str, Task]) -> Optional[Tuple[float, int, float]]:
-    """``(bar, min_samples, confidence)`` of a stats key's task, a slice's own where its task gives
-    them (DESIGN 5.2 v1.511, 8.3 v1.633), or None for a key of no task given."""
+def _drift_latency(task: Task, task_key: str, route: str, min_samples: int,
+                   all_time: Stats, window: Stats) -> dict:
+    """A timed row's latency keys (DESIGN 8.3 v1.638): each side's p95 as rule 5e reads it, the
+    bar, ``latency_unknown`` and ``latency_flag``."""
+    p95s = [stats.p95_latency_ms(task_key, route)
+            if len(stats.latencies(task_key, route)) >= min_samples else None
+            for stats in (all_time, window)]
+    p95_all, p95_win = p95s
+    bar = task.max_p95_ms
+    on_time_all = p95_all <= bar if p95_all is not None else task.latency_unknown == "allow"
+    latency_flag = None
+    if p95_win is not None and on_time_all != (p95_win <= bar):
+        latency_flag = WENT_OVER if on_time_all else CAME_UNDER
+    return {"all_time_p95_ms": p95_all, "window_p95_ms": p95_win, "max_p95_ms": bar,
+            "latency_unknown": task.latency_unknown, "latency_flag": latency_flag}
+
+
+def _drift_bar(task_key: str, tasks: Mapping[str, Task]) -> Optional[Tuple[float, int, float, Task]]:
+    """``(bar, min_samples, confidence, task)`` of a stats key's task, a slice's own bar and
+    ``min_samples`` where its task gives them (DESIGN 5.2 v1.511, 8.3 v1.633), or None for a key of
+    no task given; ``task`` is the one whose time bar the row reads (v1.638)."""
     if task_key in tasks:
         task = tasks[task_key]
-        return task.bar, task.min_samples, task.confidence
+        return task.bar, task.min_samples, task.confidence, task
     if task_key.count("@") != 1:
         return None
     base, name = task_key.split("@")
@@ -810,7 +838,7 @@ def _drift_bar(task_key: str, tasks: Mapping[str, Task]) -> Optional[Tuple[float
         return None
     task = tasks[base]
     own = task.slices.get(name, {})
-    return own.get("bar", task.bar), own.get("min_samples", task.min_samples), task.confidence
+    return own.get("bar", task.bar), own.get("min_samples", task.min_samples), task.confidence, task
 
 
 def _entry_kind(route: str) -> Optional[str]:

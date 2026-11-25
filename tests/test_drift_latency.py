@@ -340,7 +340,7 @@ def test_design_and_the_changelog_state_v1_638():
     assert ten.count("From 8.3 v1.638 (row LAT3), when any row carries `max_p95_ms`, the table gains, after `flag`, "
                      "the columns `all_time_p95_ms`, `window_p95_ms` and `max_p95_ms`") == 1
     [line] = [x for x in read("CHANGELOG.md").splitlines() if x.startswith("- v1.638 (")]
-    assert line.startswith("- v1.638 (2026-11-25): spec, code and tests (8.3 and 10, row LAT3). ")
+    assert line.startswith("- v1.638 (2026-11-25): spec, code and tests (8.3, 10, row LAT3). ")
     assert len(line.encode("utf-8")) <= 600
     assert design.splitlines()[2].startswith("Status: v1.638, 2026-11-25 (v1.638, spec, code and tests: ")
 

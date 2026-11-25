@@ -788,11 +788,15 @@ def _cmd_drift(args) -> int:
     print(f"{'until:':<10}{until}")
     print(f"{'all_time:':<10}{args.stats if args.stats is not None else 'every audited call of the logs'}")
     print()
+    timed = any("max_p95_ms" in r for r in rows)   # DESIGN 10 v1.638: the columns only then
+    dash = lambda value: "-" if value is None else value  # noqa: E731
     print(_table(["task", "route", "all_time", "all_time_lb", "window", "window_lb", "bar", "min_samples",
-                  "flag"],
+                  "flag"] + (["all_time_p95_ms", "window_p95_ms", "max_p95_ms", "latency_flag"] if timed else []),
                  [[r["task"], r["route"], f"{r['all_time_successes']}/{r['all_time_trials']}",
                    f"{r['all_time_lb']:.3f}", f"{r['window_successes']}/{r['window_trials']}",
-                   f"{r['window_lb']:.3f}", r["bar"], r["min_samples"], r["flag"] or "-"] for r in rows]))
+                   f"{r['window_lb']:.3f}", r["bar"], r["min_samples"], r["flag"] or "-"]
+                  + ([dash(r.get(key)) for key in ("all_time_p95_ms", "window_p95_ms", "max_p95_ms", "latency_flag")]
+                     if timed else []) for r in rows]))
     return EXIT_OK
 
 
