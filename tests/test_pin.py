@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from model_routing import (AllModelsFailed, Cascade, Completion, Executor, FakeProvider, Model, Monitor,
+from model_routing import (AllModelsFailed, Budget, BudgetExceeded, BudgetLedger, Cascade, Completion, Executor, FakeProvider, Model, Monitor,
                            NoModelClearsBar, Policy, Procedure, ProcedureResult, Registry, Router, Stats,
                            Task)
 from model_routing.router import (BELOW_BAR, CONTEXT_TOO_SMALL, EXCLUDED_MODEL, GENERATOR,
@@ -81,16 +81,20 @@ def reasons(candidates):
 
 def test_select_takes_pin_route_and_allow_below_bar_after_policy():
     params = list(inspect.signature(Router.select).parameters.values())
-    assert [p.name for p in params[-3:]] == ["policy", "pin_route", "allow_below_bar"]
-    assert (params[-2].default, params[-1].default) == (None, False)
-    assert all(p.kind is inspect.Parameter.KEYWORD_ONLY for p in params[-2:])
+    names = [p.name for p in params]   # right after policy, so a later keyword need not move this pin
+    at = names.index("policy")
+    assert names[at:at + 3] == ["policy", "pin_route", "allow_below_bar"]
+    assert (params[at + 1].default, params[at + 2].default) == (None, False)
+    assert all(p.kind is inspect.Parameter.KEYWORD_ONLY for p in params[at + 1:at + 3])
 
 
 def test_call_takes_pin_route_pinned_by_and_allow_below_bar_after_policy():
     params = list(inspect.signature(Executor.call).parameters.values())
-    assert [p.name for p in params[-4:]] == ["policy", "pin_route", "pinned_by", "allow_below_bar"]
-    assert [p.default for p in params[-3:]] == [None, None, False]
-    assert all(p.kind is inspect.Parameter.KEYWORD_ONLY for p in params[-3:])
+    names = [p.name for p in params]
+    at = names.index("policy")
+    assert names[at:at + 4] == ["policy", "pin_route", "pinned_by", "allow_below_bar"]
+    assert [p.default for p in params[at + 1:at + 4]] == [None, None, False]
+    assert all(p.kind is inspect.Parameter.KEYWORD_ONLY for p in params[at + 1:at + 4])
     assert "pin_route" not in inspect.signature(Executor.call_delegated).parameters
 
 
@@ -235,6 +239,25 @@ def test_a_pin_over_the_latency_bar_is_refused(allow):
     route = router(latencies={"x/mid": [2000.0] * 30, "x/cheap": [100.0] * 30}, max_p95_ms=1000.0)
     with pytest.raises(NoModelClearsBar, match=f"^pinned route 'x/mid' is {TOO_SLOW} for task 't'; "):
         route.select("t", pin_route="x/mid", allow_below_bar=allow)
+    provider, monitor = FakeProvider(everyone()), Monitor()
+    with pytest.raises(NoModelClearsBar, match=f"^pinned route 'x/mid' is {TOO_SLOW} "):
+        make(route, provider, monitor).call("t", MESSAGES, pin_route="x/mid", pinned_by=TAG, allow_below_bar=allow)
+    assert (provider.calls, monitor.records) == ([], [])
+
+
+def test_a_downgrade_budget_refusing_the_pin_raises_with_no_move_and_no_attempt():
+    # review iter-493 should-fix 1: there is no next entry, so the refusal ends the call
+    provider, monitor = FakeProvider(everyone()), Monitor()
+    ticks = itertools.count()
+    ledger = BudgetLedger([Budget("d", 1e-9, "downgrade")])
+    executor = Executor(router(), provider, monitor=monitor, clock=lambda: float(next(ticks)), now=lambda: TS,
+                        id_factory=Ids(), ledger=ledger)
+    with pytest.raises(BudgetExceeded) as caught:
+        executor.call("t", MESSAGES, pin_route="x/mid", pinned_by=TAG)
+    assert (caught.value.model, caught.value.attempts, caught.value.decision.basis) == ("x/mid", (), "pinned")
+    assert provider.calls == []
+    [record] = monitor.records
+    assert (record["budget_event"], record["model"]) == ("refused", "x/mid") and "pinned_by" not in record
 
 
 def test_an_unknown_pin_raises_value_error():
@@ -243,6 +266,10 @@ def test_an_unknown_pin_raises_value_error():
     cascade = Cascade("x/cheap", "x/mid", "sig")
     with pytest.raises(ValueError, match="^pin_route 'x/cheap>x/mid@sig' is no route of this call"):
         router(cascades=(cascade,)).select("t", pin_route=cascade.id)   # cascades=False: no such candidate
+    provider = FakeProvider(everyone())
+    with pytest.raises(ValueError, match="^pin_route 'x/cheap>x/mid@sig' is no route of this call"):
+        make(router(cascades=(cascade,)), provider).call("t", MESSAGES, pin_route=cascade.id, pinned_by=TAG)
+    assert provider.calls == []   # no signals: the cascade is no candidate of the call
 
 
 def test_a_cascade_pin_and_a_procedure_pin_run_as_their_entries():
