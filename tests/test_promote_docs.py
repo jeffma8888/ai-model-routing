@@ -128,7 +128,8 @@ def test_the_paragraph_says_the_check_complements_the_bar_and_how_to_use_it():
                    # review iter-454 should-fix 1: `promote` pairs with `select`'s primary, so the paragraph says
                    # how to check a later challenger against the first route
                    "Declare M before the run, and check each later challenger against the first route, since a "
-                   "chain of k promotions can lose up to k times M: call `pair_outcomes` with the first route as "
+                   "chain of k non-inferiority promotions can lose up to k times M: call `pair_outcomes` with the "
+                   "first route as "
                    "`current` and pass its two maps to `paired_promotion`.",
                    "Under `cost_effective` the primary is already the cheapest passing route, so a cheaper "
                    "challenger arises under `cost_blind`, or on a `retry_same` task;",

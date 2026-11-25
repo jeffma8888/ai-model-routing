@@ -6,9 +6,13 @@ longest at 2,847 and 3,046 bytes, are cut, so later versions have room under v1.
 option name it gave, its quote and its links. Each clause it dropped is stated in DESIGN 4.7, 8.3 or
 10: DROPPED pins it to the subsection and a phrase found there, the two that no subsection stated
 (a chain of promotions losing up to k times the margin, and the pairs a margin needs) being added to
-4.7 as v1.647. The README pins of the docs modules that read the two paragraphs are restated to the
-new text. A docs slice: no package module, evidence file or README transcript changes, so these tests
-passed when they were written.
+4.7 as v1.647. DROPPED was made from a word diff of v1.646's two paragraphs (8c53538) against v1.647's:
+every run of words the diff shows as removed is in an entry, as v1.646 wrote it, and what the diff
+keeps is the lead sentences, the names in NAMES, the quotes and links in LINKS and the clauses
+tests/test_promote_docs.py and tests/test_drift_docs.py pin (review iter-502 must-fix 1, should-fix 2).
+The README pins of the docs modules that read the two paragraphs are restated to the new text, and
+each fails on v1.646's README. A docs slice: no package module, evidence file or README transcript
+changes; these tests failed on v1.646's README and pass on v1.647's.
 """
 
 from pathlib import Path
@@ -71,8 +75,9 @@ DROPPED = [
     (PROMOTE_LEAD, "at a false-promotion rate of at most about 0.05", "## 10. ",
      "at a family-wise rate of at most about A passes `--alpha` A / k (Bonferroni)"),
     (DRIFT_LEAD, "the last N UTC days, today included,", "## 10. ", "the N UTC days that end with the command's date"),
+    # review iter-502 must-fix 1: the next three are pinned to the `audited_results` bullets `drift` reads
     (DRIFT_LEAD, "so a route whose rejected answers a fallback then made good still pays for them", "### 8.3 ",
-     "while an `invalid` side is `false` whatever its audit, since the task's check rejected it"),
+     "So a route whose answers the check rejects, and a fallback then answers, counts those trials too"),
     (DRIFT_LEAD, "so a window under `min_samples` trials flags nothing", "### 8.3 ",
      "So a window under `min_samples` trials flags nothing"),
     (DRIFT_LEAD, "so a route measured at 0.92 all-time whose audited calls in the window succeed at 0.70 loses "
@@ -83,13 +88,29 @@ DROPPED = [
     (DRIFT_LEAD, "audits picked by a rule other than chance bias every route's rate", "### 8.3 ",
      "an audit file that picks calls by a rule other than chance biases every route's rate"),
     (DRIFT_LEAD, "counts once for the cascade, with whether it handed up", "### 8.3 ",
-     "the record whose `escalated` is false or its strong leg's, gives the entry's one row"),
-    (DRIFT_LEAD, "at its model calls' and tools' cost", "### 8.3 ", "a procedure at its `mean_cost`"),
-    (DRIFT_LEAD, "(a cascade's legs summed, a procedure's whole run)", "### 8.3 ",
+     "`item`, `correct`, `escalated` the record's"),
+    (DRIFT_LEAD, "at its model calls' and tools' cost", "### 8.3 ",
+     "for a procedure, the records of its model calls and its closing record, which holds its tool cost"),
+    (DRIFT_LEAD, "Each audited call's row also carries its route's time", "### 8.3 ",
+     "Each row now carries `latency_ms`, which `calibrate_from_results` reads as its one trial's time"),
+    (DRIFT_LEAD, "(a cascade's legs summed,", "### 8.3 ",
+     "a cascade's row the `math.fsum`, in log order, of the `latency_ms` of the entry's records that v1.636 checks"),
+    (DRIFT_LEAD, " a procedure's whole run)", "### 8.3 ",
      "a procedure's row its closing record's alone, which times the whole run"),
     (DRIFT_LEAD, "`latency_flag`, kept apart from the success flag: `went_over` when the window's p95, over at least "
      "`min_samples` timed calls, is over the bar while the all-time side keeps the route in", "### 8.3 ",
      "`latency_flag` is `went_over` when the all-time side is on time and the window's p95, not None, is over the bar"),
+    (DRIFT_LEAD, "`came_under` the other way", "### 8.3 ",
+     "`came_under` when the all-time side is not on time (its p95 over the bar, or none under `\"deny\"`)"),
+    (DRIFT_LEAD, ", kept apart from the success flag:", "## 10. ",
+     "the table gains, after `flag`, the columns `all_time_p95_ms`, `window_p95_ms`"),
+    (DRIFT_LEAD, "when the all-time side comes from the same log, as it does without `--stats`,", "### 8.3 ",
+     "when both `Stats` come from one log, the window's calls are among the all-time ones"),
+    (DRIFT_LEAD, "and each bound is at the task's confidence", "### 8.3 ",
+     "each row's bounds are each at the task's confidence, so over many keys some flags come by chance"),
+    (PROMOTE_LEAD, "once a challenger is promoted on non-inferiority, check the next one against the first route, not "
+     "the promoted one", "### 4.7 ", "a caller checks each later challenger against the first route"),
+    (PROMOTE_LEAD, "The bound is wide on few pairs:", "### 4.7 ", "The bound is wide on few pairs: at the default `alpha`"),
 ]
 ENDS = {"### 4.7 ": "\n## 5. ", "### 8.3 ": "\n## 9. ", "## 10. ": "\n## 11. "}
 
@@ -110,8 +131,8 @@ def subsection(design, heading):
 
 def test_the_two_paragraphs_are_shorter_and_the_section_under_its_cap():
     found = {lead: len(paragraph(lead).encode("utf-8")) for lead in OLD_BYTES}
-    assert found == {PROMOTE_LEAD: 1_886, DRIFT_LEAD: 2_032}
-    assert sum(OLD_BYTES.values()) - sum(found.values()) == 1_975
+    assert found == {PROMOTE_LEAD: 1_902, DRIFT_LEAD: 2_032}
+    assert sum(OLD_BYTES.values()) - sum(found.values()) == 1_959
     assert size(read("README.md"), PRODUCTION) <= PRODUCTION_CAP == 30_000
 
 
@@ -130,7 +151,7 @@ def test_each_keeps_its_lead_its_names_its_quote_and_its_links():
 
 def test_each_dropped_clause_is_gone_and_its_design_subsection_states_it():
     design = read("DESIGN.md")
-    assert len(DROPPED) == 22
+    assert len(DROPPED) == 30
     for lead, clause, heading, phrase in DROPPED:
         assert clause not in paragraph(lead), clause
         assert phrase in subsection(design, heading), (heading, phrase)
@@ -147,7 +168,7 @@ def test_design_states_the_trim_the_two_new_clauses_and_the_changelog_the_versio
     design = read("DESIGN.md")
     five2 = design[design.index("\n### 5.2 "):design.index("\n### 5.3 ")]
     [mine] = [line for line in five2.splitlines() if line.startswith("- v1.647 README trim (row PROD1g, first part; ")]
-    for kept in ("is cut from 2,847 to 1,886 bytes and the one on `drift` (v1.635) from 3,046 to 2,032",
+    for kept in ("is cut from 2,847 to 1,902 bytes and the one on `drift` (v1.635) from 3,046 to 2,032",
                  "under v1.629's 30,000-byte cap, which stays",
                  "each clause it drops is stated in 4.7, 8.3 or 10",
                  "tests/test_readme_trim.py pins each dropped clause to its subsection and a phrase found there",
@@ -155,6 +176,7 @@ def test_design_states_the_trim_the_two_new_clauses_and_the_changelog_the_versio
         assert mine.count(kept) == 1, kept
     four7 = subsection(design, "### 4.7 ")
     [new] = [line for line in four7.splitlines() if line.startswith("- v1.647 (row PROD1g, 5.2 v1.647: ")]
+    # before v1.601's Not-in-this-version line, which tests/test_promote_docs.py pins as 4.7's last
     assert four7.index(new) < four7.index("\n- Not in this version: the labeled file's hash")
     assert len(new.encode("utf-8")) <= 6_000 and len(mine.encode("utf-8")) <= 6_000
     [line] = [x for x in read("CHANGELOG.md").splitlines() if x.startswith("- v1.647 (")]
