@@ -299,7 +299,8 @@ def test_every_audited_call_is_checked_whatever_the_window():
 
 
 def test_a_record_that_gives_no_row_is_not_checked_for_its_fields():
-    log = [rec("a", CHEAP, "error", final=False, task=None, model=None), rec("a", MID, "ok", attempt=1)]
+    log = [{**rec("a", CHEAP, "error", final=False), "task": None, "model": None},
+           rec("a", MID, "ok", attempt=1)]
     assert audited(log, {"a": True}) == [row(MID, "a", True)]
 
 

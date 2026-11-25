@@ -565,6 +565,97 @@ def pair_results(pairs: Iterable[dict], *, records: Optional[Iterable[dict]] = N
     return rows
 
 
+def audited_results(records: Iterable[dict], audits: Mapping[str, bool], *,
+                    since: Optional[str] = None, until: Optional[str] = None) -> List[dict]:
+    """The labeled results rows of a monitor log's audited calls (DESIGN 8.3 v1.632, row M1a).
+
+    Budget records are dropped first. Each record of an audited call that holds an answer gives
+    ``{"task", "model", "item", "correct"}``, the item its call ID, then the record's
+    ``input_tokens`` and ``output_tokens`` when both are counts, and ``slice`` last when not None:
+    the final ``ok`` record labelled by its audit, and each ``invalid`` record ``false``, since
+    the task's check rejected it; an ``error`` record gives no row. With ``since`` or ``until``,
+    ISO 8601 timestamps (no offset reads as UTC), only the calls whose final record's ``ts`` is in
+    ``[since, until)`` give rows, so ``calibrate_from_results`` keeps a recent window's stats apart
+    from the all-time file. A call with a cascade's or a procedure's record gives no row at this
+    version (row M1d). Every audited call is checked before any row is returned, and a bad input
+    raises ``ValueError``.
+    """
+    records = list(records)
+    for position, rec in enumerate(records, start=1):
+        if not isinstance(rec, Mapping):
+            raise ValueError(f"record {position} must be a mapping, got {rec!r}")
+    if not isinstance(audits, Mapping) or not all(
+            isinstance(call_id, str) and call_id and type(correct) is bool
+            for call_id, correct in audits.items()):
+        raise ValueError("audits must be a mapping of call ID to true or false, "
+                         f"got {audits!r}")
+    bounds = []
+    for name, value in (("since", since), ("until", until)):
+        try:
+            bounds.append(None if value is None else _instant(value))
+        except ValueError:
+            raise ValueError(f"{name} must be None or an ISO 8601 timestamp str, "
+                             f"got {value!r}") from None
+    start, end = bounds
+    if start is not None and end is not None and not start < end:
+        raise ValueError(f"since must be before until, got since={since!r} and until={until!r}")
+    calls: Dict[str, List[Mapping]] = {}
+    for rec in records:
+        call_id = rec.get("call_id")
+        if "budget_event" not in rec and isinstance(call_id, str) and call_id in audits:
+            calls.setdefault(call_id, []).append(rec)
+    rows: List[dict] = []
+    for call_id, recs in calls.items():
+        finals = [rec for rec in recs if rec.get("final") is True]
+        if len(finals) != 1:
+            raise ValueError(f"call_id {call_id!r} has {'no' if not finals else 'more than one'} "
+                             "final record, so its audit cannot be joined")
+        final = finals[0]
+        kept = True
+        if start is not None or end is not None:
+            try:
+                stamp = _instant(final.get("ts"))
+            except ValueError:
+                raise ValueError(f"call_id {call_id!r}: ts {final.get('ts')!r} is no ISO 8601 "
+                                 "timestamp, so the window cannot read it") from None
+            kept = (start is None or start <= stamp) and (end is None or stamp < end)
+        if any("cascade" in rec or "procedure" in rec for rec in recs):
+            continue                      # DESIGN 8.3 v1.632: row M1d
+        for rec in recs:
+            if rec.get("outcome") == "invalid":
+                correct = False
+            elif rec is final and rec.get("outcome") == "ok":
+                correct = audits[call_id]
+            else:
+                continue                  # an error, or no answer of this call
+            out = _audited_row(call_id, rec, correct)
+            if kept:
+                rows.append(out)
+    return rows
+
+
+def _audited_row(call_id: str, rec: Mapping, correct: bool) -> dict:
+    """One row of ``audited_results``, its record's fields checked (DESIGN 8.3 v1.632)."""
+    for key in ("task", "model"):
+        value = rec.get(key)
+        if not isinstance(value, str) or not value:
+            raise ValueError(f"call_id {call_id!r}: {key} must be a non-empty string, got {value!r}")
+    name = rec.get("slice")
+    if name is not None and (not isinstance(name, str) or not name or "@" in name):
+        raise ValueError(f"call_id {call_id!r}: slice must be null or a non-empty string "
+                         f"without '@', got {name!r}")
+    if name is not None and "@" in rec["task"]:   # DESIGN 4.3 v1.511
+        raise ValueError(f"call_id {call_id!r}: a sliced call's task must hold no '@', "
+                         f"got {rec['task']!r}")
+    out = {"task": rec["task"], "model": rec["model"], "item": call_id, "correct": correct}
+    sizes = (rec.get("input_tokens"), rec.get("output_tokens"))
+    if all(isinstance(n, int) and not isinstance(n, bool) and n >= 0 for n in sizes):
+        out["input_tokens"], out["output_tokens"] = sizes
+    if name is not None:
+        out["slice"] = name
+    return out
+
+
 def _entry_kind(route: str) -> Optional[str]:
     """``"procedure"`` for a ``proc:`` route, ``"cascade"`` for any other holding ``>``, else None,
     as stats keys are read (DESIGN 4.3 v1.577, 8.3 v1.621)."""
