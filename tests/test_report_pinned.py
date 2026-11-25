@@ -21,7 +21,8 @@ from model_routing.demo import run_demo
 
 ROOT = Path(__file__).resolve().parents[1]
 MESSAGES = [{"role": "user", "content": "judge"}]
-KEYS = "use model, task, flavor, family, pricing_basis, basis, pinned_by or tag:<key>"
+# v1.643 (row POL2b): `policy` right after `pinned_by`, so the message is restated
+KEYS = "use model, task, flavor, family, pricing_basis, basis, pinned_by, policy or tag:<key>"
 
 
 def rec(call_id, attempt, final, outcome, model, cost, basis="measured", **extra):
@@ -245,7 +246,8 @@ def test_design_states_v1_640_in_8_3_and_10_and_5_2_points_to_it():
     assert eight3.count("names `basis` and then `pinned_by` right after `pricing_basis`") == 1
     # review iter-494 should-fix 2: the keys that keep their bytes are the ones v1.639 took
     assert eight3.count("With every `by` v1.639 took, every row is v1.639's, key for key") == 1
-    assert eight3.count("and the keys the v1.584 and v1.640 bullets below add; anything else raises") == 1
+    # v1.643 (row POL2b) adds its key to the list of bullets
+    assert eight3.count("and the keys the v1.584, v1.640 and v1.643 bullets below add; anything else raises") == 1
     assert ten.count("With every `--by` v1.639 took, the output keeps v1.639's bytes") == 1
     [status] = [x for x in design.splitlines() if x.startswith("Status: ")]
     assert status.count("with every key v1.639 took every output keeping its bytes (row PIN1b)") == 1

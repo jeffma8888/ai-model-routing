@@ -142,6 +142,27 @@ def test_an_empty_object_is_no_policy(files):
         assert run(argv + ["--policy", policy_file(files, {})] + base(files)) == run(argv + base(files))
 
 
+# --- v1.643 a name (row POL2b) -----------------------------------------------------------------------
+
+@pytest.mark.parametrize("command", ["select", "delegate"])
+def test_each_help_names_the_five_policy_keys(command, capsys):
+    with pytest.raises(SystemExit) as stop:
+        main([command, "--help"], today=TODAY)
+    assert stop.value.code == 0
+    assert "allowed_routes, allowed_families, region, require_zdr and name" in " ".join(capsys.readouterr().out.split())
+
+
+def test_a_named_policy_gives_its_unnamed_copys_output_and_a_name_alone_is_no_policy(files):
+    named = policy_file(files, dict(TENANT, name="tenant-a"), "named.json")
+    unnamed = policy_file(files, TENANT, "unnamed.json")
+    alone = policy_file(files, {"name": "tenant-a", "allowed_routes": None}, "alone.json")
+    for argv in (["select", "t"], ["select", "t", "--json"], ["select", "t", "--flavor", "cost_blind"],
+                 ["delegate", "t", "--parent", "x/small", *WORK], ["delegate", "t", "--parent", "y/cheap", *WORK, "--json"]):
+        with_name = run(argv + ["--policy", named] + base(files))
+        assert with_name == run(argv + ["--policy", unnamed] + base(files)) and with_name[0] == 0, argv
+        assert run(argv + ["--policy", alone] + base(files)) == run(argv + base(files)), argv
+
+
 def test_an_allow_list_that_names_no_route_exits_3_with_the_table(files):
     path = policy_file(files, {"allowed_routes": ["nope/none"]})
     code, out, err = run(["select", "t", "--policy", path, *base(files)])
@@ -159,12 +180,17 @@ BAD = [
     ("true", "expected a JSON object of policy keys, got boolean"),
     ("null", "expected a JSON object of policy keys, got null"),
     ('{"regoin": "eu-west", "zdr": true, "region": 3}',
-     "unknown policy keys ['regoin', 'zdr']; a policy holds allowed_routes, allowed_families, region and require_zdr"),
+     # v1.643 (row POL2b): the line names `name` too
+     "unknown policy keys ['regoin', 'zdr']; a policy holds allowed_routes, allowed_families, region, require_zdr and name"),
     ('{"region": 3}', "region must be None or a non-empty string, got 3"),
     ('{"region": ""}', "region must be None or a non-empty string, got ''"),
     ('{"require_zdr": 1}', "require_zdr must be a bool, got 1"),
     ('{"allowed_routes": "x/small"}', "allowed_routes must be None or a list or tuple of non-empty strings, got 'x/small'"),
     ('{"allowed_families": [""]}', "allowed_families must be None or a list or tuple of non-empty strings, got ['']"),
+    # v1.643 (row POL2b): a name Policy refuses (5.1 v1.642)
+    ('{"name": 3}', "name must be None or a non-empty string that does not start with 'sha256:', got 3"),
+    ('{"name": ""}', "name must be None or a non-empty string that does not start with 'sha256:', got ''"),
+    ('{"name": "sha256:ab"}', "name must be None or a non-empty string that does not start with 'sha256:', got 'sha256:ab'"),
 ]
 
 
