@@ -35,7 +35,7 @@ SENTENCE = ("On one shared `Executor` each call may carry its own tenant's polic
             "`policy`, its `name` or else a digest of its rules, so `report --by policy` gives each tenant's "
             "spend a row; `call_delegated` names none.")
 OLD_SENTENCE = "On one shared `Executor` each call may carry its own tenant's policy."
-SECTION_BYTES = 29_996
+SECTION_BYTES = 29_996   # at v1.644, as the 5.2 clause states it
 NOTE_SENTENCE = ("From v1.642 every record of a call under a policy with a rule or a name names it, by its name or "
                  "else a digest of its rules, from v1.643 `report --by policy` gives each tenant's spend a row, and "
                  "a hand-off run with `call_delegated` names none.")
@@ -65,7 +65,7 @@ def test_the_policy_paragraph_ends_with_the_sentence_inside_the_cap():
     [paragraph] = [p for p in production_paragraphs(text) if p.startswith(POLICY_START)]
     assert paragraph == POLICY_PARAGRAPH and paragraph.endswith(" " + SENTENCE)
     assert text.count(SENTENCE) == 1 and OLD_SENTENCE not in text
-    assert size(text, PRODUCTION) == SECTION_BYTES <= PRODUCTION_CAP
+    assert size(text, PRODUCTION) <= PRODUCTION_CAP   # review iter-498 should-fix 1: the cap, not v1.644's bytes
     assert "\u2014" not in SENTENCE and "\u2013" not in SENTENCE
 
 
@@ -137,7 +137,8 @@ def test_design_states_v1_644_and_the_two_sub_bullets_name_it():
     design = read("DESIGN.md")
     five2 = design.split("\n### 5.2 ", 1)[1].split("\n### 5.3 ", 1)[0]
     [clause] = [line for line in five2.splitlines() if line.startswith(CLAUSE)]
-    assert design.count(CLAUSE) == 1 and five2.splitlines()[-1] == clause
+    assert design.count(CLAUSE) == 1   # review iter-498 should-fix 2: its place by order, not as 5.2's last line
+    assert five2.index("\n- v1.641 README (row PIN1c, ") < five2.index(f"\n{CLAUSE}")
     for words in SHARED:
         assert SENTENCE.count(words) == 1 and clause.count(words) >= 1, words
     for words in ("`name=None`", "`Policy()`", f"{SECTION_BYTES:,} of its {PRODUCTION_CAP:,} bytes",
