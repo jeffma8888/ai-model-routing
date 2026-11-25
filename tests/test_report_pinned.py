@@ -160,10 +160,10 @@ def test_report_by_basis_and_pinned_by_on_the_command_line(tmp_path):
         assert lines[0].split()[:3] == [by, "calls", "attempts"] and set(lines[1]) <= {"-", " "}
         assert [line.split()[0] for line in lines[2:]] == groups
         code, out, err = cli("report", "--log", str(log), "--by", by, "--json")
-        assert (code, err) == (0, "") and json.loads(out) == report(Monitor_records(log), by=by)
+        assert (code, err) == (0, "") and json.loads(out) == report(logged(log), by=by)
 
 
-def Monitor_records(path):
+def logged(path):
     return [json.loads(line) for line in Path(path).read_text(encoding="utf-8").splitlines()]
 
 
@@ -207,7 +207,7 @@ def test_the_demo_log_keeps_every_v1_639_report_byte_by_every_other_key(demo_log
 
 
 def test_the_demo_log_by_basis_is_its_routed_calls_alone(demo_log):
-    records = Monitor_records(demo_log)
+    records = logged(demo_log)
     by_flavor = report(records, by="flavor")
     [row] = report(records, by="basis")
     assert row["group"] == "measured"

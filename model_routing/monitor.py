@@ -123,10 +123,15 @@ def _grouper(by: str):
         return lambda rec: str(rec.get(by))
     if by == "pricing_basis":  # DESIGN 8.3 v1.584: only a self-hosted model's records hold it
         return lambda rec: str(rec.get(by, "list"))
+    if by == "basis":  # DESIGN 8.3 v1.640: measured, prior or, from v1.639, pinned
+        return lambda rec: str(rec.get(by))
+    if by == "pinned_by":  # DESIGN 8.3 v1.640: only a pinned call's records hold it
+        return lambda rec: NO_TAG if rec.get(by) is None else str(rec[by])
     if by.startswith("tag:") and len(by) > 4:
         key = by[4:]
         return lambda rec: (rec.get("tags") or {}).get(key, NO_TAG)
-    raise ValueError(f"unknown report key {by!r}; use model, task, flavor, family, pricing_basis or tag:<key>")
+    raise ValueError(f"unknown report key {by!r}; use model, task, flavor, family, pricing_basis, "
+                     "basis, pinned_by or tag:<key>")
 
 
 def _entry(rec: dict) -> object:
@@ -170,6 +175,11 @@ def report(records: Iterable[dict], by: str = "model",
            audits: Optional[Mapping[str, bool]] = None, cache: bool = False,
            shadow: bool = False) -> List[dict]:
     """Aggregate attempt records by ``by``.
+
+    ``by`` is ``model``, ``task``, ``flavor``, ``family``, ``pricing_basis``, ``basis``,
+    ``pinned_by`` or ``tag:<key>``; ``basis`` puts a pinned call's records (``basis`` ``pinned``)
+    apart from the routed ones and ``pinned_by`` gives one row per pin tag, the records of a call
+    that is not pinned under ``(none)`` (DESIGN 8.3 v1.640).
 
     Attempt-level sums use each attempt; call-level counts (``calls``,
     ``failed_calls``, ``fallback_calls``) use the group of the call's final
