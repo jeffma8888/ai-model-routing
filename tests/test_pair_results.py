@@ -204,7 +204,8 @@ def test_design_and_changelog_state_v1_613():
     design = (ROOT / "DESIGN.md").read_text(encoding="utf-8")
     section = design[design.index("### 8.3 "):design.index("## 9. ")]
     assert section.count("- v1.613 `pair_results(pairs) -> list[dict]` (row CANARY1d, v1.610)") == 1
-    assert "shadow_pairs (v1.610), pair_results (v1.613), audited_results (v1.632)\n" in design  # M1a
+    assert "shadow_pairs (v1.610), pair_results (v1.613), audited_results (v1.632), " \
+        "drift_check (v1.633)\n" in design  # M1a, M1b
     assert "`pair_results` reads a labelled one as labeled results rows (v1.613, row CANARY1d)" \
         in section
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")

@@ -353,6 +353,6 @@ def test_design_and_changelog_state_v1_632():
     section = design[design.index("### 8.3 "):design.index("## 9. ")]
     assert section.count("- v1.632 `audited_results(records, audits, *, since=None, until=None) "
                          "-> list[dict]` (row M1a)") == 1
-    assert "pair_results (v1.613), audited_results (v1.632)\n" in design
+    assert "pair_results (v1.613), audited_results (v1.632), drift_check (v1.633)\n" in design  # M1b
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     assert changelog.count("\n- v1.632 (2026-11-24): spec, code and tests (3, 8.3, row M1a).") == 1
