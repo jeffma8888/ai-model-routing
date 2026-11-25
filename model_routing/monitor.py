@@ -6,9 +6,11 @@ import json
 import threading
 from math import ceil, fsum, isfinite
 from pathlib import Path
-from typing import Dict, Iterable, List, Mapping, Optional, Sequence, Union
+from typing import Dict, Iterable, List, Mapping, Optional, Sequence, Tuple, Union
 
 from .budget import Budget, _instant
+from .stats import Stats, wilson_lower_bound
+from .tasks import Task
 
 PathLike = Union[str, Path]
 
@@ -654,6 +656,73 @@ def _audited_row(call_id: str, rec: Mapping, correct: bool) -> dict:
     if name is not None:
         out["slice"] = name
     return out
+
+
+FELL_BELOW, ROSE_ABOVE = "fell_below", "rose_above"   # DESIGN 8.3 v1.633
+
+
+def drift_check(all_time: Stats, window: Stats, tasks: Mapping[str, Task]) -> List[dict]:
+    """Judge each (task, route) key of two ``Stats`` against its task's bar (DESIGN 8.3 v1.633, row M1b).
+
+    ``all_time`` is the stats a route is admitted on and ``window`` a recent window's, as
+    ``calibrate_from_results(audited_results(..., since=...))`` gives them; ``tasks`` maps a task
+    name to its ``Task``. One row per key of either, sorted, a key held by one alone read as 0 of 0
+    in the other: ``task``, ``route``, both sides' successes, trials and Wilson lower bound at the
+    task's confidence, then ``bar``, ``min_samples``, ``confidence`` and ``flag``. A side clears the
+    bar when it holds at least ``min_samples`` trials and its bound is at or above ``bar``, as
+    ``select`` admits a measured route; ``flag`` is ``"fell_below"`` when the all-time side clears
+    and the window, with at least ``min_samples`` trials, does not, ``"rose_above"`` when the
+    all-time side does not and the window does, else None. A ``<task>@<slice>`` key takes the
+    slice's ``bar`` and ``min_samples`` where the task gives them, and a key of no task given has no
+    row. A bad input raises ``ValueError`` before any row is returned.
+    """
+    for name, value in (("all_time", all_time), ("window", window)):
+        if not isinstance(value, Stats):
+            raise ValueError(f"{name} must be a Stats, got {type(value).__name__}")
+    if not isinstance(tasks, Mapping):
+        raise ValueError(f"tasks must be a mapping of task name to Task, got {type(tasks).__name__}")
+    for key, task in tasks.items():
+        if not isinstance(task, Task):
+            raise ValueError(f"tasks[{key!r}] must be a Task, got {type(task).__name__}")
+        if key != task.name:
+            raise ValueError(f"tasks key {key!r} is not its task's name {task.name!r}")
+    keys = sorted({key for key, _ in all_time.items()} | {key for key, _ in window.items()})
+    rows: List[dict] = []
+    for task_key, route in keys:
+        judged = _drift_bar(task_key, tasks)
+        if judged is None:
+            continue                      # a key of no task given
+        bar, min_samples, confidence = judged
+        sides = []
+        for stats in (all_time, window):
+            successes, trials = stats.get(task_key, route)
+            bound = wilson_lower_bound(successes, trials, confidence)
+            sides.append((successes, trials, bound, trials >= min_samples and bound >= bar))
+        (s_all, t_all, lb_all, clears_all), (s_win, t_win, lb_win, clears_win) = sides
+        flag = None
+        if t_win >= min_samples and clears_all != clears_win:
+            flag = FELL_BELOW if clears_all else ROSE_ABOVE
+        rows.append({"task": task_key, "route": route,
+                     "all_time_successes": s_all, "all_time_trials": t_all, "all_time_lb": lb_all,
+                     "window_successes": s_win, "window_trials": t_win, "window_lb": lb_win,
+                     "bar": bar, "min_samples": min_samples, "confidence": confidence, "flag": flag})
+    return rows
+
+
+def _drift_bar(task_key: str, tasks: Mapping[str, Task]) -> Optional[Tuple[float, int, float]]:
+    """``(bar, min_samples, confidence)`` of a stats key's task, a slice's own where its task gives
+    them (DESIGN 5.2 v1.511, 8.3 v1.633), or None for a key of no task given."""
+    if task_key in tasks:
+        task = tasks[task_key]
+        return task.bar, task.min_samples, task.confidence
+    if task_key.count("@") != 1:
+        return None
+    base, name = task_key.split("@")
+    if base not in tasks or not name:
+        return None
+    task = tasks[base]
+    own = task.slices.get(name, {})
+    return own.get("bar", task.bar), own.get("min_samples", task.min_samples), task.confidence
 
 
 def _entry_kind(route: str) -> Optional[str]:
