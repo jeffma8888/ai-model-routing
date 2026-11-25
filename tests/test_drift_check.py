@@ -112,6 +112,13 @@ def test_a_route_under_min_samples_all_time_that_clears_in_the_window_rose_above
     assert row["flag"] == "rose_above"
 
 
+def test_an_all_time_side_under_min_samples_does_not_clear_however_high_its_bound():
+    assert wilson_lower_bound(29, 29) > 0.8   # 29 of 29 is above the bar, under the 30 trials
+    assert one(stats(("judge", MID, 29, 29)), stats(("judge", MID, 40, 40)))["flag"] == "rose_above"
+    assert one(stats(("judge", MID, 29, 29)), stats(("judge", MID, 28, 40)))["flag"] is None
+    assert one(stats(("judge", MID, 30, 30)), stats(("judge", MID, 28, 40)))["flag"] == "fell_below"
+
+
 def test_a_window_under_min_samples_flags_nothing():
     assert one(stats(("judge", CHEAP, 460, 500)), stats(("judge", CHEAP, 0, 29)))["flag"] is None
     assert one(stats(("judge", MID, 20, 40)), stats(("judge", MID, 29, 29)))["flag"] is None
@@ -191,7 +198,8 @@ def test_a_key_that_names_a_task_is_judged_on_that_task():
 
 def test_a_key_of_a_task_not_given_gives_no_row():
     all_time = stats(("other", CHEAP, 460, 500), ("other@long", CHEAP, 460, 500),
-                     ("judge@a@b", CHEAP, 460, 500), ("judge", CHEAP, 460, 500))
+                     ("judge@a@b", CHEAP, 460, 500), ("judge@", CHEAP, 460, 500),
+                     ("@judge", CHEAP, 460, 500), ("judge", CHEAP, 460, 500))
     window = stats(("other", CHEAP, 28, 40), ("judge", CHEAP, 28, 40))
     assert [(r["task"], r["flag"]) for r in drift(all_time, window, TASKS)] == [("judge", "fell_below")]
 
