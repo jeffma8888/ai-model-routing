@@ -242,8 +242,10 @@ DROPPED_V1_649 = [
     (VAR_LEAD, "the executor passes them to the provider", "## 7. ",
      "options=registry.get(model).provider_options)` when that model's `provider_options` (4.1) is not empty"),
     (VAR_LEAD, "which an option may not replace", "## 6. ", "An option never replaces a key the adapter sets"),
-    (PROC_LEAD, "such as submit, poll, fetch and shape the result", "### 4.5 ",
-     "a recurring job's fixed steps (submit, poll, batch, shape a result)"),
+    # review iter-504 should-fix 1: 4.5 lists batch, not fetch, so the fetch has its own entry
+    (PROC_LEAD, "such as submit, poll, fetch", "## 11. ",
+     "each submit, poll and fetch one tool call at 0.00001 USD (`PROCEDURE_TOOL_COST_USD`)"),
+    (PROC_LEAD, "and shape the result", "### 4.5 ", "a recurring job's fixed steps (submit, poll, batch, shape a result)"),
     (PROC_LEAD, "never on its model's", "### 5.2 ", "then rules 6 to 8 on its own counts under its own `.id`"),
     (PROC_LEAD, "its model calls at list price plus the tool cost it reports", "### 4.3 ",
      "per trial its model calls at list price plus its `tool_cost_usd`"),
@@ -256,8 +258,9 @@ DROPPED_V1_649 = [
      "saying its call ran no acceptance check (`validate`)"),
     (RECORDS_LEAD, "so label such a log", "### 8.3 ", "and pointing to `audits` or no label instead"),
     (RECORDS_LEAD, "An error side is never labelled", "### 8.3 ", "An `error` side gave no answer, so it is None under both"),
+    # review iter-504 must-fix 1: the pair rows' item (8.3 v1.613), not `calls_results`' own call ID
     (RECORDS_LEAD, "and the routed call's ID as its item", "### 8.3 ",
-     "`item`, the call ID, so `item_outcomes` (4.3 v1.602) reads the rows"),
+     "The item is the `pair_id`, the routed call's ID, so the two rows of a pair are one item graded on both routes"),
 ]
 ENDS = {"### 4.7 ": "\n## 5. ", "### 8.3 ": "\n## 9. ", "## 10. ": "\n## 11. ", "### 4.1 ": "\n### 4.2 ",
         "### 5.2 ": "\n### 5.3 ", "## 6. ": "\n## 7. ", "## 7. ": "\n## 8. ", "## 11. ": "\n## 12. ",
@@ -417,7 +420,7 @@ def test_the_v1_649_three_keep_their_leads_their_names_their_quotes_and_their_li
 
 def test_each_clause_the_v1_649_three_dropped_is_gone_and_its_design_subsection_states_it():
     design = read("DESIGN.md")
-    assert len(DROPPED_V1_649) == 18
+    assert len(DROPPED_V1_649) == 19
     for lead, clause, heading, phrase in DROPPED_V1_649:
         assert clause not in paragraph(lead), clause
         # a behavioural subsection, never a 5.2 history bullet of the README
@@ -433,6 +436,10 @@ def test_the_v1_649_check_fails_on_a_clause_still_there_or_a_phrase_elsewhere():
     assert "the post gives no count of what its checks caught" in paragraph(RECORDS_LEAD)
     assert "An option never replaces a key the adapter sets" not in subsection(design, "## 7. ")
     assert "each turn's input the context so far" not in subsection(design, "### 4.5 ")
+    # review iter-504 must-fix 1: the `calls_results` Keys line names a call's own ID, never the pair's item
+    [calls] = [line for line in subsection(design, "### 8.3 ").splitlines()
+               if "`item`, the call ID, so `item_outcomes` (4.3 v1.602) reads the rows" in line]
+    assert calls.startswith("  - Keys, in order: ") and "The item is the `pair_id`" not in calls
 
 
 def test_design_states_the_v1_649_trim_and_the_changelog_the_version():
