@@ -89,8 +89,10 @@ def models_called(provider):
 
 def test_policy_is_the_last_keyword_after_procedures_defaulting_to_none():
     params = list(inspect.signature(Executor.call).parameters.values())
-    assert [p.name for p in params[-2:]] == ["procedures", "policy"]
-    assert params[-1].kind is inspect.Parameter.KEYWORD_ONLY and params[-1].default is None
+    names = [p.name for p in params]   # v1.639: pin_route, pinned_by, allow_below_bar follow (row PIN1a)
+    assert names[names.index("procedures") + 1] == "policy"
+    policy = params[names.index("policy")]
+    assert policy.kind is inspect.Parameter.KEYWORD_ONLY and policy.default is None
 
 
 def test_guard_call_delegated_takes_no_policy():

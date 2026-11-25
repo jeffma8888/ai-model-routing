@@ -295,8 +295,10 @@ HARVEY_LINE = (
     "`select --policy FILE` and `delegate --policy FILE` read one from a JSON file. A registry row's "
     "regions and retention are what the registry's owner states, not a certification, and a value a "
     "row leaves out fails closed. The executor still moves to the next model of the route when a call "
-    "fails or the caller's check rejects its answer, and a task can exclude model families. The change: "
-    "a pinned call that skips the ranking but keeps the hard checks, with the pin logged.")
+    "fails or the caller's check rejects its answer, and a task can exclude model families. From v1.639 "
+    "a call can pin its route: `Executor.call` with `pin_route` and a `pinned_by` tag skips the ranking "
+    "but keeps the hard checks, runs a route under the bar only with `allow_below_bar=True`, and logs the "
+    "tag on each record, with `basis` `pinned`.")  # v1.639, row PIN1a
 OLD_HARVEY = ("- In this library: the executor moves to the next model of the route when a call fails or the "
               "caller's check rejects its answer, and a task can exclude model families. The changes: a policy "
               "of allowed models, families and region,")
