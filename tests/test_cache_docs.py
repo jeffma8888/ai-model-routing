@@ -80,15 +80,15 @@ def test_the_paragraph_names_each_field_option_and_section():
                  "A results line may carry `cached_input_tokens` and `cache_write_tokens`",
                  "counted inside its `input_tokens`", "`cost_breakdown`",
                  "Only reported counts are priced as hits, never a repeated prompt",
-                 "whose reads are 90% cached", "a write premium can make caching the dearer choice",
-                 # review iter-442 nit 1: DESIGN 5.2 v1.591's words
-                 "the model of a procedure without a measured mean cost",
-                 "reads only `--cached-read-ratio`", "`usage.prompt_tokens_details.cached_tokens`",
+                 # v1.648 (row PROD1gb): the four parts' prices, the write premium, a cascade's legs and a
+                 # procedure's model are DESIGN 4.1's and 5.2's (tests/test_readme_trim.py)
+                 "it is priced there at their means, the four parts in its candidate's `cost_breakdown`.",
+                 "whose reads are 90% cached. The inline-or-sub-agent decision reads only `--cached-read-ratio`.",
+                 "`usage.prompt_tokens_details.cached_tokens`",
                  "`report --cache` gives each group's `cache_hit_rate`",
                  "An adapter for another API keeps `input_tokens` inclusive",
                  "returns the sum of `input_tokens`, `cache_read_input_tokens` and "
-                 "`cache_creation_input_tokens` as the input",
-                 "(`DESIGN.md` 4.1, 4.3, 5.1, 5.2, 6, 7, 8.3 and 10)"):
+                 "`cache_creation_input_tokens` as the input (`DESIGN.md` 4.1, 4.3, 5.1, 5.2, 6, 7, 8.3 and 10)"):
         assert text.count(kept) == 1, kept
 
 

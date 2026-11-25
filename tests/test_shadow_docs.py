@@ -129,15 +129,15 @@ def test_the_first_paragraph_says_what_a_shadow_is_costs_and_waits_for():
     text = part(FIRST)
     for clause in (
             "A task's `shadow_rate`, from 0, the default, to 1, is the share of its calls the executor shadows",
-            "by default the registry model that clears the bar with the highest lower bound; a named one must pass "
-            "the task's hard rules but need not clear the bar, so a challenger can be shadowed before it is admitted",
-            "and a call whose primary is the shadow route is not shadowed.",
+            # v1.648 (row PROD1gb): the hard rules, the primary, a fallback's or a hand-up's answer and what a
+            # runner spares the call are DESIGN 7's (tests/test_readme_trim.py)
+            "by default the registry model that clears the bar with the highest lower bound; a named one need not "
+            "clear the bar, so a challenger can be shadowed before it is admitted. Once",
             "the caller gets only the routed result: a shadow's provider error, invalid output or budget refusal "
             "never fails the call.",
             "The draw comes from `Executor(..., random=...)`, so a test can fix it.",
             # iter 459 sub-bullet: DESIGN 7 v1.609
-            "A call answered by the shadow route's own model, by a fallback or a cascade's hand-up onto it, sends no "
-            "shadow, since its pair would compare that model with itself, while a procedure whose `model` is the "
+            "A call answered by the shadow route's own model sends no shadow, while a procedure whose `model` is the "
             "shadow route is still shadowed.",
             "Each shadow is one more provider call at the shadow route's price, so at a `shadow_rate` of 0.05 about "
             "one call in twenty is paid twice;",
@@ -148,8 +148,7 @@ def test_the_first_paragraph_says_what_a_shadow_is_costs_and_waits_for():
             # SCOUT iter 460 and iter 468 sub-bullets: DESIGN 7 v1.617
             "With no `shadow_runner` the shadow runs before `.call` returns, so the caller waits for it too.",
             "`Executor(..., shadow_runner=pool.submit)`, with `pool` a `ThreadPoolExecutor`, runs it on another "
-            "thread and spares the call the shadow's wait and its errors, while a runner that runs the job at once "
-            "waits as None does; a job not yet run has no shadow record and gives no pair, so call "
+            "thread; a job not yet run has no shadow record and gives no pair, so call "
             "`pool.shutdown(wait=True)` before you read the log or end the process",
             "(`DESIGN.md` 4.2, 7, 8.1 and 8.3)."):
         assert text.count(clause) == 1, clause

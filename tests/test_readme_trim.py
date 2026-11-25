@@ -13,6 +13,14 @@ tests/test_promote_docs.py and tests/test_drift_docs.py pin (review iter-502 mus
 The README pins of the docs modules that read the two paragraphs are restated to the new text, and
 each fails on v1.646's README. A docs slice: no package module, evidence file or README transcript
 changes; these tests failed on v1.646's README and pass on v1.647's.
+
+DESIGN 5.2 v1.648 (row PROD1gb, second part): the paragraph on self-hosted rows, the one on the prompt
+cache and the first on shadows are cut the same way, from 2,002, 2,133 and 2,040 bytes to 1,568, 1,798
+and 1,728. DROPPED_V1_648 was made from a word diff of v1.647's three paragraphs (aff2625) against
+v1.648's: every run of words it shows as removed is in an entry, as v1.647 wrote it, pinned to 4.1,
+5.2, 6, 7 or 11, each a behavioural subsection, so no subsection gains a clause. The three keep every
+name in backticks they gave (NAMES_V1_648), their quotes and links. These tests failed on v1.647's
+README and pass on v1.648's.
 """
 
 from pathlib import Path
@@ -112,7 +120,79 @@ DROPPED = [
      "the promoted one", "### 4.7 ", "a caller checks each later challenger against the first route"),
     (PROMOTE_LEAD, "The bound is wide on few pairs:", "### 4.7 ", "The bound is wide on few pairs: at the default `alpha`"),
 ]
-ENDS = {"### 4.7 ": "\n## 5. ", "### 8.3 ": "\n## 9. ", "## 10. ": "\n## 11. "}
+# v1.648 (row PROD1gb, second part): three more paragraphs, as v1.647 (aff2625) wrote them
+SELF_LEAD = "A model you train or serve yourself is a row priced from its hour. "
+CACHE_LEAD = "A prompt cache changes what a call costs, so a route is priced at the cache hits it measured. "
+SHADOW_LEAD = ("A share of routed calls can also go to a reference route, so a quality loss nobody labelled "
+               "shows up in pairs to label. ")
+OLD_BYTES_V1_648 = {SELF_LEAD: 2_002, CACHE_LEAD: 2_133, SHADOW_LEAD: 2_040}
+NEW_BYTES_V1_648 = {SELF_LEAD: 1_568, CACHE_LEAD: 1_798, SHADOW_LEAD: 1_728}
+NAMES_V1_648 = {
+    SELF_LEAD: ["models.json", '"pricing_basis": "self_hosted"', "usd_per_hour", "tokens_per_hour_in",
+                "tokens_per_hour_out", "utilization", "input_cost_share", '"base_model"', '"deployment"', "api",
+                "self_hosted", "select", "pricing_basis", "report --by pricing_basis", "DESIGN.md",
+                "model_routing.demo.run_self_hosted_demo()"],
+    CACHE_LEAD: ["models.json", "price_cached_in", "price_cache_write", "price_tiers", "cache_price_unknown",
+                 "cached_input_tokens", "cache_write_tokens", "input_tokens", "output_tokens", "cost_breakdown",
+                 "--cached-read-ratio", "OpenAICompatibleProvider", "usage.prompt_tokens_details.cached_tokens",
+                 "report --cache", "cache_hit_rate", "usage.input_tokens", "cache_read_input_tokens",
+                 "cache_creation_input_tokens", "DESIGN.md"],
+    SHADOW_LEAD: ["shadow_rate", "shadow_route", "Executor(..., random=...)", "model", 'shadow: "true"',
+                  'tags={"shadow": "true"}', "report", "report --shadow", "shadow_calls", "shadow_failed_calls",
+                  "shadow_cost_usd", "shadow_runner", ".call", "Executor(..., shadow_runner=pool.submit)", "pool",
+                  "ThreadPoolExecutor", "pool.shutdown(wait=True)", "DESIGN.md"],
+}
+LINKS_V1_648 = {
+    SELF_LEAD: ["(research/production-lessons.md#your-own-trained-model-is-a-candidate-kept-to-the-tasks-it-was-"
+                "measured-on)",
+                "\"completes tasks competitively with leading frontier models while reducing cost per query by 90%.\""],
+    CACHE_LEAD: ["(research/production-lessons.md#the-cache-hit-rate-is-a-cost-number)",
+                 "Manus: \"If I had to choose just one metric, I'd argue that the KV-cache hit rate is the single most "
+                 "important metric for a production-stage AI agent.\""],
+    SHADOW_LEAD: [],
+}
+DROPPED_V1_648 = [
+    (SELF_LEAD, "what an hour of one serving unit costs you", "### 4.1 ",
+     "prices derived from what an hour of the caller's own serving costs"),
+    (SELF_LEAD, "what that unit reads and writes in an hour of full use on this work", "### 4.1 ",
+     "the tokens one serving unit reads, or writes, in an hour of full use on this work"),
+    (SELF_LEAD, "the share of the hour it spends on this work", "### 4.1 ",
+     "`utilization` (the share of the hour the unit spends on this work)"),
+    (SELF_LEAD, "and `input_cost_share`, the share of the hour charged to input", "### 4.1 ",
+     "`input_cost_share` (the share of the hour charged to input)"),
+    (SELF_LEAD, "admitted on its own measured success against the task's bar, then ranked at what its hour costs you",
+     "### 4.1 ", "so an hour fully used at those throughputs is charged once, its input share on input tokens and "
+     "the rest on output tokens, and the routing math of 5.2 is unchanged"),
+    (SELF_LEAD, "since a unit that reads and writes in the same hour has no one price per token of each", "### 4.1 ",
+     "is an approximation the caller chooses: a unit that reads and writes in the same hour has no one price per "
+     "token of each"),
+    (SELF_LEAD, "and it is never a judge of its base's output", "## 11. ", "and it never judges its base's output"),
+    (CACHE_LEAD, "uncached input, cached reads, cache writes and output each at its own price", "### 4.1 ",
+     "cached_input_tokens * r + cache_write_tokens * w + output_tokens * p_out"),
+    (CACHE_LEAD, "and a write premium can make caching the dearer choice on a prompt read once", "### 4.1 ",
+     "A write premium can make caching lose"),
+    (CACHE_LEAD, "A cascade's legs are priced at their own models' counts", "### 5.2 ",
+     "A cascade (7 v1.536) prices each leg at its own model's counts"),
+    (CACHE_LEAD, "and so is the model of a procedure without a measured mean cost", "### 5.2 ",
+     "A procedure (v1.577) without a mean cost prices its model's one call at the task's or slice's expected sizes "
+     "at that model's counts"),
+    (CACHE_LEAD, "with the last two as the cached and written counts", "## 6. ",
+     "`cache_read_input_tokens` as `cached_input_tokens` and `cache_creation_input_tokens` as `cache_write_tokens`"),
+    (SHADOW_LEAD, "must pass the task's hard rules but", "## 7. ", "its candidate is `eligible` (5.1: the hard rules"),
+    (SHADOW_LEAD, "and a call whose primary is the shadow route is not shadowed", "## 7. ",
+     "a shadow route exists, it is not the decision's primary"),
+    (SHADOW_LEAD, "by a fallback or a cascade's hand-up onto it", "## 7. ",
+     "a fallback onto it included (a below-bar fallback too, 5.3), or a cascade leg of it, a hand-up onto a "
+     "cascade's `strong` included"),
+    (SHADOW_LEAD, "since its pair would compare that model with itself", "## 7. ",
+     "its pair would compare that model with itself"),
+    (SHADOW_LEAD, "and spares the call the shadow's wait and its errors", "## 7. ",
+     "the caller waits for the hand-off and not for the shadow's provider call"),
+    (SHADOW_LEAD, "while a runner that runs the job at once waits as None does", "## 7. ",
+     "makes `.call` wait for the shadow as None does"),
+]
+ENDS = {"### 4.7 ": "\n## 5. ", "### 8.3 ": "\n## 9. ", "## 10. ": "\n## 11. ", "### 4.1 ": "\n### 4.2 ",
+        "### 5.2 ": "\n### 5.3 ", "## 6. ": "\n## 7. ", "## 7. ": "\n## 8. ", "## 11. ": "\n## 12. "}
 
 
 def read(name):
@@ -181,4 +261,64 @@ def test_design_states_the_trim_the_two_new_clauses_and_the_changelog_the_versio
     assert len(new.encode("utf-8")) <= 6_000 and len(mine.encode("utf-8")) <= 6_000
     [line] = [x for x in read("CHANGELOG.md").splitlines() if x.startswith("- v1.647 (")]
     assert line.startswith("- v1.647 (2026-11-25): docs and tests (4.7, 5.2, row PROD1g). ")
+    assert len(line.encode("utf-8")) <= 600
+
+
+# --- v1.648 (row PROD1gb, second part) ------------------------------------------------------------
+
+def test_the_three_paragraphs_are_shorter_and_the_section_under_its_cap():
+    found = {lead: len(paragraph(lead).encode("utf-8")) for lead in OLD_BYTES_V1_648}
+    assert found == NEW_BYTES_V1_648
+    assert sum(OLD_BYTES_V1_648.values()) - sum(found.values()) == 1_081
+    assert size(read("README.md"), PRODUCTION) <= PRODUCTION_CAP == 30_000
+
+
+def test_the_three_keep_their_leads_their_names_their_quotes_and_their_links():
+    for lead in OLD_BYTES_V1_648:
+        text = paragraph(lead)
+        names = []
+        for name in text.split("`")[1::2]:
+            if name not in names:
+                names.append(name)
+        assert [n for n in NAMES_V1_648[lead] if n not in names] == [], lead
+        for link in LINKS_V1_648[lead]:
+            assert text.count(link) == 1, link
+        assert "\u2014" not in text and "\u2013" not in text
+
+
+def test_each_clause_the_three_dropped_is_gone_and_its_design_subsection_states_it():
+    design = read("DESIGN.md")
+    assert len(DROPPED_V1_648) == 18
+    for lead, clause, heading, phrase in DROPPED_V1_648:
+        assert clause not in paragraph(lead), clause
+        assert phrase in subsection(design, heading), (heading, phrase)
+        # a behavioural subsection, never a 5.2 history bullet of the README
+        [owner] = [line for line in subsection(design, heading).splitlines() if phrase in line]
+        assert "README" not in owner.split(":", 1)[0], (heading, phrase)
+
+
+def test_the_v1_648_check_fails_on_a_clause_still_there_or_a_phrase_elsewhere():
+    design = read("DESIGN.md")
+    # kept on purpose: no behavioural subsection states it as the paragraph does
+    assert "has no shadow record and gives no pair" in paragraph(SHADOW_LEAD)
+    assert "so at a `shadow_rate` of 0.05 about one call in twenty is paid twice" in paragraph(SHADOW_LEAD)
+    assert "has no one price per token of each" not in subsection(design, "## 7. ")
+    assert "A write premium can make caching lose" not in subsection(design, "### 5.2 ")
+
+
+def test_design_states_the_v1_648_trim_and_the_changelog_the_version():
+    design = read("DESIGN.md")
+    five2 = subsection(design, "### 5.2 ")
+    [mine] = [line for line in five2.splitlines() if line.startswith("- v1.648 README trim (row PROD1gb, second part): ")]
+    for kept in ("paragraph on self-hosted rows is cut from 2,002 to 1,568 bytes, the one on the prompt cache "
+                 "from 2,133 to 1,798 and the first on shadows from 2,040 to 1,728",
+                 "under v1.629's 30,000-byte cap, which stays",
+                 "each clause it drops is stated in 4.1, 5.2, 6, 7 or 11, so no subsection gains one",
+                 "tests/test_readme_production.py checks the two of the v1.604 move it trims",
+                 "No package module, evidence file or README transcript changes."):
+        assert mine.count(kept) == 1, kept
+    assert five2.index("\n- v1.647 README trim (") < five2.index("\n" + mine)
+    assert len(mine.encode("utf-8")) <= 6_000
+    [line] = [x for x in read("CHANGELOG.md").splitlines() if x.startswith("- v1.648 (")]
+    assert line.startswith("- v1.648 (2026-11-25): docs and tests (5.2, row PROD1g, second part). ")
     assert len(line.encode("utf-8")) <= 600

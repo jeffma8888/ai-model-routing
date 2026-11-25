@@ -169,6 +169,14 @@ def test_the_readme_paragraph_on_self_hosted_models():
         assert key in text, key
     assert "The throughputs describe one workload" in text
     assert "is an approximation you choose" in text
+    # v1.648 (row PROD1gb): what each field means, how the row is admitted, why an hour has no one price per
+    # token and that the demo's fine-tune never judges its base are DESIGN 4.1's and 11's
+    # (tests/test_readme_trim.py)
+    assert text.count("gives `usd_per_hour`, `tokens_per_hour_in`, `tokens_per_hour_out`, `utilization` and "
+                      "`input_cost_share`. The loader derives its prices per million tokens from them, so it is "
+                      "routed like any model. The throughputs describe one workload, and the split of an hour "
+                      "between input and output is an approximation you choose. A fine-tune ") == 1
+    assert text.count("and the same hour used 2% of the time makes it the dearer route. Harvey reports ") == 1
     assert ("(research/production-lessons.md#your-own-trained-model-is-a-candidate-kept-to-the-tasks-"
             "it-was-measured-on)") in text
     # every quote in the paragraph is one of the note's checked quotes, word for word

@@ -17,6 +17,11 @@ same measure: its size at v1.629 plus PRODUCTION_MARGIN, room for two paragraphs
 longest (LONGEST, the one on `promote`) but not three. A later version whose text does not fit trims
 an older paragraph or moves its detail to DESIGN; only a version that states its reason raises the
 cap. A docs slice too: no README text changes, so these tests passed when they were written.
+
+DESIGN 5.2 v1.648 (row PROD1gb): two of the seven moved paragraphs, the one on self-hosted rows and the
+one on the prompt cache, are trimmed (tests/test_readme_trim.py), so the move test checks those two by
+their openings, their order and a length under the one they moved with, and the other five by their
+v1.604 bytes and sha256 as before.
 """
 
 import hashlib
@@ -50,6 +55,9 @@ MOVED = [
     ("The estimate is no bound: ", 1659,
      "85318b6f8f8b400e7c17e56e2737cce7923df888d09068f4323836e781e6e7bb"),
 ]
+# v1.648 (row PROD1gb): the MOVED paragraphs a later version trimmed, by opening (tests/test_readme_trim.py)
+TRIMMED = ("A model you train or serve yourself is a row priced from its hour. ",
+           "A prompt cache changes what a call costs, ")
 LEAD = ("These options sit on top of the selection rule of [How a model is chosen](#how-a-model-is-chosen): "
         "each changes which routes a task has, what they cost or what a call may spend.")
 POINTER = ("Variants of one model, procedures, self-hosted rows, task scopes, prompt-cache prices and budgets "
@@ -213,8 +221,12 @@ def test_the_new_section_is_the_lead_and_the_seven_paragraphs_word_for_word():
     moved = found[1:8]
     assert len(moved) == len(MOVED) == 7
     assert found[8].startswith("Judge a challenger route against the current one only on the items ")
+    assert [opening for opening, _, _ in MOVED if opening in TRIMMED] == list(TRIMMED)
     for paragraph, (opening, length, digest) in zip(moved, MOVED):
         assert paragraph.startswith(opening), opening
+        if opening in TRIMMED:
+            assert len(paragraph.encode("utf-8")) < length, opening
+            continue
         assert len(paragraph.encode("utf-8")) == length, opening
         assert hashlib.sha256(paragraph.encode("utf-8")).hexdigest() == digest, opening
     assert "\n### " not in "".join(section_lines(read("README.md"), PRODUCTION))
