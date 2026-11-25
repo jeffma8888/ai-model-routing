@@ -38,7 +38,7 @@ LATENCY_PARAGRAPH = (
     "a route whose 95th-percentile time on the task is above it, reason `too_slow`, after the task's and the "
     "policy's rules and before the success bar, and a cascade or a procedure is held to it on its own times, not "
     "its models'. A route's time is known once it has as many timed trials on the task as the task's "
-    "`min_samples`; until then the bar lets it through, or, with `\"latency_unknown\": \"deny\"`, rules it out as "
+    "`min_samples` (on a sliced call, the slice's trials and `min_samples`); until then the bar lets it through, or, with `\"latency_unknown\": \"deny\"`, rules it out as "
     "`latency_unknown`. The p95 is by nearest rank, the time at index `ceil(0.95 * n) - 1` of the `n` sorted times, "
     "so it is a time a trial took, and below 20 trials it is the slowest of them. A trial's time is yours to "
     "measure, from your call to its answer: a results row's `latency_ms`, which `model-routing calibrate` keeps in "
@@ -52,14 +52,20 @@ LATENCY_PARAGRAPH = (
 HARVEY_LINE = (
     "- In this library: from v1.628 a task's `max_p95_ms` is a latency bar on each route's measured "
     "95th-percentile time on the task, applied like the success bar: `select` rules out a route whose time is above "
-    "it as `too_slow`, before cost, once the route has as many timed trials as the task's `min_samples`, and a task "
-    "that sets `latency_unknown` to `deny` rules out a route with fewer. The monitor reports p50 and p95 latency per "
+    "it as `too_slow`, before cost, once the route has as many timed trials as the task's `min_samples` (on a "
+    "sliced call, the slice's), and a task that sets `latency_unknown` to `deny` rules out a route with fewer. The monitor reports p50 and p95 latency per "
     "group, and a task sets a timeout per call. The change: the same bar on a parent's inline work in the "
     "delegation decision.")
 OLD_HARVEY = "but no task can exclude a model for being too slow"
 UBER_TAIL = ("Its quality is a success rate on the task's acceptance check, not F1, and from v1.628 admission can also "
              "read a route's measured p95 time, the latency bar of the Harvey lessons above.")
 OLD_UBER = "latency is not part of admission yet"
+# review iter-483 must-fix 1: the Grab catalogue and GitHub evaluation lines named the bar as planned
+GRAB_TAIL = ("The latency part of the choice is the latency bar of the Harvey lesson on latency, which the library "
+             "applies from v1.628.")
+GITHUB_TAIL = ("and the latency bar the library applies from v1.628 (the Harvey lesson on latency) is a check of its "
+               "own beside the success bar, not folded into it.")
+OLD_PLANNED = ("latency bar planned", "planned latency bar")
 KEYS = ("max_p95_ms", "latency_unknown", "p95_latency_ms")
 
 
@@ -196,6 +202,12 @@ def test_the_note_says_the_library_applies_the_bar():
     assert line == HARVEY_LINE and note.count(HARVEY_LINE) == 1
     assert note.count(UBER_TAIL) == 1
     assert OLD_HARVEY not in note and OLD_UBER not in note
+    for tail, heading in ((GRAB_TAIL, "### A catalogue of models does not pick one, and a stand-in model must clear the same bar"),
+                          (GITHUB_TAIL, "### Test a model before the switch, and re-run the tests on the models in production every day")):
+        lesson = note.split(f"\n{heading}\n", 1)[1].split("\n### ", 1)[0]
+        [line] = [x for x in lesson.splitlines() if x.startswith("- In this library: ")]
+        assert line.endswith(tail) and note.count(tail) == 1 and '"' not in tail
+    assert not any(old in note for old in OLD_PLANNED)
     assert '"' not in HARVEY_LINE and '"' not in UBER_TAIL   # the note reads double-quoted text as a quote
 
 

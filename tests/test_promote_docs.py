@@ -97,8 +97,11 @@ def test_the_paragraph_follows_the_two_on_budgets_and_precedes_the_one_on_thread
     # review iter-454 should-fix 3: the last sentence says the hold is the point and nothing was switched;
     # v1.616 (row PROD1c): the one-sentence paragraph on threads follows it (tests/test_threads.py);
     # v1.619 (row CANARY1e): the two on shadow calls come between (tests/test_shadow_docs.py);
-    # v1.625 (row POL1d): the paragraph on a tenant's policy follows the threads one (tests/test_policy_cli.py)
-    last = body.rstrip().rsplit("\n\n", 4)
+    # v1.625 (row POL1d): the paragraph on a tenant's policy follows the threads one (tests/test_policy_cli.py);
+    # v1.630 (row LAT1c): the one on the latency bar follows it, so the five are found from the policy one
+    paragraphs = body.strip().split("\n\n")
+    at = next(k for k, p in enumerate(paragraphs) if p.startswith("A tenant's rules hold whatever a route costs. "))
+    last = paragraphs[at - 4:at + 1]
     assert last[4].startswith("A tenant's rules hold whatever a route costs. ")
     assert last[3].startswith("One `Executor`, with its `Monitor` and `BudgetLedger`, can serve ")
     assert last[1].startswith("A share of routed calls can also go to a reference route, ")
