@@ -306,12 +306,12 @@ def read(name):
     return (ROOT / name).read_text(encoding="utf-8")
 
 
-def test_the_production_section_ends_with_the_paragraph_on_the_policy():
+def test_the_production_section_holds_the_paragraph_on_the_policy_after_the_threads_one():
     text = read("README.md")
     body = text.split("\n## Running it in production\n", 1)[1].split("\n## ", 1)[0]
     paragraphs = body.strip().split("\n\n")
-    assert paragraphs[-1] == POLICY_PARAGRAPH and text.count(POLICY_PARAGRAPH) == 1
-    assert paragraphs[-2].startswith("One `Executor`, with its `Monitor` and `BudgetLedger`, ")
+    assert POLICY_PARAGRAPH in paragraphs and text.count(POLICY_PARAGRAPH) == 1  # v1.630: anchored on content
+    assert paragraphs[paragraphs.index(POLICY_PARAGRAPH) - 1].startswith("One `Executor`, with its `Monitor` and `BudgetLedger`, ")
     assert "\u2014" not in POLICY_PARAGRAPH and "\u2013" not in POLICY_PARAGRAPH
 
 

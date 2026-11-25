@@ -118,8 +118,9 @@ def test_the_two_paragraphs_follow_the_promotion_check_and_precede_the_sentence_
     first = next(k for k, p in enumerate(paragraphs) if p.startswith(FIRST))
     assert paragraphs[first - 1].endswith(PROMOTE_END)
     assert paragraphs[first + 1].startswith(SECOND)
-    assert paragraphs[first + 2].startswith(THREADS) and first + 2 == len(paragraphs) - 2
-    # v1.625 (row POL1d): the paragraph on a tenant's policy is the section's last (tests/test_policy_cli.py)
+    assert paragraphs[first + 2].startswith(THREADS)
+    # v1.625 (row POL1d): the paragraph on a tenant's policy follows it (tests/test_policy_cli.py), and from
+    # v1.630 (row LAT1c) the one on the latency bar ends the section (tests/test_latency_docs.py)
     assert paragraphs[first + 3].startswith("A tenant's rules hold whatever a route costs. ")
     assert read("README.md").count(FIRST) == 1 and read("README.md").count(SECOND) == 1
 
