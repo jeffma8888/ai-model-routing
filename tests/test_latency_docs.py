@@ -33,23 +33,24 @@ TASK = {"name": "t", "bar": 0.8, "min_samples": N, "expected_input_tokens": 1000
 WORK = ["--parent", PRICEY, "--context-tokens", "2000", "--brief-tokens", "1000", "--result-tokens", "1000"]
 
 POLICY_START = "A tenant's rules hold whatever a route costs. "
+# v1.650 (row PROD1gbbb): the rule order, a cascade's models, a slice's count, a trial's time, a fallback's
+# attempts and the delegate's bar are DESIGN 4.3's and 5.2's (tests/test_readme_trim.py DROPPED_V1_650)
 LATENCY_PARAGRAPH = (
-    "A task can also hold its routes to a time. A `tasks.json` row's `\"max_p95_ms\"`, in milliseconds, rules out "
-    "a route whose 95th-percentile time on the task is above it, reason `too_slow`, after the task's and the "
-    "policy's rules and before the success bar, and a cascade or a procedure is held to it on its own times, not "
-    "its models'. A route's time is known once it has as many timed trials on the task as the task's "
-    "`min_samples` (on a sliced call, the slice's trials and `min_samples`); until then the bar lets it through, or, with `\"latency_unknown\": \"deny\"`, rules it out as "
-    "`latency_unknown`. The p95 is by nearest rank, the time at index `ceil(0.95 * n) - 1` of the `n` sorted times, "
-    "so it is a time a trial took, and below 20 trials it is the slowest of them. A trial's time is yours to "
-    "measure, from your call to its answer: a results row's `latency_ms`, which `model-routing calibrate` keeps in "
-    "the stats file, or `Stats.add(..., latencies_ms=[...])`. A monitor record's `latency_ms` is one attempt's, and "
-    "a call that falls back makes several. To read a bar off a log, use `report(records, shadow=True)` or "
-    "`model-routing report --shadow`, whose p50 and p95 leave shadow calls out, or drop the records whose `shadow` "
-    "is JSON `true`: by default `report` puts a shadow attempt's time in its group's percentiles. Under a bar "
-    "`select --json` and `delegate --json` print it as `max_p95_ms` and each candidate's time as `p95_latency_ms`, "
-    "`null` when unknown; the delegate keeps the bar, and so does a parent: one whose own time on the task is above "
-    "the bar, or unknown under `deny`, may not work inline, and `delegate` names `parent_too_slow` or "
-    "`parent_latency_unknown`. A task with no bar routes as before.")
+    "A task can also hold its routes to a time. A `tasks.json` row's `\"max_p95_ms\"`, in milliseconds, rules "
+    "out a route whose 95th-percentile time on the task is above it, reason `too_slow`, before the success "
+    "bar, and a cascade or a procedure is held to it on its own times. A route's time is known once it has as "
+    "many timed trials on the task as the task's `min_samples`; until then the bar lets it through, or, with "
+    "`\"latency_unknown\": \"deny\"`, rules it out as `latency_unknown`. The p95 is by nearest rank, the time at "
+    "index `ceil(0.95 * n) - 1` of the `n` sorted times, so below 20 trials it is the slowest of them. A "
+    "trial's time is yours to measure, from your call to its answer: a results row's `latency_ms`, which "
+    "`model-routing calibrate` keeps in the stats file, or `Stats.add(..., latencies_ms=[...])`. A monitor "
+    "record's `latency_ms` is one attempt's. To read a bar off a log, use `report(records, shadow=True)` or "
+    "`model-routing report --shadow`, whose p50 and p95 leave shadow calls out, or drop the records whose "
+    "`shadow` is JSON `true`: by default `report` puts a shadow attempt's time in its group's percentiles. "
+    "Under a bar `select --json` and `delegate --json` print it as `max_p95_ms` and each candidate's time as "
+    "`p95_latency_ms`, `null` when unknown; a parent whose own time on the task is above the bar, or unknown "
+    "under `deny`, may not work inline, and `delegate` names `parent_too_slow` or `parent_latency_unknown`. A "
+    "task with no bar routes as before.")
 HARVEY_LINE = (
     "- In this library: from v1.628 a task's `max_p95_ms` is a latency bar on each route's measured "
     "95th-percentile time on the task, applied like the success bar: `select` rules out a route whose time is above "

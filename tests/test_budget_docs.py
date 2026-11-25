@@ -82,30 +82,32 @@ def test_the_paragraph_names_each_part_once():
                  "the calls whose tags hold every pair of its `tags`",
                  "or every call when it names neither",
                  "the calls of one run share a budget when you tag each with the run's ID",
-                 "(`total`), a UTC `day` or a UTC `month`, each window's spend kept apart",
+                 # v1.650 (row PROD1gbbb): the windows kept apart, the calls a hold covers, a failed call's
+                 # billed tokens, the route ending on a refusal, a strict refusal of a procedure, an unknown
+                 # cost and the report's windows are DESIGN 4.6's, 7's and 8.3's
+                 # (tests/test_readme_trim.py DROPPED_V1_650)
+                 "(`total`), a UTC `day` or a UTC `month`, and `load_budgets(path)`",
                  "`load_budgets(path)` reads a list of them from a JSON file",
                  "`Executor(..., ledger=BudgetLedger(budgets))`",
-                 "a fallback's, a cascade leg's, a procedure's model call and a hand-off's included",
+                 "`Executor(..., ledger=BudgetLedger(budgets))`: before each provider call the executor holds",
                  "holds the call's list-price estimate on every budget that applies",
                  # review iter-448 must-fix 3: the estimate reads a slice's output size first
                  "its output the slice's or the task's `expected_output_tokens`",
                  "after the call it settles the measured cost, 0.0 for a call that failed with a provider error",
-                 "so tokens a provider bills for a failed call are in no budget",
                  "A `warn` budget notes the first time its spend reaches 50, 80 and 100 percent of its limit in a window",
-                 "a `refuse` budget raises `BudgetExceeded` before the call whose hold would pass its limit, and no "
-                 "later route entry is tried",
+                 "a `refuse` budget raises `BudgetExceeded` before the call whose hold would pass its limit; a "
+                 "`downgrade` budget",
                  "a `downgrade` budget moves that call on along its route to the next entry that clears the bar "
                  "and fits, and refuses when none does, so no call goes below the bar to fit a budget",
                  "The estimate is no bound",
                  "A `strict=True` budget holds each call's `billing_bound` instead",
                  "`max_tokens`, `max_completion_tokens` or `max_output_tokens` in its route's `provider_options`",
-                 "refuses a call it cannot bound, a procedure's included",
+                 "refuses a call it cannot bound; it charges that bound",
                  # review iter-448 should-fix 1: a strict hold of a call that raised settles at its bound
-                 "it charges that bound for a call that raised anything but a provider error, whose cost "
-                 "is then unknown",
+                 "it charges that bound for a call that raised anything but a provider error, so its spend",
                  "so its spend stays under its limit while providers bill within the bound",
                  "as a budget record, which `report` skips",
-                 "`budget_report(records, budgets)` gives each budget's `budget_used_pct` in each window",
+                 "`budget_report(records, budgets)` gives each budget's `budget_used_pct`, as the example",
                  "[Monitoring and cost attribution](#monitoring-and-cost-attribution)",
                  "`model-routing demo --budgets FILE` runs the demo under a file of budgets and exits 4",
                  "The ledger is one process's: a limit shared by many processes still needs a gateway or the "

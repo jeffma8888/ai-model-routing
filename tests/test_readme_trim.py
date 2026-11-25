@@ -30,6 +30,14 @@ to 1,506, 1,429 and 1,607. DROPPED_V1_649 was made from a word diff of v1.648's 
 keep every name in backticks they gave (NAMES_V1_649), their quotes and links. The pinned-call
 paragraph is left whole, as tests/test_pin_docs.py reads every hard check's words in it (review
 iter-495 must-fix 1). These tests failed on v1.648's README and pass on v1.649's.
+
+DESIGN 5.2 v1.650 (row PROD1gbbb, fourth part): the paragraph on the latency bar and the two on budgets
+are cut the same way, from 1,709, 1,566 and 1,659 bytes to 1,473, 1,268 and 1,562, each by deleting
+clauses, the latency one also writing "a parent whose" for "the delegate keeps the bar, and so does a
+parent: one whose". DROPPED_V1_650 holds each deleted clause as v1.649 (4551ee2) wrote it, pinned to
+4.3, 4.6, 5.2, 7 or 8.3, each a behavioural subsection, so no subsection gains a clause. The three keep
+every name in backticks they gave (NAMES_V1_650), their quotes and links. These tests failed on
+v1.649's README and pass on v1.650's.
 """
 
 from pathlib import Path
@@ -262,9 +270,61 @@ DROPPED_V1_649 = [
     (RECORDS_LEAD, "and the routed call's ID as its item", "### 8.3 ",
      "The item is the `pair_id`, the routed call's ID, so the two rows of a pair are one item graded on both routes"),
 ]
+# v1.650 (row PROD1gbbb, fourth part): three more paragraphs, as v1.649 (4551ee2) wrote them
+LAT_LEAD = "A task can also hold its routes to a time. "
+BUDGET_LEAD = "A budget tracks what the executor spends and can warn, refuse or move a call. "
+EST_LEAD = "The estimate is no bound: "
+OLD_BYTES_V1_650 = {LAT_LEAD: 1_709, BUDGET_LEAD: 1_566, EST_LEAD: 1_659}
+NEW_BYTES_V1_650 = {LAT_LEAD: 1_473, BUDGET_LEAD: 1_268, EST_LEAD: 1_562}
+NAMES_V1_650 = {
+    LAT_LEAD: ["tasks.json", '"max_p95_ms"', "too_slow", "min_samples", '"latency_unknown": "deny"', "latency_unknown",
+               "ceil(0.95 * n) - 1", "n", "latency_ms", "model-routing calibrate", "Stats.add(..., latencies_ms=[...])",
+               "report(records, shadow=True)", "model-routing report --shadow", "shadow", "true", "report",
+               "select --json", "delegate --json", "max_p95_ms", "p95_latency_ms", "null", "deny", "delegate",
+               "parent_too_slow", "parent_latency_unknown"],
+    BUDGET_LEAD: ['Budget(name, limit_usd, mode, window="total", task=None, tags={})', "task", "tags", "window",
+                  "total", "day", "month", "load_budgets(path)", "Executor(..., ledger=BudgetLedger(budgets))",
+                  "prompt_tokens", "expected_output_tokens", "warn", "refuse", "BudgetExceeded", "downgrade"],
+    EST_LEAD: ["refuse", "strict=True", "billing_bound", "max_tokens", "max_completion_tokens", "max_output_tokens",
+               "provider_options", "report", "budget_report(records, budgets)", "budget_used_pct",
+               "model-routing demo --budgets FILE", "DESIGN.md"],
+}
+LINKS_V1_650 = {
+    LAT_LEAD: [],
+    BUDGET_LEAD: [],
+    EST_LEAD: ["[Monitoring and cost attribution](#monitoring-and-cost-attribution)",
+               "(research/production-lessons.md#spend-tiers-and-nudges-not-strict-caps)",
+               '"To avoid imposing strict caps, we implemented real-time spend tracking and automated nudges"',
+               '"Alerts at 50/80/100% of expected spend so engineers have time to plan."'],
+}
+DROPPED_V1_650 = [
+    (LAT_LEAD, "after the task's and the policy's rules and", "### 5.2 ",
+     "Why after 5d: a route the task, the call or the policy already rules out keeps its v1.627 reason"),
+    (LAT_LEAD, "not its models'", "### 5.2 ", "are judged on their own key's times, never their models'"),
+    (LAT_LEAD, "(on a sliced call, the slice's trials and `min_samples`)", "### 5.2 ",
+     "at least `min_samples` times, the task's or on a sliced call the slice's"),
+    (LAT_LEAD, "it is a time a trial took", "### 4.3 ", "so it is a time one of the trials took"),
+    (LAT_LEAD, "and a call that falls back makes several", "### 4.3 ",
+     "is one attempt's, and a call that falls back makes several"),
+    (LAT_LEAD, "the delegate keeps the bar", "### 5.2 ", "`decide_delegation`'s delegate keeps the bar (13.3 v1.628)"),
+    (BUDGET_LEAD, "so one budget can pool a team's tools on a shared tag while another caps one tool", "### 4.6 ",
+     'one on `{"tool": "a"}` only the calls tagged so'),
+    (BUDGET_LEAD, "each window's spend kept apart", "### 4.6 ", "a hold of one window never counts against another"),
+    (BUDGET_LEAD, "a fallback's, a cascade leg's, a procedure's model call and a hand-off's included", "## 7. ",
+     "a cascade's cheap or strong leg or a procedure's model call, from `.call` or `.call_delegated`"),
+    (BUDGET_LEAD, "so tokens a provider bills for a failed call are in no budget", "## 7. ",
+     "so tokens a provider bills for a failed call are in no budget"),
+    (BUDGET_LEAD, "and no later route entry is tried", "## 7. ", "No later route entry is tried"),
+    (EST_LEAD, "or pays a cache-write price", "## 7. ", "or pays a cache-write price costs more than its hold"),
+    (EST_LEAD, "a procedure's included", "## 7. ",
+     "Before a procedure entry's run, a strict budget that applies refuses the entry"),
+    (EST_LEAD, "whose cost is then unknown", "### 4.6 ", "releases the hold of a call whose cost is not known"),
+    (EST_LEAD, "`budget_used_pct` in each window", "### 8.3 ",
+     "gives each budget's spend in each window as a percent of its limit"),
+]
 ENDS = {"### 4.7 ": "\n## 5. ", "### 8.3 ": "\n## 9. ", "## 10. ": "\n## 11. ", "### 4.1 ": "\n### 4.2 ",
         "### 5.2 ": "\n### 5.3 ", "## 6. ": "\n## 7. ", "## 7. ": "\n## 8. ", "## 11. ": "\n## 12. ",
-        "### 4.3 ": "\n### 4.4 ", "### 4.5 ": "\n### 4.6 "}
+        "### 4.3 ": "\n### 4.4 ", "### 4.5 ": "\n### 4.6 ", "### 4.6 ": "\n### 4.7 "}
 
 
 def read(name):
@@ -458,4 +518,70 @@ def test_design_states_the_v1_649_trim_and_the_changelog_the_version():
     assert len(mine.encode("utf-8")) <= 6_000
     [line] = [x for x in read("CHANGELOG.md").splitlines() if x.startswith("- v1.649 (")]
     assert line.startswith("- v1.649 (2026-11-25): docs and tests (5.2, row PROD1g, third part). ")
+    assert len(line.encode("utf-8")) <= 600
+
+
+# --- v1.650 (row PROD1gbbb, fourth part) ----------------------------------------------------------
+
+def test_the_v1_650_three_are_shorter_and_the_section_under_its_cap():
+    found = {lead: len(paragraph(lead).encode("utf-8")) for lead in OLD_BYTES_V1_650}
+    assert found == NEW_BYTES_V1_650
+    assert sum(OLD_BYTES_V1_650.values()) - sum(found.values()) == 631
+    assert size(read("README.md"), PRODUCTION) == 25_557 <= PRODUCTION_CAP == 30_000
+
+
+def test_the_v1_650_three_keep_their_leads_their_names_their_quotes_and_their_links():
+    for lead in OLD_BYTES_V1_650:
+        text = paragraph(lead)
+        names = []
+        for name in text.split("`")[1::2]:
+            if name not in names:
+                names.append(name)
+        assert [n for n in NAMES_V1_650[lead] if n not in names] == [], lead
+        for link in LINKS_V1_650[lead]:
+            assert text.count(link) == 1, link
+        assert "\u2014" not in text and "\u2013" not in text
+
+
+def test_each_clause_the_v1_650_three_dropped_is_gone_and_its_design_subsection_states_it():
+    design = read("DESIGN.md")
+    assert len(DROPPED_V1_650) == 15
+    for lead, clause, heading, phrase in DROPPED_V1_650:
+        assert clause not in paragraph(lead), clause
+        # a behavioural subsection, never a 5.2 history bullet of the README
+        [owner] = [line for line in subsection(design, heading).splitlines() if phrase in line]
+        assert "README" not in owner.split(":", 1)[0], (heading, phrase)
+
+
+def test_the_v1_650_check_fails_on_a_clause_still_there_or_a_phrase_elsewhere():
+    design = read("DESIGN.md")
+    # kept on purpose: the only place the paragraph names `report`, the slice's output size (review
+    # iter-448 must-fix 3), what a strict budget promises, and what the Uber quote is not
+    assert "by default `report` puts a shadow attempt's time in its group's percentiles" in paragraph(LAT_LEAD)
+    assert "its output the slice's or the task's `expected_output_tokens`" in paragraph(BUDGET_LEAD)
+    assert "so its spend stays under its limit while providers bill within the bound" in paragraph(EST_LEAD)
+    assert "its policy, for which it gives no saving, not a measurement of this library" in paragraph(EST_LEAD)
+    assert "a parent whose own time on the task is above the bar, or unknown under `deny`" in paragraph(LAT_LEAD)
+    assert "so tokens a provider bills for a failed call are in no budget" not in subsection(design, "### 4.6 ")
+    assert "Why after 5d" not in subsection(design, "## 7. ")
+    assert "releases the hold of a call whose cost is not known" not in subsection(design, "## 7. ")
+
+
+def test_design_states_the_v1_650_trim_and_the_changelog_the_version():
+    design = read("DESIGN.md")
+    five2 = subsection(design, "### 5.2 ")
+    [mine] = [line for line in five2.splitlines()
+              if line.startswith("- v1.650 README trim (row PROD1gbbb, fourth part): ")]
+    for kept in ("paragraph on the latency bar is cut from 1,709 to 1,473 bytes, the first on budgets from 1,566 to "
+                 "1,268 and the second, on the estimate and strict budgets, from 1,659 to 1,562",
+                 "so the section is 25,557 bytes by the 12.8 measure, under v1.629's 30,000-byte cap, which stays",
+                 "each clause it drops is stated in 4.3, 4.6, 5.2, 7 or 8.3, so no subsection gains one",
+                 "so only the one on task scopes keeps its v1.604 bytes and sha256",
+                 "tests/test_pin_docs.py reads each hard check's words in it (review iter-495 must-fix 1)",
+                 "No package module, evidence file or README transcript changes."):
+        assert mine.count(kept) == 1, kept
+    assert five2.index("\n- v1.649 README trim (") < five2.index("\n" + mine)
+    assert len(mine.encode("utf-8")) <= 6_000
+    [line] = [x for x in read("CHANGELOG.md").splitlines() if x.startswith("- v1.650 (")]
+    assert line.startswith("- v1.650 (2026-11-25): docs and tests (5.2, row PROD1g, fourth part). ")
     assert len(line.encode("utf-8")) <= 600
