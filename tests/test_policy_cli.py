@@ -304,8 +304,8 @@ def test_no_readme_transcript_script_or_workflow_passes_a_policy():
 
 POLICY_PARAGRAPH = (
     "A tenant's rules hold whatever a route costs. A `Policy(allowed_routes=None, allowed_families=None, "
-    "region=None, require_zdr=False)`, passed as `policy=` to `select`, `Executor.call` or "
-    "`decide_delegation`, or as a JSON object of those keys in a file to `model-routing select --policy FILE` "
+    "region=None, require_zdr=False, name=None)`, passed as `policy=` to `select`, `Executor.call` or "  # v1.644
+    "`decide_delegation`, or as a JSON object of those keys in a file to `select --policy FILE` "  # v1.644
     "or `delegate --policy FILE`, rules out before cost every route outside the allowed route IDs or "
     "families, every model whose `models.json` row does not list `region` in its `regions`, and, with "
     "`require_zdr`, every model whose row does not state `\"zero_data_retention\": true`, so the primary, "
@@ -314,14 +314,19 @@ POLICY_PARAGRAPH = (
     "candidate table names each ruled-out model's reason, `policy_excluded`, `region_unavailable` or "
     "`zdr_required`. A row's `regions` and `zero_data_retention` are what the registry's owner states, "
     "not a certification: the library checks only that the row states them, and a value a row leaves "
-    "out fails closed. On one shared `Executor` each call may carry its own tenant's policy.")  # should-fix 1
+    "out fails closed. On one shared `Executor` each call may carry its own tenant's policy, and its records "  # should-fix 1
+    "name it as `policy`, its `name` or else a digest of its rules, so `report --by policy` gives each "
+    "tenant's spend a row; `call_delegated` names none.")  # v1.644, row POL2c
 HARVEY_LINE = (
     "- In this library: from v1.622 a tenant's `Policy`, its allowed route IDs and model families, the "
     "region its calls must be served in and whether they need zero data retention, rules out every model "
     "a route reaches before cost, in `select`, and from v1.623 and v1.624 in the executor and the "
     "delegation decision, so no primary, fallback, cascade leg, shadow call or sub-agent leaves the "
     "allowed set, and a parent model the policy rules out does not work inline; from v1.625 "
-    "`select --policy FILE` and `delegate --policy FILE` read one from a JSON file. A registry row's "
+    "`select --policy FILE` and `delegate --policy FILE` read one from a JSON file. From v1.642 every "
+    "record of a call under a policy with a rule or a name names it, by its name or else a digest of its "
+    "rules, from v1.643 `report --by policy` gives each tenant's spend a row, and a hand-off run with "
+    "`call_delegated` names none. A registry row's "  # v1.644, row POL2c
     "regions and retention are what the registry's owner states, not a certification, and a value a "
     "row leaves out fails closed. The executor still moves to the next model of the route when a call "
     "fails or the caller's check rejects its answer, and a task can exclude model families. From v1.639 "

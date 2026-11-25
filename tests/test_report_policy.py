@@ -264,8 +264,8 @@ def test_design_states_v1_643_in_8_3_10_and_13_7():
                      "region, require_zdr and name`") == 1
     assert cli_.count("\n- v1.643 `--policy FILE` reads `name` (row POL2b): read as `select --policy` reads it "
                       "(10 v1.643), with the same exit 2 lines") == 1
-    assert seven.count("reading `name` (row POL2b, which v1.643 adds, 8.3, 10 and 13.7); the README sentence "
-                       "(row POL2c).") == 1
+    assert seven.count("reading `name` (row POL2b, which v1.643 adds, 8.3, 10 and 13.7); the README sentence, "
+                       "which v1.644 adds (5.2).") == 1   # v1.644, row POL2c
     assert eight1.count("`report` (8.3) read no `policy` key in v1.642, so its rows and the CLI `report` output "
                         "were unchanged; from v1.643 `by=\"policy\"` groups by it (8.3 v1.643, row POL2b).") == 1
     [line] = [x for x in read("CHANGELOG.md").splitlines() if x.startswith("- v1.643 (")]
