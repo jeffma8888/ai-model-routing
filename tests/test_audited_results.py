@@ -4,7 +4,8 @@ v1.632, row M1a, the first part of row M1's drift check).
 An audited call's final `ok` answer is labelled by its audit and each `invalid` answer `false`,
 an `error` gives no row, and `since` and `until` keep the calls whose final record's `ts` is in
 `[since, until)`, so `calibrate_from_results` keeps a recent window's stats apart from the
-all-time file. A call of a cascade or a procedure gives no row at v1.632 (row M1d)."""
+all-time file. A call of a cascade or a procedure gave no row at v1.632; from v1.636 (row M1d)
+its entry's answer gives one row, tests/test_audited_cascades.py."""
 
 import copy
 from pathlib import Path
@@ -116,15 +117,6 @@ def test_records_and_audits_are_left_unchanged():
     log, audits = copy.deepcopy(LOG), dict(AUDITS)
     audited(log, audits, since=OLD)
     assert log == LOG and audits == AUDITS
-
-
-def test_a_cascade_or_procedure_call_gives_no_row_yet():
-    cascade = [rec("k", CHEAP, "ok", final=False, cascade="cascade:x", escalated=True),
-               rec("k", MID, "ok", attempt=1, cascade="cascade:x", escalated=True)]
-    procedure = [rec("p", CHEAP, "ok", final=False, procedure="triage", procedure_version="1"),
-                 rec("p", "proc:triage@1", "ok", attempt=1, procedure="triage",
-                     procedure_version="1", model_calls=1, tool_calls=0)]
-    assert audited(cascade + procedure + LOG, {**AUDITS, "k": True, "p": True}) == EXPECTED
 
 
 # --- what reads the rows ----------------------------------------------------------------

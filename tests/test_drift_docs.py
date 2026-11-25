@@ -48,8 +48,10 @@ DRIFT_PARAGRAPH = (
     "does without `--stats`, the window's calls are among its calls, so the all-time bound moves toward the window's "
     "as the window grows; and each bound is at the task's confidence, so over many routes some flags come by chance, "
     "which makes a flag a reason to audit more calls, not proof of a change. Which calls to audit stays yours, and "
-    "audits picked by a rule other than chance bias every route's rate; a cascade's or a procedure's route gets no "
-    "rows from the log yet (`DESIGN.md` 8.3 and 10). GitHub runs its tests on the models it serves: "
+    "audits picked by a rule other than chance bias every route's rate; an audited call that a cascade answered "
+    "counts once for the cascade, with whether it handed up, and one that a procedure answered once for the "
+    "procedure, at its model calls' and tools' cost (`DESIGN.md` 8.3 and 10). GitHub runs its tests on the models it "
+    "serves: "
     f"\"{GITHUB_QUOTE}\" ([production lessons](research/production-lessons.md#{GITHUB_ANCHOR})): a fixed test set run "
     "again, where `drift` reads audited calls of your own traffic, and the post gives no count of the drops it found.")
 OLD_LIMITATION = ("- No online drift detection. Re-calibrate from audited samples on a schedule, and when a provider ships "
@@ -59,8 +61,7 @@ LIMITATION = (
     "of a recent window with its all-time counts and flags one that fell below its task's bar or rose above it "
     "([Running it in production](#running-it-in-production)), but it runs only when you run it, alerts no one and "
     "changes no route unless you route with `select --window`. Which calls to audit, and when to re-calibrate, stay "
-    "yours: re-calibrate on a schedule, and when a provider ships a new model version. A cascade's or a procedure's "
-    "route gets no rows from the log yet\n")
+    "yours: re-calibrate on a schedule, and when a provider ships a new model version\n")  # v1.636 drops a sentence
 OLD_FOURTEEN = "- Online drift detection beyond re-calibrating from audited results; "
 FOURTEEN = ("- Online drift detection beyond v1.632's `audited_results`, v1.633's `drift_check` and v1.634's `drift` "
             "command and `select --window` (8.3, 10), which judge a recent window of audited calls when the caller runs "
@@ -74,8 +75,8 @@ NOTE_COUNT = ("so a fall in a model's recent success rate is averaged into its w
 NOTE_SHIPPED = ("From v1.634 the drift check is `model-routing drift`: it reads a monitor log's audited production "
                 "calls in a recent window, kept apart from the all-time counts (v1.632), flags a route whose bound "
                 "falls under the bar or rises over it (v1.633), and `select --window` routes on the window's counts "
-                "alone; it runs when the caller runs it, on the caller's schedule, and a cascade's or a procedure's "
-                "route gets no rows from the log yet. ")
+                "alone; it runs when the caller runs it, on the caller's schedule, and from v1.636 a call that a "
+                "cascade or a procedure answered counts for that route too. ")
 # v1.634 (808d9fe): sha256 of README's twelve ```text blocks that start with `$ model-routing`, joined
 TRANSCRIPTS_SHA256 = "b870064b5eb860c802b7ce92137bccc0d2a67902df6f9abd491739ca1804fb2c"
 BLOCK = re.compile(r"```text\n(\$ model-routing .*?)```", re.S)
