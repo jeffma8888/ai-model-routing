@@ -40,9 +40,11 @@ every name in backticks they gave (NAMES_V1_650), their quotes and links. These 
 v1.649's README and pass on v1.650's.
 
 DESIGN 5.2 v1.651 (row PROD1gbbbb, fifth part): the paragraph on task scopes, the one on a tenant's policy and
-the one on pinned calls are cut the same way, from 1,176, 1,316 and 1,779 bytes to 895, 1,141 and 1,751, each
-by deleting clauses. DROPPED_V1_651 holds each deleted clause as v1.650 (a7d6530) wrote it, pinned to 5.2, 7 or
-13.5, each a behavioural subsection, so no subsection gains a clause. The three keep every name in backticks
+the one on pinned calls are cut the same way, from 1,176, 1,316 and 1,779 bytes to 909, 1,212 and 1,751, each
+by deleting clauses, the task-scope one also writing "On a task none of them matches," for "On any other task"
+(review iter-506 should-fix 3); the policy one keeps the shadow call and the parent it rules out (should-fix 1
+and 2). DROPPED_V1_651 holds each deleted clause as v1.650 (a7d6530) wrote it, pinned to 5.2 or 7, each a
+behavioural subsection, so no subsection gains a clause. The three keep every name in backticks
 they gave (NAMES_V1_651), their quotes and links, and the pinned-call one every hard check's words, which
 tests/test_pin_docs.py reads (review iter-495 must-fix 1). These tests failed on v1.650's README and pass on
 v1.651's.
@@ -335,7 +337,7 @@ SCOPE_LEAD = 'A model built for some tasks can be kept to them. '
 POLICY_LEAD = "A tenant's rules hold whatever a route costs. "
 PIN_LEAD = 'A call can also pin its route. '
 OLD_BYTES_V1_651 = {SCOPE_LEAD: 1_176, POLICY_LEAD: 1_316, PIN_LEAD: 1_779}
-NEW_BYTES_V1_651 = {SCOPE_LEAD: 895, POLICY_LEAD: 1_141, PIN_LEAD: 1_751}
+NEW_BYTES_V1_651 = {SCOPE_LEAD: 909, POLICY_LEAD: 1_212, PIN_LEAD: 1_751}
 NAMES_V1_651 = {
     SCOPE_LEAD: [
         'models.json', '"scope_tasks"', '["review_*"]', '@', '<task>@<slice>', 'out_of_scope', 'DESIGN.md'],
@@ -365,7 +367,8 @@ DROPPED_V1_651 = [
     (SCOPE_LEAD, "so a pattern with `@` keeps the model to one slice", "### 5.2 ",
      "a pattern such as `support@deep` or `*@deep` to that slice alone"),
     (SCOPE_LEAD, "not at cold start, as a fallback or as the best available model, whatever its counts", "### 5.2 ",
-     "so it gets no cold-start call on a task outside its scope, whatever its counts or prior"),
+     "it is never the primary, a fallback, a below-bar fallback or a `best_available` measured or prior pick, so it "
+     "gets no cold-start call on a task outside its scope, whatever its counts or prior"),  # review iter-506 nit 1
     (SCOPE_LEAD, "and on a slice by that slice's counts", "### 5.2 ", "and on a sliced call by that slice's counts alone"),
     (SCOPE_LEAD, "so a model whose gains differ by part of a task is checked on each part", "### 5.2 ",
      "a model scoped to a task clears the bar on each slice it serves"),
@@ -373,9 +376,6 @@ DROPPED_V1_651 = [
      "with a cascade's cheap and strong models and a procedure's named model, each of which met rules 5b to 5d"),
     (POLICY_LEAD, "a budget's downgrade", "## 7. ",
      "a move goes along that route only, so it never lands on a model the policy ruled out"),
-    (POLICY_LEAD, "a shadow call", "## 7. ", "the shadow route is judged on the decision made under the policy"),
-    (POLICY_LEAD, "and a parent the policy rules out does not work inline", "### 13.5 ",
-     "row 1 takes a parent that 13.4 rule 4 blocks, with its policy reason"),
     (POLICY_LEAD, "and a value a row leaves out fails closed", "### 5.2 ",
      "So a value the registry does not state fails closed"),
     (PIN_LEAD, "without ranking the routes", "### 5.2 ",
@@ -383,8 +383,7 @@ DROPPED_V1_651 = [
 ]
 ENDS = {"### 4.7 ": "\n## 5. ", "### 8.3 ": "\n## 9. ", "## 10. ": "\n## 11. ", "### 4.1 ": "\n### 4.2 ",
         "### 5.2 ": "\n### 5.3 ", "## 6. ": "\n## 7. ", "## 7. ": "\n## 8. ", "## 11. ": "\n## 12. ",
-        "### 4.3 ": "\n### 4.4 ", "### 4.5 ": "\n### 4.6 ", "### 4.6 ": "\n### 4.7 ",
-        "### 13.5 ": "\n### 13.6 "}
+        "### 4.3 ": "\n### 4.4 ", "### 4.5 ": "\n### 4.6 ", "### 4.6 ": "\n### 4.7 "}
 
 
 def read(name):
@@ -652,8 +651,8 @@ def test_design_states_the_v1_650_trim_and_the_changelog_the_version():
 def test_the_v1_651_three_are_shorter_and_the_section_under_its_cap():
     found = {lead: len(paragraph(lead).encode("utf-8")) for lead in OLD_BYTES_V1_651}
     assert found == NEW_BYTES_V1_651
-    assert sum(OLD_BYTES_V1_651.values()) - sum(found.values()) == 484
-    assert size(read("README.md"), PRODUCTION) == 25_073 <= PRODUCTION_CAP == 30_000
+    assert sum(OLD_BYTES_V1_651.values()) - sum(found.values()) == 399
+    assert size(read("README.md"), PRODUCTION) == 25_158 <= PRODUCTION_CAP == 30_000
 
 
 def test_the_v1_651_three_keep_their_leads_their_names_their_quotes_and_their_links():
@@ -671,7 +670,7 @@ def test_the_v1_651_three_keep_their_leads_their_names_their_quotes_and_their_li
 
 def test_each_clause_the_v1_651_three_dropped_is_gone_and_its_design_subsection_states_it():
     design = read("DESIGN.md")
-    assert len(DROPPED_V1_651) == 11
+    assert len(DROPPED_V1_651) == 9
     for lead, clause, heading, phrase in DROPPED_V1_651:
         assert clause not in paragraph(lead), clause
         # a behavioural subsection, never a 5.2 history bullet of the README
@@ -683,12 +682,15 @@ def test_the_v1_651_check_fails_on_a_clause_still_there_or_a_phrase_elsewhere():
     design = read("DESIGN.md")
     # kept on purpose: what a scope does, the tenant's set and what a row's values are not, and where a pin sits
     assert "makes the model a candidate only on a task one of them matches" in paragraph(SCOPE_LEAD)
-    assert "is `out_of_scope` and not eligible, so it gets no calls there. " in paragraph(SCOPE_LEAD)
-    assert "so the primary, each fallback and a delegate stay inside the allowed set. " in paragraph(POLICY_LEAD)
+    assert ("On a task none of them matches, its candidate is `out_of_scope` and not eligible, so it gets no calls "
+            "there. ") in paragraph(SCOPE_LEAD)  # review iter-506 should-fix 3
+    assert ("so the primary, each fallback, a shadow call and a delegate stay inside the allowed set, and a parent "
+            "the policy rules out does not work inline. ") in paragraph(POLICY_LEAD)  # should-fix 1 and 2
+    assert "On any other task" not in paragraph(SCOPE_LEAD)
     assert "not a certification: the library checks only that the row states them. " in paragraph(POLICY_LEAD)
     assert "a pin is a choice the caller makes for one call before it runs" in paragraph(PIN_LEAD)
     assert "the ranking of 5.3 is skipped" not in subsection(design, "## 7. ")
-    assert "row 1 takes a parent that 13.4 rule 4 blocks" not in subsection(design, "### 5.2 ")
+    assert "a move goes along that route only" not in subsection(design, "### 5.2 ")
     assert "with a cascade's cheap and strong models and a procedure's named model" not in subsection(design, "### 5.2 ")
 
 
@@ -697,10 +699,11 @@ def test_design_states_the_v1_651_trim_and_the_changelog_the_version():
     five2 = subsection(design, "### 5.2 ")
     [mine] = [line for line in five2.splitlines()
               if line.startswith("- v1.651 README trim (row PROD1gbbbb, fifth part): ")]
-    for kept in ("paragraph on task scopes is cut from 1,176 to 895 bytes, the one on a tenant's policy from 1,316 to "
-                 "1,141 and the one on pinned calls from 1,779 to 1,751",
-                 "so the section is 25,073 bytes by the 12.8 measure, under v1.629's 30,000-byte cap, which stays",
-                 "each clause it drops is stated in 5.2, 7 or 13.5, so no subsection gains one",
+    for kept in ("paragraph on task scopes is cut from 1,176 to 909 bytes, the one on a tenant's policy from 1,316 to "
+                 "1,212 and the one on pinned calls from 1,779 to 1,751",
+                 "so the section is 25,158 bytes by the 12.8 measure, under v1.629's 30,000-byte cap, which stays",
+                 "each clause it drops is stated in 5.2 or 7, so no subsection gains one",
+                 "(review iter-506 should-fix 1 to 3)",
                  "so none of the seven paragraphs of the v1.604 move keeps its v1.604 bytes",
                  "which tests/test_pin_docs.py reads (review iter-495 must-fix 1)",
                  "No package module, evidence file or README transcript changes."):

@@ -61,9 +61,7 @@ MOVED = [
      "85318b6f8f8b400e7c17e56e2737cce7923df888d09068f4323836e781e6e7bb"),
 ]
 # v1.648 (row PROD1gb), v1.649 (row PROD1gbb), v1.650 (row PROD1gbbb) and v1.651 (row PROD1gbbbb): the MOVED
-# paragraphs a later version
-# trimmed, by opening,
-# in MOVED's order (tests/test_readme_trim.py)
+# paragraphs a later version trimmed, by opening, in MOVED's order (tests/test_readme_trim.py)
 TRIMMED = ("One model run two ways can be two routes. ",
            "Recurring tool work can be a route of its own. ",
            "A model you train or serve yourself is a row priced from its hour. ",

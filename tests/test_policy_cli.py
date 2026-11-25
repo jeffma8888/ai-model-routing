@@ -309,7 +309,8 @@ POLICY_PARAGRAPH = (
     "or `delegate --policy FILE`, rules out before cost every route outside the allowed route IDs or "
     "families, every model whose `models.json` row does not list `region` in its `regions`, and, with "
     "`require_zdr`, every model whose row does not state `\"zero_data_retention\": true`, so the primary, "
-    "each fallback and a delegate stay inside the allowed set. The "  # v1.651, row PROD1gbbbb
+    "each fallback, a shadow call and a delegate stay inside the allowed set, and a parent the policy rules "
+    "out does not work inline. The "  # v1.651, row PROD1gbbbb (review iter-506 should-fix 1 and 2)
     "candidate table names each ruled-out model's reason, `policy_excluded`, `region_unavailable` or "
     "`zdr_required`. A row's `regions` and `zero_data_retention` are what the registry's owner states, "
     "not a certification: the library checks only that the row states them. On one shared `Executor` "
