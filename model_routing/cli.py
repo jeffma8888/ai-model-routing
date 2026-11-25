@@ -117,7 +117,7 @@ def _build_parser() -> argparse.ArgumentParser:
     select.add_argument("--slice", type=_slice_name, default=None, metavar="S")
     select.add_argument("--policy", default=None, metavar="FILE",
                         help="a tenant's Policy as a JSON object of allowed_routes, "
-                        "allowed_families, region and require_zdr")
+                        "allowed_families, region, require_zdr and name")
     select.add_argument("--registry", default=str(DATA_DIR / "models.json"))
     select.add_argument("--tasks", default=str(DATA_DIR / "example_tasks.json"))
     select.add_argument("--stats", default="stats.json")
@@ -204,7 +204,7 @@ def _build_parser() -> argparse.ArgumentParser:
     dg.add_argument("--exclude", nargs="+", action="extend", default=[])
     dg.add_argument("--policy", default=None, metavar="FILE",
                     help="a tenant's Policy as a JSON object of allowed_routes, "
-                    "allowed_families, region and require_zdr")
+                    "allowed_families, region, require_zdr and name")
     dg.add_argument("--registry", default=str(DATA_DIR / "models.json"))
     dg.add_argument("--tasks", default=str(DATA_DIR / "example_tasks.json"))
     dg.add_argument("--stats", default="stats.json")
@@ -318,14 +318,14 @@ def _candidate_table(candidates, registry=None) -> str:
     return table + "\n" + PER_ITEM_LINE if per_item else table
 
 
-_POLICY_KEYS = ("allowed_routes", "allowed_families", "region", "require_zdr")
+_POLICY_KEYS = ("allowed_routes", "allowed_families", "region", "require_zdr", "name")  # name: v1.643
 _JSON_TYPES = {list: "array", str: "string", int: "number", float: "number", bool: "boolean",
                type(None): "null"}
 
 
 def _load_policy(path: Optional[str]) -> Optional[Policy]:
-    """``--policy FILE`` (DESIGN 10 and 13.7 v1.625): None without the option, else the file's
-    JSON object of `Policy` keys as a `Policy`; a ValueError naming the file otherwise."""
+    """``--policy FILE`` (DESIGN 10 and 13.7 v1.625, ``name`` from v1.643): None without the option,
+    else the file's JSON object of `Policy` keys as a `Policy`; a ValueError naming the file otherwise."""
     if path is None:
         return None
     data = json.loads(Path(path).read_text(encoding="utf-8"))
@@ -335,7 +335,7 @@ def _load_policy(path: Optional[str]) -> Optional[Policy]:
     unknown = sorted(set(data) - set(_POLICY_KEYS))
     if unknown:
         raise ValueError(f"{path}: unknown policy keys {unknown}; a policy holds allowed_routes, "
-                         "allowed_families, region and require_zdr")
+                         "allowed_families, region, require_zdr and name")
     try:
         return Policy(**data)
     except ValueError as exc:
