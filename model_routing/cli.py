@@ -153,6 +153,13 @@ def _build_parser() -> argparse.ArgumentParser:
     rep.add_argument("--target-cost-per-call", type=float, default=None, metavar="USD",
                      help="with --opportunities: the daily saving if a route at this cost served "
                           "each task, a hypothetical")
+    rep.add_argument("--stats", default=None, metavar="PATH",
+                     help="with --opportunities: a stats file; adds each task's route that select "
+                          "admits and its list cost")
+    rep.add_argument("--registry", default=None, metavar="PATH",
+                     help="with --stats: the registry (default the packaged models.json)")
+    rep.add_argument("--tasks", default=None, metavar="PATH",
+                     help="with --stats: the tasks file (default the packaged example_tasks.json)")
 
     demo = sub.add_parser("demo", help="run the offline demo with fictional models")
     demo.add_argument("--out", default="model-routing-demo")
@@ -446,10 +453,16 @@ def _cmd_report(args) -> int:
         for flag, given in (("--by", args.by is not None), ("--cache", args.cache), ("--shadow", args.shadow)):
             if given:
                 raise _BadInput(f"--opportunities groups by task alone, so it takes no {flag}")
+        for flag, given in (("--registry", args.registry), ("--tasks", args.tasks)):   # v1.646
+            if given is not None and args.stats is None:
+                raise _BadInput(f"{flag} needs --stats: the route columns read the registry, tasks and "
+                                "stats together")
         opportunities([], target_cost_per_call=args.target_cost_per_call)   # checks the target first
         return _report_opportunities(args)
-    if args.target_cost_per_call is not None:
-        raise _BadInput("--target-cost-per-call needs --opportunities: only the savings report reads it")
+    for flag, given in (("--target-cost-per-call", args.target_cost_per_call), ("--stats", args.stats),
+                        ("--registry", args.registry), ("--tasks", args.tasks)):
+        if given is not None:
+            raise _BadInput(f"{flag} needs --opportunities: only the savings report reads it")
     args.by = "model" if args.by is None else args.by
     audits = None if args.audits is None else load_audits(args.audits)
     rows = report(load_logs(args.log), by=args.by, audits=audits, cache=args.cache,
@@ -494,24 +507,40 @@ def _cmd_report(args) -> int:
 
 
 def _report_opportunities(args) -> int:
-    """DESIGN 10 v1.645: ``opportunities``' rows, one per task, as a table or ``--json``."""
+    """DESIGN 10 v1.645: ``opportunities``' rows, one per task, as a table or ``--json``; from
+    v1.646 with ``--stats`` the route columns, read through a ``Router``, and its price warnings."""
+    router = None
+    if args.stats is not None:   # v1.646: registry, tasks, stats, in that order, before the logs
+        registry = Registry.load(DATA_DIR / "models.json" if args.registry is None else args.registry)
+        tasks = load_tasks(DATA_DIR / "example_tasks.json" if args.tasks is None else args.tasks)
+        router = Router(registry, tasks, Stats.load(args.stats))   # a missing file raises
     audits = None if args.audits is None else load_audits(args.audits)
-    rows = opportunities(load_logs(args.log), audits=audits,
-                         target_cost_per_call=args.target_cost_per_call)
+    target = args.target_cost_per_call
+    rows = opportunities(load_logs(args.log), audits=audits, target_cost_per_call=target, router=router)
     if args.json:
         print(json.dumps(rows, indent=2))
-        return EXIT_OK
-    places = {"calls_per_day": 3, "spend_share": 3}
-    keys = list(rows[0]) if rows else (
-        ["task", "calls", "days", "calls_per_day", "cost_usd", "spend_share", "cost_per_call_usd",
-         "cost_per_day_usd"] + (["cost_per_success_usd"] if audits is not None else [])
-        + (["target_cost_per_call_usd", "saving_per_day_usd"] if args.target_cost_per_call is not None else []))
+    else:
+        places = {"calls_per_day": 3, "spend_share": 3}
+        keys = list(rows[0]) if rows else (
+            ["task", "calls", "days", "calls_per_day", "cost_usd", "spend_share", "cost_per_call_usd",
+             "cost_per_day_usd"] + (["cost_per_success_usd"] if audits is not None else [])
+            + (["route", "route_list_cost_usd"] if router is not None else [])
+            + (["target_cost_per_call_usd", "saving_per_day_usd"] if target is not None else [])
+            + (["items_to_admit"] if router is not None and target is not None else []))
 
-    def cell(key, value):
-        if key in ("task", "calls", "days"):
-            return value
-        return "n/a" if value is None else f"{value:.{places.get(key, 6)}f}"
-    print(_table(keys, [[cell(key, r[key]) for key in keys] for r in rows]))
+        def cell(key, value):
+            if key in ("task", "calls", "days", "route", "items_to_admit"):
+                return "n/a" if value is None else value
+            return "n/a" if value is None else f"{value:.{places.get(key, 6)}f}"
+        print(_table(keys, [[cell(key, r[key]) for key in keys] for r in rows]))
+    if router is not None:   # v1.646: as select warns, on the models its rules leave eligible
+        used = set()
+        for name in sorted({r["task"] for r in rows}):
+            try:
+                used |= _eligible(router.select(name, "cost_effective").candidates)
+            except NoModelClearsBar as exc:
+                used |= _eligible(exc.candidates)
+        _warn_expired_prices(router.registry, args.today, used)
     return EXIT_OK
 
 
@@ -848,8 +877,8 @@ def main(argv: Optional[List[str]] = None, *, today: Optional[date] = None) -> i
     (``demo --budgets``, v1.599).
 
     ``today`` dates the price expiry check of ``select``, ``delegate`` and, from v1.411,
-    ``evaluate``, and from v1.634 ends the window of ``drift`` and ``select --window``; ``None``
-    means ``datetime.date.today()``.
+    ``evaluate``, from v1.646 of ``report --opportunities --stats``, and from v1.634 ends the window
+    of ``drift`` and ``select --window``; ``None`` means ``datetime.date.today()``.
     """
     if today is None:
         today = date.today()

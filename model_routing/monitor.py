@@ -9,7 +9,8 @@ from pathlib import Path
 from typing import Dict, Iterable, List, Mapping, Optional, Sequence, Tuple, Union
 
 from .budget import Budget, _instant
-from .stats import Stats, wilson_lower_bound
+from .router import NoModelClearsBar, Router
+from .stats import Stats, items_needed, wilson_lower_bound
 from .tasks import Task
 
 PathLike = Union[str, Path]
@@ -358,8 +359,22 @@ def _add_shadow_keys(shadows: List[dict], groups: Dict[str, dict], group_of) -> 
         row["shadow_cost_usd"] = round(row["shadow_cost_usd"], 6)
 
 
+def _admitted(router: Router, task: str) -> Tuple[Optional[str], Optional[float]]:
+    """The route ``select`` admits for ``task`` in ``cost_effective`` and its ``list_cost``, or
+    ``(None, None)`` when none clears the bar (DESIGN 8.3 v1.646)."""
+    try:
+        decision = router.select(task, "cost_effective")
+    except NoModelClearsBar:
+        return None, None
+    if decision.below_bar:   # a measured route under the bar, or one on a prior: not admitted
+        return None, None
+    chosen = next(c for c in decision.candidates if c.model_id == decision.primary)
+    return decision.primary, round(chosen.list_cost, 6)
+
+
 def opportunities(records: Iterable[dict], *, audits: Optional[Mapping[str, bool]] = None,
-                  target_cost_per_call: Optional[float] = None) -> List[dict]:
+                  target_cost_per_call: Optional[float] = None,
+                  router: Optional[Router] = None) -> List[dict]:
     """The savings report: one row per task from a log (DESIGN 8.3 v1.645, row OPP1a).
 
     Budget records and shadow records (``shadow`` JSON ``true``) are dropped; the routed rest are
@@ -374,6 +389,13 @@ def opportunities(records: Iterable[dict], *, audits: Optional[Mapping[str, bool
     and cleared the bar, a hypothetical, not a return on what such a route costs to build. Rows
     are sorted by descending saving (None last) when a target is given, then by descending
     ``cost_per_day_usd``, then ``task``.
+
+    With a ``router`` (DESIGN 8.3 v1.646, row OPP1b) each row also gives ``route``, the primary of
+    ``router.select(task, "cost_effective")`` when that decision is not below the bar, else None,
+    and ``route_list_cost_usd``, its ``list_cost``; with a target too, ``items_to_admit``, last:
+    ``max(items_needed(rate, bar, confidence), min_samples)`` of the task, ``rate`` its audited
+    calls' correct share, None without audits, with no audited call or when no count clears. A
+    task of the log that ``router.tasks`` lacks raises ``ValueError`` naming it.
     """
     if target_cost_per_call is not None:
         value = None
@@ -386,6 +408,8 @@ def opportunities(records: Iterable[dict], *, audits: Optional[Mapping[str, bool
             raise ValueError("target_cost_per_call must be None or a finite number >= 0, "
                              f"got {target_cost_per_call!r}")
         target_cost_per_call = value
+    if router is not None and not isinstance(router, Router):   # DESIGN 8.3 v1.646
+        raise ValueError(f"router must be None or a Router, got {type(router).__name__}")
     routed = [rec for rec in records
               if "budget_event" not in rec and rec.get("shadow") is not True]
     dates: Dict[str, List[object]] = {}
@@ -397,6 +421,11 @@ def opportunities(records: Iterable[dict], *, audits: Optional[Mapping[str, bool
                              "timestamp, so its task's days cannot be counted") from None
         dates.setdefault(str(rec.get("task")), []).append(day)
     groups = report(routed, by="task", audits=audits)
+    if router is not None:
+        unknown = sorted(group["group"] for group in groups if group["group"] not in router.tasks)
+        if unknown:
+            raise ValueError(f"tasks {unknown} of the log are no tasks of the router, so their "
+                             "routes cannot be read")
     total = fsum(row["cost_usd"] for row in groups)
     rows = []
     for group in groups:
@@ -410,10 +439,19 @@ def opportunities(records: Iterable[dict], *, audits: Optional[Mapping[str, bool
                "cost_per_day_usd": round(cost / days, 6)}
         if audits is not None:
             row["cost_per_success_usd"] = group["cost_per_success_usd"]
+        if router is not None:
+            row["route"], row["route_list_cost_usd"] = _admitted(router, group["group"])
         if target_cost_per_call is not None:
             row["target_cost_per_call_usd"] = target_cost_per_call
             row["saving_per_day_usd"] = (None if per_call is None else
                                          round(calls / days * max(0.0, per_call - target_cost_per_call), 6))
+        if router is not None and target_cost_per_call is not None:
+            task = router.tasks[group["group"]]
+            needed = None
+            if audits is not None and group["audited_calls"]:
+                rate = group["correct_calls"] / group["audited_calls"]
+                needed = items_needed(rate, task.bar, task.confidence)
+            row["items_to_admit"] = None if needed is None else max(needed, task.min_samples)
         rows.append(row)
     rows.sort(key=lambda r: (-r["cost_per_day_usd"], r["task"]))
     if target_cost_per_call is not None:   # a stable sort keeps the order above within a saving

@@ -219,7 +219,8 @@ def test_cli_defaults_to_the_packaged_registry_and_tasks(tmp_path):
     p = files(tmp_path, log=[rec("j1", "faithfulness_judge", CHEAP, 0.001, "2026-11-04T00:00:00Z")])
     Stats().save(p["stats"])
     code, out, err = run(["report", "--log", p["log"], "--opportunities", "--stats", p["stats"]])
-    assert (code, err) == (0, "")
+    assert code == 0   # a packaged price whose stated end date has passed warns, as select warns on it
+    assert all(line.startswith("warning: list price of ") for line in err.splitlines())
     header, rows = body(out)
     assert header == V1_645 + ROUTE and rows[0][0] == "faithfulness_judge" and rows[0][-2:] == ["n/a", "n/a"]
 
