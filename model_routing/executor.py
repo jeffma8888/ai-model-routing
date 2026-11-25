@@ -18,7 +18,7 @@ from .budget import BudgetExceeded, BudgetLedger, billing_bound
 from .delegation import DELEGATE
 from .procedures import Procedure
 from .providers import Provider, ProviderError
-from .router import Policy, RouteDecision, Router, _check_prompt_tokens
+from .router import Policy, RouteDecision, Router, _check_pin, _check_prompt_tokens
 
 
 @dataclass(frozen=True)
@@ -156,7 +156,10 @@ class Executor:
              slice: Optional[str] = None,
              signals: Optional[Mapping] = None,
              procedures: Sequence[Procedure] = (),
-             policy: Optional[Policy] = None) -> CallResult:
+             policy: Optional[Policy] = None,
+             pin_route: Optional[str] = None,
+             pinned_by: Optional[str] = None,
+             allow_below_bar: bool = False) -> CallResult:
         """Route and execute one call; raise :class:`AllModelsFailed` if none succeeds.
 
         ``prompt_tokens`` is the request's size in tokens; when None it is estimated with
@@ -190,7 +193,17 @@ class Executor:
         model and a downgrade move's landing included, is one the policy allows, and a shadow
         route it rules out is not sent, with no draw and no pair keys. The records gain no key
         (DESIGN 7 v1.623).
+        ``pin_route`` and ``allow_below_bar`` are passed to ``select`` (5.2 v1.639), and a pin needs
+        ``pinned_by``, a non-empty tag, checked before any call: the call runs the pin alone, with no
+        fallback and no shadow, and each attempt record carries ``pinned_by`` (DESIGN 7 v1.639).
         """
+        _check_pin(pin_route, allow_below_bar)  # DESIGN 7 v1.639: before select, any ID or call
+        if pinned_by is not None and (not isinstance(pinned_by, str) or not pinned_by):
+            raise ValueError(f"pinned_by must be None or a non-empty string, got {pinned_by!r}")
+        if pin_route is not None and pinned_by is None:
+            raise ValueError("a pinned call needs a pinned_by tag")
+        if pinned_by is not None and pin_route is None:
+            raise ValueError("pinned_by needs a pin_route")
         _check_prompt_tokens(prompt_tokens)
         if signals is not None and not isinstance(signals, Mapping):
             raise ValueError(f"signals must be None or a mapping, "
@@ -201,7 +214,8 @@ class Executor:
                                       generator_model=generator_model,
                                       exclude_models=exclude_models, prompt_tokens=size,
                                       slice=slice, cascades=signals is not None,
-                                      procedures=procedures, policy=policy)
+                                      procedures=procedures, policy=policy,
+                                      pin_route=pin_route, allow_below_bar=allow_below_bar)
         cascades = {}
         if signals is not None:
             by_id = {cascade.id: cascade for cascade in self.router.tasks[task_name].cascades}
@@ -214,9 +228,10 @@ class Executor:
                                      f"signal {cascade.signal!r} in signals")
                 cascades[entry] = cascade
         routed = {proc.id: proc for proc in procedures}  # select checked them (5.2 v1.577)
-        shadow = self._shadow_route(task_name, decision, tags)
+        # DESIGN 7 v1.639: a pinned call is never shadowed, so no draw
+        shadow = None if pin_route is not None else self._shadow_route(task_name, decision, tags)
         return self._execute(task_name, decision, messages, dict(tags or {}), validate,
-                             (size, estimated), cascades, signals, routed, shadow)
+                             (size, estimated), cascades, signals, routed, shadow, pinned_by)
 
     def _shadow_route(self, task_name: str, decision: RouteDecision,
                       tags: Optional[Dict[str, str]]) -> Optional[str]:
@@ -278,7 +293,8 @@ class Executor:
                  cascades: Optional[Dict[str, object]] = None,
                  signals: Optional[Mapping] = None,
                  procedures: Optional[Dict[str, Procedure]] = None,
-                 shadow: Optional[str] = None) -> CallResult:
+                 shadow: Optional[str] = None,
+                 pinned_by: Optional[str] = None) -> CallResult:
         task = self.router.tasks[task_name]
         registry = self.router.registry
         call_id = self.id_factory()
@@ -312,7 +328,8 @@ class Executor:
             if self.monitor is not None:
                 self.monitor.record(self._record(call_id, decision, registry, len(attempts) - 1,
                                                  final, attempt, call_tags, size, entry,
-                                                 cascade, escalated, keys, family, moves, pair))
+                                                 cascade, escalated, keys, family, moves, pair,
+                                                 pinned_by))
 
         try:
             result = self._entries(task_name, decision, messages, validate, cascades, signals,
@@ -621,7 +638,7 @@ class Executor:
                 size: Optional[Tuple[int, bool]] = None, entry: Optional[str] = None,
                 cascade=None, escalated: Optional[bool] = None, keys: Optional[dict] = None,
                 family: Optional[str] = None, moves: Optional[List[dict]] = None,
-                pair: Optional[dict] = None) -> dict:
+                pair: Optional[dict] = None, pinned_by: Optional[str] = None) -> dict:
         model = registry.get(attempt.model) if family is None else None  # None: a closing record
         record = {
             "ts": self.now(),
@@ -652,6 +669,8 @@ class Executor:
         if (attempt.model if entry is None else entry) in decision.below_bar_fallbacks:
             record["below_bar_fallback"] = True
         record["basis"] = decision.basis
+        if pinned_by is not None:  # DESIGN 8.1 v1.639: a pinned call's tag
+            record["pinned_by"] = pinned_by
         record["tags"] = dict(tags)
         record["slice"] = decision.slice
         if pair is not None:  # DESIGN 8.1 v1.607: a shadowed call's records

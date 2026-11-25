@@ -45,6 +45,16 @@ def _check_prompt_tokens(prompt_tokens) -> None:
         raise ValueError(f"prompt_tokens must be an integer >= 0, got {prompt_tokens!r}")
 
 
+def _check_pin(pin_route, allow_below_bar) -> None:
+    """A call's pin keywords (DESIGN 5.2 v1.639), checked right after ``policy``."""
+    if pin_route is not None and (not isinstance(pin_route, str) or not pin_route):
+        raise ValueError(f"pin_route must be None or a non-empty string, got {pin_route!r}")
+    if not isinstance(allow_below_bar, bool):
+        raise ValueError(f"allow_below_bar must be a bool, got {allow_below_bar!r}")
+    if allow_below_bar and pin_route is None:
+        raise ValueError("allow_below_bar needs a pin_route")
+
+
 def _in_scope(patterns: Tuple[str, ...], name: str, key: Optional[str]) -> bool:
     """Rule 5a (DESIGN 5.2 v1.586): on a sliced call a pattern with '@' reads the key, any other the name."""
     return any(fnmatchcase(key if key is not None and "@" in pattern else name, pattern)
@@ -301,7 +311,9 @@ class Router:
                prompt_tokens: Optional[int] = None,
                slice: Optional[str] = None, cascades: bool = False,
                procedures: Sequence[Procedure] = (),
-               policy: Optional[Policy] = None) -> RouteDecision:
+               policy: Optional[Policy] = None,
+               pin_route: Optional[str] = None,
+               allow_below_bar: bool = False) -> RouteDecision:
         """Route ``task_name`` and return a :class:`RouteDecision`.
 
         ``prompt_tokens`` is the size of the one request being routed: when given, the
@@ -320,7 +332,11 @@ class Router:
         rule, and a cascade or procedure whose own ID ``allowed_routes`` leaves out (DESIGN 5.2
         v1.622). Under the task's ``max_p95_ms`` a route whose p95 on the call's key is above it is
         ``too_slow``, and with ``latency_unknown`` ``"deny"`` one whose time is unknown is
-        ``latency_unknown`` (5.2 v1.628). Raises ``KeyError``
+        ``latency_unknown`` (5.2 v1.628). A ``pin_route`` skips the ranking: every candidate is judged
+        as without it and the pin is the only entry, ``basis`` ``"pinned"``; a pin that is not
+        ``eligible`` raises :class:`NoModelClearsBar`, as does one that does not pass unless
+        ``allow_below_bar`` is True, and a pin that is no candidate ``ValueError`` (5.2 v1.639).
+        Raises ``KeyError``
         for an unknown task or generator, ``ValueError`` for an unknown flavor, a
         ``prompt_tokens`` that is not an integer >= 0, a ``slice`` that is not a non-empty
         string without '@', a sliced task whose name holds '@' or whose slice key is
@@ -343,6 +359,7 @@ class Router:
                              f"got {type(procedures).__name__}")
         if policy is not None and not isinstance(policy, Policy):  # DESIGN 5.2 v1.622
             raise ValueError(f"policy must be None or a Policy, got {type(policy).__name__}")
+        _check_pin(pin_route, allow_below_bar)  # DESIGN 5.2 v1.639
         if task_name not in self.tasks:
             raise KeyError(f"unknown task: {task_name!r}")
         base = self.tasks[task_name]
@@ -386,6 +403,9 @@ class Router:
                                                       generator_base, generator_family, fit_input,
                                                       names, policy)
                             for proc in procedures)
+
+        if pin_route is not None:  # DESIGN 5.2 v1.639: no ranking, the hard checks kept
+            return self._pinned(task, flavor, candidates, pin_route, allow_below_bar, base.name, slice)
 
         passing = [c for c in candidates if c.passes]
         if passing:
@@ -479,6 +499,24 @@ class Router:
                                  brief_output_tokens=brief_output_tokens,
                                  generator_model=generator_model,
                                  exclude_models=exclude_models, policy=policy)
+
+    def _pinned(self, task: Task, flavor: str, candidates: Tuple[Candidate, ...], pin_route: str,
+                allow_below_bar: bool, name: str, slice_name: Optional[str]) -> RouteDecision:
+        """The decision of a pinned call (DESIGN 5.2 v1.639): the pin alone, or a refusal."""
+        by_id = {c.model_id: c for c in candidates}
+        if pin_route not in by_id:
+            raise ValueError(f"pin_route {pin_route!r} is no route of this call: a registry model, "
+                             f"a cascade of the task with cascades=True or one of procedures")
+        pinned = by_id[pin_route]
+        where = f"task {name!r}" + ("" if slice_name is None else f" slice {slice_name!r}")
+        if not pinned.eligible:
+            raise NoModelClearsBar(f"pinned route {pin_route!r} is {pinned.reason} for {where}; "
+                                   f"a pin keeps rules 1 to 5f", candidates)
+        if not pinned.passes and not allow_below_bar:
+            raise NoModelClearsBar(f"pinned route {pin_route!r} is {pinned.reason} for {where}; "
+                                   f"pass allow_below_bar=True to run it under the bar", candidates)
+        return self._decision(task, flavor, [pinned], not pinned.passes, "pinned", candidates,
+                              name=name, slice_name=slice_name)
 
     @staticmethod
     def _model_rule(task: Task, model, excluded: set, generator_base: Optional[str],
