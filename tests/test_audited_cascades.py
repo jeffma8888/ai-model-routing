@@ -191,7 +191,7 @@ def test_a_procedure_entry_gives_one_row_at_its_model_calls_plus_its_tool_cost()
                     plain(MID, "call-2", False)]
     assert list(rows[0]) == ["task", "model", "item", "correct", "cost_usd"]
     stats = calibrate_from_results(rows)
-    assert stats.get("judge", P) == (1, 2) and stats.cost("judge", P) == whole
+    assert stats.get("judge", P) == (1, 2) and stats.cost("judge", P) == 2 * whole   # summed
     assert stats.get("judge", CHEAP) == (0, 0)
 
 

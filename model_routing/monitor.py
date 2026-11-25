@@ -578,9 +578,13 @@ def audited_results(records: Iterable[dict], audits: Mapping[str, bool], *,
     the task's check rejected it; an ``error`` record gives no row. With ``since`` or ``until``,
     ISO 8601 timestamps (no offset reads as UTC), only the calls whose final record's ``ts`` is in
     ``[since, until)`` give rows, so ``calibrate_from_results`` keeps a recent window's stats apart
-    from the all-time file. A call with a cascade's or a procedure's record gives no row at this
-    version (row M1d). Every audited call is checked before any row is returned, and a bad input
-    raises ``ValueError``.
+    from the all-time file. Every audited call is checked before any row is returned, and a bad
+    input raises ``ValueError``.
+
+    v1.636 (row M1d): a cascade's or a procedure's route entry gives one row, its answer's: a
+    cascade's ``model`` its ``cascade`` with ``escalated`` and no token counts, a procedure's its
+    closing record's ``model`` with ``cost_usd``, the ``math.fsum`` of the entry's records; a
+    handed-up cheap leg and a procedure's model calls give none (DESIGN 8.3 v1.636).
     """
     records = list(records)
     for position, rec in enumerate(records, start=1):
@@ -621,24 +625,26 @@ def audited_results(records: Iterable[dict], audits: Mapping[str, bool], *,
                 raise ValueError(f"call_id {call_id!r}: ts {final.get('ts')!r} is no ISO 8601 "
                                  "timestamp, so the window cannot read it") from None
             kept = (start is None or start <= stamp) and (end is None or stamp < end)
-        if any("cascade" in rec or "procedure" in rec for rec in recs):
-            continue                      # DESIGN 8.3 v1.632: row M1d
         for rec in recs:
+            if "procedure" in rec and "model_calls" not in rec:
+                continue                  # DESIGN 8.3 v1.636: a model call of a procedure's run
             if rec.get("outcome") == "invalid":
                 correct = False
             elif rec.get("final") is True and rec.get("outcome") == "ok":   # the one final record
                 correct = audits[call_id]
             else:
                 continue                  # an error, or no answer of this call
-            out = _audited_row(call_id, rec, correct)
+            out = _audited_row(call_id, rec, correct, recs)
             if kept:
                 rows.append(out)
     return rows
 
 
-def _audited_row(call_id: str, rec: Mapping, correct: bool) -> dict:
-    """One row of ``audited_results``, its record's fields checked (DESIGN 8.3 v1.632)."""
-    for key in ("task", "model"):
+def _audited_row(call_id: str, rec: Mapping, correct: bool, recs: List[Mapping]) -> dict:
+    """One row of ``audited_results``, its record's fields checked (DESIGN 8.3 v1.632); a
+    cascade's or a procedure's entry checked as ``pair_results`` checks one (v1.636)."""
+    kind = "cascade" if "cascade" in rec else "procedure" if "procedure" in rec else None
+    for key in ("task", "cascade" if kind == "cascade" else "model"):
         value = rec.get(key)
         if not isinstance(value, str) or not value:
             raise ValueError(f"call_id {call_id!r}: {key} must be a non-empty string, got {value!r}")
@@ -649,13 +655,82 @@ def _audited_row(call_id: str, rec: Mapping, correct: bool) -> dict:
     if name is not None and "@" in rec["task"]:   # DESIGN 4.3 v1.511
         raise ValueError(f"call_id {call_id!r}: a sliced call's task must hold no '@', "
                          f"got {rec['task']!r}")
-    out = {"task": rec["task"], "model": rec["model"], "item": call_id, "correct": correct}
-    sizes = (rec.get("input_tokens"), rec.get("output_tokens"))
-    if all(isinstance(n, int) and not isinstance(n, bool) and n >= 0 for n in sizes):
-        out["input_tokens"], out["output_tokens"] = sizes
+    model = rec["cascade"] if kind == "cascade" else rec["model"]
+    out = {"task": rec["task"], "model": model, "item": call_id, "correct": correct}
+    if kind == "cascade":
+        out["escalated"] = _audited_cascade(call_id, rec, model, recs)
+    elif kind == "procedure":
+        out["cost_usd"] = _audited_procedure(call_id, rec, model, recs)
+    else:
+        sizes = (rec.get("input_tokens"), rec.get("output_tokens"))
+        if all(isinstance(n, int) and not isinstance(n, bool) and n >= 0 for n in sizes):
+            out["input_tokens"], out["output_tokens"] = sizes
     if name is not None:
         out["slice"] = name
     return out
+
+
+def _audited_cascade(call_id: str, rec: Mapping, model: str, recs: List[Mapping]) -> bool:
+    """A cascade row's ``escalated``, its entry checked as v1.621 checks one (DESIGN 8.3 v1.636)."""
+    if ">" not in model or model.startswith("proc:"):
+        raise ValueError(f"call_id {call_id!r}: cascade must be a cascade's route ID, holding '>' "
+                         f"and not starting with 'proc:', got {model!r}")
+    escalated = rec.get("escalated")
+    if type(escalated) is not bool:
+        raise ValueError(f"call_id {call_id!r}: its cascade record's escalated must be true or "
+                         f"false, got {escalated!r}")
+    legs = [other for other in recs if _entry(other) == model]
+    if not escalated and len(legs) != 1:
+        raise ValueError(f"call_id {call_id!r}: its cascade {model!r} kept its cheap answer, so its "
+                         "route entry needs that record alone, and the call holds "
+                         f"{len(legs)} records of it")
+    if escalated and (len(legs) != 2 or legs[1] is not rec or legs[0].get("escalated") is not True
+                      or legs[0].get("final") is True):
+        raise ValueError(f"call_id {call_id!r}: its cascade {model!r} handed up, so its route entry "
+                         "needs its cheap leg's record (escalated true, final not true) before this "
+                         f"one, and the call holds {len(legs)} record{'' if len(legs) == 1 else 's'} "
+                         "of it")
+    return escalated
+
+
+def _audited_procedure(call_id: str, rec: Mapping, model: str, recs: List[Mapping]) -> float:
+    """A procedure row's ``cost_usd``, the ``math.fsum`` of its entry's records, checked as v1.621
+    checks them (DESIGN 8.3 v1.636)."""
+    if not model.startswith("proc:"):
+        raise ValueError(f"call_id {call_id!r}: a procedure's closing record's model must be its "
+                         f"route ID, starting with 'proc:', got {model!r}")
+    count = rec.get("model_calls")
+    if type(count) is not int or count < 0:
+        raise ValueError(f"call_id {call_id!r}: its procedure's closing record's model_calls must be "
+                         f"an integer >= 0, got {count!r}")
+    legs = [other for other in recs if _entry(other) == model]
+    earlier = [other for other in legs if other is not rec]
+    if len(earlier) != count:
+        raise ValueError(f"call_id {call_id!r}: its procedure {model!r} made {count} model "
+                         f"call{'' if count == 1 else 's'}, and the call holds {len(earlier)} "
+                         f"record{'' if len(earlier) == 1 else 's'} of them")
+    if not _finite_cost(rec.get("cost_usd")):
+        raise ValueError(f"call_id {call_id!r}: its procedure's closing record's cost_usd must be a "
+                         f"finite number >= 0, got {rec.get('cost_usd')!r}")
+    for other in earlier:
+        if not _finite_cost(other.get("cost_usd")):
+            raise ValueError(f"call_id {call_id!r}: a record of its procedure {model!r} before its "
+                             f"closing one has cost_usd {other.get('cost_usd')!r}, not a finite "
+                             "number >= 0")
+    try:
+        total = fsum(other["cost_usd"] for other in legs)
+    except OverflowError:
+        total = float("inf")
+    if not isfinite(total):
+        raise ValueError(f"call_id {call_id!r}: the costs of its procedure {model!r} sum past the "
+                         "largest float")
+    return total
+
+
+def _finite_cost(value: object) -> bool:
+    """A finite number >= 0, never a bool, as 12.1 reads a cost (DESIGN 8.3 v1.614)."""
+    return not isinstance(value, bool) and isinstance(value, (int, float)) and isfinite(value) \
+        and value >= 0
 
 
 FELL_BELOW, ROSE_ABOVE = "fell_below", "rose_above"   # DESIGN 8.3 v1.633
