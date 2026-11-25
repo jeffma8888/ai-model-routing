@@ -1,7 +1,8 @@
 """DESIGN 10, 13.7 and 5.2 v1.625 (row POL1d): a tenant's policy on the command line and in the docs.
 
 `model-routing select --policy FILE` and `delegate --policy FILE` read one JSON object whose keys
-are among the four `Policy` fields (5.1 v1.622), build `Policy(**object)` and pass it to `select`
+are among the four `Policy` fields (5.1 v1.622), and from v1.643 (row POL2b) its fifth, `name`
+(5.1 v1.642), build `Policy(**object)` and pass it to `select`
 (5.2 v1.622) or `decide_delegation` (13.1 v1.624). The file is read once the other files are loaded
 and the model IDs checked; a value that is not an object, an unknown key or a value `Policy` refuses
 exits 2 with one `error:` line naming the file. The output keeps its form, so the candidate table
@@ -152,15 +153,17 @@ def test_each_help_names_the_five_policy_keys(command, capsys):
     assert "allowed_routes, allowed_families, region, require_zdr and name" in " ".join(capsys.readouterr().out.split())
 
 
-def test_a_named_policy_gives_its_unnamed_copys_output_and_a_name_alone_is_no_policy(files):
+def test_a_named_policy_gives_its_unnamed_copys_output_and_a_name_alone_gives_the_empty_objects(files):
     named = policy_file(files, dict(TENANT, name="tenant-a"), "named.json")
     unnamed = policy_file(files, TENANT, "unnamed.json")
-    alone = policy_file(files, {"name": "tenant-a", "allowed_routes": None}, "alone.json")
+    alone = policy_file(files, {"name": "tenant-a"}, "alone.json")
+    empty = policy_file(files, {}, "empty.json")   # review iter-497 nit 1: a name alone against {}
     for argv in (["select", "t"], ["select", "t", "--json"], ["select", "t", "--flavor", "cost_blind"],
                  ["delegate", "t", "--parent", "x/small", *WORK], ["delegate", "t", "--parent", "y/cheap", *WORK, "--json"]):
         with_name = run(argv + ["--policy", named] + base(files))
         assert with_name == run(argv + ["--policy", unnamed] + base(files)) and with_name[0] == 0, argv
-        assert run(argv + ["--policy", alone] + base(files)) == run(argv + base(files)), argv
+        assert run(argv + ["--policy", alone] + base(files)) == run(argv + ["--policy", empty] + base(files)) \
+            == run(argv + base(files)), argv
 
 
 def test_an_allow_list_that_names_no_route_exits_3_with_the_table(files):

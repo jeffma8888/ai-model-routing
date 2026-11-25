@@ -318,7 +318,7 @@ def _candidate_table(candidates, registry=None) -> str:
     return table + "\n" + PER_ITEM_LINE if per_item else table
 
 
-_POLICY_KEYS = ("allowed_routes", "allowed_families", "region", "require_zdr", "name")  # name: v1.643
+_POLICY_KEYS = ("allowed_routes", "allowed_families", "region", "require_zdr", "name")
 _JSON_TYPES = {list: "array", str: "string", int: "number", float: "number", bool: "boolean",
                type(None): "null"}
 
