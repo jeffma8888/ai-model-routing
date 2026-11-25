@@ -267,9 +267,11 @@ def test_drift_exits_0_with_no_row_and_prints_the_header(tmp_path):
 def test_a_bad_window_is_a_usage_error(files, command, text):
     p = paths(files)
     argv = drift_argv(files) if command == "drift" else select_argv(files, "--log", p["log"], "--audits", p["audits"])
-    code, out, err = run(argv + ["--window", text])
+    code, out, err = run(argv + [f"--window={text}"])   # = form: argparse reads a bare -1d as an option
     assert (code, out) == (2, "")
     assert err.splitlines()[-1] == f"error: argument --window: must be a number of days such as 30d, got {text!r}"
+    if not text.startswith("-"):
+        assert run(argv + ["--window", text]) == (code, out, err)
 
 
 @pytest.mark.parametrize("text", ["740000d", "99999999999d"])

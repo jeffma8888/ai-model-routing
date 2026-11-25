@@ -1,4 +1,4 @@
-"""Command line interface: ``model-routing select|calibrate|report|demo|evaluate|delegate|plan|promote|pairs``."""
+"""Command line interface: ``model-routing select|calibrate|report|demo|evaluate|delegate|plan|promote|pairs|drift``."""
 
 from __future__ import annotations
 
@@ -6,19 +6,20 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import stat
 import sys
 from collections import Counter
 from dataclasses import asdict
-from datetime import date
+from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
 from typing import List, Optional
 
 from . import DATA_DIR
 from .budget import BudgetExceeded, load_budgets
 from .demo import run_demo
-from .monitor import (budget_report, load_audits, load_logs, load_records, pair_results, report,
-                      shadow_pairs)
+from .monitor import (audited_results, budget_report, drift_check, load_audits, load_logs, load_records,
+                      pair_results, report, shadow_pairs)
 from .priors import Priors
 from .promotion import pair_outcomes, paired_promotion
 from .registry import Registry
@@ -72,6 +73,33 @@ def _slice_name(text: str) -> str:
     return text
 
 
+_WINDOW = re.compile(r"[0-9]+d")
+
+
+def _window_days(text: str) -> int:
+    """``--window Nd`` (DESIGN 10 v1.634): N an integer >= 1 in decimal digits, then ``d``."""
+    value = int(text[:-1]) if _WINDOW.fullmatch(text) else 0
+    if value < 1:
+        raise argparse.ArgumentTypeError(f"must be a number of days such as 30d, got {text!r}")
+    return value
+
+
+def _window_bounds(today: date, days: int):
+    """``(since, until)`` of the N UTC days that end with ``today``, today included, as the ISO
+    strings ``audited_results`` reads (DESIGN 10 v1.634)."""
+    try:
+        first, after = today - timedelta(days=days - 1), today + timedelta(days=1)
+    except OverflowError:
+        raise _BadInput(f"--window {days}d reaches past the dates Python can hold") from None
+    return tuple(datetime.combine(day, time(0), tzinfo=timezone.utc).isoformat() for day in (first, after))
+
+
+def _window_stats(args, since: str, until: str) -> Stats:
+    """The window's stats: the audited calls of ``--log`` whose final record is in ``[since, until)``."""
+    records, audits = load_logs(args.log), load_audits(args.audits)
+    return calibrate_from_results(audited_results(records, audits, since=since, until=until))
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = _Parser(prog="model-routing",
                      description="Route each repeated kind of model call to the cheapest "
@@ -94,6 +122,13 @@ def _build_parser() -> argparse.ArgumentParser:
     select.add_argument("--tasks", default=str(DATA_DIR / "example_tasks.json"))
     select.add_argument("--stats", default="stats.json")
     select.add_argument("--priors", default=str(DATA_DIR / "priors.json"))
+    select.add_argument("--window", type=_window_days, default=None, metavar="Nd",
+                        help="route on the audited calls of the last N UTC days, today included, "
+                             "instead of --stats; needs --log and --audits")
+    select.add_argument("--log", action="append", default=None, metavar="PATH",
+                        help="with --window: a monitor log; give --log once per log")
+    select.add_argument("--audits", default=None, metavar="PATH",
+                        help="with --window: a JSONL file of {call_id, correct} audits")
     select.add_argument("--json", action="store_true")
 
     calibrate = sub.add_parser("calibrate", help="merge labeled results into a stats file")
@@ -216,6 +251,19 @@ def _build_parser() -> argparse.ArgumentParser:
                     help="also write the pairs' labeled results rows, each with its cost_usd")
     pa.add_argument("--routes", nargs=2, default=None, metavar=("ROUTED", "SHADOW"),
                     help="with --results: write the rows of this route pair's pairs alone")
+
+    dr = sub.add_parser("drift", help="flag routes whose audited calls in a recent window fell "
+                                      "below their task's bar or rose above it")
+    dr.add_argument("--log", required=True, metavar="PATH", action="append",
+                    help="a monitor log; give --log once per log to read them together")
+    dr.add_argument("--audits", required=True, metavar="PATH",
+                    help="a JSONL file of {call_id, correct} audits")
+    dr.add_argument("--window", type=_window_days, default=30, metavar="Nd",
+                    help="the last N UTC days, today included (default 30d)")
+    dr.add_argument("--stats", default=None, metavar="PATH",
+                    help="the all-time stats file (default: every audited call of the logs)")
+    dr.add_argument("--tasks", default=str(DATA_DIR / "example_tasks.json"))
+    dr.add_argument("--json", action="store_true")
     return parser
 
 
@@ -295,9 +343,19 @@ def _load_policy(path: Optional[str]) -> Optional[Policy]:
 
 
 def _cmd_select(args) -> int:
+    # DESIGN 10 v1.634: the window's options are checked before any file is read
+    if args.window is not None and (args.log is None or args.audits is None):
+        raise _BadInput("--window needs --log and --audits: the window's stats come from the logs' "
+                        "audited calls")
+    if args.window is None and (args.log is not None or args.audits is not None):
+        raise _BadInput("--log and --audits need --window: select reads them only for a window's stats")
+    bounds = None if args.window is None else _window_bounds(args.today, args.window)
     registry = Registry.load(args.registry)
     tasks = load_tasks(args.tasks)
-    stats = Stats.load(args.stats) if Path(args.stats).exists() else Stats()
+    if bounds is not None:   # v1.634: the window's stats, and --stats is not read
+        stats = _window_stats(args, *bounds)
+    else:
+        stats = Stats.load(args.stats) if Path(args.stats).exists() else Stats()
     priors = Priors.load(args.priors) if Path(args.priors).exists() else None
     for model_id in [args.generator, *args.exclude]:
         if model_id is not None:
@@ -713,9 +771,34 @@ def _write_whole(files) -> None:
             handle.close()
 
 
+def _cmd_drift(args) -> int:
+    """DESIGN 10 v1.634: ``drift_check``'s rows for the window; advisory, it writes no file."""
+    since, until = _window_bounds(args.today, args.window)
+    tasks = load_tasks(args.tasks)
+    all_time = None if args.stats is None else Stats.load(args.stats)
+    records, audits = load_logs(args.log), load_audits(args.audits)
+    window = calibrate_from_results(audited_results(records, audits, since=since, until=until))
+    if all_time is None:
+        all_time = calibrate_from_results(audited_results(records, audits))
+    rows = drift_check(all_time, window, tasks)
+    if args.json:
+        print(json.dumps({"since": since, "until": until, "stats": args.stats, "rows": rows}, indent=2))
+        return EXIT_OK
+    print(f"{'since:':<10}{since}")
+    print(f"{'until:':<10}{until}")
+    print(f"{'all_time:':<10}{args.stats if args.stats is not None else 'every audited call of the logs'}")
+    print()
+    print(_table(["task", "route", "all_time", "all_time_lb", "window", "window_lb", "bar", "min_samples",
+                  "flag"],
+                 [[r["task"], r["route"], f"{r['all_time_successes']}/{r['all_time_trials']}",
+                   f"{r['all_time_lb']:.3f}", f"{r['window_successes']}/{r['window_trials']}",
+                   f"{r['window_lb']:.3f}", r["bar"], r["min_samples"], r["flag"] or "-"] for r in rows]))
+    return EXIT_OK
+
+
 _COMMANDS = {"select": _cmd_select, "calibrate": _cmd_calibrate, "report": _cmd_report,
              "demo": _cmd_demo, "evaluate": _cmd_evaluate, "delegate": _cmd_delegate,
-             "plan": _cmd_plan, "promote": _cmd_promote, "pairs": _cmd_pairs}
+             "plan": _cmd_plan, "promote": _cmd_promote, "pairs": _cmd_pairs, "drift": _cmd_drift}
 
 
 def main(argv: Optional[List[str]] = None, *, today: Optional[date] = None) -> int:
@@ -724,7 +807,8 @@ def main(argv: Optional[List[str]] = None, *, today: Optional[date] = None) -> i
     (``demo --budgets``, v1.599).
 
     ``today`` dates the price expiry check of ``select``, ``delegate`` and, from v1.411,
-    ``evaluate``; ``None`` means ``datetime.date.today()``.
+    ``evaluate``, and from v1.634 ends the window of ``drift`` and ``select --window``; ``None``
+    means ``datetime.date.today()``.
     """
     if today is None:
         today = date.today()

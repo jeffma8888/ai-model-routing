@@ -132,10 +132,10 @@ def test_readme_claims_about_the_package_match_the_repo():
     assert problems == []
 
 
-def test_parser_subcommands_are_the_shipped_nine():
-    # v1.603 (row GATE1c) adds promote, v1.612 (row CANARY1k) pairs
+def test_parser_subcommands_are_the_shipped_ten():
+    # v1.603 (row GATE1c) adds promote, v1.612 (row CANARY1k) pairs, v1.634 (row M1c) drift
     assert parser_subcommands() == ["select", "calibrate", "report", "demo", "evaluate", "delegate",
-                                    "plan", "promote", "pairs"]
+                                    "plan", "promote", "pairs", "drift"]
 
 
 def test_package_lines_counts_newlines_as_wc_does(tmp_path):
