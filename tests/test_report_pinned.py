@@ -251,7 +251,7 @@ def test_design_states_v1_640_in_8_3_and_10_and_5_2_points_to_it():
     assert status.count("with every key v1.639 took every output keeping its bytes (row PIN1b)") == 1
     assert ten.count("\n  - v1.640 `--by basis` and `--by pinned_by` (row PIN1b): ") == 1
     assert design.count("`report` putting pinned spend apart from routed spend (row PIN1b, which v1.640 adds, "
-                        "8.3 and 10); the README paragraph (row PIN1c).") == 1
+                        "8.3 and 10); the README paragraph, which v1.641 adds (5.2).") == 1  # v1.641, row PIN1c
     [line] = [x for x in read("CHANGELOG.md").splitlines() if x.startswith("- v1.640 (")]
     assert line.startswith("- v1.640 (2026-11-25): spec, code and tests (8.3, 10, row PIN1b). ")
     assert line.endswith("; with every key v1.639 took every output keeps its bytes.")

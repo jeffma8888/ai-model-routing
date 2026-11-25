@@ -1,6 +1,7 @@
 """DESIGN 5.2 v1.635 (row M1e): the drift check in the docs.
 
 No code changes. README `## Running it in production` ends with a paragraph on `model-routing drift`
+(from v1.641 the one on pinned calls follows it, tests/test_pin_docs.py)
 and `select --window` (8.3 v1.632 and v1.633, 10 v1.634), right after the one on a task's latency bar:
 what the command reads and how it judges each route, which answers count as failures, its flags and
 exit code, the window option of `select`, and the stated limits. README Limitations' `No online drift
@@ -165,12 +166,15 @@ def test_without_stats_the_windows_calls_are_among_the_all_time_ones(tmp_path):
 
 # --- README --------------------------------------------------------------------------------------
 
-def test_the_paragraph_ends_the_section_after_the_latency_one_inside_the_cap():
+def test_the_paragraph_follows_the_latency_one_inside_the_cap():
     text = read("README.md")
     body = text.split(f"\n{PRODUCTION}\n", 1)[1].split("\n## ", 1)[0]
     paragraphs = body.strip().split("\n\n")
-    assert text.count(DRIFT_PARAGRAPH) == 1 and paragraphs[-1] == DRIFT_PARAGRAPH
-    assert paragraphs[-2].startswith(LATENCY_START)
+    assert text.count(DRIFT_PARAGRAPH) == 1 and DRIFT_PARAGRAPH in paragraphs
+    # v1.635 ended the section with it; from v1.641 the pinned-call paragraph follows (tests/test_pin_docs.py)
+    at = paragraphs.index(DRIFT_PARAGRAPH)
+    assert paragraphs[at - 1].startswith(LATENCY_START)
+    assert paragraphs[at + 1:] == [] or paragraphs[at + 1].startswith("A call can also pin its route. ")
     assert size(text, PRODUCTION) <= PRODUCTION_CAP
     assert "\u2014" not in DRIFT_PARAGRAPH and "\u2013" not in DRIFT_PARAGRAPH
 
