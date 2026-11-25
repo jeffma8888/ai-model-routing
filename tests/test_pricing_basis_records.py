@@ -221,7 +221,8 @@ def test_report_by_pricing_basis_splits_the_spend():
 
 
 def test_an_unknown_report_key_names_pricing_basis():
-    with pytest.raises(ValueError, match=r"use model, task, flavor, family, pricing_basis or tag:<key>"):
+    # v1.640 (row PIN1b): basis and pinned_by follow it; tests/test_report_pinned.py pins the message
+    with pytest.raises(ValueError, match=r"use model, task, flavor, family, pricing_basis, "):
         report([], by="nope")
 
 
