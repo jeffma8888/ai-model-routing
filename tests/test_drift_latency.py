@@ -339,6 +339,8 @@ def test_design_and_the_changelog_state_v1_638():
     ten = design[design.index("\n## 10. "):design.index("\n## 11. ")]
     assert ten.count("From 8.3 v1.638 (row LAT3), when any row carries `max_p95_ms`, the table gains, after `flag`, "
                      "the columns `all_time_p95_ms`, `window_p95_ms` and `max_p95_ms`") == 1
+    assert ten.count("when no row carries it, the table keeps v1.634's nine columns and its bytes") == 1
+    assert "otherwise it keeps these columns" not in ten   # review iter-492 must-fix 1
     [line] = [x for x in read("CHANGELOG.md").splitlines() if x.startswith("- v1.638 (")]
     assert line.startswith("- v1.638 (2026-11-25): spec, code and tests (8.3, 10, row LAT3). ")
     assert len(line.encode("utf-8")) <= 600
