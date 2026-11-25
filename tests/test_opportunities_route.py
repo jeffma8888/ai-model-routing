@@ -17,7 +17,8 @@ from pathlib import Path
 import pytest
 
 import model_routing
-from model_routing import Model, Registry, Router, Stats, Task, items_needed
+from model_routing import Model, Registry, Router, Stats, Task, items_needed, wilson_lower_bound
+from model_routing.priors import Priors
 from model_routing.cli import main
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -131,6 +132,42 @@ def test_items_are_none_without_audits_or_an_audited_call():
     assert rows["extract"]["items_to_admit"] == 16 and rows["classify"]["items_to_admit"] is None
 
 
+def test_a_retry_same_route_is_selects_primary_though_dearer_per_call():
+    # review iter-501 should-fix 1. bar 0.2, min_samples 10: cheap 14/40 passes (Wilson lb 0.2213) and mid
+    # 40/40 (0.9124); per call cheap 0.0014 < mid 0.0042, but per success (5.3 v1.567) cheap 0.0014 / 0.2213
+    # = 0.006325 > mid 0.0042 / 0.9124 = 0.004603, so select's primary is mid and the row names it
+    registry = build().registry
+    stats = Stats()
+    stats.add("retry", CHEAP, 14, 40)
+    stats.add("retry", MID, 40, 40)
+    router = Router(registry, {"retry": Task("retry", bar=0.2, min_samples=10, failure_policy="retry_same")}, stats)
+    assert round(wilson_lower_bound(14, 40), 4) == 0.2213 and round(wilson_lower_bound(40, 40), 4) == 0.9124
+    assert router.select("retry", "cost_effective").primary == MID
+    (row,) = opportunities([rec("r1", "retry", CHEAP, 0.002, "2026-11-04T00:00:00Z")], router=router)
+    assert (row["route"], row["route_list_cost_usd"]) == (MID, 0.0042)
+
+
+def test_a_decision_on_a_prior_is_not_admitted():
+    # review iter-501 nit 1: nothing measured, best_available and a prior: select gives cheap on its prior
+    registry = build().registry
+    task = Task("guess", bar=0.8, on_no_model="best_available", prior_category="code")
+    router = Router(registry, {"guess": task}, Stats(), Priors({"code": {"scores": {CHEAP: 0.9}}}))
+    decision = router.select("guess", "cost_effective")
+    assert (decision.primary, decision.basis, decision.below_bar) == (CHEAP, "prior", True)
+    (row,) = opportunities([rec("g1", "guess", CHEAP, 0.002, "2026-11-04T00:00:00Z")], router=router)
+    assert (row["route"], row["route_list_cost_usd"]) == (None, None)
+
+
+def test_a_bar_of_0_needs_min_samples_items():
+    # review iter-501 nit 1: at bar 0 every count clears, so items_needed is 1 (4.3), raised to min_samples 10
+    registry = build().registry
+    router = Router(registry, {"zero": Task("zero", bar=0.0, min_samples=10)}, Stats())
+    log = [rec("z1", "zero", CHEAP, 0.001, "2026-11-04T00:00:00Z"),
+           rec("z2", "zero", CHEAP, 0.001, "2026-11-04T01:00:00Z")]
+    (row,) = opportunities(log, router=router, audits={"z1": True, "z2": False}, target_cost_per_call=0.0)
+    assert items_needed(0.5, 0.0) == 1 and row["items_to_admit"] == 10
+
+
 def test_a_router_without_a_target_has_no_items_key():
     rows = opportunities(LOG, router=build(), audits=AUDITS)
     assert [list(r) for r in rows] == [V1_645 + ["cost_per_success_usd"] + ROUTE] * 4
@@ -220,7 +257,7 @@ def test_cli_defaults_to_the_packaged_registry_and_tasks(tmp_path):
     Stats().save(p["stats"])
     code, out, err = run(["report", "--log", p["log"], "--opportunities", "--stats", p["stats"]])
     assert code == 0   # a packaged price whose stated end date has passed warns, as select warns on it
-    assert all(line.startswith("warning: list price of ") for line in err.splitlines())
+    assert err == "" or all(line.startswith("warning: list price of ") for line in err.splitlines())   # nit 2
     header, rows = body(out)
     assert header == V1_645 + ROUTE and rows[0][0] == "faithfulness_judge" and rows[0][-2:] == ["n/a", "n/a"]
 

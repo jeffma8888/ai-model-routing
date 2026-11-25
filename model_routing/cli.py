@@ -534,6 +534,7 @@ def _report_opportunities(args) -> int:
             return "n/a" if value is None else f"{value:.{places.get(key, 6)}f}"
         print(_table(keys, [[cell(key, r[key]) for key in keys] for r in rows]))
     if router is not None:   # v1.646: as select warns, on the models its rules leave eligible
+        # select runs again here on purpose: the rows keep no candidates (review iter-501 nit 3)
         used = set()
         for name in sorted({r["task"] for r in rows}):
             try:
