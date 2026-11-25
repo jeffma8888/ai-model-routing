@@ -249,8 +249,8 @@ def test_design_states_v1_640_in_8_3_and_10_and_5_2_points_to_it():
     # v1.643 (row POL2b) adds its key to the list of bullets
     assert eight3.count("and the keys the v1.584, v1.640 and v1.643 bullets below add; anything else raises") == 1
     assert ten.count("With every `--by` v1.639 took, the output keeps v1.639's bytes") == 1
-    [status] = [x for x in design.splitlines() if x.startswith("Status: ")]
-    assert status.count("with every key v1.639 took every output keeping its bytes (row PIN1b)") == 1
+    # v1.645 (row OPP1a) drops v1.640's clause from the Status line, which keeps five; the changelog
+    # line below holds it
     assert ten.count("\n  - v1.640 `--by basis` and `--by pinned_by` (row PIN1b): ") == 1
     assert design.count("`report` putting pinned spend apart from routed spend (row PIN1b, which v1.640 adds, "
                         "8.3 and 10); the README paragraph, which v1.641 adds (5.2).") == 1  # v1.641, row PIN1c

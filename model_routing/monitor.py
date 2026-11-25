@@ -358,6 +358,62 @@ def _add_shadow_keys(shadows: List[dict], groups: Dict[str, dict], group_of) -> 
         row["shadow_cost_usd"] = round(row["shadow_cost_usd"], 6)
 
 
+def opportunities(records: Iterable[dict], *, audits: Optional[Mapping[str, bool]] = None,
+                  target_cost_per_call: Optional[float] = None) -> List[dict]:
+    """The savings report: one row per task from a log (DESIGN 8.3 v1.645, row OPP1a).
+
+    Budget records and shadow records (``shadow`` JSON ``true``) are dropped; the rest are grouped
+    by ``task`` as ``report(records, by="task", audits=audits, shadow=True)`` groups them, whose
+    ``calls``, ``cost_usd`` and, with ``audits``, ``cost_per_success_usd`` each row keeps. ``days``
+    counts the UTC dates from the task's earliest to its latest record ``ts``, both counted; a
+    ``ts`` that cannot be read raises ``ValueError``. Each row gives ``calls_per_day``,
+    ``spend_share``, ``cost_per_call_usd`` and ``cost_per_day_usd`` and, with
+    ``target_cost_per_call``, ``saving_per_day_usd``: ``calls_per_day * max(0, cost_per_call_usd -
+    target)``, what the task would cost less each day if a route at the target served every call
+    and cleared the bar, a hypothetical, not a return on what such a route costs to build. Rows
+    are sorted by descending saving (None last) when a target is given, then by descending
+    ``cost_per_day_usd``, then ``task``.
+    """
+    if target_cost_per_call is not None and (
+            isinstance(target_cost_per_call, bool) or not isinstance(target_cost_per_call, (int, float))
+            or not isfinite(target_cost_per_call) or target_cost_per_call < 0):
+        raise ValueError("target_cost_per_call must be None or a finite number >= 0, "
+                         f"got {target_cost_per_call!r}")
+    routed = [rec for rec in records
+              if "budget_event" not in rec and rec.get("shadow") is not True]
+    dates: Dict[str, List[object]] = {}
+    for rec in routed:
+        try:
+            day = _instant(rec.get("ts")).date()
+        except ValueError:
+            raise ValueError(f"call_id {rec.get('call_id')!r}: ts {rec.get('ts')!r} is no ISO 8601 "
+                             "timestamp, so its task's days cannot be counted") from None
+        dates.setdefault(str(rec.get("task")), []).append(day)
+    groups = report(routed, by="task", audits=audits, shadow=True)
+    total = fsum(row["cost_usd"] for row in groups)
+    rows = []
+    for group in groups:
+        calls, cost = group["calls"], group["cost_usd"]
+        days = (max(dates[group["group"]]) - min(dates[group["group"]])).days + 1
+        per_call = cost / calls if calls else None
+        row = {"task": group["group"], "calls": calls, "days": days,
+               "calls_per_day": round(calls / days, 6), "cost_usd": cost,
+               "spend_share": round(cost / total, 6) if total else None,
+               "cost_per_call_usd": None if per_call is None else round(per_call, 6),
+               "cost_per_day_usd": round(cost / days, 6)}
+        if audits is not None:
+            row["cost_per_success_usd"] = group["cost_per_success_usd"]
+        if target_cost_per_call is not None:
+            row["target_cost_per_call_usd"] = float(target_cost_per_call)
+            row["saving_per_day_usd"] = (None if per_call is None else
+                                         round(calls / days * max(0.0, per_call - target_cost_per_call), 6))
+        rows.append(row)
+    rows.sort(key=lambda r: (-r["cost_per_day_usd"], r["task"]))
+    if target_cost_per_call is not None:   # a stable sort keeps the order above within a saving
+        rows.sort(key=lambda r: (r["saving_per_day_usd"] is None, -(r["saving_per_day_usd"] or 0.0)))
+    return rows
+
+
 def budget_report(records: Iterable[dict], budgets: Sequence[Budget]) -> List[dict]:
     """Each budget's spend in each window as a percent of its limit (DESIGN 8.3 v1.598).
 

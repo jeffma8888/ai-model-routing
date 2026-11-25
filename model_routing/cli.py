@@ -19,7 +19,7 @@ from . import DATA_DIR
 from .budget import BudgetExceeded, load_budgets
 from .demo import run_demo
 from .monitor import (audited_results, budget_report, drift_check, load_audits, load_logs, load_records,
-                      pair_results, report, shadow_pairs)
+                      opportunities, pair_results, report, shadow_pairs)
 from .priors import Priors
 from .promotion import pair_outcomes, paired_promotion
 from .registry import Registry
@@ -140,7 +140,7 @@ def _build_parser() -> argparse.ArgumentParser:
     rep = sub.add_parser("report", help="aggregate a calls.jsonl log")
     rep.add_argument("--log", required=True, action="append",
                      help="a monitor log; give --log once per log to read them together")
-    rep.add_argument("--by", default="model")
+    rep.add_argument("--by", default=None, help="the key to group by (default model)")
     rep.add_argument("--json", action="store_true")
     rep.add_argument("--audits", default=None, metavar="PATH",
                      help="a JSONL file of {call_id, correct} audits: adds cost per success")
@@ -148,6 +148,11 @@ def _build_parser() -> argparse.ArgumentParser:
                      help="adds each group's cache hit rate, from the records that carry a cached count")
     rep.add_argument("--shadow", action="store_true",
                      help="keeps shadow calls out of the routed columns and adds their calls and spend")
+    rep.add_argument("--opportunities", action="store_true",
+                     help="one row per task: calls and spend per day, share of spend and cost per call")
+    rep.add_argument("--target-cost-per-call", type=float, default=None, metavar="USD",
+                     help="with --opportunities: the daily saving if a route at this cost served "
+                          "each task, a hypothetical")
 
     demo = sub.add_parser("demo", help="run the offline demo with fictional models")
     demo.add_argument("--out", default="model-routing-demo")
@@ -437,6 +442,15 @@ def _append_outcomes(path: Path, records) -> None:
 
 
 def _cmd_report(args) -> int:
+    if args.opportunities:   # DESIGN 10 v1.645: the checks before any path is read
+        for flag, given in (("--by", args.by is not None), ("--cache", args.cache), ("--shadow", args.shadow)):
+            if given:
+                raise _BadInput(f"--opportunities groups by task alone, so it takes no {flag}")
+        opportunities([], target_cost_per_call=args.target_cost_per_call)   # checks the target first
+        return _report_opportunities(args)
+    if args.target_cost_per_call is not None:
+        raise _BadInput("--target-cost-per-call needs --opportunities: only the savings report reads it")
+    args.by = "model" if args.by is None else args.by
     audits = None if args.audits is None else load_audits(args.audits)
     rows = report(load_logs(args.log), by=args.by, audits=audits, cache=args.cache,
                   shadow=args.shadow)
@@ -475,6 +489,29 @@ def _cmd_report(args) -> int:
                     if args.cache else [])
                  + (["shadow_calls", "shadow_failed_calls", "shadow_cost_usd"]
                     if args.shadow else []), table))
+    return EXIT_OK
+
+
+
+def _report_opportunities(args) -> int:
+    """DESIGN 10 v1.645: ``opportunities``' rows, one per task, as a table or ``--json``."""
+    audits = None if args.audits is None else load_audits(args.audits)
+    rows = opportunities(load_logs(args.log), audits=audits,
+                         target_cost_per_call=args.target_cost_per_call)
+    if args.json:
+        print(json.dumps(rows, indent=2))
+        return EXIT_OK
+    places = {"calls_per_day": 3, "spend_share": 3}
+    keys = list(rows[0]) if rows else (
+        ["task", "calls", "days", "calls_per_day", "cost_usd", "spend_share", "cost_per_call_usd",
+         "cost_per_day_usd"] + (["cost_per_success_usd"] if audits is not None else [])
+        + (["target_cost_per_call_usd", "saving_per_day_usd"] if args.target_cost_per_call is not None else []))
+
+    def cell(key, value):
+        if key in ("task", "calls", "days"):
+            return value
+        return "n/a" if value is None else f"{value:.{places.get(key, 6)}f}"
+    print(_table(keys, [[cell(key, r[key]) for key in keys] for r in rows]))
     return EXIT_OK
 
 
