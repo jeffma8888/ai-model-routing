@@ -265,10 +265,8 @@ def test_design_states_v1_641_in_5_2_and_the_two_sub_bullets_name_it():
     assert [w for w in SHARED if w not in clause or w not in PIN_PARAGRAPH] == []
     assert design.count(NOT_IN_5_2 + "\n") == 1 and eight3.count(NOT_IN_8_3 + "\n") == 1
     assert "the README paragraph (row PIN1c)" not in design
-    [status] = [x for x in design.splitlines() if x.startswith("Status: ")]
-    assert status.startswith("Status: v1.641, 2026-11-25 (v1.641, docs and tests: README `## Running it in production` "
-                             "ends with a paragraph on pinned calls, ")
-    assert status.count("(row PIN1c); v1.640, spec, code and tests: ") == 1
-    line = read("CHANGELOG.md").rstrip("\n").rsplit("\n", 1)[1]
+    # v1.642: no pin of the Status line, which each later version moves; tests/test_design_status.py
+    # keeps the Status rule (as 4460d73 did for v1.638)
+    [line] = [x for x in read("CHANGELOG.md").splitlines() if x.startswith("- v1.641 (")]
     assert line.startswith("- v1.641 (2026-11-25): docs and tests (5.2, 8.3, row PIN1c). ")
     assert len(line.encode("utf-8")) <= 600

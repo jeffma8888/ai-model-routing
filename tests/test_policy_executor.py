@@ -4,8 +4,8 @@
 the call can reach, its primary, its fallbacks, a cascade's two models and a procedure's named
 model, is one the policy allows: no provider call goes to a ruled-out model, a budget's `downgrade`
 moves only along that route, and a shadow route the policy rules out is not sent, with no draw, no
-shadow ID and no pair keys. The records gain no key, and with no policy, or `Policy()`, every
-record and result keeps its v1.622 bytes on the shipped data.
+shadow ID and no pair keys. Until v1.642 the records gained no key (row POL2a adds `policy`), and
+with no policy, or `Policy()`, every record and result keeps its v1.622 bytes on the shipped data.
 """
 
 import dataclasses
@@ -269,10 +269,10 @@ def test_the_default_shadow_route_is_the_best_model_the_policy_allows():
     assert [(rec["model"], rec["shadow"]) for rec in monitor.records] == [("x/small", False), ("x/big", True)]
 
 
-# --- records: no key with or without a policy -------------------------------------------------
+# --- records: from v1.642 a policy's label, else no key ---------------------------------------
 
 @pytest.mark.parametrize("kwargs", [{}, {"flavor": "cost_blind"}, {"validate": lambda text: False}])
-def test_a_policy_that_keeps_the_route_writes_the_records_of_no_policy(kwargs):
+def test_a_policy_that_keeps_the_route_writes_the_records_of_no_policy_plus_its_label(kwargs):
     everyone_allowed = Policy(allowed_families=("x", "y"), region=None, require_zdr=False)
     out = []
     for extra in ({}, {"policy": everyone_allowed}):
@@ -282,8 +282,17 @@ def test_a_policy_that_keeps_the_route_writes_the_records_of_no_policy(kwargs):
         except AllModelsFailed:
             pass
         out.append(monitor.records)
-    assert out[0] == out[1] and out[0]
-    assert [list(rec) for rec in out[0]] == [list(rec) for rec in out[1]]
+    # v1.642 (row POL2a): each record gains the policy's label right after basis, and only that
+    assert out[0] and len(out[0]) == len(out[1]) and not any("policy" in rec for rec in out[0])
+    assert [after_basis(rec) for rec in out[1]] == ["policy"] * len(out[0])
+    assert {rec["policy"] for rec in out[1]} == {everyone_allowed.label}
+    bare = [{k: v for k, v in rec.items() if k != "policy"} for rec in out[1]]
+    assert bare == out[0] and [list(rec) for rec in bare] == [list(rec) for rec in out[0]]
+
+
+def after_basis(record):
+    keys = list(record)
+    return keys[keys.index("basis") + 1]
 
 
 # --- defaults: no policy, or Policy(), keeps every record and result on the shipped data -------
