@@ -362,9 +362,10 @@ def opportunities(records: Iterable[dict], *, audits: Optional[Mapping[str, bool
                   target_cost_per_call: Optional[float] = None) -> List[dict]:
     """The savings report: one row per task from a log (DESIGN 8.3 v1.645, row OPP1a).
 
-    Budget records and shadow records (``shadow`` JSON ``true``) are dropped; the rest are grouped
-    by ``task`` as ``report(records, by="task", audits=audits, shadow=True)`` groups them, whose
-    ``calls``, ``cost_usd`` and, with ``audits``, ``cost_per_success_usd`` each row keeps. ``days``
+    Budget records and shadow records (``shadow`` JSON ``true``) are dropped; the routed rest are
+    grouped by ``task`` as ``report(routed, by="task", audits=audits)`` groups them, whose
+    ``calls``, ``cost_usd`` and, with ``audits``, ``cost_per_success_usd`` each row keeps, so a task
+    that only shadow records reach has no row. ``days``
     counts the UTC dates from the task's earliest to its latest record ``ts``, both counted; a
     ``ts`` that cannot be read raises ``ValueError``. Each row gives ``calls_per_day``,
     ``spend_share``, ``cost_per_call_usd`` and ``cost_per_day_usd`` and, with
@@ -374,11 +375,17 @@ def opportunities(records: Iterable[dict], *, audits: Optional[Mapping[str, bool
     are sorted by descending saving (None last) when a target is given, then by descending
     ``cost_per_day_usd``, then ``task``.
     """
-    if target_cost_per_call is not None and (
-            isinstance(target_cost_per_call, bool) or not isinstance(target_cost_per_call, (int, float))
-            or not isfinite(target_cost_per_call) or target_cost_per_call < 0):
-        raise ValueError("target_cost_per_call must be None or a finite number >= 0, "
-                         f"got {target_cost_per_call!r}")
+    if target_cost_per_call is not None:
+        value = None
+        if isinstance(target_cost_per_call, (int, float)) and not isinstance(target_cost_per_call, bool):
+            try:
+                value = float(target_cost_per_call)
+            except OverflowError:   # an int too large for a float (review iter-499 should-fix 1)
+                value = None
+        if value is None or not isfinite(value) or value < 0:
+            raise ValueError("target_cost_per_call must be None or a finite number >= 0, "
+                             f"got {target_cost_per_call!r}")
+        target_cost_per_call = value
     routed = [rec for rec in records
               if "budget_event" not in rec and rec.get("shadow") is not True]
     dates: Dict[str, List[object]] = {}
@@ -389,7 +396,7 @@ def opportunities(records: Iterable[dict], *, audits: Optional[Mapping[str, bool
             raise ValueError(f"call_id {rec.get('call_id')!r}: ts {rec.get('ts')!r} is no ISO 8601 "
                              "timestamp, so its task's days cannot be counted") from None
         dates.setdefault(str(rec.get("task")), []).append(day)
-    groups = report(routed, by="task", audits=audits, shadow=True)
+    groups = report(routed, by="task", audits=audits)
     total = fsum(row["cost_usd"] for row in groups)
     rows = []
     for group in groups:
@@ -404,7 +411,7 @@ def opportunities(records: Iterable[dict], *, audits: Optional[Mapping[str, bool
         if audits is not None:
             row["cost_per_success_usd"] = group["cost_per_success_usd"]
         if target_cost_per_call is not None:
-            row["target_cost_per_call_usd"] = float(target_cost_per_call)
+            row["target_cost_per_call_usd"] = target_cost_per_call
             row["saving_per_day_usd"] = (None if per_call is None else
                                          round(calls / days * max(0.0, per_call - target_cost_per_call), 6))
         rows.append(row)

@@ -132,6 +132,21 @@ def test_a_task_with_no_final_record_has_no_cost_per_call_or_saving():
     assert rows[0]["saving_per_day_usd"] == 0.001
 
 
+def test_a_task_only_shadow_records_reach_has_no_row():
+    # review iter-499 must-fix 1: report --shadow gives it a row of routed zeros; it has nothing to save
+    log = [rec("r1", "routed", 0, True, "ok", "x/cheap", 0.001, "2026-11-04T00:00:00Z"),
+           rec("w1", "watched", 0, True, "ok", "x/big", 0.3, "2026-11-04T00:00:00Z", shadow=True)]
+    assert sorted(r["group"] for r in report(log, by="task", shadow=True)) == ["routed", "watched"]
+    assert [r["task"] for r in opportunities(log)] == ["routed"]
+    assert opportunities(log)[0]["spend_share"] == 1.0
+
+
+def test_a_large_int_target_is_a_float():
+    (row,) = opportunities([rec("k1", "t", 0, True, "ok", "x/cheap", 0.001, "2026-11-04T00:00:00Z")],
+                           target_cost_per_call=10 ** 30)
+    assert row["target_cost_per_call_usd"] == 1e30 and row["saving_per_day_usd"] == 0.0
+
+
 def test_no_spend_gives_no_share():
     log = [rec("z1", "free", 0, True, "ok", "x/cheap", 0.0, "2026-11-04T00:00:00Z")]
     (row,) = opportunities(log)
@@ -164,7 +179,8 @@ def test_a_shadow_record_with_a_bad_ts_is_dropped_before_it_is_read():
     assert opportunities(log)[0]["days"] == 1
 
 
-@pytest.mark.parametrize("target", [-0.001, math.nan, math.inf, -math.inf, True, False, "0.1", [0.1]])
+@pytest.mark.parametrize("target", [-0.001, math.nan, math.inf, -math.inf, True, False, "0.1", [0.1],
+                                    10 ** 309, -(10 ** 309)])   # review iter-499 should-fix 1
 def test_a_bad_target_is_a_value_error_before_any_record_is_read(target):
     with pytest.raises(ValueError, match="target_cost_per_call"):
         opportunities([{"task": "t", "ts": "never", "final": True}], target_cost_per_call=target)
@@ -187,6 +203,7 @@ def test_cli_table_and_json(tmp_path):
     body = [line.split() for line in lines[1:] if not set(line) <= set("-+| ")]
     assert body[0] == ["summarize", "2", "1", "2.000", "0.030000", "0.682", "0.015000", "0.030000"]
     assert [row[0] for row in body] == ["summarize", "classify", "extract"]
+    assert len(lines) == len(body) + 2 and set(lines[1]) <= set("-+| ")   # review iter-499 nit 3
     code, out, err = run(["report", "--log", log, "--opportunities", "--json"])
     assert (code, err) == (0, "") and json.loads(out) == opportunities(LOG)
 
@@ -232,6 +249,18 @@ def test_cli_bad_target_exits_2_before_any_log_is_read(tmp_path, target):
     assert err.count("\n") == 1 and "target_cost_per_call" in err and "missing.jsonl" not in err
 
 
+def test_cli_a_log_with_no_routed_record_prints_the_header_alone(tmp_path):
+    # review iter-499 nit 1
+    log = write_log(tmp_path, [rec("w1", "t", 0, True, "ok", "x/big", 0.3, "2026-11-04T00:00:00Z", shadow=True)])
+    code, out, err = run(["report", "--log", log, "--opportunities", "--target-cost-per-call", "0"])
+    assert (code, err) == (0, "")
+    lines = out.rstrip("\n").split("\n")
+    assert lines[0].split() == KEYS + ["target_cost_per_call_usd", "saving_per_day_usd"]
+    assert all(set(line) <= set("-+| ") for line in lines[1:])
+    code, out, _ = run(["report", "--log", log, "--opportunities", "--json"])
+    assert (code, json.loads(out)) == (0, [])
+
+
 def test_cli_bad_ts_exits_2(tmp_path):
     log = write_log(tmp_path, [rec("bad1", "t", 0, True, "ok", "x/cheap", 0.001, "soon")])
     code, out, err = run(["report", "--log", log, "--opportunities"])
@@ -265,11 +294,13 @@ NOTE_UBER = ("- In this library: `report` shows spend, failures and fallbacks pe
              "counts the calls answered by a model under the bar. From v1.645 `report --opportunities` is the "
              "savings report: per task from the log, its calls per day, share of spend, cost per call and per "
              "day and, with audits, per success, and with `--target-cost-per-call` the daily saving if a route at "
-             "that cost cleared the bar, its savings labeled hypothetical. It does not yet name the cheapest "
+             "that cost served the task and cleared its bar, which the report assumes and does not check, its "
+             "savings labeled hypothetical. It does not yet name the cheapest "
              "route that clears the bar.\n")
 NOTE_REPLIT = ("Which job to train for is the caller's; from v1.645 the savings report, `report --opportunities` "
                "run with `--target-cost-per-call`, shows by task the daily saving if a route at that cost "
-               "cleared the bar, while how many labelled items such a route would need to be admitted is planned. ")
+               "served it and cleared the bar, which it assumes and does not check, while how many labelled items "
+               "such a route would need to be admitted is planned. ")
 
 
 def test_the_note_says_what_the_savings_report_does():
