@@ -80,7 +80,7 @@ def test_by_pinned_by_gives_one_row_per_tag_and_the_rest_under_none():
     ]
 
 
-def test_a_pinned_by_that_is_not_a_string_is_read_as_its_str_and_a_none_tag_shares_none():
+def test_a_hand_written_pinned_by_that_is_not_a_string_is_read_as_its_str_and_a_none_tag_shares_none():
     log = [rec("a", 0, True, "ok", "x/mid", 0.5, basis="pinned", pinned_by=7),
            rec("b", 0, True, "ok", "x/mid", 0.25, basis="pinned", pinned_by="(none)"),
            rec("c", 0, True, "ok", "x/cheap", 0.125)]
@@ -92,8 +92,19 @@ def test_the_two_keys_read_audits_cache_and_shadow_as_any_by_does():
     [pinned] = [r for r in report(LOG, by="basis", audits=audits) if r["group"] == "pinned"]
     # k3's final attempt is an error, so it is no success; k2's audit says wrong
     assert (pinned["audited_calls"], pinned["correct_calls"], pinned["cost_per_success_usd"]) == (3, 1, 0.54)
-    [tag] = [r for r in report(LOG, by="pinned_by", cache=True, shadow=True) if r["group"] == "ticket-42"]
-    assert (tag["cache_hit_rate"], tag["shadow_calls"]) == (None, 0)
+
+
+def test_cache_counts_and_shadow_spend_sit_in_the_rows_of_the_two_keys():
+    # review iter-494 should-fix 1: a pinned record with a cached count, and a routed call with its
+    # shadow, whose record carries the routed basis and no pinned_by (7 v1.607, v1.639)
+    log = [rec("k1", 0, True, "ok", "x/mid", 0.30, basis="pinned", pinned_by="ticket-42", cached_input_tokens=80),
+           rec("r1", 0, True, "ok", "x/cheap", 0.02, cached_input_tokens=50, pair_id="r1", shadow=False),
+           rec("s1", 0, True, "ok", "x/mid", 0.08, pair_id="r1", shadow=True)]
+    keys = ("group", "calls", "cost_usd", "cached_input_tokens", "cache_counted_input_tokens",
+            "cache_hit_rate", "shadow_calls", "shadow_cost_usd")
+    for by, groups in (("pinned_by", ("ticket-42", "(none)")), ("basis", ("pinned", "measured"))):
+        got = [tuple(r[k] for k in keys) for r in report(log, by=by, cache=True, shadow=True)]
+        assert got == [(groups[0], 1, 0.3, 80, 100, 0.8, 0, 0.0), (groups[1], 1, 0.02, 50, 100, 0.5, 1, 0.08)]
 
 
 def test_an_unknown_key_names_basis_and_pinned_by_right_after_pricing_basis():
@@ -142,6 +153,10 @@ def test_an_executor_log_splits_three_routed_and_three_pinned_calls_by_hand_coun
         ("ticket-42", 2, 0.0028), ("contract-7", 1, 0.0007), ("(none)", 3, 0.00042)]
 
 
+def logged(path):
+    return [json.loads(line) for line in Path(path).read_text(encoding="utf-8").splitlines()]
+
+
 def cli(*argv):
     out, err = io.StringIO(), io.StringIO()
     with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
@@ -161,10 +176,6 @@ def test_report_by_basis_and_pinned_by_on_the_command_line(tmp_path):
         assert [line.split()[0] for line in lines[2:]] == groups
         code, out, err = cli("report", "--log", str(log), "--by", by, "--json")
         assert (code, err) == (0, "") and json.loads(out) == report(logged(log), by=by)
-
-
-def logged(path):
-    return [json.loads(line) for line in Path(path).read_text(encoding="utf-8").splitlines()]
 
 
 def test_an_unknown_key_on_the_command_line_exits_2_naming_the_keys(tmp_path):
@@ -212,7 +223,10 @@ def test_the_demo_log_by_basis_is_its_routed_calls_alone(demo_log):
     [row] = report(records, by="basis")
     assert row["group"] == "measured"
     assert row["calls"] == sum(r["calls"] for r in by_flavor) and row["attempts"] == len(records)
-    assert row["cost_usd"] == round(sum(float(r["cost_usd"]) for r in records), 6)
+    total = 0.0
+    for r in records:   # in log order with +=, as report adds (review iter-494 nit 2)
+        total += float(r["cost_usd"])
+    assert row["cost_usd"] == round(total, 6)
     [none] = report(records, by="pinned_by")
     assert (none["group"], none["calls"]) == ("(none)", row["calls"])
 
@@ -229,9 +243,16 @@ def test_design_states_v1_640_in_8_3_and_10_and_5_2_points_to_it():
     ten = design[design.index("## 10. "):design.index("## 11. ")]
     assert eight3.count("\n- v1.640 `by=\"basis\"` and `by=\"pinned_by\"` (row PIN1b, 8.1 v1.639, 7 v1.639): ") == 1
     assert eight3.count("names `basis` and then `pinned_by` right after `pricing_basis`") == 1
+    # review iter-494 should-fix 2: the keys that keep their bytes are the ones v1.639 took
+    assert eight3.count("With every `by` v1.639 took, every row is v1.639's, key for key") == 1
+    assert eight3.count("and the keys the v1.584 and v1.640 bullets below add; anything else raises") == 1
+    assert ten.count("With every `--by` v1.639 took, the output keeps v1.639's bytes") == 1
+    [status] = [x for x in design.splitlines() if x.startswith("Status: ")]
+    assert status.count("with every key v1.639 took every output keeping its bytes (row PIN1b)") == 1
     assert ten.count("\n  - v1.640 `--by basis` and `--by pinned_by` (row PIN1b): ") == 1
     assert design.count("`report` putting pinned spend apart from routed spend (row PIN1b, which v1.640 adds, "
                         "8.3 and 10); the README paragraph (row PIN1c).") == 1
     [line] = [x for x in read("CHANGELOG.md").splitlines() if x.startswith("- v1.640 (")]
     assert line.startswith("- v1.640 (2026-11-25): spec, code and tests (8.3, 10, row PIN1b). ")
+    assert line.endswith("; with every key v1.639 took every output keeps its bytes.")
     assert len(line.encode("utf-8")) <= 600
