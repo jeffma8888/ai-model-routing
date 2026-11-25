@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import math
 from fnmatch import fnmatchcase
 from dataclasses import asdict, dataclass, replace
@@ -77,12 +79,15 @@ class Policy:
     ``allowed_routes`` and ``allowed_families`` are None (no limit) or the route IDs and families a
     call may reach; ``region`` is the region its calls must be served in, and ``require_zdr`` asks for
     zero data retention. A value the registry does not state fails closed. ``Policy()`` limits nothing.
+    ``name`` (v1.642) is the caller's name for the rules, read by no rule; ``label`` is what a call
+    under the policy logs as ``policy`` (DESIGN 5.1, 7 and 8.1 v1.642).
     """
 
     allowed_routes: Optional[Tuple[str, ...]] = None
     allowed_families: Optional[Tuple[str, ...]] = None
     region: Optional[str] = None
     require_zdr: bool = False
+    name: Optional[str] = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "allowed_routes", _names(self.allowed_routes, "allowed_routes"))
@@ -91,6 +96,31 @@ class Policy:
             raise ValueError(f"region must be None or a non-empty string, got {self.region!r}")
         if not isinstance(self.require_zdr, bool):
             raise ValueError(f"require_zdr must be a bool, got {self.require_zdr!r}")
+        if self.name is not None and (not isinstance(self.name, str) or not self.name
+                                      or self.name.startswith(_DIGEST_PREFIX)):  # DESIGN 5.1 v1.642
+            raise ValueError(f"name must be None or a non-empty string that does not start with "
+                             f"{_DIGEST_PREFIX!r}, got {self.name!r}")
+
+    @property
+    def label(self) -> Optional[str]:
+        """None for ``Policy()``, else the name, else ``sha256:`` and the digest of the rules (5.1 v1.642)."""
+        if self == Policy():
+            return None
+        if self.name is not None:
+            return self.name
+        rules = {"allowed_routes": _canonical(self.allowed_routes),
+                 "allowed_families": _canonical(self.allowed_families),
+                 "region": self.region, "require_zdr": self.require_zdr}
+        text = json.dumps(rules, sort_keys=True, separators=(",", ":"))
+        return _DIGEST_PREFIX + hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+_DIGEST_PREFIX = "sha256:"
+
+
+def _canonical(names: Optional[Tuple[str, ...]]) -> Optional[List[str]]:
+    """A policy list in a label's digest (5.1 v1.642): None, or its distinct strings sorted."""
+    return None if names is None else sorted(set(names))
 
 
 def _policy_rule(policy: Optional[Policy], model) -> Optional[str]:

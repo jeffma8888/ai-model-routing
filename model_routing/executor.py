@@ -191,8 +191,9 @@ class Executor:
         ``policy``, None or a :class:`Policy`, is passed to ``select``, which checks it before any
         call: every entry the call can reach, its fallbacks, a cascade's two models, a procedure's
         model and a downgrade move's landing included, is one the policy allows, and a shadow
-        route it rules out is not sent, with no draw and no pair keys. The records gain no key
-        (DESIGN 7 v1.623).
+        route it rules out is not sent, with no draw and no pair keys. Under a policy whose ``label`` is
+        not None every record the call writes, its shadow's and budget records included, carries it
+        as ``policy`` (DESIGN 7 and 8.1 v1.642).
         ``pin_route`` and ``allow_below_bar`` are passed to ``select`` (5.2 v1.639), and a pin needs
         ``pinned_by``, a non-empty tag, checked before any call: the call runs the pin alone, with no
         fallback and no shadow, and each attempt record carries ``pinned_by`` (DESIGN 7 v1.639).
@@ -230,8 +231,9 @@ class Executor:
         routed = {proc.id: proc for proc in procedures}  # select checked them (5.2 v1.577)
         # DESIGN 7 v1.639: a pinned call is never shadowed, so no draw
         shadow = None if pin_route is not None else self._shadow_route(task_name, decision, tags)
+        label = None if policy is None else policy.label  # DESIGN 7 v1.642: select checked it
         return self._execute(task_name, decision, messages, dict(tags or {}), validate,
-                             (size, estimated), cascades, signals, routed, shadow, pinned_by)
+                             (size, estimated), cascades, signals, routed, shadow, pinned_by, label)
 
     def _shadow_route(self, task_name: str, decision: RouteDecision,
                       tags: Optional[Dict[str, str]]) -> Optional[str]:
@@ -294,7 +296,8 @@ class Executor:
                  signals: Optional[Mapping] = None,
                  procedures: Optional[Dict[str, Procedure]] = None,
                  shadow: Optional[str] = None,
-                 pinned_by: Optional[str] = None) -> CallResult:
+                 pinned_by: Optional[str] = None,
+                 policy_label: Optional[str] = None) -> CallResult:
         task = self.router.tasks[task_name]
         registry = self.router.registry
         call_id = self.id_factory()
@@ -316,8 +319,8 @@ class Executor:
             def note(fields: dict) -> None:  # DESIGN 7 and 8.1 v1.598: a budget record
                 if self.monitor is not None:
                     self.monitor.record({"ts": self.now(), "call_id": call_id,
-                                         "task": decision.task, "tags": dict(call_tags),
-                                         **(pair or {}), **fields})
+                                         "task": decision.task, **_policy_key(policy_label),
+                                         "tags": dict(call_tags), **(pair or {}), **fields})
 
             # the fifth item collects this call's own downgrade refusals (7 v1.596)
             scope = (task_name, call_tags, None if size is None else size[0], out, [], note)
@@ -329,7 +332,7 @@ class Executor:
                 self.monitor.record(self._record(call_id, decision, registry, len(attempts) - 1,
                                                  final, attempt, call_tags, size, entry,
                                                  cascade, escalated, keys, family, moves, pair,
-                                                 pinned_by))
+                                                 pinned_by, policy_label))
 
         try:
             result = self._entries(task_name, decision, messages, validate, cascades, signals,
@@ -343,11 +346,11 @@ class Executor:
         if shadow is not None and result.model != shadow:
             if self.shadow_runner is None:
                 self._shadow(shadow, task_name, task, decision, messages, call_tags, validate,
-                             size, call_id, shadow_id)
+                             size, call_id, shadow_id, policy_label)
             else:  # DESIGN 7 v1.617: off the caller's path, on its own copy of the messages
                 self.shadow_runner(self._job(shadow, task_name, task, decision,
                                              copy.deepcopy(messages), call_tags, validate, size,
-                                             call_id, shadow_id))
+                                             call_id, shadow_id, policy_label))
         return result
 
     def _job(self, *args) -> Callable[[], None]:
@@ -367,7 +370,8 @@ class Executor:
 
     def _shadow(self, model_id: str, task_name: str, task, decision: RouteDecision,
                 messages: List[dict],
-                call_tags: Dict[str, str], validate, size, pair_id: str, call_id: str) -> None:
+                call_tags: Dict[str, str], validate, size, pair_id: str, call_id: str,
+                policy_label: Optional[str] = None) -> None:
         """One provider call of the shadow route, logged under its own call ID (7 v1.607).
 
         A ``ProviderError``, an invalid output or a refusal of its own reservation never
@@ -384,8 +388,8 @@ class Executor:
             def note(fields: dict) -> None:
                 if self.monitor is not None:
                     self.monitor.record({"ts": self.now(), "call_id": call_id,
-                                         "task": decision.task, "tags": dict(tags), **pair,
-                                         **fields})
+                                         "task": decision.task, **_policy_key(policy_label),
+                                         "tags": dict(tags), **pair, **fields})
                 # marked only once recorded: _attempt raises its own refusal right after this
                 # returns, so a monitor's own exception is never taken for it (iter-456 should-fix 1)
                 if fields.get("budget_event") == "refused":
@@ -401,7 +405,7 @@ class Executor:
         attempt, _ = self._checked(attempt, completion, validate)
         if self.monitor is not None:
             self.monitor.record(self._record(call_id, decision, registry, 0, True, attempt, tags,
-                                             size, model_id, pair=pair))
+                                             size, model_id, pair=pair, policy_label=policy_label))
 
     def _entries(self, task_name, decision, messages, validate, cascades, signals, procedures,
                  task, registry, call_id, order, attempts, log, scope, moves) -> CallResult:
@@ -638,7 +642,8 @@ class Executor:
                 size: Optional[Tuple[int, bool]] = None, entry: Optional[str] = None,
                 cascade=None, escalated: Optional[bool] = None, keys: Optional[dict] = None,
                 family: Optional[str] = None, moves: Optional[List[dict]] = None,
-                pair: Optional[dict] = None, pinned_by: Optional[str] = None) -> dict:
+                pair: Optional[dict] = None, pinned_by: Optional[str] = None,
+                policy_label: Optional[str] = None) -> dict:
         model = registry.get(attempt.model) if family is None else None  # None: a closing record
         record = {
             "ts": self.now(),
@@ -671,6 +676,7 @@ class Executor:
         record["basis"] = decision.basis
         if pinned_by is not None:  # DESIGN 8.1 v1.639: a pinned call's tag
             record["pinned_by"] = pinned_by
+        record.update(_policy_key(policy_label))  # DESIGN 8.1 v1.642: after any pinned_by
         record["tags"] = dict(tags)
         record["slice"] = decision.slice
         if pair is not None:  # DESIGN 8.1 v1.607: a shadowed call's records
@@ -687,6 +693,11 @@ class Executor:
         if decision.failure_policy != "none":  # DESIGN 8.1 v1.567: the last key
             record["expected_cost_per_success_usd"] = decision.expected_cost_per_success_usd
         return record
+
+
+def _policy_key(label: Optional[str]) -> dict:
+    """A record's ``policy`` key, or none when the call's policy has no label (DESIGN 8.1 v1.642)."""
+    return {} if label is None else {"policy": label}
 
 
 def _refused(exc: BudgetExceeded) -> dict:
