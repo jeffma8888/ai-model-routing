@@ -52,7 +52,10 @@ DRIFT_PARAGRAPH = (
     "counts once for the cascade, with whether it handed up, and one that a procedure answered once for the "
     "procedure, at its model calls' and tools' cost (`DESIGN.md` 8.3 and 10). Each audited call's row also carries "
     "its route's time (a cascade's legs summed, a procedure's whole run), so on a task with `max_p95_ms` "
-    "`select --window` holds each route to the bar on the window's times. GitHub runs its tests on the "
+    "`select --window` holds each route to the bar on the window's times. On such a task each `drift` row also "
+    "gives both sides' p95 and a `latency_flag`, kept apart from the success flag: `went_over` when the window's "
+    "p95, over at least `min_samples` timed calls, is over the bar while the all-time side keeps the route in, "
+    "`came_under` the other way. GitHub runs its tests on the "
     "models it serves: "
     f"\"{GITHUB_QUOTE}\" ([production lessons](research/production-lessons.md#{GITHUB_ANCHOR})): a fixed test set run "
     "again, where `drift` reads audited calls of your own traffic, and the post gives no count of the drops it found.")

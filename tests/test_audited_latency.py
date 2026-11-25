@@ -302,8 +302,8 @@ def test_under_deny_a_window_with_times_admits_the_fast_route(files):
 @pytest.mark.parametrize("argv", [
     ["select", "judge", "--tasks", "tasks.json"], ["select", "judge", "--tasks", "tasks.json", "--json"],
     ["select", "judge", "--tasks", "tasks.json", "--flavor", "cost_blind"],
-    ["drift", "--tasks", "tasks.json"], ["drift", "--tasks", "bar.json", "--json"],
-    ["drift", "--tasks", "deny.json", "--stats", "stats.json"],
+    ["drift", "--tasks", "tasks.json"], ["drift", "--tasks", "tasks.json", "--json"],
+    ["drift", "--tasks", "tasks.json", "--stats", "stats.json"],
 ])
 def test_with_no_bar_select_and_drift_print_what_they_print_on_the_log_with_no_times(files, argv):
     def call(log):
@@ -313,6 +313,21 @@ def test_with_no_bar_select_and_drift_print_what_they_print_on_the_log_with_no_t
         return run_cli(args + ["--window", "30d", "--log", str(files / log), "--audits", str(files / "audits.jsonl")])
     timed, untimed = call("calls.jsonl"), call("untimed.jsonl")
     assert timed == untimed and timed[0] == 0 and timed[1]
+
+
+def test_from_v1_638_drift_on_a_bar_flags_the_route_whose_window_calls_went_over_it(files):
+    """8.3 v1.638 (row LAT3): stats.json holds no times, so under "allow" both routes are on time
+    all-time; in the window the cheap route's p95 is 1,500 ms, over the 1,000 ms bar, and the mid
+    route's 250 ms. Under "deny" no all-time time is not on time, so the fast route came under."""
+    def rows(tasks):
+        code, out, err = run_cli(["drift", "--tasks", str(files / tasks), "--stats", str(files / "stats.json"),
+                                  "--json", "--window", "30d", "--log", str(files / "calls.jsonl"),
+                                  "--audits", str(files / "audits.jsonl")])
+        assert (code, err) == (0, "")
+        return [(r["route"], r["all_time_p95_ms"], r["window_p95_ms"], r["latency_flag"], r["flag"])
+                for r in json.loads(out)["rows"]]
+    assert rows("bar.json") == [(CHEAP, None, 1500.0, "went_over", None), (MID, None, 250.0, None, None)]
+    assert rows("deny.json") == [(CHEAP, None, 1500.0, None, None), (MID, None, 250.0, "came_under", None)]
 
 
 # --- the spec and the docs ---------------------------------------------------------------------
@@ -343,4 +358,4 @@ def test_the_readme_drift_paragraph_says_select_window_holds_a_route_to_the_bar(
     assert read("README.md").count(
         " Each audited call's row also carries its route's time (a cascade's legs summed, a procedure's whole "
         "run), so on a task with `max_p95_ms` `select --window` holds each route to the bar on the window's "
-        "times. GitHub runs its tests") == 1
+        "times. On such a task each `drift` row") == 1
