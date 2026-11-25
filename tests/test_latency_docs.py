@@ -57,7 +57,8 @@ HARVEY_LINE = (
     "sliced call, the slice's), and a task that sets `latency_unknown` to `deny` rules out a route with fewer. The monitor reports p50 and p95 latency per "
     "group, and a task sets a timeout per call. From v1.631 the delegation decision holds a parent's inline work "
     "to the same bar on the parent's own time on the task: a parent whose time is above it, or unknown under "
-    "`deny`, hands the work to a sub-agent.")
+    "`deny`, cannot work inline, so the work goes to a sub-agent on a route inside the bar, or is refused when "
+    "there is none.")  # review iter-484 should-fix 1: the no-route outcome
 OLD_HARVEY = "but no task can exclude a model for being too slow"
 UBER_TAIL = ("Its quality is a success rate on the task's acceptance check, not F1, and from v1.628 admission can also "
              "read a route's measured p95 time, the latency bar of the Harvey lessons above.")

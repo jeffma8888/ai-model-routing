@@ -209,7 +209,11 @@ def test_design_and_the_changelog_state_v1_631():
     design = read("DESIGN.md")
     four = design.split("\n### 13.4 ", 1)[1].split("\n### 13.5 ", 1)[0]
     assert four.count("\n5. v1.631 (row LAT1d): the task sets `max_p95_ms` (4.2 v1.628) and the parent's time") == 1
-    assert four.count("\n- v1.631 (row LAT1d), why the parent's time on the task bounds its inline work: ") == 1
+    assert four.count("\n- v1.631 (row LAT1d), why the parent's time on the task stands for its inline work: ") == 1
+    # review iter-484 must-fix 1: a trial's caller-measured time is a proxy, not a bound on the inline time
+    assert four.count("So the rule is a conservative admission policy, not a measured or proven bound") == 1
+    assert four.count("It can rule out an inline path that would have met the bar, and admit one that would not") == 1
+    assert "the least the inline work takes" not in four and "bounds its inline work" not in four
     assert "no rule reads the parent's time" not in four
     five = design.split("\n### 13.5 ", 1)[1].split("\n### 13.6 ", 1)[0]
     assert five.count("\n- v1.631 (row LAT1d): row 1 takes a parent that 13.4 rule 5 blocks, ") == 1
