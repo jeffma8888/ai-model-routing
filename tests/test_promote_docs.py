@@ -114,29 +114,25 @@ def test_the_paragraph_follows_the_two_on_budgets_and_precedes_the_one_on_thread
 
 def test_the_paragraph_says_the_check_complements_the_bar_and_how_to_use_it():
     text = part(OPENING)
-    for clause in ("so a challenger that clears it can still do worse than the route it would replace on the same items",
-                   "so two routes pair only when one results file graded both",
+    # v1.647 (row PROD1g): the paragraph keeps its lead claim and names in a shorter form; each clause it
+    # dropped is stated in DESIGN 4.7 or 10 (tests/test_readme_trim.py)
+    for clause in ("so a challenger that clears it can still do worse than the route it would replace on the same items.",
+                   "pairs the challenger's outcomes with those of `select`'s primary on that one hash.",
                    "It requires the bar to admit the challenger first and exits 3 when it does not, so the check "
                    "complements the bar and never replaces it.",
                    "Then it prints `promote` on an exact McNemar result in the challenger's favor at `--alpha` "
-                   "(default 0.05) or, for a challenger "
-                   "cheaper per item at list prices, on a paired lower bound above `-M` (the adjusted Wald interval "
-                   "of [Bonett and Price, 2012](https://doi.org/10.3102/1076998611411915)); `hold` otherwise; and "
+                   "(default 0.05) or, for a challenger cheaper per item, on a paired lower bound above `-M` "
+                   "([Bonett and Price, 2012](https://doi.org/10.3102/1076998611411915)); `hold` otherwise; and "
                    "`insufficient_overlap` under the task's `min_samples` pairs.",
-                   "It is advisory and changes no route or file (`DESIGN.md` 4.7 and 10).",
+                   "It is advisory and changes no route or file (`DESIGN.md` 4.7, with the pairs a margin needs, and 10).",
                    # review iter-454 should-fix 1: `promote` pairs with `select`'s primary, so the paragraph says
                    # how to check a later challenger against the first route
-                   "Declare M before the run, and once a challenger is promoted on non-inferiority, check the next "
-                   "one against the first route, not the promoted one: each promotion against the route before it "
-                   "can lose up to M by the interval's reading, so a chain of k of them can lose up to k times M "
-                   "against the first route.",
-                   "`promote` always pairs with `select`'s primary, so for that check call `pair_outcomes` with the "
-                   "first route as `current` and pass its two maps to `paired_promotion`.",
-                   "so a cheaper challenger arises under `cost_blind`, or on a `retry_same` task, whose primary is the "
-                   "cheapest per success.",
-                   "Calibrate each labeled file once, since a second run doubles the trials the admission reads while "
-                   "the pairs count each item once",
-                   "pass `--alpha` 0.05 divided by k.",
+                   "Declare M before the run, and check each later challenger against the first route, since a "
+                   "chain of k promotions can lose up to k times M: call `pair_outcomes` with the first route as "
+                   "`current` and pass its two maps to `paired_promotion`.",
+                   "Under `cost_effective` the primary is already the cheapest passing route, so a cheaper "
+                   "challenger arises under `cost_blind`, or on a `retry_same` task;",
+                   "to check k challengers on one file pass `--alpha` 0.05 divided by k.",
                    "([production lessons](research/production-lessons.md#switch-models-only-on-locked-data-and-a-significant-result))"):
         assert text.count(clause) == 1, clause
     assert "\u2014" not in text and "\u2013" not in text
@@ -151,8 +147,11 @@ def test_the_quote_is_the_notes_word_for_word():
 
 
 def test_the_bound_numbers_are_the_checks():
-    text = part(OPENING)
-    assert f"at 30 pairs it is {bound(30, 0, 0).lower_bound:.4f} with no discordant pair and " \
+    # v1.647 (row PROD1g): the numbers moved from the README paragraph to DESIGN 4.7 v1.647
+    design = read("DESIGN.md")
+    four7 = design[design.index("\n### 4.7 "):design.index("\n## 5. ")]
+    [text] = [line for line in four7.splitlines() if line.startswith("- v1.647 (row PROD1g, ")]
+    assert f"it is {bound(30, 0, 0).lower_bound:.4f} at 30 pairs with no discordant pair and " \
            f"{bound(30, 2, 2).lower_bound:.4f} with two each way" in text
     assert (round(bound(30, 0, 0).lower_bound, 4), round(bound(30, 2, 2).lower_bound, 4)) == (-0.0866, -0.15)
     # the smallest pair counts at which a cheaper challenger tied with the current route clears a 0.03 margin
@@ -160,9 +159,9 @@ def test_the_bound_numbers_are_the_checks():
     each = next(n for n in range(1, 1000) if bound(n, round(0.05 * n), round(0.05 * n)).decision == "promote")
     assert (none, each) == (91, 442)
     assert bound(90, 0, 0).decision == "hold" and bound(441, 22, 22).decision == "hold"
-    assert (f"so at the default `--alpha` a cheaper challenger needs {none} pairs to clear a margin of 0.03 with no "
-            f"discordant pair and {each} with 5% of the pairs going each way, and never fewer than the task's "
-            f"`min_samples`.") in text
+    assert (f"so with `cheaper` and a `margin` of 0.03 a challenger tied with the current route gives `promote` "
+            f"from {none} pairs with no discordant pair and from {each} with 5% of the pairs going each way") in text
+    assert "-0.0866" not in part(OPENING) and " 442 " not in part(OPENING)
 
 
 def test_bound_counts_its_pairs_as_said():

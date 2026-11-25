@@ -30,8 +30,9 @@ CITATION = ("  - v1.606 (row GATE1e, review iter-449 should-fix 1): the source i
             "implementation whose documentation attributes its pseudo-frequency adjustment to Bonett and Price "
             "(2012), `Wald_CI_BonettPrice_paired_2x2` of the CRAN package "
             "contingencytables 3.1.1 (" + SOURCE + "). ")
-README_CLAUSE = ("on a paired lower bound above `-M` (the adjusted Wald interval of "
-                 "[Bonett and Price, 2012](" + DOI + ")); `hold` otherwise;")
+# v1.647 (row PROD1g): the README names the paper; DESIGN 4.7 names the interval
+README_CLAUSE = ("on a paired lower bound above `-M` "
+                 "([Bonett and Price, 2012](" + DOI + ")); `hold` otherwise;")
 
 
 def read(name):

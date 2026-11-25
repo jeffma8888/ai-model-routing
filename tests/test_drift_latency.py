@@ -348,8 +348,7 @@ def test_design_and_the_changelog_state_v1_638():
 
 def test_the_readme_drift_paragraph_names_the_latency_flag_after_the_window_times_sentence():
     text = read("README.md")
-    sentence = (" On such a task each `drift` row also gives both sides' p95 and a `latency_flag`, kept apart from "
-                "the success flag: `went_over` when the window's p95, over at least `min_samples` timed calls, is "
-                "over the bar while the all-time side keeps the route in, `came_under` the other way.")
+    # v1.647 (row PROD1g): the flag's rule moved to DESIGN 8.3 v1.638; the paragraph names its two values
+    sentence = (" and each `drift` row also gives both sides' p95 and a `latency_flag`, `went_over` or `came_under`.")
     assert text.count(sentence) == 1
-    assert text.count("holds each route to the bar on the window's times." + sentence + " GitHub runs its tests") == 1
+    assert text.count("holds each route to the bar on the window's times," + sentence + " GitHub runs its tests") == 1

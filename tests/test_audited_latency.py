@@ -355,7 +355,7 @@ def test_design_and_the_changelog_state_v1_637():
 
 
 def test_the_readme_drift_paragraph_says_select_window_holds_a_route_to_the_bar():
+    # v1.647 (row PROD1g): how a cascade's or a procedure's time is read moved to DESIGN 8.3 v1.637
     assert read("README.md").count(
-        " Each audited call's row also carries its route's time (a cascade's legs summed, a procedure's whole "
-        "run), so on a task with `max_p95_ms` `select --window` holds each route to the bar on the window's "
-        "times. On such a task each `drift` row") == 1
+        " On a task with `max_p95_ms`, `select --window` holds each route to the bar on the window's times, and "
+        "each `drift` row") == 1
