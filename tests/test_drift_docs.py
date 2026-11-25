@@ -50,8 +50,10 @@ DRIFT_PARAGRAPH = (
     "which makes a flag a reason to audit more calls, not proof of a change. Which calls to audit stays yours, and "
     "audits picked by a rule other than chance bias every route's rate; an audited call that a cascade answered "
     "counts once for the cascade, with whether it handed up, and one that a procedure answered once for the "
-    "procedure, at its model calls' and tools' cost (`DESIGN.md` 8.3 and 10). GitHub runs its tests on the models it "
-    "serves: "
+    "procedure, at its model calls' and tools' cost (`DESIGN.md` 8.3 and 10). Each audited call's row also carries "
+    "its route's time (a cascade's legs summed, a procedure's whole run), so on a task with `max_p95_ms` "
+    "`select --window` holds each route to the bar on the window's times. GitHub runs its tests on the "
+    "models it serves: "
     f"\"{GITHUB_QUOTE}\" ([production lessons](research/production-lessons.md#{GITHUB_ANCHOR})): a fixed test set run "
     "again, where `drift` reads audited calls of your own traffic, and the post gives no count of the drops it found.")
 OLD_LIMITATION = ("- No online drift detection. Re-calibrate from audited samples on a schedule, and when a provider ships "

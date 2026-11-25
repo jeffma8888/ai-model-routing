@@ -5,7 +5,9 @@ An audited call's final `ok` answer is labelled by its audit and each `invalid` 
 an `error` gives no row, and `since` and `until` keep the calls whose final record's `ts` is in
 `[since, until)`, so `calibrate_from_results` keeps a recent window's stats apart from the
 all-time file. A call of a cascade or a procedure gave no row at v1.632; from v1.636 (row M1d)
-its entry's answer gives one row, tests/test_audited_cascades.py."""
+its entry's answer gives one row, tests/test_audited_cascades.py. From v1.637 (row LAT2) each row
+carries its route entry's `latency_ms` before `slice`, tests/test_audited_latency.py; these rows'
+records all take 5.0 ms, and the executor tests' clock stands still, so each attempt takes 0.0."""
 
 import copy
 from pathlib import Path
@@ -39,10 +41,11 @@ def rec(call_id, model, outcome, final=True, attempt=0, ts=NEW, task="judge", sl
     return out
 
 
-def row(model, item, correct, slice=None, tokens=(1000, 200)):
+def row(model, item, correct, slice=None, tokens=(1000, 200), latency=5.0):
     out = {"task": "judge", "model": model, "item": item, "correct": correct}
     if tokens is not None:
         out.update(input_tokens=tokens[0], output_tokens=tokens[1])
+    out["latency_ms"] = latency                   # DESIGN 8.3 v1.637
     return out if slice is None else {**out, "slice": slice}
 
 
@@ -75,7 +78,7 @@ def test_each_answer_of_an_audited_call_gives_one_row_in_log_order():
 
 
 def test_a_row_has_its_keys_in_order_and_slice_last_only_on_a_sliced_call():
-    keys = ["task", "model", "item", "correct", "input_tokens", "output_tokens"]
+    keys = ["task", "model", "item", "correct", "input_tokens", "output_tokens", "latency_ms"]
     assert [list(r) for r in audited(LOG, AUDITS)] == [keys] * 4 + [keys + ["slice"]] + [keys] * 2
 
 
@@ -103,8 +106,9 @@ def test_token_counts_are_copied_only_when_both_are_counts():
 
 
 def test_nothing_else_of_a_record_is_copied():
+    # from v1.637 (row LAT2) its latency_ms is copied, tests/test_audited_latency.py
     log = [rec("a", CHEAP, "ok", cached_input_tokens=800, cascade_note="x", latency_ms=99.0)]
-    assert audited(log, {"a": True}) == [row(CHEAP, "a", True)]
+    assert audited(log, {"a": True}) == [row(CHEAP, "a", True, latency=99.0)]
 
 
 def test_no_records_or_no_audits_give_no_rows_and_a_generator_is_read():
@@ -229,7 +233,8 @@ def test_the_rows_of_a_real_executor_log():
     stamps = iter([OLD] * 2 + [NEW] * 100)
     script = {CHEAP: answers("bad", "fine"), MID: answers("good")}
     executor = Executor(Router(registry, {"judge": task}, stats), FakeProvider(script),
-                        monitor=monitor, now=lambda: next(stamps), id_factory=lambda: next(ids))
+                        monitor=monitor, now=lambda: next(stamps), id_factory=lambda: next(ids),
+                        clock=lambda: 0.0)
     for _ in range(3):
         try:
             executor.call("judge", [{"role": "user", "content": "q"}],
@@ -241,9 +246,10 @@ def test_the_rows_of_a_real_executor_log():
         ("call-0", CHEAP, "invalid"), ("call-0", MID, "ok"), ("call-1", CHEAP, "ok"),
         ("call-2", CHEAP, "error"), ("call-2", MID, "error"), ("call-2", BEST, "error")]
     audits = {"call-0": True, "call-1": True, "call-2": False}
-    assert audited(records, audits) == [row(CHEAP, "call-0", False), row(MID, "call-0", True),
-                                        row(CHEAP, "call-1", True)]
-    assert audited(records, audits, since=NEW) == [row(CHEAP, "call-1", True)]
+    assert audited(records, audits) == [row(CHEAP, "call-0", False, latency=0.0),
+                                        row(MID, "call-0", True, latency=0.0),
+                                        row(CHEAP, "call-1", True, latency=0.0)]
+    assert audited(records, audits, since=NEW) == [row(CHEAP, "call-1", True, latency=0.0)]
 
 
 def test_a_real_log_with_shadow_calls_a_sliced_call_and_a_refused_hold():
@@ -258,7 +264,7 @@ def test_a_real_log_with_shadow_calls_a_sliced_call_and_a_refused_hold():
     router = Router(registry, {"judge": task}, stats)
     monitor = Monitor()
     ids = iter(f"call-{i}" for i in range(100))
-    common = dict(monitor=monitor, now=lambda: NEW, id_factory=lambda: next(ids))
+    common = dict(monitor=monitor, now=lambda: NEW, id_factory=lambda: next(ids), clock=lambda: 0.0)
     shadowed = Executor(router, FakeProvider({CHEAP: answers("a", "b"), BEST: answers("s", "t")}),
                         random=lambda: 0.0, **common)
     shadowed.call("judge", [{"role": "user", "content": "q"}])
@@ -272,9 +278,10 @@ def test_a_real_log_with_shadow_calls_a_sliced_call_and_a_refused_hold():
         ("call-0", False, None), ("call-1", True, None), ("call-2", False, None),
         ("call-3", True, None), ("call-4", False, "refused")]
     audits = {"call-0": True, "call-1": False, "call-2": True, "call-3": False, "call-4": True}
-    assert audited(records, audits) == [row(CHEAP, "call-0", True), row(BEST, "call-1", False),
-                                        row(CHEAP, "call-2", True, "long"),
-                                        row(BEST, "call-3", False, "long")]
+    assert audited(records, audits) == [row(CHEAP, "call-0", True, latency=0.0),
+                                        row(BEST, "call-1", False, latency=0.0),
+                                        row(CHEAP, "call-2", True, "long", latency=0.0),
+                                        row(BEST, "call-3", False, "long", latency=0.0)]
 
 
 # --- checks -----------------------------------------------------------------------------

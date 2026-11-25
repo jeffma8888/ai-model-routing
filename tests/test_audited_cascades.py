@@ -5,7 +5,9 @@ At v1.632 a call with a cascade's or a procedure's record gave no row. Now the e
 gives one row of the entry's route, as `pair_results` (v1.621) gives a routed side: a cascade's
 with `escalated` and no token counts, a procedure's with `cost_usd`, the `math.fsum` of its
 entry's records. A handed-up cheap leg and a procedure's model calls give no row, and a call of
-plain routes keeps its v1.632 rows."""
+plain routes keeps its v1.632 rows. From v1.637 (row LAT2) each row carries its entry's
+`latency_ms` before `slice`, tests/test_audited_latency.py: these records take 5.0 ms each, and the
+executor's clock stands still, so its attempts take 0.0."""
 
 import copy
 import math
@@ -64,7 +66,7 @@ def executor(entry_id, script, **counts):
     monitor = Monitor()
     ids = iter(f"call-{i}" for i in range(100))
     run = Executor(Router(REGISTRY, {"judge": task}, stats), FakeProvider(script), monitor=monitor,
-                   now=lambda: NEW, id_factory=lambda: next(ids))
+                   now=lambda: NEW, id_factory=lambda: next(ids), clock=lambda: 0.0)
     return run, monitor
 
 
@@ -91,12 +93,14 @@ def procedure_log():
     return monitor.records
 
 
-def entry(model, item, correct, **extra):
-    return {"task": "judge", "model": model, "item": item, "correct": correct, **extra}
+def entry(model, item, correct, latency=0.0, slice=None, **extra):
+    out = {"task": "judge", "model": model, "item": item, "correct": correct, **extra,
+           "latency_ms": latency}                 # DESIGN 8.3 v1.637
+    return out if slice is None else {**out, "slice": slice}
 
 
-def plain(model, item, correct):
-    return entry(model, item, correct, input_tokens=1000, output_tokens=200)
+def plain(model, item, correct, latency=0.0):
+    return entry(model, item, correct, latency, input_tokens=1000, output_tokens=200)
 
 
 def rec(call_id, model, outcome, final=True, attempt=0, ts=NEW, **extra):
@@ -146,7 +150,7 @@ def test_a_cascade_entry_gives_one_row_with_escalated_and_no_tokens():
         entry(C, "call-2", False, escalated=False), plain(MID, "call-2", True),
         entry(C, "call-3", False, escalated=True), plain(MID, "call-3", True),
         entry(C, "call-4", True, escalated=True)]
-    assert list(rows[0]) == ["task", "model", "item", "correct", "escalated"]
+    assert list(rows[0]) == ["task", "model", "item", "correct", "escalated", "latency_ms"]
 
 
 def test_calibrate_reads_a_cascade_row_as_one_trial_with_its_escalation():
@@ -160,7 +164,7 @@ def test_calibrate_reads_a_cascade_row_as_one_trial_with_its_escalation():
 def test_a_sliced_cascade_row_keeps_slice_last():
     log = [leg("a", CHEAP, "ok", False, slice="long")]
     [row] = audited(log, {"a": True})
-    assert row == entry(C, "a", True, escalated=False, slice="long")
+    assert row == entry(C, "a", True, 5.0, escalated=False, slice="long")
     assert list(row)[-1] == "slice"
     assert calibrate_from_results([row]).get("judge@long", C) == (1, 1)
 
@@ -169,7 +173,7 @@ def test_a_handed_up_leg_that_failed_gives_no_row_and_is_not_checked():
     log = [leg("a", CHEAP, "ok", True, final=False),
            {**leg("a", MID, "error", None, final=False, attempt=1), "task": None},
            rec("a", BEST, "ok", attempt=2)]
-    assert audited(log, {"a": True}) == [plain(BEST, "a", True)]
+    assert audited(log, {"a": True}) == [plain(BEST, "a", True, 5.0)]
 
 
 # --- a procedure's rows ------------------------------------------------------------------------
@@ -189,7 +193,7 @@ def test_a_procedure_entry_gives_one_row_at_its_model_calls_plus_its_tool_cost()
     assert rows == [entry(P, "call-0", True, cost_usd=whole),
                     entry(P, "call-1", False, cost_usd=whole), plain(MID, "call-1", True),
                     plain(MID, "call-2", False)]
-    assert list(rows[0]) == ["task", "model", "item", "correct", "cost_usd"]
+    assert list(rows[0]) == ["task", "model", "item", "correct", "cost_usd", "latency_ms"]
     stats = calibrate_from_results(rows)
     assert stats.get("judge", P) == (1, 2) and stats.cost("judge", P) == 2 * whole   # summed
     assert stats.get("judge", CHEAP) == (0, 0)
@@ -198,13 +202,13 @@ def test_a_procedure_entry_gives_one_row_at_its_model_calls_plus_its_tool_cost()
 def test_a_model_call_of_a_procedure_gives_no_row_whatever_its_outcome():
     log = [call_of("a", CHEAP, "invalid"), closing("a", "ok")]
     assert audited(log, {"a": False}) == [
-        entry(P, "a", False, cost_usd=math.fsum([0.001, 0.0005]))]
+        entry(P, "a", False, 5.0, cost_usd=math.fsum([0.001, 0.0005]))]
 
 
 def test_a_procedure_with_no_model_sums_its_closing_record_alone():
     log = [closing("a", "ok", attempt=0, model_calls=0, model="proc:tidy@2")]
     log[0]["procedure"], log[0]["procedure_version"] = "tidy", "2"
-    assert audited(log, {"a": True}) == [entry("proc:tidy@2", "a", True, cost_usd=0.0005)]
+    assert audited(log, {"a": True}) == [entry("proc:tidy@2", "a", True, 5.0, cost_usd=0.0005)]
 
 
 # --- plain calls, the window and drift ---------------------------------------------------------
@@ -213,14 +217,14 @@ def test_a_log_of_plain_calls_keeps_its_v1_632_rows():
     log = [rec("a", CHEAP, "invalid", final=False), rec("a", MID, "ok", attempt=1),
            rec("b", CHEAP, "ok")]
     assert audited(log, {"a": True, "b": False}) == [
-        plain(CHEAP, "a", False), plain(MID, "a", True), plain(CHEAP, "b", False)]
+        plain(CHEAP, "a", False, 5.0), plain(MID, "a", True, 5.0), plain(CHEAP, "b", False, 5.0)]
 
 
 def test_a_cascade_call_is_kept_by_its_final_records_time_and_checked_outside_it():
     log = [leg("a", CHEAP, "ok", True, final=False, ts=OLD), leg("a", MID, "ok", True, ts=NEW),
            leg("b", CHEAP, "ok", False, ts=OLD)]
     assert audited(log, {"a": True, "b": True}, since=NEW) == [
-        entry(C, "a", True, escalated=True)]
+        entry(C, "a", True, 10.0, escalated=True)]       # its two legs' 5.0 each
     bad = [leg("b", CHEAP, "ok", None, ts=OLD)] + log[:2]
     with pytest.raises(ValueError, match="call_id 'b': its cascade record's escalated"):
         audited(bad, {"a": True, "b": True}, since=NEW)
