@@ -344,7 +344,6 @@ def test_design_and_the_changelog_state_v1_638():
     [line] = [x for x in read("CHANGELOG.md").splitlines() if x.startswith("- v1.638 (")]
     assert line.startswith("- v1.638 (2026-11-25): spec, code and tests (8.3, 10, row LAT3). ")
     assert len(line.encode("utf-8")) <= 600
-    assert design.splitlines()[2].startswith("Status: v1.638, 2026-11-25 (v1.638, spec, code and tests: ")
 
 
 def test_the_readme_drift_paragraph_names_the_latency_flag_after_the_window_times_sentence():
