@@ -585,6 +585,10 @@ def audited_results(records: Iterable[dict], audits: Mapping[str, bool], *,
     cascade's ``model`` its ``cascade`` with ``escalated`` and no token counts, a procedure's its
     closing record's ``model`` with ``cost_usd``, the ``math.fsum`` of the entry's records; a
     handed-up cheap leg and a procedure's model calls give none (DESIGN 8.3 v1.636).
+
+    v1.637 (row LAT2): each row carries ``latency_ms`` before ``slice``, its route entry's time to
+    its answer: a plain record's, a cascade's legs' ``math.fsum``, a procedure's closing record's
+    alone, which times its run; none when a value is not a finite number >= 0 (DESIGN 8.3 v1.637).
     """
     records = list(records)
     for position, rec in enumerate(records, start=1):
@@ -657,14 +661,23 @@ def _audited_row(call_id: str, rec: Mapping, correct: bool, recs: List[Mapping])
                          f"got {rec['task']!r}")
     model = rec["cascade"] if kind == "cascade" else rec["model"]
     out = {"task": rec["task"], "model": model, "item": call_id, "correct": correct}
+    times = [rec.get("latency_ms")]       # DESIGN 8.3 v1.637: a procedure's times its whole run
     if kind == "cascade":
         out["escalated"] = _audited_cascade(call_id, rec, model, recs)
+        times = [other.get("latency_ms") for other in recs if _entry(other) == model]  # its legs
     elif kind == "procedure":
         out["cost_usd"] = _audited_procedure(call_id, rec, model, recs)
     else:
         sizes = (rec.get("input_tokens"), rec.get("output_tokens"))
         if all(isinstance(n, int) and not isinstance(n, bool) and n >= 0 for n in sizes):
             out["input_tokens"], out["output_tokens"] = sizes
+    if all(_finite_cost(value) for value in times):
+        try:
+            total = fsum(times)
+        except OverflowError:
+            total = float("inf")
+        if isfinite(total):
+            out["latency_ms"] = total
     if name is not None:
         out["slice"] = name
     return out
