@@ -309,12 +309,11 @@ POLICY_PARAGRAPH = (
     "or `delegate --policy FILE`, rules out before cost every route outside the allowed route IDs or "
     "families, every model whose `models.json` row does not list `region` in its `regions`, and, with "
     "`require_zdr`, every model whose row does not state `\"zero_data_retention\": true`, so the primary, "
-    "each fallback, a cascade's legs, a procedure's model, a budget's downgrade, a shadow call and a "
-    "delegate stay inside the allowed set, and a parent the policy rules out does not work inline. The "
+    "each fallback and a delegate stay inside the allowed set. The "  # v1.651, row PROD1gbbbb
     "candidate table names each ruled-out model's reason, `policy_excluded`, `region_unavailable` or "
     "`zdr_required`. A row's `regions` and `zero_data_retention` are what the registry's owner states, "
-    "not a certification: the library checks only that the row states them, and a value a row leaves "
-    "out fails closed. On one shared `Executor` each call may carry its own tenant's policy, and its records "  # should-fix 1
+    "not a certification: the library checks only that the row states them. On one shared `Executor` "
+    "each call may carry its own tenant's policy, and its records "  # should-fix 1; v1.651, row PROD1gbbbb
     "name it as `policy`, its `name` or else a digest of its rules, so `report --by policy` gives each "
     "tenant's spend a row; `call_delegated` names none.")  # v1.644, row POL2c
 HARVEY_LINE = (

@@ -36,7 +36,7 @@ ROOT = Path(__file__).resolve().parents[1]
 DRIFT_START = "A route's success can drift while its all-time counts still admit it, "
 PIN_PARAGRAPH = (
     "A call can also pin its route. `Executor.call(..., pin_route=ROUTE, pinned_by=TAG)` runs ROUTE, a registry "
-    "model, a cascade of the task (with `signals`) or one of the call's `procedures`, without ranking the routes, "
+    "model, a cascade of the task (with `signals`) or one of the call's `procedures`, "  # v1.651, row PROD1gbbbb
     "and `select(..., pin_route=ROUTE)` returns it as the decision's only entry, with `basis` `pinned`. A pin keeps "
     "the hard checks, rules 1 to 5f of `DESIGN.md` 5.2, so it raises `NoModelClearsBar`, whatever `allow_below_bar` "
     "says, when it is excluded, the generator or of its family, out of scope, ruled out by the policy's allowed "

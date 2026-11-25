@@ -38,6 +38,14 @@ parent: one whose". DROPPED_V1_650 holds each deleted clause as v1.649 (4551ee2)
 4.3, 4.6, 5.2, 7 or 8.3, each a behavioural subsection, so no subsection gains a clause. The three keep
 every name in backticks they gave (NAMES_V1_650), their quotes and links. These tests failed on
 v1.649's README and pass on v1.650's.
+
+DESIGN 5.2 v1.651 (row PROD1gbbbb, fifth part): the paragraph on task scopes, the one on a tenant's policy and
+the one on pinned calls are cut the same way, from 1,176, 1,316 and 1,779 bytes to 895, 1,141 and 1,751, each
+by deleting clauses. DROPPED_V1_651 holds each deleted clause as v1.650 (a7d6530) wrote it, pinned to 5.2, 7 or
+13.5, each a behavioural subsection, so no subsection gains a clause. The three keep every name in backticks
+they gave (NAMES_V1_651), their quotes and links, and the pinned-call one every hard check's words, which
+tests/test_pin_docs.py reads (review iter-495 must-fix 1). These tests failed on v1.650's README and pass on
+v1.651's.
 """
 
 from pathlib import Path
@@ -322,9 +330,61 @@ DROPPED_V1_650 = [
     (EST_LEAD, "`budget_used_pct` in each window", "### 8.3 ",
      "gives each budget's spend in each window as a percent of its limit"),
 ]
+# v1.651 (row PROD1gbbbb, fifth part): three more paragraphs, as v1.650 (a7d6530) wrote them
+SCOPE_LEAD = 'A model built for some tasks can be kept to them. '
+POLICY_LEAD = "A tenant's rules hold whatever a route costs. "
+PIN_LEAD = 'A call can also pin its route. '
+OLD_BYTES_V1_651 = {SCOPE_LEAD: 1_176, POLICY_LEAD: 1_316, PIN_LEAD: 1_779}
+NEW_BYTES_V1_651 = {SCOPE_LEAD: 895, POLICY_LEAD: 1_141, PIN_LEAD: 1_751}
+NAMES_V1_651 = {
+    SCOPE_LEAD: [
+        'models.json', '"scope_tasks"', '["review_*"]', '@', '<task>@<slice>', 'out_of_scope', 'DESIGN.md'],
+    POLICY_LEAD: [
+        'Policy(allowed_routes=None, allowed_families=None, region=None, require_zdr=False, name=None)', 'policy=',
+        'select', 'Executor.call', 'decide_delegation', 'select --policy FILE', 'delegate --policy FILE',
+        'models.json', 'region', 'regions', 'require_zdr', '"zero_data_retention": true', 'policy_excluded',
+        'region_unavailable', 'zdr_required', 'zero_data_retention', 'Executor', 'policy', 'name',
+        'report --by policy', 'call_delegated'],
+    PIN_LEAD: [
+        'Executor.call(..., pin_route=ROUTE, pinned_by=TAG)', 'signals', 'procedures',
+        'select(..., pin_route=ROUTE)', 'basis', 'pinned', 'DESIGN.md', 'NoModelClearsBar', 'allow_below_bar',
+        'region', 'require_zdr', 'deny', 'allow_below_bar=True', 'below_bar', 'true', 'AllModelsFailed', 'downgrade',
+        '.call', 'pinned_by', 'report --by basis', 'measured', 'prior', 'report --by pinned_by', '(none)'],
+}
+LINKS_V1_651 = {
+    SCOPE_LEAD: ["(research/production-lessons.md#your-own-trained-model-is-a-candidate-kept-to-the-tasks-it-was-"
+                 "measured-on)",
+                 '"These capabilities are each trained separately and can be deployed as tools and sub-agents that '
+                 'our model can route to in order to tackle specific tasks."'],
+    POLICY_LEAD: [],
+    PIN_LEAD: ["[Limitations](#limitations-and-non-goals-v1)"],
+}
+DROPPED_V1_651 = [
+    (SCOPE_LEAD, "and any other against the task", "### 5.2 ",
+     "a pattern without `@` is matched against the task's name and a pattern with `@` against the `<task>@<slice>` key"),
+    (SCOPE_LEAD, "so a pattern with `@` keeps the model to one slice", "### 5.2 ",
+     "a pattern such as `support@deep` or `*@deep` to that slice alone"),
+    (SCOPE_LEAD, "not at cold start, as a fallback or as the best available model, whatever its counts", "### 5.2 ",
+     "so it gets no cold-start call on a task outside its scope, whatever its counts or prior"),
+    (SCOPE_LEAD, "and on a slice by that slice's counts", "### 5.2 ", "and on a sliced call by that slice's counts alone"),
+    (SCOPE_LEAD, "so a model whose gains differ by part of a task is checked on each part", "### 5.2 ",
+     "a model scoped to a task clears the bar on each slice it serves"),
+    (POLICY_LEAD, "a cascade's legs, a procedure's model", "## 7. ",
+     "with a cascade's cheap and strong models and a procedure's named model, each of which met rules 5b to 5d"),
+    (POLICY_LEAD, "a budget's downgrade", "## 7. ",
+     "a move goes along that route only, so it never lands on a model the policy ruled out"),
+    (POLICY_LEAD, "a shadow call", "## 7. ", "the shadow route is judged on the decision made under the policy"),
+    (POLICY_LEAD, "and a parent the policy rules out does not work inline", "### 13.5 ",
+     "row 1 takes a parent that 13.4 rule 4 blocks, with its policy reason"),
+    (POLICY_LEAD, "and a value a row leaves out fails closed", "### 5.2 ",
+     "So a value the registry does not state fails closed"),
+    (PIN_LEAD, "without ranking the routes", "### 5.2 ",
+     "the ranking of 5.3 is skipped: the pin is the decision's only entry"),
+]
 ENDS = {"### 4.7 ": "\n## 5. ", "### 8.3 ": "\n## 9. ", "## 10. ": "\n## 11. ", "### 4.1 ": "\n### 4.2 ",
         "### 5.2 ": "\n### 5.3 ", "## 6. ": "\n## 7. ", "## 7. ": "\n## 8. ", "## 11. ": "\n## 12. ",
-        "### 4.3 ": "\n### 4.4 ", "### 4.5 ": "\n### 4.6 ", "### 4.6 ": "\n### 4.7 "}
+        "### 4.3 ": "\n### 4.4 ", "### 4.5 ": "\n### 4.6 ", "### 4.6 ": "\n### 4.7 ",
+        "### 13.5 ": "\n### 13.6 "}
 
 
 def read(name):
@@ -527,7 +587,7 @@ def test_the_v1_650_three_are_shorter_and_the_section_under_its_cap():
     found = {lead: len(paragraph(lead).encode("utf-8")) for lead in OLD_BYTES_V1_650}
     assert found == NEW_BYTES_V1_650
     assert sum(OLD_BYTES_V1_650.values()) - sum(found.values()) == 631
-    assert size(read("README.md"), PRODUCTION) == 25_557 <= PRODUCTION_CAP == 30_000
+    assert size(read("README.md"), PRODUCTION) <= PRODUCTION_CAP == 30_000
 
 
 def test_the_v1_650_three_keep_their_leads_their_names_their_quotes_and_their_links():
@@ -584,4 +644,69 @@ def test_design_states_the_v1_650_trim_and_the_changelog_the_version():
     assert len(mine.encode("utf-8")) <= 6_000
     [line] = [x for x in read("CHANGELOG.md").splitlines() if x.startswith("- v1.650 (")]
     assert line.startswith("- v1.650 (2026-11-25): docs and tests (5.2, row PROD1g, fourth part). ")
+    assert len(line.encode("utf-8")) <= 600
+
+
+# --- v1.651 (row PROD1gbbbb, fifth part) ----------------------------------------------------------
+
+def test_the_v1_651_three_are_shorter_and_the_section_under_its_cap():
+    found = {lead: len(paragraph(lead).encode("utf-8")) for lead in OLD_BYTES_V1_651}
+    assert found == NEW_BYTES_V1_651
+    assert sum(OLD_BYTES_V1_651.values()) - sum(found.values()) == 484
+    assert size(read("README.md"), PRODUCTION) == 25_073 <= PRODUCTION_CAP == 30_000
+
+
+def test_the_v1_651_three_keep_their_leads_their_names_their_quotes_and_their_links():
+    for lead in OLD_BYTES_V1_651:
+        text = paragraph(lead)
+        names = []
+        for name in text.split("`")[1::2]:
+            if name not in names:
+                names.append(name)
+        assert [n for n in NAMES_V1_651[lead] if n not in names] == [], lead
+        for link in LINKS_V1_651[lead]:
+            assert text.count(link) == 1, link
+        assert "\u2014" not in text and "\u2013" not in text
+
+
+def test_each_clause_the_v1_651_three_dropped_is_gone_and_its_design_subsection_states_it():
+    design = read("DESIGN.md")
+    assert len(DROPPED_V1_651) == 11
+    for lead, clause, heading, phrase in DROPPED_V1_651:
+        assert clause not in paragraph(lead), clause
+        # a behavioural subsection, never a 5.2 history bullet of the README
+        [owner] = [line for line in subsection(design, heading).splitlines() if phrase in line]
+        assert "README" not in owner.split(":", 1)[0], (heading, phrase)
+
+
+def test_the_v1_651_check_fails_on_a_clause_still_there_or_a_phrase_elsewhere():
+    design = read("DESIGN.md")
+    # kept on purpose: what a scope does, the tenant's set and what a row's values are not, and where a pin sits
+    assert "makes the model a candidate only on a task one of them matches" in paragraph(SCOPE_LEAD)
+    assert "is `out_of_scope` and not eligible, so it gets no calls there. " in paragraph(SCOPE_LEAD)
+    assert "so the primary, each fallback and a delegate stay inside the allowed set. " in paragraph(POLICY_LEAD)
+    assert "not a certification: the library checks only that the row states them. " in paragraph(POLICY_LEAD)
+    assert "a pin is a choice the caller makes for one call before it runs" in paragraph(PIN_LEAD)
+    assert "the ranking of 5.3 is skipped" not in subsection(design, "## 7. ")
+    assert "row 1 takes a parent that 13.4 rule 4 blocks" not in subsection(design, "### 5.2 ")
+    assert "with a cascade's cheap and strong models and a procedure's named model" not in subsection(design, "### 5.2 ")
+
+
+def test_design_states_the_v1_651_trim_and_the_changelog_the_version():
+    design = read("DESIGN.md")
+    five2 = subsection(design, "### 5.2 ")
+    [mine] = [line for line in five2.splitlines()
+              if line.startswith("- v1.651 README trim (row PROD1gbbbb, fifth part): ")]
+    for kept in ("paragraph on task scopes is cut from 1,176 to 895 bytes, the one on a tenant's policy from 1,316 to "
+                 "1,141 and the one on pinned calls from 1,779 to 1,751",
+                 "so the section is 25,073 bytes by the 12.8 measure, under v1.629's 30,000-byte cap, which stays",
+                 "each clause it drops is stated in 5.2, 7 or 13.5, so no subsection gains one",
+                 "so none of the seven paragraphs of the v1.604 move keeps its v1.604 bytes",
+                 "which tests/test_pin_docs.py reads (review iter-495 must-fix 1)",
+                 "No package module, evidence file or README transcript changes."):
+        assert mine.count(kept) == 1, kept
+    assert five2.index("\n- v1.650 README trim (") < five2.index("\n" + mine)
+    assert len(mine.encode("utf-8")) <= 6_000
+    [line] = [x for x in read("CHANGELOG.md").splitlines() if x.startswith("- v1.651 (")]
+    assert line.startswith("- v1.651 (2026-11-25): docs and tests (5.2, row PROD1g, fifth part). ")
     assert len(line.encode("utf-8")) <= 600

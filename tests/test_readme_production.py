@@ -24,7 +24,9 @@ their openings, their order and a length under the one they moved with, and the 
 v1.604 bytes and sha256 as before. DESIGN 5.2 v1.649 (row PROD1gbb): two more, the one on variants and
 the one on procedures, are trimmed the same way, so three keep their v1.604 bytes and sha256. DESIGN 5.2
 v1.650 (row PROD1gbbb): the two on budgets are trimmed too, so only the one on task scopes keeps its
-v1.604 bytes and sha256.
+v1.604 bytes and sha256. DESIGN 5.2 v1.651 (row PROD1gbbbb): the one on task scopes is trimmed too, so none
+of the seven keeps its v1.604 bytes and sha256, and the move test checks each by its opening, its order and a
+length under the one it moved with.
 """
 
 import hashlib
@@ -58,12 +60,14 @@ MOVED = [
     ("The estimate is no bound: ", 1659,
      "85318b6f8f8b400e7c17e56e2737cce7923df888d09068f4323836e781e6e7bb"),
 ]
-# v1.648 (row PROD1gb), v1.649 (row PROD1gbb) and v1.650 (row PROD1gbbb): the MOVED paragraphs a later version
+# v1.648 (row PROD1gb), v1.649 (row PROD1gbb), v1.650 (row PROD1gbbb) and v1.651 (row PROD1gbbbb): the MOVED
+# paragraphs a later version
 # trimmed, by opening,
 # in MOVED's order (tests/test_readme_trim.py)
 TRIMMED = ("One model run two ways can be two routes. ",
            "Recurring tool work can be a route of its own. ",
            "A model you train or serve yourself is a row priced from its hour. ",
+           "A model built for some tasks can be kept to them. ",
            "A prompt cache changes what a call costs, ",
            "A budget tracks what the executor spends and can warn, refuse or move a call. ",
            "The estimate is no bound: ")
