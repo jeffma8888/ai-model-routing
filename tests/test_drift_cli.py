@@ -223,12 +223,13 @@ def test_a_rise_is_flagged_once(tmp_path, files):
 
 
 def test_the_default_window_is_30_days_and_the_option_sets_it(files):
-    for extra, since in (([], SINCE), (["--window", "30d"], SINCE), (["--window", "60d"], "2026-09-26T00:00:00+00:00")):
+    for extra, since, trials in (([], SINCE, 40), (["--window", "30d"], SINCE, 40),
+                                 (["--window", "60d"], "2026-09-26T00:00:00+00:00", 100)):   # 60d holds the older calls too
         code, out, _ = run(drift_argv(files, "--json", *extra))
         data = json.loads(out)
         assert (code, data["since"], data["until"]) == (0, since, UNTIL)
-    rows = {r["route"]: r for r in data["rows"]}
-    assert rows[CHEAP]["window_trials"] == 100       # 60d holds the older calls too
+        rows = {r["route"]: r for r in data["rows"]}
+        assert rows[CHEAP]["window_trials"] == trials   # review iter-487 nit 1: each case
 
 
 @pytest.mark.parametrize("ts, inside", [
@@ -317,10 +318,13 @@ def test_a_named_stats_file_that_is_missing_exits_2(files):
 
 
 def test_a_log_audited_results_refuses_exits_2_with_its_message(tmp_path, files):
+    """A second final record of call c0, another model's, so `load_logs` keeps it (it repeats no
+    record) and `audited_results` refuses the call (review iter-487 should-fix 1)."""
     p = paths(files)
-    twice = write_jsonl(tmp_path / "twice.jsonl", [rec("c0", CHEAP, NEW)])
+    twice = write_jsonl(tmp_path / "twice.jsonl", [rec("c0", MID, NEW)])
     code, out, err = run(["drift", "--log", p["log"], "--log", twice, "--audits", p["audits"], "--tasks", p["tasks"]])
-    assert (code, out) == (2, "") and err.count("\n") == 1 and err.startswith("error: ")
+    assert (code, out) == (2, "")
+    assert err == "error: call_id 'c0' has more than one final record, so its audit cannot be joined\n"
 
 
 # --- no option keeps every byte ------------------------------------------------------------------
