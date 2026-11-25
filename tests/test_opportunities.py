@@ -285,22 +285,25 @@ def test_design_and_changelog_state_v1_645():
     ten = design[design.index("## 10. "):design.index("## 11. ")]
     assert "  - v1.645 `report --log PATH --opportunities [--target-cost-per-call USD] [--audits PATH] [--json]` (row OPP1a)" in ten
     assert ten.index("  - v1.643 `--by policy`") < ten.index("  - v1.645 `report --log PATH --opportunities")
-    last = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").rstrip("\n").split("\n")[-1]
-    assert last.startswith("- v1.645 (2026-11-25): spec, code and tests (8.3, 10, row OPP1a).")
-    assert len(last.encode()) <= 600
+    # v1.646 (row OPP1b) adds a later line, so the v1.645 line is found by its version
+    [line] = [x for x in (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").split("\n") if x.startswith("- v1.645 (")]
+    assert line.startswith("- v1.645 (2026-11-25): spec, code and tests (8.3, 10, row OPP1a).")
+    assert len(line.encode()) <= 600
 
 
+# v1.646 (row OPP1b) restates each line's closing words for the route and the items it adds
 NOTE_UBER = ("- In this library: `report` shows spend, failures and fallbacks per group, and `below_bar_calls` "
              "counts the calls answered by a model under the bar. From v1.645 `report --opportunities` is the "
              "savings report: per task from the log, its calls per day, share of spend, cost per call and per "
              "day and, with audits, per success, and with `--target-cost-per-call` the daily saving if a route at "
              "that cost served the task and cleared its bar, which the report assumes and does not check, its "
-             "savings labeled hypothetical. It does not yet name the cheapest "
-             "route that clears the bar.\n")
+             "savings labeled hypothetical. From v1.646, with `--stats`, it also names for each task the route "
+             "`select` admits and that route's list cost, `n/a` when no route clears the bar.\n")
 NOTE_REPLIT = ("Which job to train for is the caller's; from v1.645 the savings report, `report --opportunities` "
                "run with `--target-cost-per-call`, shows by task the daily saving if a route at that cost "
-               "served it and cleared the bar, which it assumes and does not check, while how many labelled items "
-               "such a route would need to be admitted is planned. ")
+               "served it and cleared the bar, which it assumes and does not check, and from v1.646, with `--stats` "
+               "and `--audits` too, how many labelled items such a route would need to be admitted at the task's "
+               "audited success rate. ")
 
 
 def test_the_note_says_what_the_savings_report_does():
