@@ -338,7 +338,10 @@ def test_the_readme_names_items_per_call():
     part = text.split("\n## Running it in production\n", 1)[1].split("\n## ", 1)[0]  # v1.604, row PROD1a
     assert ('A variant whose calls each handle several items, a judge grading four answers in one call '
             'for example, sets `"items_per_call": 4`') in part
-    assert "priced per item, its mean call over 4, and `select` shows an `items` column" in part
+    # v1.649 (row PROD1gbb): the trial, the mean call over 4 and the cold price are DESIGN 4.3's and 5.2's
+    # (tests/test_readme_trim.py DROPPED_V1_649)
+    assert ('sets `"items_per_call": 4`, so once measured the route is priced per item and `select` shows an '
+            '`items` column.') in part
 
 
 def test_the_production_note_states_items_per_call_as_shipped():

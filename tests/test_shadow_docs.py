@@ -160,12 +160,13 @@ def test_the_second_paragraph_says_what_writes_labels_and_reads_the_pairs():
     for clause in (
             # iter 469 sub-bullet: DESIGN 8.1 and 10 v1.618
             "`checked`, whether `.call` was given an acceptance check.",
-            "with `--checked`, which refuses a log whose shadowed calls ran none, so label such a log by an audits "
-            "file with `--audits PATH`; with neither a pair waits for an audit of both call IDs.",
-            "An error side is never labelled, and nothing reads a pair into the stats, so an unlabelled pair never "
-            "changes a route.",
+            # v1.649 (row PROD1gbb): the refusal, the error side and the item are DESIGN 8.3's
+            # (tests/test_readme_trim.py DROPPED_V1_649)
+            "with `--checked` or by an audits file with `--audits PATH`; with neither a pair waits for an audit of "
+            "both call IDs.",
+            "Nothing reads a pair into the stats, so an unlabelled pair never changes a route.",
             "`--results RESULTS` also writes the labelled pairs as results rows, each with its side's `cost_usd` "
-            "from the log and the routed call's ID as its item",
+            "from the log, so",
             "so `calibrate --outcomes` and then `promote` with the shadow route as `--challenger` compare the two "
             "routes on the same production calls, naming the rows file's hash with `--dataset-sha256` once the "
             "outcomes file holds the two routes' outcomes from another file too",  # review iter-471 nit 1

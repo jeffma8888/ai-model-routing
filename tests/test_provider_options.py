@@ -373,10 +373,11 @@ def test_a_hand_built_route_of_an_unknown_model_calls_the_provider_before_the_co
 def test_the_readme_says_provider_options_are_sent():
     text = (ROOT / "README.md").read_text(encoding="utf-8")
     part = text.split("\n## Running it in production\n", 1)[1].split("\n## ", 1)[0]  # v1.604, row PROD1a
+    # v1.649 (row PROD1gbb): who passes them and the keys an option may not replace are DESIGN 6's and 7's
+    # (tests/test_readme_trim.py DROPPED_V1_649)
     assert ("A variant's `provider_options`, for example `{\"reasoning_effort\": \"high\"}`, are "
-            "sent: the executor passes them to the provider on each call of that route, and "
-            "`OpenAICompatibleProvider` adds them to the request body after `model` and `messages`, "
-            "which an option may not replace (`DESIGN.md` 6 and 7).") in part
+            "sent on each call of that route, and `OpenAICompatibleProvider` adds them to the request body "
+            "after `model` and `messages` (`DESIGN.md` 6 and 7).") in part
 
 
 def test_the_production_note_states_provider_options_as_shipped():

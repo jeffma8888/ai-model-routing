@@ -21,6 +21,15 @@ v1.648's: every run of words it shows as removed is in an entry, as v1.647 wrote
 5.2, 6, 7 or 11, each a behavioural subsection, so no subsection gains a clause. The three keep every
 name in backticks they gave (NAMES_V1_648), their quotes and links. These tests failed on v1.647's
 README and pass on v1.648's.
+
+DESIGN 5.2 v1.649 (row PROD1gbb, third part): the paragraph on variants, the one on procedures and the
+second on shadows, on their records and pairs, are cut the same way, from 1,825, 1,735 and 1,750 bytes
+to 1,506, 1,429 and 1,607. DROPPED_V1_649 was made from a word diff of v1.648's three paragraphs
+(139c8b6) against v1.649's: every run of words it shows as removed is in an entry, pinned to 4.1, 4.3,
+4.5, 5.2, 6, 7, 8.3 or 11, each a behavioural subsection, so no subsection gains a clause. The three
+keep every name in backticks they gave (NAMES_V1_649), their quotes and links. The pinned-call
+paragraph is left whole, as tests/test_pin_docs.py reads every hard check's words in it (review
+iter-495 must-fix 1). These tests failed on v1.648's README and pass on v1.649's.
 """
 
 from pathlib import Path
@@ -191,8 +200,68 @@ DROPPED_V1_648 = [
     (SHADOW_LEAD, "while a runner that runs the job at once waits as None does", "## 7. ",
      "makes `.call` wait for the shadow as None does"),
 ]
+# v1.649 (row PROD1gbb, third part): three more paragraphs, as v1.648 (139c8b6) wrote them
+VAR_LEAD = "One model run two ways can be two routes. "
+PROC_LEAD = "Recurring tool work can be a route of its own. "
+RECORDS_LEAD = "Every record of a shadowed call carries `pair_id`, the routed call's ID, `shadow`, and `checked`, "
+OLD_BYTES_V1_649 = {VAR_LEAD: 1_825, PROC_LEAD: 1_735, RECORDS_LEAD: 1_750}
+NEW_BYTES_V1_649 = {VAR_LEAD: 1_506, PROC_LEAD: 1_429, RECORDS_LEAD: 1_607}
+NAMES_V1_649 = {
+    VAR_LEAD: ["models.json", '"variants": {"lean": {"harness": "lean-agent 2.0", "reasoning_effort": "low"}}',
+               "vendor/model@lean", '"items_per_call": 4', "select", "items", "OpenAICompatibleProvider(model_map=...)",
+               "DESIGN.md", "provider_options", '{"reasoning_effort": "high"}', "OpenAICompatibleProvider", "model",
+               "messages", "anthropic/claude-sonnet-4", "openai/o3-mini-2025-01-31", "@medium", "@high"],
+    PROC_LEAD: ["Procedure(name, version, fn, max_model_calls=..., max_tool_calls=..., model=...)",
+                "proc:<name>@<version>+<model>", "select(..., procedures=[...])", "Executor.call(..., procedures=[...])",
+                "validate", "procedure", "procedure_version", "model_calls", "tool_calls", "tool_cost_usd", "DESIGN.md",
+                "model_routing.demo.run_procedure_demo()"],
+    RECORDS_LEAD: ["pair_id", "shadow", "checked", ".call", "model-routing pairs --log PATH --out FILE", "--checked",
+                   "--audits PATH", "--results RESULTS", "cost_usd", "calibrate --outcomes", "promote", "--challenger",
+                   "--dataset-sha256", "--routes ROUTED SHADOW", "evaluate --outcomes", "escalated", "calibrate",
+                   "evaluate", "DESIGN.md"],
+}
+LINKS_V1_649 = {
+    VAR_LEAD: ["[LiveCodeBench's runs](evidence/livecodebench-variants/RESULTS.md)"],
+    PROC_LEAD: ["(research/production-lessons.md#keep-tool-schemas-and-polling-out-of-the-models-context)",
+                '"the loop runs in a subprocess, and only the summary comes back."'],
+    RECORDS_LEAD: ["(research/production-lessons.md#test-a-model-before-the-switch-and-re-run-the-tests-on-the-models-"
+                   "in-production-every-day)",
+                   '"We also conduct live internal evaluations, similar to canary testing, where we switch a number of '
+                   'Hubbers to use a new model."'],
+}
+DROPPED_V1_649 = [
+    (VAR_LEAD, "listed right after its base", "### 4.1 ", "placed right after its base in the object's order"),
+    (VAR_LEAD, "Excluding a model,", "### 5.2 ", "so excluding a base excludes its variants"),
+    (VAR_LEAD, "or naming it as the generator, covers its variants", "### 5.2 ",
+     "so a variant of the generator's model, and its base, have reason `generator`"),
+    (VAR_LEAD, "each item is one trial carrying its whole call's token counts", "### 4.3 ",
+     "carrying the token counts of the whole call that handled it"),
+    (VAR_LEAD, "its mean call over 4", "### 5.2 ", "the mean of one call (4.3 v1.573), it is `model.cost` of them over k"),
+    (VAR_LEAD, "unmeasured, it is priced as one call at the task's sizes", "### 5.2 ",
+     "At the task's expected sizes it is that call's cost, undivided"),
+    (VAR_LEAD, "the executor passes them to the provider", "## 7. ",
+     "options=registry.get(model).provider_options)` when that model's `provider_options` (4.1) is not empty"),
+    (VAR_LEAD, "which an option may not replace", "## 6. ", "An option never replaces a key the adapter sets"),
+    (PROC_LEAD, "such as submit, poll, fetch and shape the result", "### 4.5 ",
+     "a recurring job's fixed steps (submit, poll, batch, shape a result)"),
+    (PROC_LEAD, "never on its model's", "### 5.2 ", "then rules 6 to 8 on its own counts under its own `.id`"),
+    (PROC_LEAD, "its model calls at list price plus the tool cost it reports", "### 4.3 ",
+     "per trial its model calls at list price plus its `tool_cost_usd`"),
+    (PROC_LEAD, "and a new version starts with no runs", "### 5.2 ", "so a new version or another model starts at 0 trials"),
+    (PROC_LEAD, "an agent route that polls by model turns with the raw rows in its context", "## 11. ",
+     "each turn's input the context so far"),
+    (PROC_LEAD, "a procedure that polls in code and sends its one model call only what it counted", "## 11. ",
+     "Each then counts the rows and sums the amounts in code and makes one model call"),
+    (RECORDS_LEAD, "which refuses a log whose shadowed calls ran none", "### 8.3 ",
+     "saying its call ran no acceptance check (`validate`)"),
+    (RECORDS_LEAD, "so label such a log", "### 8.3 ", "and pointing to `audits` or no label instead"),
+    (RECORDS_LEAD, "An error side is never labelled", "### 8.3 ", "An `error` side gave no answer, so it is None under both"),
+    (RECORDS_LEAD, "and the routed call's ID as its item", "### 8.3 ",
+     "`item`, the call ID, so `item_outcomes` (4.3 v1.602) reads the rows"),
+]
 ENDS = {"### 4.7 ": "\n## 5. ", "### 8.3 ": "\n## 9. ", "## 10. ": "\n## 11. ", "### 4.1 ": "\n### 4.2 ",
-        "### 5.2 ": "\n### 5.3 ", "## 6. ": "\n## 7. ", "## 7. ": "\n## 8. ", "## 11. ": "\n## 12. "}
+        "### 5.2 ": "\n### 5.3 ", "## 6. ": "\n## 7. ", "## 7. ": "\n## 8. ", "## 11. ": "\n## 12. ",
+        "### 4.3 ": "\n### 4.4 ", "### 4.5 ": "\n### 4.6 "}
 
 
 def read(name):
@@ -321,4 +390,65 @@ def test_design_states_the_v1_648_trim_and_the_changelog_the_version():
     assert len(mine.encode("utf-8")) <= 6_000
     [line] = [x for x in read("CHANGELOG.md").splitlines() if x.startswith("- v1.648 (")]
     assert line.startswith("- v1.648 (2026-11-25): docs and tests (5.2, row PROD1g, second part). ")
+    assert len(line.encode("utf-8")) <= 600
+
+
+# --- v1.649 (row PROD1gbb, third part) ------------------------------------------------------------
+
+def test_the_v1_649_three_are_shorter_and_the_section_under_its_cap():
+    found = {lead: len(paragraph(lead).encode("utf-8")) for lead in OLD_BYTES_V1_649}
+    assert found == NEW_BYTES_V1_649
+    assert sum(OLD_BYTES_V1_649.values()) - sum(found.values()) == 768
+    assert size(read("README.md"), PRODUCTION) <= PRODUCTION_CAP == 30_000
+
+
+def test_the_v1_649_three_keep_their_leads_their_names_their_quotes_and_their_links():
+    for lead in OLD_BYTES_V1_649:
+        text = paragraph(lead)
+        names = []
+        for name in text.split("`")[1::2]:
+            if name not in names:
+                names.append(name)
+        assert [n for n in NAMES_V1_649[lead] if n not in names] == [], lead
+        for link in LINKS_V1_649[lead]:
+            assert text.count(link) == 1, link
+        assert "\u2014" not in text and "\u2013" not in text
+
+
+def test_each_clause_the_v1_649_three_dropped_is_gone_and_its_design_subsection_states_it():
+    design = read("DESIGN.md")
+    assert len(DROPPED_V1_649) == 18
+    for lead, clause, heading, phrase in DROPPED_V1_649:
+        assert clause not in paragraph(lead), clause
+        # a behavioural subsection, never a 5.2 history bullet of the README
+        [owner] = [line for line in subsection(design, heading).splitlines() if phrase in line]
+        assert "README" not in owner.split(":", 1)[0], (heading, phrase)
+
+
+def test_the_v1_649_check_fails_on_a_clause_still_there_or_a_phrase_elsewhere():
+    design = read("DESIGN.md")
+    # kept on purpose: no behavioural subsection states them as the paragraph does
+    assert "once the outcomes file holds the two routes' outcomes from another file too" in paragraph(RECORDS_LEAD)
+    assert "as it needs rows of the cascade's two models too" in paragraph(RECORDS_LEAD)
+    assert "the post gives no count of what its checks caught" in paragraph(RECORDS_LEAD)
+    assert "An option never replaces a key the adapter sets" not in subsection(design, "## 7. ")
+    assert "each turn's input the context so far" not in subsection(design, "### 4.5 ")
+
+
+def test_design_states_the_v1_649_trim_and_the_changelog_the_version():
+    design = read("DESIGN.md")
+    five2 = subsection(design, "### 5.2 ")
+    [mine] = [line for line in five2.splitlines() if line.startswith("- v1.649 README trim (row PROD1gbb, third part): ")]
+    for kept in ("paragraph on variants is cut from 1,825 to 1,506 bytes, the one on procedures from 1,735 to 1,429 "
+                 "and the second on shadows, on their records and pairs, from 1,750 to 1,607",
+                 "so the section is 26,188 bytes by the 12.8 measure, under v1.629's 30,000-byte cap, which stays",
+                 "each clause it drops is stated in 4.1, 4.3, 4.5, 5.2, 6, 7, 8.3 or 11, so no subsection gains one",
+                 "tests/test_readme_production.py checks the two more of the v1.604 move it trims",
+                 "tests/test_pin_docs.py reads each hard check's words in it (review iter-495 must-fix 1)",
+                 "No package module, evidence file or README transcript changes."):
+        assert mine.count(kept) == 1, kept
+    assert five2.index("\n- v1.648 README trim (") < five2.index("\n" + mine)
+    assert len(mine.encode("utf-8")) <= 6_000
+    [line] = [x for x in read("CHANGELOG.md").splitlines() if x.startswith("- v1.649 (")]
+    assert line.startswith("- v1.649 (2026-11-25): docs and tests (5.2, row PROD1g, third part). ")
     assert len(line.encode("utf-8")) <= 600

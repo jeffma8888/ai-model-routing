@@ -21,7 +21,8 @@ cap. A docs slice too: no README text changes, so these tests passed when they w
 DESIGN 5.2 v1.648 (row PROD1gb): two of the seven moved paragraphs, the one on self-hosted rows and the
 one on the prompt cache, are trimmed (tests/test_readme_trim.py), so the move test checks those two by
 their openings, their order and a length under the one they moved with, and the other five by their
-v1.604 bytes and sha256 as before.
+v1.604 bytes and sha256 as before. DESIGN 5.2 v1.649 (row PROD1gbb): two more, the one on variants and
+the one on procedures, are trimmed the same way, so three keep their v1.604 bytes and sha256.
 """
 
 import hashlib
@@ -55,8 +56,11 @@ MOVED = [
     ("The estimate is no bound: ", 1659,
      "85318b6f8f8b400e7c17e56e2737cce7923df888d09068f4323836e781e6e7bb"),
 ]
-# v1.648 (row PROD1gb): the MOVED paragraphs a later version trimmed, by opening (tests/test_readme_trim.py)
-TRIMMED = ("A model you train or serve yourself is a row priced from its hour. ",
+# v1.648 (row PROD1gb) and v1.649 (row PROD1gbb): the MOVED paragraphs a later version trimmed, by opening,
+# in MOVED's order (tests/test_readme_trim.py)
+TRIMMED = ("One model run two ways can be two routes. ",
+           "Recurring tool work can be a route of its own. ",
+           "A model you train or serve yourself is a row priced from its hour. ",
            "A prompt cache changes what a call costs, ")
 LEAD = ("These options sit on top of the selection rule of [How a model is chosen](#how-a-model-is-chosen): "
         "each changes which routes a task has, what they cost or what a call may spend.")
