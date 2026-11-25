@@ -624,7 +624,7 @@ def audited_results(records: Iterable[dict], audits: Mapping[str, bool], *,
         for rec in recs:
             if rec.get("outcome") == "invalid":
                 correct = False
-            elif rec is final and rec.get("outcome") == "ok":
+            elif rec.get("final") is True and rec.get("outcome") == "ok":   # the one final record
                 correct = audits[call_id]
             else:
                 continue                  # an error, or no answer of this call

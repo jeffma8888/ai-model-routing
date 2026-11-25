@@ -13,8 +13,8 @@ import pytest
 
 import model_routing
 from model_routing import (
-    AllModelsFailed, Completion, Executor, FakeProvider, Model, Monitor, ProviderError, Registry,
-    Router, Stats, Task, report,
+    AllModelsFailed, Budget, BudgetExceeded, BudgetLedger, Completion, Executor, FakeProvider, Model,
+    Monitor, ProviderError, Registry, Router, Stats, Task, report,
 )
 from model_routing.stats import calibrate_from_results, item_outcomes
 
@@ -252,6 +252,37 @@ def test_the_rows_of_a_real_executor_log():
     assert audited(records, audits) == [row(CHEAP, "call-0", False), row(MID, "call-0", True),
                                         row(CHEAP, "call-1", True)]
     assert audited(records, audits, since=NEW) == [row(CHEAP, "call-1", True)]
+
+
+def test_a_real_log_with_shadow_calls_a_sliced_call_and_a_refused_hold():
+    # review iter-485 should-fix 2: the shadow, budget and slice cases on an executor's own records
+    task = Task("judge", bar=0.7, min_samples=10, shadow_rate=1.0)
+    stats = Stats()
+    for model_id in (CHEAP, MID, BEST):
+        stats.add("judge", model_id, 100, 100)
+        stats.add("judge@long", model_id, 100, 100)
+    registry = Registry([Model(CHEAP, "small", 1.0, 2.0, 8000), Model(MID, "medium", 3.0, 6.0, 8000),
+                         Model(BEST, "large", 10.0, 20.0, 8000)])
+    router = Router(registry, {"judge": task}, stats)
+    monitor = Monitor()
+    ids = iter(f"call-{i}" for i in range(100))
+    common = dict(monitor=monitor, now=lambda: NEW, id_factory=lambda: next(ids))
+    shadowed = Executor(router, FakeProvider({CHEAP: answers("a", "b"), BEST: answers("s", "t")}),
+                        random=lambda: 0.0, **common)
+    shadowed.call("judge", [{"role": "user", "content": "q"}])
+    shadowed.call("judge", [{"role": "user", "content": "q"}], slice="long")
+    refusing = Executor(router, FakeProvider({}), ledger=BudgetLedger([Budget("tiny", 1e-6, "refuse")]),
+                        **common)
+    with pytest.raises(BudgetExceeded):
+        refusing.call("judge", [{"role": "user", "content": "q"}])
+    records = monitor.records
+    assert [(r["call_id"], r.get("shadow"), r.get("budget_event")) for r in records] == [
+        ("call-0", False, None), ("call-1", True, None), ("call-2", False, None),
+        ("call-3", True, None), ("call-4", False, "refused")]
+    audits = {"call-0": True, "call-1": False, "call-2": True, "call-3": False, "call-4": True}
+    assert audited(records, audits) == [row(CHEAP, "call-0", True), row(BEST, "call-1", False),
+                                        row(CHEAP, "call-2", True, "long"),
+                                        row(BEST, "call-3", False, "long")]
 
 
 # --- checks -----------------------------------------------------------------------------
