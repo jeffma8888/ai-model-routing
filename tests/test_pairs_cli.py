@@ -293,7 +293,8 @@ def test_design_and_the_changelog_state_the_version():
 
 def test_readme_names_the_command_in_its_layout_and_its_synopsis_in_the_production_section():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    assert "  cli.py        model-routing select | calibrate | report | demo | evaluate | delegate | plan | promote | pairs\n" in readme
+    # v1.634 (row M1c) names drift after pairs
+    assert "  cli.py        model-routing select | calibrate | report | demo | evaluate | delegate | plan | promote | pairs | drift\n" in readme
     # v1.619 (row CANARY1e): the synopsis, once, in the second paragraph on shadow calls (tests/test_shadow_docs.py)
     production = readme.split("\n## Running it in production\n", 1)[1].split("\n## ", 1)[0]
     assert readme.count("model-routing pairs") == 1
