@@ -11,7 +11,7 @@ DATA_DIR = Path(__file__).resolve().parent / "data"
 
 from .registry import Model, PriceTier, Registry, Variant, self_hosted_prices  # noqa: E402
 from .tasks import Cascade, Task, load_tasks  # noqa: E402
-from .stats import (Stats, calibrate_from_results, item_outcomes, items_needed,  # noqa: E402
+from .stats import (Stats, calibrate_from_results, consensus_labels, item_outcomes, items_needed,  # noqa: E402
                     wilson_lower_bound)
 from .priors import Priors  # noqa: E402
 from .router import (  # noqa: E402
@@ -55,7 +55,7 @@ __all__ = [
     "DelegationDecision", "evaluate_delegation",
     "Procedure", "ProcedureResult", "ProcedureRun", "ProcedureLimitError",
     "Budget", "BudgetLedger", "BudgetExceeded", "load_budgets", "billing_bound",
-    "paired_promotion", "PromotionCheck", "item_outcomes", "pair_outcomes",
+    "paired_promotion", "PromotionCheck", "item_outcomes", "pair_outcomes", "consensus_labels",
 ]
 
 

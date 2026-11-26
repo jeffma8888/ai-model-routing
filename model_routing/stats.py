@@ -8,7 +8,7 @@ from fractions import Fraction
 from math import ceil, floor, isfinite, sqrt
 from pathlib import Path
 from statistics import NormalDist
-from typing import Dict, Iterable, List, Optional, Tuple, Union
+from typing import Dict, Iterable, List, Optional, Sequence, Tuple, Union
 
 from .procedures import is_procedure_id
 from .tasks import is_slice_name, parse_cascade_id
@@ -19,6 +19,8 @@ _TOKEN_KEYS = ("input_tokens", "output_tokens", "token_trials")
 _CACHE_PAIRS = (("cached_input_tokens", "cached_trials"),
                 ("cache_write_tokens", "cache_write_trials"))
 _OUTCOME_KEYS = ("task", "model", "item")  # DESIGN 4.3 v1.602, as the outcome matrix (12.1)
+_GRADE_NAMES = ("task", "item", "judge")  # DESIGN 4.3 v1.660
+_GRADE_TYPES = (str, bool, int)  # exact types: a float, null or a subclass is no grade
 _HEX = frozenset("0123456789abcdef")
 
 
@@ -567,3 +569,95 @@ def item_outcomes(rows: Iterable[dict], *, dataset_sha256: str) -> List[dict]:
                         "item": row["item"], "correct": bool(correct),
                         "dataset_sha256": dataset_sha256})
     return records
+
+
+def _real_in_unit(value: object) -> bool:
+    return (isinstance(value, (int, float)) and not isinstance(value, bool)
+            and isfinite(value) and 0 <= value <= 1)
+
+
+def consensus_labels(grades: Iterable[dict], judges: Sequence[str], *, reruns: int,
+                     min_agreement: float = 0.9, registry=None,
+                     generator_model: Optional[str] = None) -> dict:
+    """A judge task's labels from two or more reference judges' recorded grades (DESIGN 4.3 v1.660).
+
+    An item is kept, labelled with the grade they gave, only when every rerun of every reference
+    judge gave it the same grade; the library calls no model. Each grade row holds ``task``,
+    ``item``, ``judge``, ``rerun`` and ``grade``, and every ``(task, item)`` a reference judge
+    names has one row per reference judge and rerun ``0`` to ``reruns - 1``. Rows of other judges
+    are checked and ignored. Given ``registry`` and ``generator_model``, a reference judge that is
+    the generator or of its family is refused. Returns ``passes``, ``min_agreement``, ``tasks``
+    (each task's ``items``, ``kept``, ``agreement`` and ``passes``) and ``labels`` (one row per
+    kept item). Consensus is agreement between models, not human correctness.
+    """
+    if (not isinstance(judges, (list, tuple)) or len(judges) < 2
+            or not all(isinstance(j, str) and j for j in judges) or len(set(judges)) != len(judges)):
+        raise ValueError(f"judges must be a list or tuple of two or more distinct non-empty names, got {judges!r}")
+    if not _is_int(reruns) or reruns < 1:
+        raise ValueError(f"reruns must be an integer of at least 1, got {reruns!r}")
+    if not _real_in_unit(min_agreement):
+        raise ValueError(f"min_agreement must be a finite number in [0, 1], got {min_agreement!r}")
+    if (registry is None) != (generator_model is None):
+        raise ValueError("registry and generator_model are given together or not at all")
+    if registry is not None:
+        try:
+            generator = registry.get(generator_model)
+        except KeyError:
+            raise ValueError(f"generator_model {generator_model!r} is not a model of the registry") from None
+        for judge in judges:
+            try:
+                model = registry.get(judge)
+            except KeyError:
+                raise ValueError(f"reference judge {judge!r} is not a model of the registry") from None
+            if model.family == generator.family:
+                raise ValueError(f"reference judge {judge!r} is of the generator's family {generator.family!r}, "
+                                 f"so it may favour the generator's outputs")
+    wanted = set(judges)
+    seen: Dict[Tuple[str, str], Dict[Tuple[str, int], tuple]] = {}
+    for row in grades:
+        if not isinstance(row, dict):
+            raise ValueError(f"a grade row must be an object, got {row!r}")
+        for key in _GRADE_NAMES:
+            value = row.get(key)
+            if not isinstance(value, str) or not value:
+                raise ValueError(f"a grade row needs a non-empty string {key!r}: {row!r}")
+        rerun = row.get("rerun")
+        if not _is_int(rerun):
+            raise ValueError(f"a grade row needs an integer 'rerun': {row!r}")
+        if "grade" not in row or type(row["grade"]) not in _GRADE_TYPES:
+            raise ValueError(f"a grade row needs a 'grade' that is a string, a boolean or an integer: {row!r}")
+        if row["judge"] not in wanted:
+            continue
+        task, item, judge = row["task"], row["item"], row["judge"]
+        if not 0 <= rerun < reruns:
+            raise ValueError(f"task {task!r}, item {item!r}, judge {judge!r}: rerun {rerun} is outside "
+                             f"0 to {reruns - 1}")
+        cell = seen.setdefault((task, item), {})
+        if (judge, rerun) in cell:
+            raise ValueError(f"task {task!r}, item {item!r}, judge {judge!r}: rerun {rerun} is graded twice")
+        cell[(judge, rerun)] = (type(row["grade"]), row["grade"])
+    if not seen:
+        raise ValueError(f"the grades hold no row of the reference judges {list(judges)!r}")
+    for (task, item), cell in seen.items():
+        for judge in judges:
+            for rerun in range(reruns):
+                if (judge, rerun) not in cell:
+                    raise ValueError(f"task {task!r}, item {item!r}, judge {judge!r}: rerun {rerun} is missing")
+    counts: Dict[str, List[int]] = {}
+    kept_items = []
+    for (task, item), cell in seen.items():
+        tally = counts.setdefault(task, [0, 0])
+        tally[0] += 1
+        if len(set(cell.values())) == 1:
+            tally[1] += 1
+            kept_items.append((task, item, next(iter(cell.values()))[1]))
+    minimum = Fraction(repr(float(min_agreement)))
+    tasks = [{"task": task, "items": items, "kept": kept, "agreement": kept / items,
+              "passes": Fraction(kept, items) >= minimum}
+             for task, (items, kept) in counts.items()]
+    rate = {entry["task"]: entry["agreement"] for entry in tasks}
+    labels = [{"task": task, "item": item, "gold": grade, "label_source": "consensus",
+               "consensus_models": list(judges), "reruns": reruns, "agreement": rate[task]}
+              for task, item, grade in kept_items]
+    return {"passes": all(entry["passes"] for entry in tasks), "min_agreement": float(min_agreement),
+            "tasks": tasks, "labels": labels}
