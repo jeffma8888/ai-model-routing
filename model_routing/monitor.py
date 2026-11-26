@@ -20,12 +20,12 @@ NO_TAG = "(none)"
 
 
 class Monitor:
-    """Collects attempt records in memory and optionally appends them to a JSONL file.
+    """Collects attempt records in memory (by default) and optionally appends them to a JSONL file.
 
     One monitor may be shared by the threads of a process (DESIGN 8.2 v1.616): ``record`` holds a
-    lock from its append to ``records`` through the close of the file, so each record is one whole
-    line and ``records`` and the file hold the records in one order. Two monitors on one path, or
-    two processes, are not guarded by it.
+    lock from its append to ``records`` (when it keeps them) through the close of the file, so each
+    record is one whole line and ``records`` and the file hold the records in one order. Two
+    monitors on one path, or two processes, are not guarded by it.
 
     ``keep_records=False`` (keyword-only, DESIGN 8.2 v1.656) writes each record to the file alone
     and leaves ``records`` the empty list it starts as, so a monitor that runs for a service's life
