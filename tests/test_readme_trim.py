@@ -48,6 +48,13 @@ behavioural subsection, so no subsection gains a clause. The three keep every na
 they gave (NAMES_V1_651), their quotes and links, and the pinned-call one every hard check's words, which
 tests/test_pin_docs.py reads (review iter-495 must-fix 1). These tests failed on v1.650's README and pass on
 v1.651's.
+
+DESIGN 5.2 v1.652 (row PROD1gbbbbb, sixth part): nine paragraphs that v1.647 to v1.650 trimmed are cut again, from
+15,176 bytes to 13,996, so the section is 23,978 bytes, at most row PROD1g's 24,000. DROPPED_V1_652 holds each
+deleted clause as v1.651 (2c8b0c7) wrote it, pinned to 4.1, 4.3, 4.6, 4.7, 5.2, 7, 8.3 or 11, each a behavioural
+subsection, so no subsection gains a clause. The v1.647 to v1.650 tests hold each paragraph they trimmed to at most
+the bytes they left it, and their names and links tests still run on all nine. These tests failed on v1.651's
+README and pass on v1.652's.
 """
 
 from pathlib import Path
@@ -381,6 +388,47 @@ DROPPED_V1_651 = [
     (PIN_LEAD, "without ranking the routes", "### 5.2 ",
      "the ranking of 5.3 is skipped: the pin is the decision's only entry"),
 ]
+# v1.652 (row PROD1gbbbbb, sixth part): nine paragraphs an earlier part trimmed, as v1.651 (2c8b0c7) wrote them
+OLD_BYTES_V1_652 = {PROMOTE_LEAD: 1_902, DRIFT_LEAD: 2_032, SELF_LEAD: 1_568, CACHE_LEAD: 1_798, SHADOW_LEAD: 1_728,
+                    RECORDS_LEAD: 1_607, VAR_LEAD: 1_506, LAT_LEAD: 1_473, EST_LEAD: 1_562}
+NEW_BYTES_V1_652 = {PROMOTE_LEAD: 1_693, DRIFT_LEAD: 1_921, SELF_LEAD: 1_382, CACHE_LEAD: 1_586, SHADOW_LEAD: 1_641,
+                    RECORDS_LEAD: 1_475, VAR_LEAD: 1_468, LAT_LEAD: 1_375, EST_LEAD: 1_455}
+TARGET = 24_000  # row PROD1g: the section at most 24,000 bytes, 6,000 under PRODUCTION_CAP, which stays
+DROPPED_V1_652 = [
+    (PROMOTE_LEAD, "The Wilson bar admits each route on its own counts, so a challenger that clears it can still do worse",
+     "### 4.7 ", "a route the Wilson bound admits may still do worse than the route it would replace on the same items"),
+    (PROMOTE_LEAD, "so the check complements the bar and never replaces it", "### 4.7 ",
+     "It complements the bar and never replaces it"),
+    (DRIFT_LEAD, "and a cascade's or a procedure's audited call counts once for its route", "### 8.3 ",
+     "So an audited call that a cascade or a procedure answered counts once for that route"),
+    (DRIFT_LEAD, "and which calls to audit stays yours", "### 8.3 ", "so which calls to audit stays the caller's"),
+    (SELF_LEAD, "The throughputs describe one workload, and the split of an hour between input and output is an "
+     "approximation you choose", "### 4.1 ",
+     "The throughputs describe one workload, and the split of an hour between input and output is an approximation "
+     "the caller chooses"),
+    (SELF_LEAD, "and the same hour used 2% of the time makes it the dearer route", "## 11. ",
+     "the same hour used a fiftieth of the time makes it the dearer route"),
+    (CACHE_LEAD, "so a model that is cheaper per token but never hits the cache can cost more than a pricier one", "### 5.2 ",
+     "a model that is cheaper per token but never hits the cache can cost more per call"),
+    (CACHE_LEAD, "each attempt is priced at the counts its provider returned and its record carries them", "## 7. ",
+     "each attempt is priced at the counts its provider returns"),
+    (SHADOW_LEAD, "so a challenger can be shadowed before it is admitted", "## 7. ",
+     "need not clear the bar, so a challenger can be shadowed before it is admitted"),
+    (SHADOW_LEAD, "so the caller waits for it too", "## 7. ",
+     "a shadowed call sends its shadow on the caller's thread before `.call` returns"),
+    (RECORDS_LEAD, "Nothing reads a pair into the stats, so an unlabelled pair never changes a route", "### 8.3 ",
+     "so an unlabelled pair never updates quality stats"),
+    (RECORDS_LEAD, "as it needs rows of the cascade's two models too", "### 8.3 ",
+     "needs a cascade's cheap and strong models in the matrix to route it by their rows"),
+    (VAR_LEAD, "and an unmeasured variant starts cold", "### 4.3 ",
+     "so a variant with no trials of its own is unmeasured (cold start, 5.3)"),
+    (LAT_LEAD, "A trial's time is yours to measure, from your call to its answer", "### 4.3 ",
+     "so a route's time is what the caller measured from its call to"),
+    (LAT_LEAD, "A monitor record's `latency_ms` is one attempt's", "### 4.3 ",
+     "an attempt record's `latency_ms` (8.1) is one attempt's"),
+    (EST_LEAD, "The ledger is one process's: a limit shared by many processes still needs a gateway", "### 4.6 ",
+     "a limit shared by many processes still needs a gateway or the provider's own"),
+]
 ENDS = {"### 4.7 ": "\n## 5. ", "### 8.3 ": "\n## 9. ", "## 10. ": "\n## 11. ", "### 4.1 ": "\n### 4.2 ",
         "### 5.2 ": "\n### 5.3 ", "## 6. ": "\n## 7. ", "## 7. ": "\n## 8. ", "## 11. ": "\n## 12. ",
         "### 4.3 ": "\n### 4.4 ", "### 4.5 ": "\n### 4.6 ", "### 4.6 ": "\n### 4.7 "}
@@ -402,8 +450,9 @@ def subsection(design, heading):
 
 def test_the_two_paragraphs_are_shorter_and_the_section_under_its_cap():
     found = {lead: len(paragraph(lead).encode("utf-8")) for lead in OLD_BYTES}
-    assert found == {PROMOTE_LEAD: 1_902, DRIFT_LEAD: 2_032}
-    assert sum(OLD_BYTES.values()) - sum(found.values()) == 1_959
+    # v1.652 (row PROD1gbbbbb) cuts both again, so each is at most the bytes v1.647 left it
+    assert all(found[lead] <= left for lead, left in {PROMOTE_LEAD: 1_902, DRIFT_LEAD: 2_032}.items())
+    assert sum(OLD_BYTES.values()) - sum(found.values()) >= 1_959
     assert size(read("README.md"), PRODUCTION) <= PRODUCTION_CAP == 30_000
 
 
@@ -430,7 +479,8 @@ def test_each_dropped_clause_is_gone_and_its_design_subsection_states_it():
 
 def test_the_check_fails_on_a_clause_still_there_or_a_phrase_design_lacks():
     design = read("DESIGN.md")
-    assert "complements the bar and never replaces it" in paragraph(PROMOTE_LEAD)
+    # v1.652 drops "so the check complements the bar and never replaces it" (DROPPED_V1_652); the exit stays
+    assert "It requires the bar to admit the challenger first and exits 3 when it does not. " in paragraph(PROMOTE_LEAD)
     assert "k times M against the first route" not in subsection(design, "## 10. ")
     assert "-0.0866" not in subsection(design, "## 10. ") and "-0.0866" in subsection(design, "### 4.7 ")
 
@@ -459,8 +509,9 @@ def test_design_states_the_trim_the_two_new_clauses_and_the_changelog_the_versio
 
 def test_the_three_paragraphs_are_shorter_and_the_section_under_its_cap():
     found = {lead: len(paragraph(lead).encode("utf-8")) for lead in OLD_BYTES_V1_648}
-    assert found == NEW_BYTES_V1_648
-    assert sum(OLD_BYTES_V1_648.values()) - sum(found.values()) == 1_081
+    # v1.652 (row PROD1gbbbbb) cuts some of them again, so each is at most the bytes v1.648 left it
+    assert all(found[lead] <= NEW_BYTES_V1_648[lead] for lead in found)
+    assert sum(OLD_BYTES_V1_648.values()) - sum(found.values()) >= 1_081
     assert size(read("README.md"), PRODUCTION) <= PRODUCTION_CAP == 30_000
 
 
@@ -519,8 +570,9 @@ def test_design_states_the_v1_648_trim_and_the_changelog_the_version():
 
 def test_the_v1_649_three_are_shorter_and_the_section_under_its_cap():
     found = {lead: len(paragraph(lead).encode("utf-8")) for lead in OLD_BYTES_V1_649}
-    assert found == NEW_BYTES_V1_649
-    assert sum(OLD_BYTES_V1_649.values()) - sum(found.values()) == 768
+    # v1.652 (row PROD1gbbbbb) cuts some of them again, so each is at most the bytes v1.649 left it
+    assert all(found[lead] <= NEW_BYTES_V1_649[lead] for lead in found)
+    assert sum(OLD_BYTES_V1_649.values()) - sum(found.values()) >= 768
     assert size(read("README.md"), PRODUCTION) <= PRODUCTION_CAP == 30_000
 
 
@@ -551,7 +603,8 @@ def test_the_v1_649_check_fails_on_a_clause_still_there_or_a_phrase_elsewhere():
     design = read("DESIGN.md")
     # kept on purpose: no behavioural subsection states them as the paragraph does
     assert "once the outcomes file holds the two routes' outcomes from another file too" in paragraph(RECORDS_LEAD)
-    assert "as it needs rows of the cascade's two models too" in paragraph(RECORDS_LEAD)
+    # v1.652 drops "as it needs rows of the cascade's two models too", which 8.3's Use line states (DROPPED_V1_652)
+    assert "which `calibrate` reads, while `evaluate` refuses them (`DESIGN.md` 8.3 and 10)." in paragraph(RECORDS_LEAD)
     assert "the post gives no count of what its checks caught" in paragraph(RECORDS_LEAD)
     assert "An option never replaces a key the adapter sets" not in subsection(design, "## 7. ")
     assert "each turn's input the context so far" not in subsection(design, "### 4.5 ")
@@ -584,8 +637,9 @@ def test_design_states_the_v1_649_trim_and_the_changelog_the_version():
 
 def test_the_v1_650_three_are_shorter_and_the_section_under_its_cap():
     found = {lead: len(paragraph(lead).encode("utf-8")) for lead in OLD_BYTES_V1_650}
-    assert found == NEW_BYTES_V1_650
-    assert sum(OLD_BYTES_V1_650.values()) - sum(found.values()) == 631
+    # v1.652 (row PROD1gbbbbb) cuts some of them again, so each is at most the bytes v1.650 left it
+    assert all(found[lead] <= NEW_BYTES_V1_650[lead] for lead in found)
+    assert sum(OLD_BYTES_V1_650.values()) - sum(found.values()) >= 631
     assert size(read("README.md"), PRODUCTION) <= PRODUCTION_CAP == 30_000
 
 
@@ -652,7 +706,7 @@ def test_the_v1_651_three_are_shorter_and_the_section_under_its_cap():
     found = {lead: len(paragraph(lead).encode("utf-8")) for lead in OLD_BYTES_V1_651}
     assert found == NEW_BYTES_V1_651
     assert sum(OLD_BYTES_V1_651.values()) - sum(found.values()) == 399
-    assert size(read("README.md"), PRODUCTION) == 25_158 <= PRODUCTION_CAP == 30_000
+    assert size(read("README.md"), PRODUCTION) <= PRODUCTION_CAP == 30_000
 
 
 def test_the_v1_651_three_keep_their_leads_their_names_their_quotes_and_their_links():
@@ -712,4 +766,67 @@ def test_design_states_the_v1_651_trim_and_the_changelog_the_version():
     assert len(mine.encode("utf-8")) <= 6_000
     [line] = [x for x in read("CHANGELOG.md").splitlines() if x.startswith("- v1.651 (")]
     assert line.startswith("- v1.651 (2026-11-25): docs and tests (5.2, row PROD1g, fifth part). ")
+    assert len(line.encode("utf-8")) <= 600
+
+
+# --- v1.652 (row PROD1gbbbbb, sixth part) ---------------------------------------------------------
+
+def test_the_v1_652_nine_are_shorter_and_the_section_at_most_24000_bytes():
+    found = {lead: len(paragraph(lead).encode("utf-8")) for lead in OLD_BYTES_V1_652}
+    assert found == NEW_BYTES_V1_652
+    assert sum(OLD_BYTES_V1_652.values()) - sum(found.values()) == 1_180
+    assert size(read("README.md"), PRODUCTION) == 23_978 <= TARGET < PRODUCTION_CAP == 30_000
+
+
+def test_the_v1_652_nine_keep_their_quotes_and_links_and_no_dash():
+    for lead in OLD_BYTES_V1_652:
+        text = paragraph(lead)
+        assert text.startswith(lead), lead
+        assert text.count("](") == {PROMOTE_LEAD: 2, EST_LEAD: 2, SHADOW_LEAD: 0, LAT_LEAD: 0}.get(lead, 1), lead
+        assert "\u2014" not in text and "\u2013" not in text
+
+
+def test_each_clause_the_v1_652_nine_dropped_is_gone_and_its_design_subsection_states_it():
+    design = read("DESIGN.md")
+    assert len(DROPPED_V1_652) == 16
+    for lead, clause, heading, phrase in DROPPED_V1_652:
+        assert clause not in paragraph(lead), clause
+        # a behavioural subsection, never a 5.2 history bullet of the README
+        [owner] = [line for line in subsection(design, heading).splitlines() if phrase in line]
+        assert "README" not in owner.split(":", 1)[0], (heading, phrase)
+
+
+def test_the_v1_652_check_fails_on_a_clause_still_there_or_a_phrase_elsewhere():
+    design = read("DESIGN.md")
+    readme = read("README.md")
+    # kept on purpose: what each paragraph's claim rests on stays in it
+    assert "a named one need not clear the bar. Once the routed call has returned" in paragraph(SHADOW_LEAD)
+    assert "With no `shadow_runner` the shadow runs before `.call` returns. " in paragraph(SHADOW_LEAD)
+    assert "Only reported counts are priced as hits, never a repeated prompt. " in paragraph(CACHE_LEAD)
+    assert "so a flag is a reason to audit more calls, not proof of a change (" in paragraph(DRIFT_LEAD)
+    # the one-process ledger leaves the section but not the README: Limitations still says it
+    limits = readme[readme.index("\n## Limitations and non-goals (v1)\n"):readme.index("\n## Layout\n")]
+    assert limits.count("a limit shared by many processes needs a gateway or the provider's own") == 1
+    assert "never hits the cache can cost more per call" not in subsection(design, "## 7. ")
+    assert "so which calls to audit stays the caller's" not in subsection(design, "## 10. ")
+
+
+def test_design_states_the_v1_652_trim_and_the_changelog_the_version():
+    design = read("DESIGN.md")
+    five2 = subsection(design, "### 5.2 ")
+    [mine] = [line for line in five2.splitlines()
+              if line.startswith("- v1.652 README trim (row PROD1gbbbbb, sixth part): ")]
+    for kept in ("the one on `promote` from 1,902 to 1,693 bytes, the one on `drift` from 2,032 to 1,921",
+                 "so the section is 23,978 bytes by the 12.8 measure, at most the 24,000 that row PROD1g set and "
+                 "under v1.629's 30,000-byte cap, which stays",
+                 "each clause it drops is stated in 4.1, 4.3, 4.6, 4.7, 5.2, 7, 8.3 or 11, so no subsection gains one",
+                 "the tests of v1.647 to v1.650 hold each paragraph they trimmed to at most the bytes they left it",
+                 "README `## Limitations and non-goals (v1)` still says a limit shared by many processes needs a "
+                 "gateway or the provider's own",
+                 "No package module, evidence file or README transcript changes."):
+        assert mine.count(kept) == 1, kept
+    assert five2.index("\n- v1.651 README trim (") < five2.index("\n" + mine)
+    assert len(mine.encode("utf-8")) <= 6_000
+    [line] = [x for x in read("CHANGELOG.md").splitlines() if x.startswith("- v1.652 (")]
+    assert line.startswith("- v1.652 (2026-11-25): docs and tests (5.2, row PROD1g, sixth part). ")
     assert len(line.encode("utf-8")) <= 600

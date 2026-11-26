@@ -116,10 +116,10 @@ def test_the_paragraph_says_the_check_complements_the_bar_and_how_to_use_it():
     text = part(OPENING)
     # v1.647 (row PROD1g): the paragraph keeps its lead claim and names in a shorter form; each clause it
     # dropped is stated in DESIGN 4.7 or 10 (tests/test_readme_trim.py)
-    for clause in ("so a challenger that clears it can still do worse than the route it would replace on the same items.",
-                   "pairs the challenger's outcomes with those of `select`'s primary on that one hash.",
-                   "It requires the bar to admit the challenger first and exits 3 when it does not, so the check "
-                   "complements the bar and never replaces it.",
+    # v1.652 (row PROD1gbbbbb): why a challenger is paired and that the check complements the bar are DESIGN
+    # 4.7's (tests/test_readme_trim.py DROPPED_V1_652)
+    for clause in ("pairs the challenger's outcomes with those of `select`'s primary on that one hash.",
+                   "It requires the bar to admit the challenger first and exits 3 when it does not. Then",
                    "Then it prints `promote` on an exact McNemar result in the challenger's favor at `--alpha` "
                    "(default 0.05) or, for a challenger cheaper per item, on a paired lower bound above `-M` "
                    "([Bonett and Price, 2012](https://doi.org/10.3102/1076998611411915)); `hold` otherwise; and "

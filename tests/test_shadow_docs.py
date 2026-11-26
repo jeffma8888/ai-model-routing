@@ -131,8 +131,10 @@ def test_the_first_paragraph_says_what_a_shadow_is_costs_and_waits_for():
             "A task's `shadow_rate`, from 0, the default, to 1, is the share of its calls the executor shadows",
             # v1.648 (row PROD1gb): the hard rules, the primary, a fallback's or a hand-up's answer and what a
             # runner spares the call are DESIGN 7's (tests/test_readme_trim.py)
+            # v1.652 (row PROD1gbbbbb): a challenger shadowed before it is admitted and that the caller waits are
+            # DESIGN 7's (tests/test_readme_trim.py DROPPED_V1_652)
             "by default the registry model that clears the bar with the highest lower bound; a named one need not "
-            "clear the bar, so a challenger can be shadowed before it is admitted. Once",
+            "clear the bar. Once",
             "the caller gets only the routed result: a shadow's provider error, invalid output or budget refusal "
             "never fails the call.",
             "The draw comes from `Executor(..., random=...)`, so a test can fix it.",
@@ -146,7 +148,7 @@ def test_the_first_paragraph_says_what_a_shadow_is_costs_and_waits_for():
             "The default `report` counts a shadow as a call of its own, while `report --shadow` keeps shadows out of "
             "the routed columns and adds `shadow_calls`, `shadow_failed_calls` and `shadow_cost_usd`.",
             # SCOUT iter 460 and iter 468 sub-bullets: DESIGN 7 v1.617
-            "With no `shadow_runner` the shadow runs before `.call` returns, so the caller waits for it too.",
+            "With no `shadow_runner` the shadow runs before `.call` returns.",
             "`Executor(..., shadow_runner=pool.submit)`, with `pool` a `ThreadPoolExecutor`, runs it on another "
             "thread; a job not yet run has no shadow record and gives no pair, so call "
             "`pool.shutdown(wait=True)` before you read the log or end the process",
@@ -164,7 +166,8 @@ def test_the_second_paragraph_says_what_writes_labels_and_reads_the_pairs():
             # (tests/test_readme_trim.py DROPPED_V1_649)
             "with `--checked` or by an audits file with `--audits PATH`; with neither a pair waits for an audit of "
             "both call IDs.",
-            "Nothing reads a pair into the stats, so an unlabelled pair never changes a route.",
+            # v1.652 (row PROD1gbbbbb): that no pair reaches the stats and why `evaluate` refuses a cascade's rows
+            # are DESIGN 8.3's (tests/test_readme_trim.py DROPPED_V1_652)
             "`--results RESULTS` also writes the labelled pairs as results rows, each with its side's `cost_usd` "
             "from the log, so",
             "so `calibrate --outcomes` and then `promote` with the shadow route as `--challenger` compare the two "
@@ -172,7 +175,7 @@ def test_the_second_paragraph_says_what_writes_labels_and_reads_the_pairs():
             "outcomes file holds the two routes' outcomes from another file too",  # review iter-471 nit 1
             "and with `--routes ROUTED SHADOW` `evaluate --outcomes` reads them as a complete outcome matrix; "
             "a cascade's rows carry `escalated` and its whole spend, which `calibrate` reads, while `evaluate` "
-            "refuses them, as it needs rows of the cascade's two models too (`DESIGN.md` 8.3 and 10).",  # v1.621
+            "refuses them (`DESIGN.md` 8.3 and 10).",  # v1.621
             f"([production lessons](research/production-lessons.md#{ANCHOR}))",
             "there the staff get the new model's answers, while a shadow's answer reaches no one, and the post gives "
             "no count of what its checks caught."):

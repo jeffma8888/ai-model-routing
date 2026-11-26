@@ -110,8 +110,9 @@ def test_the_paragraph_names_each_part_once():
                  "`budget_report(records, budgets)` gives each budget's `budget_used_pct`, as the example",
                  "[Monitoring and cost attribution](#monitoring-and-cost-attribution)",
                  "`model-routing demo --budgets FILE` runs the demo under a file of budgets and exits 4",
-                 "The ledger is one process's: a limit shared by many processes still needs a gateway or the "
-                 "provider's own",
+                 # v1.652 (row PROD1gbbbbb): the one-process ledger is DESIGN 4.6's and README Limitations'
+                 # (tests/test_readme_trim.py DROPPED_V1_652)
+                 "exits 4 when a call is refused (`DESIGN.md` 4.6, 7, 8.1, 8.3, 10 and 11).",
                  "(`DESIGN.md` 4.6, 7, 8.1, 8.3, 10 and 11)"):
         assert text.count(kept) == 1, kept
 

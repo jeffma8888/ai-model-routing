@@ -83,7 +83,10 @@ def test_the_paragraph_names_each_field_option_and_section():
                  # v1.648 (row PROD1gb): the four parts' prices, the write premium, a cascade's legs and a
                  # procedure's model are DESIGN 4.1's and 5.2's (tests/test_readme_trim.py)
                  "it is priced there at their means, the four parts in its candidate's `cost_breakdown`.",
-                 "whose reads are 90% cached. The inline-or-sub-agent decision reads only `--cached-read-ratio`.",
+                 # v1.652 (row PROD1gbbbbb): the model that never hits the cache and what an attempt's price
+                 # reads are DESIGN 5.2's and 7's (tests/test_readme_trim.py DROPPED_V1_652)
+                 "never a repeated prompt. The inline-or-sub-agent decision reads only `--cached-read-ratio`.",
+                 "maps `usage.prompt_tokens_details.cached_tokens` and `report --cache` gives",
                  "`usage.prompt_tokens_details.cached_tokens`",
                  "`report --cache` gives each group's `cache_hit_rate`",
                  "An adapter for another API keeps `input_tokens` inclusive",
