@@ -15,7 +15,8 @@ from typing import Iterable, List, Optional, Sequence
 
 from .registry import _tier_prices
 from .router import FLAVORS, NoModelClearsBar, Policy, RouteDecision, Router, _policy_rule, _sizes
-from .router import LATENCY_UNKNOWN, POLICY_EXCLUDED, REGION_UNAVAILABLE, TOO_SLOW, ZDR_REQUIRED
+from .router import (CONSISTENCY_UNKNOWN, INCONSISTENT, LATENCY_UNKNOWN, POLICY_EXCLUDED, REGION_UNAVAILABLE,
+                     TOO_SLOW, ZDR_REQUIRED)
 from .stats import Stats, _is_cascade_key, _is_procedure_key, wilson_lower_bound
 from .tasks import Task
 
@@ -30,6 +31,8 @@ PARENT_REGION_UNAVAILABLE = "parent_region_unavailable"
 PARENT_ZDR_REQUIRED = "parent_zdr_required"
 PARENT_TOO_SLOW = "parent_too_slow"  # DESIGN 13.4 rule 5 (v1.631)
 PARENT_LATENCY_UNKNOWN = "parent_latency_unknown"
+PARENT_INCONSISTENT = "parent_inconsistent"  # DESIGN 13.4 rule 6 (v1.669)
+PARENT_CONSISTENCY_UNKNOWN = "parent_consistency_unknown"
 PARENT_BELOW_BAR = "parent_below_bar"
 DELEGATE_CHEAPER = "delegate_cheaper"
 INLINE_CHEAPER = "inline_cheaper"
@@ -43,6 +46,8 @@ _PARENT_POLICY_CODES = {POLICY_EXCLUDED: PARENT_POLICY_EXCLUDED, REGION_UNAVAILA
                         ZDR_REQUIRED: PARENT_ZDR_REQUIRED}
 # 5.2 rules 5e and 5f on the parent's own key, as its 13.4 rule 5 codes
 _PARENT_LATENCY_CODES = {TOO_SLOW: PARENT_TOO_SLOW, LATENCY_UNKNOWN: PARENT_LATENCY_UNKNOWN}
+# 5.2 rules 5g and 5h on the parent's own key, as its 13.4 rule 6 codes
+_PARENT_CONSISTENCY_CODES = {INCONSISTENT: PARENT_INCONSISTENT, CONSISTENCY_UNKNOWN: PARENT_CONSISTENCY_UNKNOWN}
 
 
 @dataclass(frozen=True)
@@ -299,7 +304,8 @@ def decide_delegation(router: Router, task_name: str, parent_model: str,
                        + t * parent.base_cost(k * (p_in + sigma * p_out), 0))
 
     # 13.4: the first rule that applies blocks inline; rule 4 is 5.2 rules 5b to 5d on the parent (v1.624),
-    # rule 5 is 5e and 5f on the parent's time on the task, read as a route's (v1.631)
+    # rule 5 is 5e and 5f on the parent's time on the task, read as a route's (v1.631), and rule 6 is 5g and
+    # 5h on the parent's share of rerun items graded alike on the task, read as a route's (v1.669)
     parent_rule = _policy_rule(policy, parent)
     block = None
     if parent.family in task.exclude_families:
@@ -311,10 +317,10 @@ def decide_delegation(router: Router, task_name: str, parent_model: str,
         block = PARENT_CONTEXT_FULL
     elif parent_rule is not None:
         block = _PARENT_POLICY_CODES[parent_rule]
-    else:
-        latency_rule = router._latency_rule(task, parent.id)[0]
-        if latency_rule is not None:
-            block = _PARENT_LATENCY_CODES[latency_rule]
+    elif (latency_rule := router._latency_rule(task, parent.id)[0]) is not None:
+        block = _PARENT_LATENCY_CODES[latency_rule]
+    elif (consistency_rule := router._consistency_rule(task, parent.id)) is not None:
+        block = _PARENT_CONSISTENCY_CODES[consistency_rule]
 
     # 13.3: the delegate reads the brief as well as the work's input; with K = 1 this
     # is the v1.34 select, and K > 1 checks the last call and prices the K calls

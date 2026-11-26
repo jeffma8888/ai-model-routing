@@ -101,7 +101,7 @@ def test_the_parent_s_share_is_compared_as_it_is_and_must_be_under_the_minimum(s
         assert not d.reason.startswith("parent_")
 
 
-@pytest.mark.parametrize("share", [None, (N - 1, N - 1), (0, 0)], ids=["no rerun data", "29 items", "0 items"])
+@pytest.mark.parametrize("share", [None, (N - 1, N - 1), (1, 1)], ids=["no rerun data", "29 items", "1 item"])
 def test_a_parent_with_fewer_than_min_samples_rerun_items_is_consistency_unknown_with_no_allow(share):
     shares = {MID: ALIKE, PRICEY: ALIKE}
     if share is not None:
