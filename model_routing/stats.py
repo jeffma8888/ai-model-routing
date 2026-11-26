@@ -21,6 +21,7 @@ _CACHE_PAIRS = (("cached_input_tokens", "cached_trials"),
                 ("cache_write_tokens", "cache_write_trials"))
 _SIDE_KEYS = ("root_input_tokens", "root_output_tokens", "leaf_input_tokens", "leaf_output_tokens",
               "side_trials")  # DESIGN 4.3 v1.671, in the order .save writes them
+_SIDE_TOTALS = _SIDE_KEYS[:4]  # the four totals, without side_trials
 _OUTCOME_KEYS = ("task", "model", "item")  # DESIGN 4.3 v1.602, as the outcome matrix (12.1)
 _GRADE_NAMES = ("task", "item", "judge")  # DESIGN 4.3 v1.660
 _GRADE_TYPES = (str, bool, int)  # exact types: a float, null or a subclass is no grade
@@ -157,7 +158,7 @@ def _check_sides(model_id: object, trials: int, totals: Tuple[object, ...],
     The four totals go together, each an integer >= 0, over ``side_trials`` of these trials
     (default all of them); a cascade or procedure key is no pair, so it holds none.
     """
-    names = _SIDE_KEYS[:4]
+    names = _SIDE_TOTALS
     given = [name for name, value in zip(names, totals) if value is not None]
     if not given:
         if side_trials is not None:
@@ -728,14 +729,14 @@ def calibrate_from_results(rows: Iterable[dict]) -> Stats:
                 if not _is_int(row[count_key]) or row[count_key] < 0:  # review iter-436 must-fix 1
                     raise ValueError(f"{count_key} must be an integer >= 0: {row!r}")
                 tokens[count_key] = row[count_key]
-        given = [key for key in _SIDE_KEYS[:4] if key in row]  # DESIGN 4.3 v1.672
-        if given:
-            if len(given) != 4:
-                raise ValueError(f"result row needs {', '.join(_SIDE_KEYS[:4])} together or none: {row!r}")
-            if not all(_is_int(row[key]) and row[key] >= 0 for key in given):
-                raise ValueError(f"side token counts must be integers >= 0: {row!r}")
+        given = [key for key in _SIDE_TOTALS if key in row]  # DESIGN 4.3 v1.672
+        if given:  # checked in _check_sides's order (review iter-529 nit 1)
+            if len(given) != len(_SIDE_TOTALS):
+                raise ValueError(f"result row needs {', '.join(_SIDE_TOTALS)} together or none: {row!r}")
             if _is_procedure_key(model_id) or _is_cascade_key(model_id):
                 raise ValueError(f"a cascade or procedure row carries no side tokens: {row!r}")
+            if not all(_is_int(row[key]) and row[key] >= 0 for key in given):
+                raise ValueError(f"side token counts must be integers >= 0: {row!r}")
             tokens.update((key, row[key]) for key in given)
             tokens["side_trials"] = 1  # a row is one trial; its own side_trials is not read
         if _is_procedure_key(model_id):

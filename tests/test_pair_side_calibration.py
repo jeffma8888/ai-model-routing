@@ -124,6 +124,9 @@ def test_a_cascade_or_procedure_row_with_the_four_is_refused(model_id, extra):
     with pytest.raises(ValueError, match="a cascade or procedure row carries no side tokens") as raised:
         calibrate_from_results([bad])
     assert repr(bad) in str(raised.value)
+    # checked in `.add`'s order, the key before the values (review iter-529 nit 1)
+    with pytest.raises(ValueError, match="a cascade or procedure row carries no side tokens"):
+        calibrate_from_results([row("q1", True, model=model_id, **extra, **side(1, None, 1, 1))])
 
 
 def test_item_outcomes_runs_the_same_checks():
@@ -150,6 +153,8 @@ def test_a_rerun_above_0_is_checked_and_adds_no_side_trial():
     assert stats.consistency("t", PAIR) == (1, 1)
     with pytest.raises(ValueError, match="together or none"):
         calibrate_from_results([rows[0], row("q1", True, rerun=1, leaf_output_tokens=1)])
+    with pytest.raises(ValueError, match="side token counts must be integers >= 0"):  # review iter-529 nit 3
+        calibrate_from_results([rows[0], row("q1", True, rerun=1, **side(1, 1, -1, 1))])
 
 
 # --- 5.2 v1.671: select_pair prices each side at the tokens read from the rows ----------------
