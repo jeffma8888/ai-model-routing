@@ -62,8 +62,9 @@ DESIGN 5.2 v1.653 (row PROD1h): two caveats v1.652 dropped come back in short fo
 latency one (a trial's time runs from your call to the route's answer, a monitor record's is one attempt's) and
 the self-hosted one (the throughputs describe one workload, the hour's split is an approximation), with two
 qualifiers review nits asked for (`promote`'s list prices, the variants' token counts). Eight clauses leave the
-section to pay for them, each pinned in DROPPED_V1_653 to the line of 4.1, 4.2, 4.3, 7, 8.2 or 11 that states it,
-so the section is 23,995 bytes, at most 24,000. The v1.647 and v1.652 lists lose the entries v1.653 brings back.
+section to pay for them, each pinned in DROPPED_V1_653 to the line of 4.1, 4.2, 4.3, 4.7, 7, 8.2 or 11 that states
+it, so the section is 23,976 bytes, at most 24,000; a rotated log's order and the shadow rate's default stay
+(review iter-508 must-fix 1 and should-fix 1). The v1.647 and v1.652 lists lose the entries v1.653 brings back.
 These tests failed on v1.652's README and pass on v1.653's.
 """
 
@@ -788,8 +789,8 @@ def test_design_states_the_v1_651_trim_and_the_changelog_the_version():
 
 def test_the_v1_652_nine_are_shorter_and_the_section_at_most_24000_bytes():
     found = {lead: len(paragraph(lead).encode("utf-8")) for lead in OLD_BYTES_V1_652}
-    # v1.653 (row PROD1h) changes three of the nine again, which NEW_BYTES_V1_653 holds; the six it left keep their
-    # v1.652 bytes
+    # v1.653 (row PROD1h) changes five of the nine again, which NEW_BYTES_V1_653 holds; the four it left keep their
+    # v1.652 bytes (review iter-508 nit 1)
     assert {k: v for k, v in found.items() if k not in NEW_BYTES_V1_653} == {
         k: v for k, v in NEW_BYTES_V1_652.items() if k not in NEW_BYTES_V1_653}
     assert all(found[k] == NEW_BYTES_V1_653[k] for k in found if k in NEW_BYTES_V1_653)
@@ -855,11 +856,12 @@ def test_design_states_the_v1_652_trim_and_the_changelog_the_version():
 # --- v1.653 (row PROD1h): two caveats back, eight clauses traded out --------------------------------------
 
 THREADS_LEAD = "One `Executor`, with its `Monitor` and `BudgetLedger`, can serve every request thread of a process: "
-# the six paragraphs v1.653 changes, as v1.652 (f6d28c2) left them and as v1.653 leaves them
-OLD_BYTES_V1_653 = {VAR_LEAD: 1_468, SELF_LEAD: 1_382, PROMOTE_LEAD: 1_693, SHADOW_LEAD: 1_641, THREADS_LEAD: 632,
-                    LAT_LEAD: 1_389}
-NEW_BYTES_V1_653 = {VAR_LEAD: 1_486, SELF_LEAD: 1_450, PROMOTE_LEAD: 1_708, SHADOW_LEAD: 1_595, THREADS_LEAD: 549,
-                    LAT_LEAD: 1_420}
+EXAMPLE_LEAD = "`demo/atlas-max` clears the bar and measures 0.953 against 0.913 on the same 300 items, "
+# the seven paragraphs v1.653 changes, as v1.652 (f6d28c2) left them and as v1.653 leaves them
+OLD_BYTES_V1_653 = {VAR_LEAD: 1_468, SELF_LEAD: 1_382, PROMOTE_LEAD: 1_693, EXAMPLE_LEAD: 490, SHADOW_LEAD: 1_641,
+                    THREADS_LEAD: 632, LAT_LEAD: 1_389}
+NEW_BYTES_V1_653 = {VAR_LEAD: 1_486, SELF_LEAD: 1_450, PROMOTE_LEAD: 1_708, EXAMPLE_LEAD: 427, SHADOW_LEAD: 1_610,
+                    THREADS_LEAD: 578, LAT_LEAD: 1_420}
 # what comes back, each with the behavioural DESIGN subsection and the phrase of the line that states it
 BACK_V1_653 = [
     (LAT_LEAD, "A trial's time, from your call to the route's answer, is a results row's `latency_ms`", "### 4.3 ",
@@ -874,6 +876,11 @@ BACK_V1_653 = [
      "so at list prices in either flavor and per item"),  # review iter-502 nit 3
     (VAR_LEAD, "so once measured with token counts the route is priced per item", "### 5.2 ",
      "for a route whose `items_per_call` k is above 1 (4.1), `list_cost`"),  # review iter-507 nit 1
+    # review iter-508 must-fix 1: `report` reads a call's first record before its last, so the order stays
+    (THREADS_LEAD, "once per log (rotated files oldest first), refusing", "### 8.2 ",
+     "give such files in the order they were written"),
+    (SHADOW_LEAD, "A task's `shadow_rate`, 0 by default, is the share", "### 4.2 ",  # review iter-508 should-fix 1
+     "`shadow_rate: float = 0.0`, the share of the task's `.call`s also sent to a shadow route"),
 ]
 # what leaves to pay for it, as v1.652 (f6d28c2) wrote it, each pinned the same way
 DROPPED_V1_653 = [
@@ -881,13 +888,14 @@ DROPPED_V1_653 = [
      "prices derived from what an hour of the caller's own serving costs"),
     (SELF_LEAD, "unmeasured it is not routed, ", "## 11. ",
      "they give reasons `insufficient_samples`, `passes`, `passes` and `generator_family`"),
-    (SHADOW_LEAD, ", from 0, the default, to 1,", "### 4.2 ",
-     "`shadow_rate: float = 0.0`, the share of the task's `.call`s also sent to a shadow route"),
+    (SHADOW_LEAD, ", from 0, the default, to 1,", "### 4.2 ", "a finite `int` or `float` in [0, 1] that is not a `bool`"),
     (SHADOW_LEAD, ", with no fallback,", "## 7. ",
      "the executor makes one provider call of the shadow route on the same `messages`, by step 2 with no fallback"),
     (LAT_LEAD, ", in milliseconds,", "### 4.2 ", "the highest 95th-percentile time in milliseconds a route may take"),
     (LAT_LEAD, ", so below 20 trials it is the slowest of them", "### 4.3 ", "the slowest of them while `n` is below 20"),
-    (THREADS_LEAD, "(a rotated log's files oldest first)", "### 8.2 ", "give such files in the order they were written"),
+    # the transcript above it prints `cheaper: false` and `basis: n/a`, and 4.7 states when the margin is read
+    (EXAMPLE_LEAD, " The margin is not read, since `demo/atlas-max` is not cheaper.", "### 4.7 ",
+     "`cheaper` and `lower_bound > -margin` gives `promote` with basis `non_inferior`"),
     (THREADS_LEAD, ", since a log given twice would count it twice", "### 8.2 ",
      "which would count its calls and its spend twice"),
 ]
@@ -895,16 +903,16 @@ NAMES_V1_653 = {THREADS_LEAD: ["Executor", "Monitor", "BudgetLedger", "id_factor
                                "report", "pairs", "--log PATH"]}
 
 
-def test_the_v1_653_six_and_the_section_at_most_24000_bytes():
+def test_the_v1_653_seven_and_the_section_at_most_24000_bytes():
     found = {lead: len(paragraph(lead).encode("utf-8")) for lead in OLD_BYTES_V1_653}
     assert found == NEW_BYTES_V1_653
-    assert sum(NEW_BYTES_V1_653.values()) - sum(OLD_BYTES_V1_653.values()) == 3
-    assert size(read("README.md"), PRODUCTION) == 23_995 <= TARGET < PRODUCTION_CAP == 30_000
+    assert sum(OLD_BYTES_V1_653.values()) - sum(NEW_BYTES_V1_653.values()) == 16
+    assert size(read("README.md"), PRODUCTION) == 23_976 <= TARGET < PRODUCTION_CAP == 30_000
 
 
 def test_the_v1_653_caveats_and_qualifiers_are_back_where_design_states_them():
     design = read("DESIGN.md")
-    assert len(BACK_V1_653) == 5
+    assert len(BACK_V1_653) == 7
     for lead, text, heading, phrase in BACK_V1_653:
         assert paragraph(lead).count(text) == 1, text
         [owner] = [line for line in subsection(design, heading).splitlines() if phrase in line]
@@ -921,7 +929,7 @@ def test_each_clause_v1_653_traded_out_is_gone_and_its_design_subsection_states_
         assert "README" not in owner.split(":", 1)[0], (heading, phrase)
 
 
-def test_the_v1_653_six_keep_their_names_quotes_and_links_and_no_dash():
+def test_the_v1_653_seven_keep_their_names_quotes_and_links_and_no_dash():
     for lead in OLD_BYTES_V1_653:
         text = paragraph(lead)
         assert text.startswith(lead), lead
@@ -930,6 +938,7 @@ def test_the_v1_653_six_keep_their_names_quotes_and_links_and_no_dash():
     assert [n for n in NAMES_V1_653[THREADS_LEAD] if n not in names] == []
     assert paragraph(SELF_LEAD).count("](") == 1 and paragraph(PROMOTE_LEAD).count("](") == 2
     assert paragraph(VAR_LEAD).count("](") == 1 and paragraph(THREADS_LEAD).count("](") == 0
+    assert paragraph(EXAMPLE_LEAD).count("`demo/atlas-max`") == 2 and paragraph(EXAMPLE_LEAD).count("](") == 0
 
 
 def test_the_v1_653_check_fails_on_a_clause_still_there_or_a_phrase_elsewhere():
@@ -948,6 +957,8 @@ def test_the_v1_653_check_fails_on_a_clause_still_there_or_a_phrase_elsewhere():
     assert "refusing a record found in two of them." in paragraph(THREADS_LEAD)
     # each owner is the behavioural line, not a line of another subsection
     assert "give such files in the order they were written" not in subsection(design, "### 8.3 ")
+    assert "`cheaper: false`" not in paragraph(EXAMPLE_LEAD)
+    assert "cheaper:              false\nalpha:" in read("README.md")  # the transcript still shows it
     assert "the slowest of them while `n` is below 20" not in subsection(design, "### 4.2 ")
     assert "by step 2 with no fallback" not in subsection(design, "### 4.2 ")
     assert "so at list prices in either flavor and per item" not in subsection(design, "### 4.7 ")
@@ -963,8 +974,8 @@ def test_design_states_the_v1_653_change_and_the_changelog_the_version():
                  "one attempt's (4.3 v1.626)",
                  "its throughputs describe one workload and its split of the hour between input and output is an "
                  "approximation you choose (4.1 v1.581)",
-                 "each stated on a line of 4.1, 4.2, 4.3, 7, 8.2 or 11, so no subsection gains one",
-                 "so the section is 23,995 bytes by the 12.8 measure, at most row PROD1g's 24,000 and under v1.629's "
+                 "each stated on a line of 4.1, 4.2, 4.3, 4.7, 7, 8.2 or 11, so no subsection gains one",
+                 "so the section is 23,976 bytes by the 12.8 measure, at most row PROD1g's 24,000 and under v1.629's "
                  "30,000-byte cap, which stays",
                  "No package module, evidence file or README transcript changes."):
         assert mine.count(kept) == 1, kept

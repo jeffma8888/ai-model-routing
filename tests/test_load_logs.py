@@ -277,5 +277,6 @@ def test_design_changelog_and_readme_state_the_rule():
     assert len(sentence) == 1
     assert sentence[0].endswith(
         "and each process needs a log of its own, which `report` and `pairs` "
-        "read together when given `--log PATH` once per log, "
-        "refusing a record found in two of them.")  # v1.653 (row PROD1h): the order and the reason are DESIGN 8.2's
+        "read together when given `--log PATH` once per log (rotated files oldest first), "
+        "refusing a record found in two of them.")  # v1.653 (row PROD1h): the reason is DESIGN 8.2's; the order
+    # stays, since `report` reads a call's first record before its last (review iter-508 must-fix 1)
