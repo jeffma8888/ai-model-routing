@@ -71,6 +71,7 @@ def test_task_defaults_and_frozen_dataclass():
         "timeout_s": 60.0, "fallback_below_bar": False, "slices": {}, "cascades": (),
         "failure_policy": "none", "shadow_rate": 0.0, "shadow_route": None,
         "max_p95_ms": None, "latency_unknown": "allow",  # v1.628 (row LAT1b)
+        "min_self_consistency": None,  # v1.668 (row JUDGE2b)
     }
     with pytest.raises(FrozenInstanceError):
         task.bar = 0.1
