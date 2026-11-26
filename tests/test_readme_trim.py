@@ -1152,25 +1152,33 @@ def test_the_v1_664_steps_keep_their_lesson_anchors_in_order():
     assert found == ANCHORS_V1_659
 
 
+def clauses_still_there(readme):
+    """Each DROPPED_V1_664 clause still in the sentence or the step it was dropped from."""
+    intro, steps = walk_parts(readme)
+    return [clause for where, clause, _ in DROPPED_V1_664 if clause in (intro if where == 0 else steps[where - 1])]
+
+
 def test_each_clause_v1_664_dropped_is_gone_and_design_5_2_states_it():
-    intro, steps = walk_parts(read("README.md"))
     five2 = subsection(read("DESIGN.md"), "### 5.2 ")
     assert len(DROPPED_V1_664) == 11
-    for where, clause, phrase in DROPPED_V1_664:
-        assert clause not in (intro if where == 0 else steps[where - 1]), clause
-        assert five2.count(phrase) >= 1, phrase
+    assert clauses_still_there(read("README.md")) == []
+    for _, clause, phrase in DROPPED_V1_664:
+        assert five2.count(phrase) >= 1, (clause, phrase)
 
 
-def test_the_v1_664_check_fails_on_a_clause_still_there():
-    intro, steps = walk_parts(read("README.md"))
+def test_the_v1_664_check_names_a_clause_put_back():
+    # review iter-521 should-fix 1: put v1.663's words back into a step, the walk-through's sentence intact
+    readme = read("README.md")
+    _, steps = walk_parts(readme)
     # the reworded clauses keep their content in the step itself
     assert "whose rejection is an `invalid` attempt" in steps[0]
     assert "a cache life set by how the traffic pauses" in steps[9]
-    old = "\n\n" + intro + "\n\n"
-    worse = read("README.md").replace(old, "\n\nFrom a first call to steady state, in order, each step\n\n", 1)
-    assert worse != read("README.md")
-    with pytest.raises(ValueError):
-        walk_parts(worse)
+    fallback = "so a wrong answer is an `invalid` attempt and the call moves to its fallback"
+    one = steps[0].replace(" a check whose rejection is an `invalid` attempt:", " a check, " + fallback + ":")
+    two = steps[1].replace("like [a stand-in model](", "as [a stand-in model must clear the same bar](")
+    assert one != steps[0] and two != steps[1]
+    worse = readme.replace(steps[0], one, 1).replace(steps[1], two, 1)
+    assert clauses_still_there(worse) == [fallback, "must clear the same bar]("]
 
 
 def test_design_states_v1_664_and_the_changelog_the_version():
