@@ -466,8 +466,10 @@ def paragraph(lead):
 SAVINGS_LEAD = "A log also shows where a cheaper route, such as a procedure or a model of your own, would save most: "
 # DESIGN 5.2 v1.655 (row T30): each paragraph added to the section after v1.653, in the order added, as its lead
 # and its own bytes with its blank line; a slice that adds a paragraph appends its entry here
+MONITOR_LEAD = "A monitor that runs for a service's life need not hold every record in memory: "
 LATER = [
     (SAVINGS_LEAD, 714),  # v1.654, row OPP1c: 712 bytes and the blank line
+    (MONITOR_LEAD, 370),  # v1.656, row PROD1b: 368 bytes and the blank line
 ]
 
 
@@ -1023,9 +1025,12 @@ def test_design_states_the_v1_653_change_and_the_changelog_the_version():
 
 # --- v1.655 (row T30) -----------------------------------------------------------------------------
 
-def test_the_section_ends_with_the_savings_sentence():
+def test_the_section_ends_with_the_monitor_sentence():
     # the one test that names the section's last paragraph; a slice that adds one after it restates this alone
-    assert paragraphs(read("README.md"), PRODUCTION)[-1].startswith(SAVINGS_LEAD)
+    # (v1.656, row PROD1b: the sentence on `keep_records` follows the savings sentence, v1.654's last)
+    found = paragraphs(read("README.md"), PRODUCTION)
+    assert found[-1].startswith(MONITOR_LEAD)
+    assert found[found.index(paragraph(MONITOR_LEAD)) - 1].startswith(SAVINGS_LEAD)
 
 
 def test_later_takes_out_a_paragraph_wherever_it_sits_and_only_its_bytes():
