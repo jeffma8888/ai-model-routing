@@ -289,16 +289,18 @@ def test_the_production_note_states_the_sources_as_shipped():
     line = [line for line in text.splitlines() if line.startswith("- In this library: judge calls are its first case")]
     assert len(line) == 1
     assert "The changes: stats that say where their labels came from" not in line[0]
-    assert line[0].endswith(
+    # v1.663 (row JUDGE1bbb) restates what follows; tests/test_select_label_sources.py pins it
+    assert (
         "the minimum. From v1.662 stats calibrated on rows that name a label source count each "
-        "route's trials per source, so stats built on those labels say so. The changes: `select` "
-        "printing where a route's labels came from; and a self-consistency minimum, so a judge "
-        "whose reruns disagree is excluded whatever its bound.")
+        "route's trials per source, so stats built on those labels say so. ") in line[0]
 
 
 def test_no_transcript_or_script_writes_label_source():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    assert "label_source" not in readme
+    # v1.663 (row JUDGE1bbb): README's production paragraph names the key, and no transcript holds it
+    blocks = readme.split("```")[1::2]
+    assert blocks and not any("label_source" in block for block in blocks)
+    assert readme.count("label_source") == 1
     for folder in ("evidence", "research", ".github"):
         for path in (ROOT / folder).rglob("*"):
             if path.is_file() and path.suffix in (".py", ".yml", ".yaml", ".sh", ".json", ".jsonl", ".md"):

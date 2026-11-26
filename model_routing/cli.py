@@ -402,8 +402,15 @@ def _cmd_select(args) -> int:
         _warn_expired_prices(registry, args.today, _eligible(exc.candidates))
         return EXIT_NO_MODEL
     used = _eligible(decision.candidates)
+    key = decision.task if decision.slice is None else f"{decision.task}@{decision.slice}"
+    sources = stats.label_sources(key, decision.primary)  # DESIGN 10 v1.663: the primary's key only
     if args.json:
-        print(json.dumps(decision.to_dict(), indent=2))
+        data = decision.to_dict()
+        if sources:
+            candidates = data.pop("candidates")
+            data["label_sources"] = sources
+            data["candidates"] = candidates
+        print(json.dumps(data, indent=2))
         _warn_expired_prices(registry, args.today, used)
         return EXIT_OK
     print(f"task:      {decision.task}")
@@ -423,6 +430,9 @@ def _cmd_select(args) -> int:
               "(an estimate assuming independent retries)")
         if decision.pick_reason is not None:
             print(f"pick:      {decision.pick_reason}")
+    if sources:  # DESIGN 10 v1.663: where the primary's labels came from
+        named = ", ".join(f"{source} {count}" for source, count in sources.items())
+        print(f"labels:    {named} of {stats.get(key, decision.primary)[1]} trials")
     print()
     print(_candidate_table(decision.candidates, registry))
     _warn_expired_prices(registry, args.today, used)

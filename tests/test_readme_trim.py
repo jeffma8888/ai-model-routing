@@ -474,6 +474,7 @@ COROUTINE_LEAD = "A service built on an asyncio event loop calls the executor fr
 FORMAT_LEAD = "A store that loads the log (a warehouse table or a dashboard) builds its schema from the record format: "
 WALK_LEAD = "From a first call to steady state, in order, each step with one lesson from "
 STEPS_LEAD = "1. Define each task in `tasks.json` with its `bar` and `min_samples`, "
+CONSENSUS_LEAD = "A team with no human labels can make them from its reference judges' recorded grades: "
 LATER = [
     (SAVINGS_LEAD, 714),  # v1.654, row OPP1c: 712 bytes and the blank line
     (MONITOR_LEAD, 370),  # v1.656, row PROD1b: 368 bytes and the blank line
@@ -481,6 +482,7 @@ LATER = [
     (FORMAT_LEAD, 340),  # v1.658, row LOG1: 338 bytes and the blank line
     (WALK_LEAD, 145),  # v1.659, row PROD1: the walk-through's sentence, 143 bytes, after the lead
     (STEPS_LEAD, 3366),  # v1.659, row PROD1: its ten steps, 3,364 bytes, before the seven of v1.604
+    (CONSENSUS_LEAD, 596),  # v1.663, row JUDGE1bbb: 594 bytes and the blank line, the section's last
 ]
 
 
@@ -1040,9 +1042,10 @@ def test_the_section_ends_with_the_record_format_sentence():
     # the one test that names the section's last paragraph; a slice that adds one after it restates this alone
     # (v1.656, row PROD1b: the sentence on `keep_records` follows the savings sentence, v1.654's last;
     # v1.657, row PROD1e: the sentence on calls from a coroutine follows it; v1.658, row LOG1: the sentence on the
-    # record format follows that)
+    # record format follows that; v1.663, row JUDGE1bbb: the paragraph on consensus labels follows that)
     found = paragraphs(read("README.md"), PRODUCTION)
-    assert found[-1].startswith(FORMAT_LEAD)
+    assert found[-1].startswith(CONSENSUS_LEAD)
+    assert found[found.index(paragraph(CONSENSUS_LEAD)) - 1].startswith(FORMAT_LEAD)
     assert found[found.index(paragraph(FORMAT_LEAD)) - 1].startswith(COROUTINE_LEAD)
     assert found[found.index(paragraph(COROUTINE_LEAD)) - 1].startswith(MONITOR_LEAD)
     assert found[found.index(paragraph(MONITOR_LEAD)) - 1].startswith(SAVINGS_LEAD)
