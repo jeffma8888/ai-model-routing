@@ -78,6 +78,12 @@ it, never by a count from the section's end. LATER's entries since: v1.656's sen
 (row PROD1b), v1.657's on calls from a coroutine (DESIGN 7, row PROD1e) and v1.658's on the record format
 (DESIGN 8.1, row LOG1), the section's last; v1.659's two paragraphs of the walk-through (row PROD1), its
 sentence and its list of steps, the section's first after its lead.
+
+DESIGN 5.2 v1.664 (row PROD1ia, the first part of row PROD1i): the walk-through's sentence and its ten steps are cut
+from 143 and 3,364 bytes to 115 and 3,088, each step keeping the names tests/test_readme_walkthrough.py `TOPICS`
+pins, its commands and its lesson's anchor (ANCHORS_V1_659), so LATER's two v1.659 entries are restated and
+DROPPED_V1_664 pins each dropped clause to the phrase of DESIGN 5.2 that states it. These tests failed on v1.663's
+README and pass on v1.664's.
 """
 
 from pathlib import Path
@@ -472,7 +478,7 @@ SAVINGS_LEAD = "A log also shows where a cheaper route, such as a procedure or a
 MONITOR_LEAD = "A monitor that runs for a service's life need not hold every record in memory: "
 COROUTINE_LEAD = "A service built on an asyncio event loop calls the executor from a coroutine with "
 FORMAT_LEAD = "A store that loads the log (a warehouse table or a dashboard) builds its schema from the record format: "
-WALK_LEAD = "From a first call to steady state, in order, each step with one lesson from "
+WALK_LEAD = "From a first call to steady state, each step with one lesson from "
 STEPS_LEAD = "1. Define each task in `tasks.json` with its `bar` and `min_samples`, "
 CONSENSUS_LEAD = "A team with no human labels can make them from its reference judges' recorded grades: "
 LATER = [
@@ -480,8 +486,8 @@ LATER = [
     (MONITOR_LEAD, 370),  # v1.656, row PROD1b: 368 bytes and the blank line
     (COROUTINE_LEAD, 445),  # v1.657, row PROD1e: 443 bytes and the blank line
     (FORMAT_LEAD, 340),  # v1.658, row LOG1: 338 bytes and the blank line
-    (WALK_LEAD, 145),  # v1.659, row PROD1: the walk-through's sentence, 143 bytes, after the lead
-    (STEPS_LEAD, 3366),  # v1.659, row PROD1: its ten steps, 3,364 bytes, before the seven of v1.604
+    (WALK_LEAD, 117),  # v1.659, row PROD1: the walk-through's sentence, after the lead; 115 bytes from v1.664
+    (STEPS_LEAD, 3090),  # v1.659, row PROD1: its ten steps, before the seven of v1.604; 3,088 bytes from v1.664
     (CONSENSUS_LEAD, 596),  # v1.663, row JUDGE1bbb: 594 bytes and the blank line, the section's last
 ]
 
@@ -1090,4 +1096,98 @@ def test_design_states_v1_655_and_the_changelog_the_version():
     [line] = [x for x in read("CHANGELOG.md").splitlines() if x.startswith("- v1.655 (")]
     assert line.startswith("- v1.655 (2026-11-25): tests (5.2, row T30). ")
     assert line.endswith(" README.md and every transcript keep their bytes.")
+    assert len(line.encode("utf-8")) <= 600
+
+
+# --- v1.664 (row PROD1ia, the first part of row PROD1i) ---------------------------------------------
+
+STEPS_V1_659, STEPS_V1_664, INTRO_V1_659, INTRO_V1_664 = 3_364, 3_088, 143, 115
+SECTION_V1_663, SECTION_V1_664 = 29_952, 29_648
+# each step's lesson anchor in research/production-lessons.md, as v1.659 linked it
+ANCHORS_V1_659 = [
+    "benchmark-the-real-work-then-take-the-cheapest-setup-that-holds-quality",
+    "a-catalogue-of-models-does-not-pick-one-and-a-stand-in-model-must-clear-the-same-bar",
+    "effort-harness-and-batch-size-are-part-of-the-measured-setup",
+    "keep-tool-schemas-and-polling-out-of-the-models-context",
+    "your-own-trained-model-is-a-candidate-kept-to-the-tasks-it-was-measured-on",
+    "keep-the-prompt-prefix-the-same-byte-for-byte",
+    "spend-tiers-and-nudges-not-strict-caps",
+    "switch-models-only-on-locked-data-and-a-significant-result",
+    "the-price-of-a-given-score-falls-fast-and-unevenly-date-the-prices-and-re-run-the-choice",
+    "price-cache-writes-and-set-the-caches-life-by-how-the-work-pauses",
+]
+# (where: 0 the sentence, else the step's number; the clause as v1.663 wrote it; a phrase of DESIGN 5.2 that states it)
+DROPPED_V1_664 = [
+    (0, "in order, ", "a numbered list of ten steps in this order"),
+    (0, "in the paragraphs below", "The paragraphs after the list are the steps' detail"),
+    (1, "so a wrong answer is an `invalid` attempt and the call moves to its fallback",
+     "whose rejection is an `invalid` attempt that falls back (7)"),
+    (2, "must clear the same bar](", "admitted only once its own bound clears the bar (rule 7"),
+    (3, "a route, a `variants` entry per effort or harness, and", "a route for each setup by `variants` (4.1)"),
+    (5, "at its real price", "a self-hosted row priced from its hour"),
+    (5, "kept to the tasks it was measured on](", "kept to its tasks by `scope_tasks` (4.1)"),
+    (8, "with a task's `shadow_rate`", "a share of calls shadowed by `shadow_rate`"),
+    (8, "switches models only on locked data", "a switch made only on `promote`'s decision"),
+    (9, "once a row's `price_valid_until` has passed", "`select` warns past a row's `price_valid_until`, v1.411"),
+    (10, "[sets the cache's life by how the work pauses](", "a cache life set by how the traffic pauses"),
+]
+
+
+def walk_parts(text):
+    found = paragraphs(text, PRODUCTION)
+    [at] = [k for k, p in enumerate(found) if p.startswith(WALK_LEAD)]
+    return found[at], found[at + 1].split("\n")
+
+
+def test_the_v1_664_walkthrough_is_shorter_and_the_section_under_its_cap():
+    intro, steps = walk_parts(read("README.md"))
+    assert len(intro.encode("utf-8")) == INTRO_V1_664 and len("\n".join(steps).encode("utf-8")) == STEPS_V1_664
+    assert (INTRO_V1_659 + STEPS_V1_659) - (INTRO_V1_664 + STEPS_V1_664) == SECTION_V1_663 - SECTION_V1_664 == 304
+    assert size(read("README.md"), PRODUCTION) <= SECTION_V1_664 < PRODUCTION_CAP == 30_000
+
+
+def test_the_v1_664_steps_keep_their_lesson_anchors_in_order():
+    _, steps = walk_parts(read("README.md"))
+    found = [step.split("](research/production-lessons.md#", 1)[1].split(")", 1)[0] for step in steps]
+    assert found == ANCHORS_V1_659
+
+
+def test_each_clause_v1_664_dropped_is_gone_and_design_5_2_states_it():
+    intro, steps = walk_parts(read("README.md"))
+    five2 = subsection(read("DESIGN.md"), "### 5.2 ")
+    assert len(DROPPED_V1_664) == 11
+    for where, clause, phrase in DROPPED_V1_664:
+        assert clause not in (intro if where == 0 else steps[where - 1]), clause
+        assert five2.count(phrase) >= 1, phrase
+
+
+def test_the_v1_664_check_fails_on_a_clause_still_there():
+    intro, steps = walk_parts(read("README.md"))
+    # the reworded clauses keep their content in the step itself
+    assert "whose rejection is an `invalid` attempt" in steps[0]
+    assert "a cache life set by how the traffic pauses" in steps[9]
+    old = "\n\n" + intro + "\n\n"
+    worse = read("README.md").replace(old, "\n\nFrom a first call to steady state, in order, each step\n\n", 1)
+    assert worse != read("README.md")
+    with pytest.raises(ValueError):
+        walk_parts(worse)
+
+
+def test_design_states_v1_664_and_the_changelog_the_version():
+    design = read("DESIGN.md")
+    five2 = subsection(design, "### 5.2 ")
+    [mine] = [line for line in five2.splitlines()
+              if line.startswith("- v1.664 README walk-through trim (row PROD1ia, the first part of row PROD1i): ")]
+    for kept in ("its ten steps are cut from 3,364 to 3,088 bytes",
+                 "Each step keeps every name v1.659 gives it (tests/test_readme_walkthrough.py `TOPICS`)",
+                 "its one link to a lesson of research/production-lessons.md by the same anchor",
+                 "So the section is 29,648 bytes by the 12.8 measure, 352 under v1.629's 30,000-byte cap, which stays.",
+                 "row PROD1ib cuts the paragraphs after the list to reach 26,000",
+                 "restates the two v1.659 entries to 117 and 3,090 bytes with their blank lines",
+                 "No package module, evidence file or README transcript changes."):
+        assert mine.count(kept) == 1, kept
+    assert five2.index("\n- v1.659 README walk-through (row PROD1): ") < five2.index("\n" + mine)
+    assert len(mine.encode("utf-8")) <= 6_000 and "\u2014" not in mine and "\u2013" not in mine
+    [line] = [x for x in read("CHANGELOG.md").splitlines() if x.startswith("- v1.664 (")]
+    assert line.startswith("- v1.664 (2026-11-26): docs and tests (5.2, row PROD1i, first part). ")
     assert len(line.encode("utf-8")) <= 600

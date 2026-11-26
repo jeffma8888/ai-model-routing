@@ -31,8 +31,9 @@ from test_readme_production import LEAD, MOVED, PRODUCTION, anchors, paragraphs,
 
 ROOT = Path(__file__).resolve().parents[1]
 NOTE = "research/production-lessons.md"
-INTRO = ("From a first call to steady state, in order, each step with one lesson from the production lessons "
-         "note and its detail in the paragraphs below:")
+# v1.664 (row PROD1ia): `in order,` dropped and `in the paragraphs below` said as `below` (tests/test_readme_trim.py)
+INTRO = ("From a first call to steady state, each step with one lesson from the production lessons note and its "
+         "detail below:")
 LINK = re.compile(r"\[[^\]]+\]\(([^)\s]+)\)")
 COMMAND = re.compile(r"`(model-routing [^`]+)`")
 # each step's names, in the row's order: the task and its check; calibrate before routing, new routes cold;
