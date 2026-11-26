@@ -454,7 +454,8 @@ class Router:
         One candidate per pair, every leaf of the first root, then of the next, with the ID
         ``<root>+<leaf>``: rules 1 to 5d on the root, then on the leaf, rules 5e to 5h and 6 to 8 on
         the pair's own key, so a pair is admitted only on runs of the two together. Its cost is the
-        root's list cost plus the leaf's, each at its own prices and 5.2 sizes on the task, and the
+        root's list cost plus the leaf's, each at its own prices and its mean tokens inside the pair
+        when the pair's key holds side tokens (v1.671), else at its 5.2 sizes on the task, and the
         decision is chosen by 5.3 with no prior. Raises ``ValueError`` for an unknown flavor, a
         ``policy`` that is not None or a ``Policy``, ``roots`` or ``leaves`` that is not a non-empty
         list or tuple of ``str`` with no ID twice, or a registry ID equal to a pair's; ``KeyError``
@@ -494,7 +495,8 @@ class Router:
     def _pair_candidate(self, task: Task, root, leaf, flavor: str, excluded: set,
                         generator_base: Optional[str], generator_family: Optional[str],
                         policy: Optional[Policy]) -> Candidate:
-        """A root and leaf pair as one candidate (DESIGN 5.2 v1.670)."""
+        """A root and leaf pair as one candidate (DESIGN 5.2 v1.670), each side priced at its mean
+        side tokens with no cache count when the pair's key holds them (v1.671)."""
         pair_id = f"{root.id}+{leaf.id}"
         names = (task.name, None)
         successes, trials = self.stats.get(task.name, pair_id)
@@ -505,7 +507,12 @@ class Router:
                                       task.expected_input_tokens, names, policy)
                   or slow or self._consistency_rule(task, pair_id)
                   or self._measured_rule(task, successes, trials))
-        list_cost = self._list_cost(task, root) + self._list_cost(task, leaf)
+        sides = self.stats.mean_side_tokens(task.name, pair_id)
+        if sides is None:
+            list_cost = self._list_cost(task, root) + self._list_cost(task, leaf)
+        else:  # DESIGN 5.2 v1.671: one call of each side, over its items_per_call (v1.573)
+            list_cost = (root.cost(*sides[0]) / root.items_per_call
+                         + leaf.cost(*sides[1]) / leaf.items_per_call)
         return Candidate(
             model_id=pair_id,
             family=root.family,

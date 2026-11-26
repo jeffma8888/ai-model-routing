@@ -112,8 +112,8 @@ V1_670_FILE = {"stats": [
      "token_trials": 4, "cached_input_tokens": 12, "cached_trials": 2, "cache_write_tokens": 3,
      "cache_write_trials": 1, "label_sources": {"consensus": 1, "human": 3}, "rerun_items": 2,
      "consistent_items": 1, "latencies_ms": [1.5, 2.0]},
-    {"task": "t", "model": "x/a>x/b@low", "successes": 1, "trials": 2, "escalated": 1},
     {"task": "t", "model": "proc:p@1", "successes": 2, "trials": 2, "cost_usd": 0.25},
+    {"task": "t", "model": "x/a>x/b@low", "successes": 1, "trials": 2, "escalated": 1},
     {"task": "t@deep", "model": "x/y", "successes": 0, "trials": 1},
 ]}
 

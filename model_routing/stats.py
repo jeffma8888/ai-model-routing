@@ -1,5 +1,5 @@
 """Measured quality: Wilson lower bounds, the items a bar needs, and per (task, model) counts,
-token totals, cache totals, trial times, label sources and rerun consistency."""
+token totals, cache totals, a pair's side tokens, trial times, label sources and rerun consistency."""
 
 from __future__ import annotations
 
@@ -19,6 +19,8 @@ PathLike = Union[str, Path]
 _TOKEN_KEYS = ("input_tokens", "output_tokens", "token_trials")
 _CACHE_PAIRS = (("cached_input_tokens", "cached_trials"),
                 ("cache_write_tokens", "cache_write_trials"))
+_SIDE_KEYS = ("root_input_tokens", "root_output_tokens", "leaf_input_tokens", "leaf_output_tokens",
+              "side_trials")  # DESIGN 4.3 v1.671, in the order .save writes them
 _OUTCOME_KEYS = ("task", "model", "item")  # DESIGN 4.3 v1.602, as the outcome matrix (12.1)
 _GRADE_NAMES = ("task", "item", "judge")  # DESIGN 4.3 v1.660
 _GRADE_TYPES = (str, bool, int)  # exact types: a float, null or a subclass is no grade
@@ -145,6 +147,33 @@ def _check_cache(n: int, input_tokens: Optional[int], cached: Optional[int],
         raise ValueError(f"cached_input_tokens {out[0]} plus cache_write_tokens {out[2]} is over "
                          f"input_tokens {input_tokens!r}, which counts every input token")
     return out[0], out[1], out[2], out[3]
+
+
+def _check_sides(model_id: object, trials: int, totals: Tuple[object, ...],
+                 side_trials: object) -> Optional[Tuple[int, int, int, int, int]]:
+    """Validate a pair's optional side tokens (DESIGN 4.3 v1.671); return the four totals and
+    their side trial count, or ``None`` when none is given.
+
+    The four totals go together, each an integer >= 0, over ``side_trials`` of these trials
+    (default all of them); a cascade or procedure key is no pair, so it holds none.
+    """
+    names = _SIDE_KEYS[:4]
+    given = [name for name, value in zip(names, totals) if value is not None]
+    if not given:
+        if side_trials is not None:
+            raise ValueError("side_trials needs " + ", ".join(names))
+        return None
+    if len(given) != len(names):
+        raise ValueError(f"{', '.join(names)} must be given together, got only {', '.join(given)}")
+    if _is_cascade_key(model_id) or _is_procedure_key(model_id):
+        raise ValueError(f"a cascade or procedure key holds no side tokens, got {model_id!r}")
+    for name, value in zip(names, totals):
+        if not _is_int(value) or value < 0:
+            raise ValueError(f"{name} must be an integer >= 0, got {value!r}")
+    k = trials if side_trials is None else side_trials
+    if not _is_int(k) or not 1 <= k <= trials:
+        raise ValueError(f"side_trials must be an integer from 1 to trials={trials}, got {k!r}")
+    return (*totals, k)
 
 
 def _check_latencies(trials: int, latencies_ms: object) -> Optional[Tuple[float, ...]]:
@@ -282,9 +311,10 @@ class Stats:
     model handed the call up (DESIGN 7 v1.532). A procedure key (its ``id`` starts with
     ``proc:``) holds no token totals but the summed cost of its trials (DESIGN 4.3 v1.577).
     Any key may hold the time in milliseconds of each timed trial (DESIGN 4.3 v1.626), how
-    many of its trials came from rows naming each label source (DESIGN 4.3 v1.662), and how many
+    many of its trials came from rows naming each label source (DESIGN 4.3 v1.662), how many
     items were graded on two or more reruns and how many of them every rerun graded alike
-    (DESIGN 4.3 v1.667).
+    (DESIGN 4.3 v1.667), and a pair's side tokens, its root's and its leaf's input and output
+    totals over its side trials (DESIGN 4.3 v1.671).
     """
 
     def __init__(self) -> None:
@@ -296,6 +326,7 @@ class Stats:
         self._latency: Dict[Tuple[str, str], List[float]] = {}
         self._labels: Dict[Tuple[str, str], Dict[str, int]] = {}
         self._consistency: Dict[Tuple[str, str], Tuple[int, int]] = {}
+        self._sides: Dict[Tuple[str, str], Tuple[int, int, int, int, int]] = {}
 
     def get(self, task: str, model_id: str) -> Tuple[int, int]:
         """Return ``(successes, trials)``, or ``(0, 0)`` when nothing is recorded."""
@@ -309,7 +340,10 @@ class Stats:
             cache_write_trials: Optional[int] = None,
             latencies_ms: Optional[Union[List[float], Tuple[float, ...]]] = None,
             label_sources: Optional[Dict[str, int]] = None,
-            rerun_items: Optional[int] = None, consistent_items: Optional[int] = None) -> None:
+            rerun_items: Optional[int] = None, consistent_items: Optional[int] = None,
+            root_input_tokens: Optional[int] = None, root_output_tokens: Optional[int] = None,
+            leaf_input_tokens: Optional[int] = None, leaf_output_tokens: Optional[int] = None,
+            side_trials: Optional[int] = None) -> None:
         """Add these counts, and any token totals, to the existing ones for the key.
 
         ``input_tokens`` and ``output_tokens`` go together and are totals over
@@ -324,8 +358,11 @@ class Stats:
         trials to its trial count, 1 to ``trials`` each, summing to at most ``trials``, on any
         key (DESIGN 4.3 v1.662). ``rerun_items`` and ``consistent_items`` go together: the items
         graded on two or more reruns and how many of them every rerun graded alike, the key's
-        ``rerun_items`` at most its trials once these are added (DESIGN 4.3 v1.667). Raises
-        ``ValueError`` and adds nothing when any argument is invalid.
+        ``rerun_items`` at most its trials once these are added (DESIGN 4.3 v1.667).
+        ``root_input_tokens``, ``root_output_tokens``, ``leaf_input_tokens`` and
+        ``leaf_output_tokens`` go together: a pair's side totals over ``side_trials`` of these
+        trials (default: all of them), on any key but a cascade or procedure one (DESIGN 4.3
+        v1.671). Raises ``ValueError`` and adds nothing when any argument is invalid.
         """
         _check_counts(successes, trials)
         n = _check_tokens(trials, input_tokens, output_tokens, token_trials)
@@ -335,6 +372,8 @@ class Stats:
                              cache_write_tokens, cache_write_trials)
         times = _check_latencies(trials, latencies_ms)
         sources = _check_label_sources(trials, label_sources)
+        side = _check_sides(model_id, trials, (root_input_tokens, root_output_tokens,
+                                               leaf_input_tokens, leaf_output_tokens), side_trials)
         key = (task, model_id)
         consistency = _check_consistency(rerun_items, consistent_items)
         if consistency is not None:  # DESIGN 4.3 v1.667: a rerun item is a measured one
@@ -368,6 +407,9 @@ class Stats:
         if consistency is not None:
             items, alike = self.consistency(task, model_id)
             self._consistency[key] = (items + consistency[0], alike + consistency[1])
+        if side is not None:  # DESIGN 4.3 v1.671
+            held = self.side_tokens(task, model_id)
+            self._sides[key] = tuple(x + y for x, y in zip(held, side))
 
     def consistency(self, task: str, model_id: str) -> Tuple[int, int]:
         """Return ``(rerun_items, consistent_items)``, ``(0, 0)`` when none is recorded
@@ -404,6 +446,21 @@ class Stats:
         cached, cached_trials, write, write_trials = self.cache_tokens(task, model_id)
         return (cached // cached_trials if cached_trials else None,
                 write // write_trials if write_trials else None)
+
+    def side_tokens(self, task: str, model_id: str) -> Tuple[int, int, int, int, int]:
+        """Return ``(root_input_tokens, root_output_tokens, leaf_input_tokens, leaf_output_tokens,
+        side_trials)``, all 0 when none are recorded (DESIGN 4.3 v1.671)."""
+        return self._sides.get((task, model_id), (0, 0, 0, 0, 0))
+
+    def mean_side_tokens(self, task: str,
+                         model_id: str) -> Optional[Tuple[Tuple[int, int], Tuple[int, int]]]:
+        """Return the root's and the leaf's mean input and output tokens per side trial, each
+        rounded up in integer arithmetic as ``mean_tokens``; ``None`` with no side trial
+        (DESIGN 4.3 v1.671)."""
+        root_in, root_out, leaf_in, leaf_out, k = self.side_tokens(task, model_id)
+        if k == 0:
+            return None
+        return (-(-root_in // k), -(-root_out // k)), (-(-leaf_in // k), -(-leaf_out // k))
 
     def latencies(self, task: str, model_id: str) -> Tuple[float, ...]:
         """Return the key's times in milliseconds sorted ascending, ``()`` when none
@@ -446,7 +503,7 @@ class Stats:
 
     def merge(self, other: "Stats") -> "Stats":
         """Return a new Stats with the summed counts, token totals, cache totals, escalations,
-        costs, label sources and rerun counts, and both sides' times."""
+        costs, label sources, rerun counts and side tokens, and both sides' times."""
         merged = Stats()
         for source in (self, other):
             for key, (s, t) in source._counts.items():
@@ -467,6 +524,9 @@ class Stats:
             for key, (items, alike) in source._consistency.items():  # DESIGN 4.3 v1.667
                 held_items, held_alike = merged._consistency.get(key, (0, 0))
                 merged._consistency[key] = (held_items + items, held_alike + alike)
+            for key, values in source._sides.items():  # DESIGN 4.3 v1.671
+                held = merged._sides.get(key, (0, 0, 0, 0, 0))
+                merged._sides[key] = tuple(x + y for x, y in zip(held, values))
         return merged
 
     def items(self):
@@ -486,7 +546,9 @@ class Stats:
         row's ``cost_usd`` is ignored (DESIGN 4.3 v1.577). Any row may carry ``latencies_ms``,
         a JSON array of 1 to ``trials`` times in milliseconds (DESIGN 4.3 v1.626),
         ``label_sources``, a JSON object of sources to trial counts (DESIGN 4.3 v1.662), and
-        ``rerun_items`` with ``consistent_items``, both integers or neither (DESIGN 4.3 v1.667).
+        ``rerun_items`` with ``consistent_items``, both integers or neither (DESIGN 4.3 v1.667),
+        and a pair's ``root_input_tokens``, ``root_output_tokens``, ``leaf_input_tokens``,
+        ``leaf_output_tokens`` and ``side_trials``, all five integers or none (DESIGN 4.3 v1.671).
         """
         raw = json.loads(Path(path).read_text(encoding="utf-8"))
         if not isinstance(raw, dict) or not isinstance(raw.get("stats"), list):
@@ -546,6 +608,13 @@ class Stats:
                     raise ValueError(f"{path}: rerun_items and consistent_items must be integers: {row!r}")
                 tokens["rerun_items"] = row["rerun_items"]
                 tokens["consistent_items"] = row["consistent_items"]
+            sides = [k for k in _SIDE_KEYS if k in row]  # DESIGN 4.3 v1.671
+            if sides and len(sides) != len(_SIDE_KEYS):
+                raise ValueError(f"{path}: a stats row carries all of {', '.join(_SIDE_KEYS)} "
+                                 f"or none: {row!r}")
+            if sides and not all(_is_int(row[k]) for k in _SIDE_KEYS):
+                raise ValueError(f"{path}: side token keys must be integers: {row!r}")
+            tokens.update({k: row[k] for k in sides})
             try:
                 stats.add(str(task), str(model_id), successes, trials, **tokens)
             except ValueError as exc:
@@ -558,7 +627,9 @@ class Stats:
         A key holding times gets ``latencies_ms``, sorted, as its row's last key (DESIGN 4.3
         v1.626); a key holding label sources gets ``label_sources``, sorted by source name, before
         it (DESIGN 4.3 v1.662), and a key holding rerun items gets ``rerun_items`` and
-        ``consistent_items`` between the two (DESIGN 4.3 v1.667); a key without one gets no such key.
+        ``consistent_items`` between the two (DESIGN 4.3 v1.667); a key holding side tokens gets
+        its five side keys after any cache keys and before the sources (DESIGN 4.3 v1.671); a key
+        without one gets no such key.
         """
         rows = []
         for (task, model_id), (s, t) in self.items():
@@ -575,6 +646,9 @@ class Stats:
                 row.update(cached_input_tokens=cached, cached_trials=cached_trials)
             if write_trials:
                 row.update(cache_write_tokens=write, cache_write_trials=write_trials)
+            side = self.side_tokens(task, model_id)
+            if side[4]:  # DESIGN 4.3 v1.671, after the cache keys and before the sources
+                row.update(zip(_SIDE_KEYS, side))
             sources = self.label_sources(task, model_id)
             if sources:  # DESIGN 4.3 v1.662, before the times
                 row["label_sources"] = sources
