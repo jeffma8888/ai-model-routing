@@ -1293,8 +1293,10 @@ def test_the_v1_665_check_names_a_clause_put_back():
     assert one != drift and two != shadow
     worse = readme.replace(drift, one, 1).replace(shadow, two, 1)
     assert v1_665_still_there(worse) == ["and alerts on a flag", "it is held and settled under the call's tags"]
-    # a clause in another paragraph is not the dropped one's
-    elsewhere = readme.replace("\n\n" + drift + "\n\n", "\n\n" + drift + "\n\nSo it alerts on a flag.\n\n", 1)
+    # a clause in another paragraph is not the dropped one's (review iter-522 should-fix 1: the hand case holds it)
+    other = "It reads its `--json` and alerts on a flag."
+    elsewhere = readme.replace("\n\n" + drift + "\n\n", "\n\n" + drift + "\n\n" + other + "\n\n", 1)
+    assert elsewhere.count(other) == 1 and "and alerts on a flag" in other
     assert v1_665_still_there(elsewhere) == []
 
 
@@ -1308,9 +1310,13 @@ def test_design_states_v1_665_and_the_changelog_the_version():
                  "Each clause it drops or rewords is stated in 7, 8.3 or 10, so no subsection gains one",
                  "So the section is 29,385 bytes by the 12.8 measure, 615 under v1.629's 30,000-byte cap, which stays.",
                  "row PROD1ibb cuts the rest to reach 26,000",
+                 # review iter-522 should-fix 2: the number the v1.653 test now holds
+                 "and the section less `LATER` at 23,713, v1.653's 23,976 less 263",
                  "No package module, evidence file or README transcript changes."):
         assert mine.count(kept) == 1, kept
-    assert five2.index("\n- v1.664 README walk-through trim (") < five2.index("\n" + mine)
+    # review iter-522 nit 4: right after v1.664's bullet
+    lines = five2.splitlines()
+    assert lines[lines.index(mine) - 1].startswith("- v1.664 README walk-through trim (")
     assert len(mine.encode("utf-8")) <= 6_000 and "\u2014" not in mine and "\u2013" not in mine
     [line] = [x for x in read("CHANGELOG.md").splitlines() if x.startswith("- v1.665 (")]
     assert line.startswith("- v1.665 (2026-11-26): docs and tests (5.2, row PROD1i, second part). ")
