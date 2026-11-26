@@ -589,7 +589,8 @@ class Stats:
 
 
 def calibrate_from_results(rows: Iterable[dict]) -> Stats:
-    """Count one trial per row; a row is correct by ``correct`` or ``prediction`` against ``gold``.
+    """Count one trial per row, but none for a row whose ``rerun`` is above 0 (DESIGN 4.3 v1.667);
+    a row is correct by ``correct`` or ``prediction`` against ``gold``.
 
     ``correct`` must be a real boolean. A row may carry ``input_tokens`` and
     ``output_tokens``, both or neither, and then adds one token trial with those counts, and

@@ -148,18 +148,20 @@ def test_reruns_with_a_gap_are_counted():
 
 @pytest.mark.parametrize("rerun", [True, False, -1, 1.0, "0", None, [0]])
 def test_a_bad_rerun_raises(rerun):
-    with pytest.raises(ValueError, match="rerun"):
-        calibrate_from_results([row("q1", rerun, "pass")])
+    # review iter-524 should-fix 1: the row check's own message, with a rerun 0 row beside it, so
+    # the item's missing rerun 0 cannot stand in for it
+    with pytest.raises(ValueError, match=r"^'rerun' must be an integer >= 0, got "):
+        calibrate_from_results([row("q1", 0, "pass"), row("q1", rerun, "pass")])
 
 
 @pytest.mark.parametrize("item", [None, "", 1, ["q1"]])
 def test_a_rerun_row_without_a_string_item_raises(item):
     bad = row("q1", 0, "pass")
     bad["item"] = item
-    with pytest.raises(ValueError, match="item"):
+    with pytest.raises(ValueError, match=r"^a row with 'rerun' needs a non-empty string 'item': "):
         calibrate_from_results([bad])
     del bad["item"]
-    with pytest.raises(ValueError, match="item"):
+    with pytest.raises(ValueError, match=r"^a row with 'rerun' needs a non-empty string 'item': "):
         calibrate_from_results([bad])
 
 
@@ -175,7 +177,7 @@ def test_an_item_without_rerun_0_raises():
 
 def test_rerun_rows_that_mix_prediction_and_none_raise():
     no_prediction = {"task": "faithfulness", "model": JUDGE, "item": "q1", "rerun": 1, "correct": True}
-    with pytest.raises(ValueError, match="prediction"):
+    with pytest.raises(ValueError, match="some rerun rows carry 'prediction' and some do not"):
         calibrate_from_results([row("q1", 0, "pass"), no_prediction])
 
 
