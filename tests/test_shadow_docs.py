@@ -140,14 +140,14 @@ def test_the_first_paragraph_says_what_a_shadow_is_costs_and_waits_for():
             "the caller gets only the routed result: a shadow's provider error, invalid output or budget refusal "
             "never fails the call.",
             "The draw comes from `Executor(..., random=...)`, so a test can fix it.",
-            # iter 459 sub-bullet: DESIGN 7 v1.609
-            "A call answered by the shadow route's own model sends no shadow, while a procedure whose `model` is the "
-            "shadow route is still shadowed.",
+            # iter 459 sub-bullet: DESIGN 7 v1.609; v1.665 (row PROD1iba) rewords it (tests/test_readme_trim.py
+            # DROPPED_V1_665)
+            "A call the shadow route's model answered sends none; a procedure whose `model` is that route still does.",
             "Each shadow is one more provider call at the shadow route's price, so at a `shadow_rate` of 0.05 about "
             "one call in twenty is paid twice;",
             "so a budget with `tags={\"shadow\": \"true\"}` caps the shadows' spend on its own.",
-            # iter 462 sub-bullet: DESIGN 10 v1.611
-            "The default `report` counts a shadow as a call of its own, while `report --shadow` keeps shadows out of "
+            # iter 462 sub-bullet: DESIGN 10 v1.611; v1.665 (row PROD1iba) drops `The default` (DROPPED_V1_665)
+            "`report` counts a shadow as a call of its own, while `report --shadow` keeps shadows out of "
             "the routed columns and adds `shadow_calls`, `shadow_failed_calls` and `shadow_cost_usd`.",
             # SCOUT iter 460 and iter 468 sub-bullets: DESIGN 7 v1.617
             "With no `shadow_runner` the shadow runs before `.call` returns.",

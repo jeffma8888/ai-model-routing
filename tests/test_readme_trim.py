@@ -84,6 +84,13 @@ from 143 and 3,364 bytes to 115 and 3,088, each step keeping the names tests/tes
 pins, its commands and its lesson's anchor (ANCHORS_V1_659), so LATER's two v1.659 entries are restated and
 DROPPED_V1_664 pins each dropped clause to the phrase of DESIGN 5.2 that states it. These tests failed on v1.663's
 README and pass on v1.664's.
+
+DESIGN 5.2 v1.665 (row PROD1iba, the first part of row PROD1ib): the paragraph on `drift` and the first on shadows are
+cut again, from 1,921 and 1,610 bytes to 1,741 and 1,527, so the section is 29,385 bytes. Each keeps its lead, every
+name in backticks (NAMES, NAMES_V1_648), its quote and links and every clause an earlier test keeps on purpose;
+DROPPED_V1_665 holds each clause it drops or rewords, as v1.664 (76aa0e3) wrote it, pinned to the line of 7, 8.3 or 10
+that states it, a pronoun or a moved phrase aside. The v1.652 and v1.653 tests hold the two at v1.665's bytes. These
+tests failed on v1.664's README and pass on v1.665's.
 """
 
 from pathlib import Path
@@ -839,10 +846,11 @@ def test_design_states_the_v1_651_trim_and_the_changelog_the_version():
 def test_the_v1_652_nine_are_shorter_and_the_section_at_most_24000_bytes():
     found = {lead: len(paragraph(lead).encode("utf-8")) for lead in OLD_BYTES_V1_652}
     # v1.653 (row PROD1h) changes five of the nine again, which NEW_BYTES_V1_653 holds; the four it left keep their
-    # v1.652 bytes (review iter-508 nit 1)
-    assert {k: v for k, v in found.items() if k not in NEW_BYTES_V1_653} == {
-        k: v for k, v in NEW_BYTES_V1_652.items() if k not in NEW_BYTES_V1_653}
-    assert all(found[k] == NEW_BYTES_V1_653[k] for k in found if k in NEW_BYTES_V1_653)
+    # v1.652 bytes (review iter-508 nit 1); v1.665 (row PROD1iba) cuts two again, which NEW_BYTES_V1_665 holds
+    later = {**NEW_BYTES_V1_653, **NEW_BYTES_V1_665}
+    assert {k: v for k, v in found.items() if k not in later} == {
+        k: v for k, v in NEW_BYTES_V1_652.items() if k not in later}
+    assert all(found[k] == later[k] for k in found if k in later)
     assert sum(OLD_BYTES_V1_652.values()) - sum(NEW_BYTES_V1_652.values()) == 1_166
     # v1.654 (row OPP1c) adds a sentence in the room under the cap; the section less LATER (v1.655, row T30)
     # stays at most TARGET
@@ -956,12 +964,13 @@ NAMES_V1_653 = {THREADS_LEAD: ["Executor", "Monitor", "BudgetLedger", "id_factor
 
 def test_the_v1_653_seven_and_the_section_at_most_24000_bytes():
     found = {lead: len(paragraph(lead).encode("utf-8")) for lead in OLD_BYTES_V1_653}
-    assert found == NEW_BYTES_V1_653
+    # v1.665 (row PROD1iba) cuts the first on shadows again, which NEW_BYTES_V1_665 holds
+    assert found == {k: NEW_BYTES_V1_665.get(k, v) for k, v in NEW_BYTES_V1_653.items()}
     assert sum(OLD_BYTES_V1_653.values()) - sum(NEW_BYTES_V1_653.values()) == 16
     # v1.654 (row OPP1c) adds a sentence in the room under the cap; the section less LATER (v1.655, row T30)
-    # keeps v1.653's bytes, and LATER's entries are the rest
+    # keeps v1.653's bytes, less what v1.665 (row PROD1iba) cuts, and LATER's entries are the rest
     text = read("README.md")
-    assert size(without_later(text), PRODUCTION) == 23_976 <= TARGET < PRODUCTION_CAP == 30_000
+    assert size(without_later(text), PRODUCTION) == 23_976 - CUT_V1_665 <= TARGET < PRODUCTION_CAP == 30_000
     assert size(text, PRODUCTION) - size(without_later(text), PRODUCTION) == sum(b for _, b in LATER)
     assert LATER[0] == (SAVINGS_LEAD, 714)  # v1.654's paragraph, its own 712 bytes and the blank line
 
@@ -1198,4 +1207,111 @@ def test_design_states_v1_664_and_the_changelog_the_version():
     assert len(mine.encode("utf-8")) <= 6_000 and "\u2014" not in mine and "\u2013" not in mine
     [line] = [x for x in read("CHANGELOG.md").splitlines() if x.startswith("- v1.664 (")]
     assert line.startswith("- v1.664 (2026-11-26): docs and tests (5.2, row PROD1i, first part). ")
+    assert len(line.encode("utf-8")) <= 600
+
+
+# --- v1.665 (row PROD1iba, the first part of row PROD1ib) -------------------------------------------
+
+# the paragraph on `drift` and the first on shadows, as v1.664 (76aa0e3) left them and as v1.665 leaves them
+OLD_BYTES_V1_665 = {DRIFT_LEAD: 1_921, SHADOW_LEAD: 1_610}
+NEW_BYTES_V1_665 = {DRIFT_LEAD: 1_741, SHADOW_LEAD: 1_527}
+CUT_V1_665, SECTION_V1_665 = 263, 29_385
+# each clause v1.665 drops or rewords, as v1.664 wrote it, the behavioural DESIGN subsection that states it, and a
+# phrase of the line there that says it
+DROPPED_V1_665 = [
+    (DRIFT_LEAD, "twice: on the audited calls of the last N UTC days", "### 8.3 ",
+     "`window_trials`, `window_lb`, each bound `wilson_lower_bound` (4.3) of its counts"),
+    (DRIFT_LEAD, "the stats file you route on when you pass it as", "## 10. ",
+     "`all_time` is `Stats.load(PATH)` with `--stats`, the stats a route is admitted on"),
+    (DRIFT_LEAD, "each answer the task's check rejected as a failure", "### 8.3 ",
+     "since the task's check rejected that answer whatever the audit says"),
+    (DRIFT_LEAD, "Wilson bounds, the bar, `min_samples` and a flag", "### 8.3 ",
+     "then `bar`, `min_samples`, `confidence` and `flag`"),
+    (DRIFT_LEAD, "when the window clears it and the all-time side does not", "### 8.3 ",
+     "`rose_above` when the all-time side does not clear"),
+    (DRIFT_LEAD, "and alerts on a flag", "## 10. ", "so a scheduled job reads `--json` and alerts on a flag"),
+    (DRIFT_LEAD, "to route on the window alone,", "## 10. ", "reads the window's stats instead of `--stats`"),
+    (SHADOW_LEAD, "a shadowed call sends the same messages to the shadow route once", "## 7. ",
+     "the executor makes one provider call of the shadow route on the same `messages`"),
+    (SHADOW_LEAD, "A call answered by the shadow route's own model sends no shadow", "## 7. ",
+     "its pair would compare that model with itself"),
+    (SHADOW_LEAD, "is the shadow route is still shadowed", "## 7. ",
+     "so a procedure whose `model` is the shadow route is still shadowed on the call's `messages`"),
+    (SHADOW_LEAD, "it is held and settled under the call's tags", "## 7. ",
+     "it holds and settles that call as v1.595 does, under the call's task and its tags plus `shadow: \"true\"`"),
+    (SHADOW_LEAD, "The default `report` counts a shadow", "### 8.3 ", "so a shadow call counts as a call of its own"),
+]
+# what each rewording keeps, in the paragraph itself
+KEPT_V1_665 = {DRIFT_LEAD: ["each `invalid` answer as a failure", "`rose_above` when only the window clears it",
+                            "or on the stats you route on (`--stats FILE`)",
+                            "`select --window 30d --log PATH --audits PATH` routes on the window's stats"],
+               SHADOW_LEAD: ["the same messages go to the shadow route once",
+                             "a procedure whose `model` is that route still does",
+                             "its tags are the call's plus `shadow: \"true\"`",
+                             "`report` counts a shadow as a call of its own, while `report --shadow`"]}
+
+
+def v1_665_still_there(readme):
+    """Each DROPPED_V1_665 clause still in the paragraph it was dropped from."""
+    found = paragraphs(readme, PRODUCTION)
+    return [clause for lead, clause, _, _ in DROPPED_V1_665
+            if any(p.startswith(lead) and clause in p for p in found)]
+
+
+def test_the_v1_665_two_are_shorter_and_the_section_under_its_cap():
+    found = {lead: len(paragraph(lead).encode("utf-8")) for lead in OLD_BYTES_V1_665}
+    assert found == NEW_BYTES_V1_665
+    assert sum(OLD_BYTES_V1_665.values()) - sum(found.values()) == CUT_V1_665 == SECTION_V1_664 - SECTION_V1_665
+    assert size(read("README.md"), PRODUCTION) <= SECTION_V1_665 < PRODUCTION_CAP == 30_000
+
+
+def test_the_v1_665_two_keep_their_leads_names_quote_and_links():
+    for lead, names in ((DRIFT_LEAD, NAMES[DRIFT_LEAD]), (SHADOW_LEAD, NAMES_V1_648[SHADOW_LEAD])):
+        text = paragraph(lead)
+        assert text.startswith(lead) and [n for n in names if n not in text.split("`")[1::2]] == [], lead
+        assert all(text.count(kept) == 1 for kept in KEPT_V1_665[lead]), lead
+        assert "\u2014" not in text and "\u2013" not in text
+    assert all(paragraph(DRIFT_LEAD).count(link) == 1 for link in LINKS[DRIFT_LEAD])
+    assert paragraph(DRIFT_LEAD).count("](") == 1 and paragraph(SHADOW_LEAD).count("](") == 0
+
+
+def test_each_clause_v1_665_dropped_is_gone_and_its_design_subsection_states_it():
+    design = read("DESIGN.md")
+    assert len(DROPPED_V1_665) == 12
+    assert v1_665_still_there(read("README.md")) == []
+    for lead, clause, heading, phrase in DROPPED_V1_665:
+        # a behavioural subsection, never a 5.2 history bullet of the README
+        [owner] = [line for line in subsection(design, heading).splitlines() if phrase in line]
+        assert "README" not in owner.split(":", 1)[0], (heading, phrase)
+
+
+def test_the_v1_665_check_names_a_clause_put_back():
+    readme = read("README.md")
+    drift, shadow = paragraph(DRIFT_LEAD), paragraph(SHADOW_LEAD)
+    one = drift.replace("so a scheduled job reads its `--json`;", "so a scheduled job reads its `--json` and alerts on a flag;")
+    two = shadow.replace("its tags are the call's plus", "it is held and settled under the call's tags plus")
+    assert one != drift and two != shadow
+    worse = readme.replace(drift, one, 1).replace(shadow, two, 1)
+    assert v1_665_still_there(worse) == ["and alerts on a flag", "it is held and settled under the call's tags"]
+    # a clause in another paragraph is not the dropped one's
+    elsewhere = readme.replace("\n\n" + drift + "\n\n", "\n\n" + drift + "\n\nSo it alerts on a flag.\n\n", 1)
+    assert v1_665_still_there(elsewhere) == []
+
+
+def test_design_states_v1_665_and_the_changelog_the_version():
+    design = read("DESIGN.md")
+    five2 = subsection(design, "### 5.2 ")
+    [mine] = [line for line in five2.splitlines()
+              if line.startswith("- v1.665 README trim (row PROD1iba, the first part of row PROD1ib): ")]
+    for kept in ("the paragraph on `drift` (v1.635) is cut from 1,921 to 1,741 bytes and the first on shadows (v1.619) "
+                 "from 1,610 to 1,527",
+                 "Each clause it drops or rewords is stated in 7, 8.3 or 10, so no subsection gains one",
+                 "So the section is 29,385 bytes by the 12.8 measure, 615 under v1.629's 30,000-byte cap, which stays.",
+                 "row PROD1ibb cuts the rest to reach 26,000",
+                 "No package module, evidence file or README transcript changes."):
+        assert mine.count(kept) == 1, kept
+    assert five2.index("\n- v1.664 README walk-through trim (") < five2.index("\n" + mine)
+    assert len(mine.encode("utf-8")) <= 6_000 and "\u2014" not in mine and "\u2013" not in mine
+    [line] = [x for x in read("CHANGELOG.md").splitlines() if x.startswith("- v1.665 (")]
+    assert line.startswith("- v1.665 (2026-11-26): docs and tests (5.2, row PROD1i, second part). ")
     assert len(line.encode("utf-8")) <= 600

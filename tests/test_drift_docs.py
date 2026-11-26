@@ -33,22 +33,22 @@ GITHUB_QUOTE = ("We also run these tests against our production models every day
                 "auditing to find out why the models aren\u2019t performing as well as they used to.")
 GITHUB_ANCHOR = "test-a-model-before-the-switch-and-re-run-the-tests-on-the-models-in-production-every-day"
 # v1.647 (row PROD1g): the paragraph in a shorter form, each dropped clause stated in DESIGN 8.3 or 10
-# (tests/test_readme_trim.py)
+# (tests/test_readme_trim.py); v1.665 (row PROD1iba) cuts it again, each clause it drops or rewords stated in
+# DESIGN 8.3 or 10 (tests/test_readme_trim.py DROPPED_V1_665)
 DRIFT_PARAGRAPH = (
-    "A route's success can drift while its all-time counts still admit it, since a provider can change the model "
-    "behind an ID. `model-routing drift --log PATH --audits PATH [--window 30d]` reads a monitor log's audited "
-    "calls, by the audits file `report --audits` reads, and judges each (task, route) against the task's bar "
-    "twice: on the audited calls of the last N UTC days and on all of them, or on the stats file you route on "
-    "when you pass it as `--stats FILE`. A call's final `ok` answer counts by its audit and each answer the "
-    "task's check rejected as a failure. Each row gives both sides' counts and Wilson bounds, the bar, `min_samples` and a flag: `fell_below` when "
-    "the all-time side clears the bar and a window of at least `min_samples` trials does not, `rose_above` when "
-    "the window clears it and the all-time side does not. The command changes no route or file and exits 0 "
-    "whatever it flags, so a scheduled job reads its `--json` and alerts on a flag; to route on the window alone,"
-    " `select --window 30d --log PATH --audits PATH` reads the window's stats in place of `--stats`. Over many "
-    "routes some flags come by chance, so a flag is a reason to audit more calls, not proof of a change "
-    "(`DESIGN.md` 8.3 and 10). On a task with `max_p95_ms`, `select --window` "
-    "holds each route to the bar on the window's times, and each `drift` row also gives both sides' p95 and a "
-    "`latency_flag`, `went_over` or `came_under`. GitHub runs its tests on the models it serves: "
+    "A route's success can drift while its all-time counts still admit it, since a provider can change the "
+    "model behind an ID. `model-routing drift --log PATH --audits PATH [--window 30d]` judges each (task, "
+    "route) of a monitor log's audited calls, by the audits file `report --audits` reads, against the task's "
+    "bar on the last N UTC days and on all of them, or on the stats you route on (`--stats FILE`). A call's "
+    "final `ok` answer counts by its audit and each `invalid` answer as a failure. Each row gives both sides' "
+    "counts and Wilson bounds and a flag: `fell_below` when the all-time side clears the bar and a window of at "
+    "least `min_samples` trials does not, `rose_above` when only the window clears it. It changes no route or "
+    "file and exits 0 whatever it flags, so a scheduled job reads its `--json`; `select --window 30d --log PATH "
+    "--audits PATH` routes on the window's stats in place of `--stats`. Over many routes some flags come by "
+    "chance, so a flag is a reason to audit more calls, not proof of a change (`DESIGN.md` 8.3 and 10). On a "
+    "task with `max_p95_ms`, `select --window` holds each route to the bar on the window's times, and each "
+    "`drift` row also gives both sides' p95 and a `latency_flag`, `went_over` or `came_under`. GitHub runs its "
+    "tests on the models it serves: "
     f"\"{GITHUB_QUOTE}\" ([production lessons](research/production-lessons.md#{GITHUB_ANCHOR}))"
     ": a fixed test set run again, where `drift` reads audited calls of your own traffic, and the post gives no "
     "count of the drops it found.")
