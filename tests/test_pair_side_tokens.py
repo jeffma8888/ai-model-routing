@@ -188,12 +188,14 @@ def test_a_cheap_leaf_that_reads_far_more_is_not_the_cheaper_pair():
     assert router().select_pair("t", ROOTS, LEAVES).primary == "r/strong+l/cheap"  # v1.670
 
 
-def test_cost_blind_reads_no_side_tokens():
+def test_cost_blind_choice_is_unchanged_by_side_tokens():
     extra = {pair: sides(1, 1, 1, 1) for pair in PAIRS}
     assert router(pair_extra=extra).select_pair("t", ROOTS, LEAVES, "cost_blind").to_dict()["primary"] == \
         router().select_pair("t", ROOTS, LEAVES, "cost_blind").to_dict()["primary"] == "r/strong+l/dear"
     blind = router(pair_extra=extra).select_pair("t", ROOTS, LEAVES, "cost_blind")
     assert all(c.routing_cost == 0.0 for c in blind.candidates)
+    # list_cost still reads them: (1 * 10 + 1 * 30) / 1e6 for each side of strong+dear
+    assert by_id(blind)["r/strong+l/dear"].list_cost == pytest.approx(0.00008, rel=1e-12)
 
 
 def test_a_leaf_with_no_tokens_in_the_pair_costs_nothing():
@@ -218,7 +220,6 @@ def test_a_side_s_items_per_call_divides_its_side_cost():
     priced = r.select_pair("t", ["r/strong"], ["l/batch@four"]).candidates[0]
     # root 0.0065; leaf (8,000 * 1 + 400 * 3) / 1e6 / 4 = 0.0092 / 4 = 0.0023
     assert priced.list_cost == pytest.approx(0.0065 + 0.0023, rel=1e-12)
-    plain = Router(reg, {"t": Task("t", bar=0.8, min_samples=30)}, Stats())
     stats_plain = Stats()
     stats_plain.add("t", "r/strong+l/batch@four", N, N)
     plain = Router(reg, {"t": Task("t", bar=0.8, min_samples=30)}, stats_plain)
