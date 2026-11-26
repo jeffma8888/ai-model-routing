@@ -442,6 +442,91 @@ class Router:
         if pin_route is not None:  # DESIGN 5.2 v1.639: no ranking, the hard checks kept
             return self._pinned(task, flavor, candidates, pin_route, allow_below_bar, base.name, slice)
 
+        return self._choose(task, flavor, candidates, base.name, slice,
+                            {cascade.id for cascade in routed} | seen)
+
+    def select_pair(self, task_name: str, roots: Sequence[str], leaves: Sequence[str],
+                    flavor: str = "cost_effective", *, generator_model: Optional[str] = None,
+                    exclude_models: Iterable[str] = (),
+                    policy: Optional[Policy] = None) -> RouteDecision:
+        """Route a delegating harness's root and leaf models as a pair (DESIGN 5.2 v1.670).
+
+        One candidate per pair, every leaf of the first root, then of the next, with the ID
+        ``<root>+<leaf>``: rules 1 to 5d on the root, then on the leaf, rules 5e to 5h and 6 to 8 on
+        the pair's own key, so a pair is admitted only on runs of the two together. Its cost is the
+        root's list cost plus the leaf's, each at its own prices and 5.2 sizes on the task, and the
+        decision is chosen by 5.3 with no prior. Raises ``ValueError`` for an unknown flavor, a
+        ``policy`` that is not None or a ``Policy``, ``roots`` or ``leaves`` that is not a non-empty
+        list or tuple of ``str`` with no ID twice, or a registry ID equal to a pair's; ``KeyError``
+        for an unknown task, root, leaf or generator; :class:`NoModelClearsBar` as ``select`` does.
+        """
+        if flavor not in FLAVORS:
+            raise ValueError(f"unknown flavor {flavor!r}; expected one of {FLAVORS}")
+        if policy is not None and not isinstance(policy, Policy):
+            raise ValueError(f"policy must be None or a Policy, got {type(policy).__name__}")
+        if task_name not in self.tasks:
+            raise KeyError(f"unknown task: {task_name!r}")
+        task = self.tasks[task_name]
+        sides = []
+        for label, ids in (("roots", roots), ("leaves", leaves)):
+            if not isinstance(ids, (list, tuple)) or not ids \
+                    or not all(isinstance(model_id, str) for model_id in ids):
+                raise ValueError(f"{label} must be a non-empty list or tuple of model IDs, got {ids!r}")
+            if len(set(ids)) != len(ids):
+                raise ValueError(f"{label} names a model twice: {list(ids)!r}")
+            sides.append([self.registry.get(model_id) for model_id in ids])
+        excluded = set(exclude_models)
+        generator_base = generator_family = None
+        if generator_model is not None:
+            generator = self.registry.get(generator_model)
+            generator_base, generator_family = generator.base_id, generator.family
+        pairs = [(root, leaf) for root in sides[0] for leaf in sides[1]]
+        for root, leaf in pairs:
+            pair_id = f"{root.id}+{leaf.id}"
+            if pair_id in self.registry:
+                raise ValueError(f"registry model {pair_id!r} has the id of a pair")
+        candidates = tuple(self._pair_candidate(task, root, leaf, flavor, excluded, generator_base,
+                                                generator_family, policy)
+                           for root, leaf in pairs)
+        return self._choose(task, flavor, candidates, task.name, None,
+                            {c.model_id for c in candidates})
+
+    def _pair_candidate(self, task: Task, root, leaf, flavor: str, excluded: set,
+                        generator_base: Optional[str], generator_family: Optional[str],
+                        policy: Optional[Policy]) -> Candidate:
+        """A root and leaf pair as one candidate (DESIGN 5.2 v1.670)."""
+        pair_id = f"{root.id}+{leaf.id}"
+        names = (task.name, None)
+        successes, trials = self.stats.get(task.name, pair_id)
+        slow, p95 = self._latency_rule(task, pair_id)
+        reason = (self._model_rule(task, root, excluded, generator_base, generator_family,
+                                   task.expected_input_tokens, names, policy)
+                  or self._model_rule(task, leaf, excluded, generator_base, generator_family,
+                                      task.expected_input_tokens, names, policy)
+                  or slow or self._consistency_rule(task, pair_id)
+                  or self._measured_rule(task, successes, trials))
+        list_cost = self._list_cost(task, root) + self._list_cost(task, leaf)
+        return Candidate(
+            model_id=pair_id,
+            family=root.family,
+            successes=successes,
+            trials=trials,
+            quality_lb=wilson_lower_bound(successes, trials, task.confidence),
+            routing_cost=list_cost if flavor == "cost_effective" else 0.0,
+            list_cost=list_cost,
+            eligible=reason in _ELIGIBLE_REASONS,
+            passes=reason == PASSES,
+            reason=reason,
+            p95_latency_ms=p95,
+        )
+
+    def _choose(self, task: Task, flavor: str, candidates: Tuple[Candidate, ...], name: str,
+                slice_name: Optional[str], no_prior: set) -> RouteDecision:
+        """The decision 5.3 chooses from these candidates, shared by ``select`` and ``select_pair``.
+
+        ``no_prior`` holds the IDs no prior scores: a cascade's and a procedure's (7 v1.532, 5.2
+        v1.577), and every pair (5.2 v1.670).
+        """
         passing = [c for c in candidates if c.passes]
         if passing:
             passing.sort(key=lambda c: (c.routing_cost, -c.quality_lb, c.model_id))
@@ -458,9 +543,9 @@ class Router:
                                key=lambda c: (-c.quality_lb, c.routing_cost, c.model_id))
             return self._decision(task, flavor, passing + under, False, "measured", candidates,
                                   under=frozenset(c.model_id for c in under),
-                                  name=base.name, slice_name=slice, pick_reason=pick_reason)
+                                  name=name, slice_name=slice_name, pick_reason=pick_reason)
 
-        where = f"task {base.name!r}" + ("" if slice is None else f" slice {slice!r}")
+        where = f"task {name!r}" + ("" if slice_name is None else f" slice {slice_name!r}")
         if task.on_no_model == "refuse":
             raise NoModelClearsBar(
                 f"no model clears the bar {task.bar} for {where}", candidates)
@@ -470,13 +555,12 @@ class Router:
                           key=lambda c: (-c.quality_lb, c.routing_cost, c.model_id))
         if measured:
             return self._decision(task, flavor, measured, True, "measured", candidates,
-                                  name=base.name, slice_name=slice)
+                                  name=name, slice_name=slice_name)
 
         if self.priors is not None and task.prior_category is not None:
             scored = []
-            no_prior = {cascade.id for cascade in routed} | seen
             for c in eligible:
-                if c.model_id in no_prior:  # no cascade or procedure has one (7 v1.532, 5.2 v1.577)
+                if c.model_id in no_prior:  # no cascade, procedure or pair has one (5.2 v1.670)
                     continue
                 score = self.priors.score(task.prior_category, c.model_id)
                 if score is not None:
@@ -484,7 +568,7 @@ class Router:
             scored.sort(key=lambda pair: (-pair[0], pair[1].routing_cost, pair[1].model_id))
             if scored:
                 return self._decision(task, flavor, [c for _, c in scored], True, "prior",
-                                      candidates, name=base.name, slice_name=slice)
+                                      candidates, name=name, slice_name=slice_name)
 
         raise NoModelClearsBar(
             f"no eligible measured or prior-scored model for {where}", candidates)
