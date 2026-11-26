@@ -669,7 +669,10 @@ def calibrate_from_results(rows: Iterable[dict]) -> Stats:
     ``correct`` must be a real boolean. A row may carry ``input_tokens`` and
     ``output_tokens``, both or neither, and then adds one token trial with those counts, and
     beside them ``cached_input_tokens`` and ``cache_write_tokens``, either or both, that call's
-    own cache counts (DESIGN 4.3 v1.588).
+    own cache counts (DESIGN 4.3 v1.588). A row may carry ``root_input_tokens``,
+    ``root_output_tokens``, ``leaf_input_tokens`` and ``leaf_output_tokens``, all four or none,
+    each an int that is not a bool, at least 0, its trial's side tokens inside a pair, and then adds
+    one side trial with them; a cascade or procedure row carries none (DESIGN 4.3 v1.672).
     A row with a ``slice`` adds its trial under ``<task>`` and ``<task>@<slice>``
     (DESIGN 4.3 v1.511). A cascade row (its ``model`` holds ``>``) carries a boolean
     ``escalated`` and no token counts, and no other row carries ``escalated`` (DESIGN 7). A
@@ -725,6 +728,16 @@ def calibrate_from_results(rows: Iterable[dict]) -> Stats:
                 if not _is_int(row[count_key]) or row[count_key] < 0:  # review iter-436 must-fix 1
                     raise ValueError(f"{count_key} must be an integer >= 0: {row!r}")
                 tokens[count_key] = row[count_key]
+        given = [key for key in _SIDE_KEYS[:4] if key in row]  # DESIGN 4.3 v1.672
+        if given:
+            if len(given) != 4:
+                raise ValueError(f"result row needs {', '.join(_SIDE_KEYS[:4])} together or none: {row!r}")
+            if not all(_is_int(row[key]) and row[key] >= 0 for key in given):
+                raise ValueError(f"side token counts must be integers >= 0: {row!r}")
+            if _is_procedure_key(model_id) or _is_cascade_key(model_id):
+                raise ValueError(f"a cascade or procedure row carries no side tokens: {row!r}")
+            tokens.update((key, row[key]) for key in given)
+            tokens["side_trials"] = 1  # a row is one trial; its own side_trials is not read
         if _is_procedure_key(model_id):
             if has_in:
                 raise ValueError(f"a procedure row carries no token counts: {row!r}")
