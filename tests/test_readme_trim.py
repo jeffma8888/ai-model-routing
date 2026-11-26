@@ -479,8 +479,8 @@ LATER = [
     (MONITOR_LEAD, 370),  # v1.656, row PROD1b: 368 bytes and the blank line
     (COROUTINE_LEAD, 445),  # v1.657, row PROD1e: 443 bytes and the blank line
     (FORMAT_LEAD, 340),  # v1.658, row LOG1: 338 bytes and the blank line
-    (WALK_LEAD, 170),  # v1.659, row PROD1: the walk-through's sentence, 168 bytes, after the lead
-    (STEPS_LEAD, 3322),  # v1.659, row PROD1: its ten steps, 3,320 bytes, before the seven of v1.604
+    (WALK_LEAD, 145),  # v1.659, row PROD1: the walk-through's sentence, 143 bytes, after the lead
+    (STEPS_LEAD, 3366),  # v1.659, row PROD1: its ten steps, 3,364 bytes, before the seven of v1.604
 ]
 
 

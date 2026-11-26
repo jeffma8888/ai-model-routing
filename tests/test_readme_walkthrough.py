@@ -1,7 +1,7 @@
 """DESIGN 5.2 v1.659 (row PROD1): README `## Running it in production` opens with a walk-through.
 
-After the section's lead sentence (v1.604) come INTRO, one sentence that links research/production-lessons.md,
-and a numbered list of ten steps from a first call to steady state, in TOPICS' order, each naming what to use
+After the section's lead sentence (v1.604) come INTRO, one sentence that names the production lessons note
+with no link (the README links it once, tests/test_research_production_lessons.py), and a numbered list of ten steps from a first call to steady state, in TOPICS' order, each naming what to use
 and linking one lesson of that note by its heading's anchor, a different lesson for each step; the seven v1.604
 paragraphs follow the list (tests/test_readme_production.py). Each `model-routing` command a step names is a
 subcommand of the parser, each option it gives is one of that subcommand's, followed by the metavar the parser
@@ -31,8 +31,8 @@ from test_readme_production import LEAD, MOVED, PRODUCTION, anchors, paragraphs,
 
 ROOT = Path(__file__).resolve().parents[1]
 NOTE = "research/production-lessons.md"
-INTRO = ("From a first call to steady state, in order, each step with one lesson from "
-         "[production lessons](research/production-lessons.md) and its detail in the paragraphs below:")
+INTRO = ("From a first call to steady state, in order, each step with one lesson from the production lessons "
+         "note and its detail in the paragraphs below:")
 LINK = re.compile(r"\[[^\]]+\]\(([^)\s]+)\)")
 COMMAND = re.compile(r"`(model-routing [^`]+)`")
 # each step's names, in the row's order: the task and its check; calibrate before routing, new routes cold;
@@ -41,8 +41,9 @@ COMMAND = re.compile(r"`(model-routing [^`]+)`")
 # on a schedule; what the library leaves to the caller
 TOPICS = [
     ("`tasks.json`", "`bar`", "`min_samples`", "`Executor.call(..., validate=...)`", "`invalid`"),
+    # review iter-515 should-fix 1: `insufficient_samples` only under `min_samples`, then `below_bar` until the bound clears
     ("`model-routing plan --success P --bar B`", "`model-routing calibrate --results FILE --stats FILE`", "cold",
-     "`insufficient_samples`"),
+     "`insufficient_samples` under `min_samples` trials", "admitted only once its own bound clears the bar"),
     ("`variants`", "`model-routing evaluate --outcomes FILE --cost-per-correct`", "cost per correct item"),
     ("`Procedure`", "`procedures=[...]`", "the agent"),
     ('`"pricing_basis": "self_hosted"`', '`"scope_tasks"`'),
@@ -109,7 +110,8 @@ def test_the_walkthrough_follows_the_lead_and_precedes_the_seven():
 def test_the_list_is_ten_numbered_steps_each_linking_a_different_lesson_of_the_note():
     intro, steps = walkthrough()
     assert len(steps) == len(TOPICS) == 10
-    assert LINK.findall(intro) == [NOTE]
+    # the README links the note itself once (tests/test_research_production_lessons.py), so INTRO names it unlinked
+    assert LINK.findall(intro) == [] and "production lessons note" in intro
     lessons = anchors((ROOT / NOTE).read_text(encoding="utf-8"))
     seen = []
     for number, step in enumerate(steps, 1):
@@ -244,6 +246,7 @@ def test_design_states_v1_659_and_the_changelog_the_version():
     five2 = design[design.index("### 5.2 "):design.index("### 5.3 ")]
     [mine] = [line for line in five2.splitlines() if line.startswith("- v1.659 README walk-through (row PROD1): ")]
     for kept in ("opens, after its lead sentence (v1.604), with a walk-through from a first call to steady state",
+                 "(rule 7; review iter-515 should-fix 1)",
                  "a numbered list of ten steps in this order",
                  "linking one lesson of that note by its heading's anchor, a different lesson for each step",
                  "the 50, 80 and 100 percent of `budget.WARN_SHARES` (4.6)",
@@ -251,8 +254,8 @@ def test_design_states_v1_659_and_the_changelog_the_version():
                  "a command that gives any option gives every option its subcommand requires",
                  "runs, exit 0, on the files a fresh `model-routing demo` run writes",
                  "the one bare command, `model-routing promote`, is the command of a README transcript (12.5)",
-                 "the section is 29,337 bytes by the 12.8 measure, 663 under v1.629's 30,000-byte cap, which stays",
-                 "tests/test_readme_trim.py's `LATER` gains the two paragraphs, 170 and 3,322 bytes",
+                 "the section is 29,356 bytes by the 12.8 measure, 644 under v1.629's 30,000-byte cap, which stays",
+                 "tests/test_readme_trim.py's `LATER` gains the two paragraphs, 145 and 3,366 bytes",
                  "No package module, evidence file or README transcript changes."):
         assert mine.count(kept) == 1, kept
     assert five2.index("\n- v1.655 README paragraph places (") < five2.index("\n" + mine)
