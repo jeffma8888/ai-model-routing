@@ -4,7 +4,8 @@
 items every rerun graded alike (4.3 v1.667) is under it (rule 5g, `inconsistent`) or unknown, its key
 holding fewer than `min_samples` rerun items (rule 5h, `consistency_unknown`), whatever its Wilson bound.
 A cascade and a procedure are judged on their own key, a slice on its own key and `min_samples`. The
-delegate keeps the minimum with and without a brief, and the inline parent reads no share (row JUDGE2d).
+delegate keeps the minimum with and without a brief, and from v1.669 the inline parent is held to it too
+(row JUDGE2d, tests/test_self_consistency_parent.py).
 With no minimum every decision on the shipped data keeps its v1.627 bytes, rerun counts or not.
 """
 
@@ -231,7 +232,7 @@ def test_a_pin_of_an_inconsistent_route_is_refused_whatever_allow_below_bar_says
             router(unknown).select("t", pin_route=CHEAP, allow_below_bar=allow)
 
 
-# --- 13.3 and 13.4: the delegate keeps the minimum, the parent reads none (row JUDGE2d) ----------
+# --- 13.3 and 13.4: the delegate keeps the minimum, and from v1.669 the parent (row JUDGE2d) ---
 
 def _delegation_router():
     tokens = {"input_tokens": 1000 * N, "output_tokens": 200 * N, "token_trials": N}
@@ -256,10 +257,12 @@ def test_the_briefed_copy_keeps_each_keys_rerun_counts():
         {CHEAP: (N, 27), MID: (N, N), PRICEY: (N, N)}
 
 
-def test_an_inconsistent_parent_may_still_work_inline_until_row_judge2d():
+def test_an_inconsistent_parent_delegates_from_v1_669():
+    """Restated by row JUDGE2d: at v1.668 this parent was allowed inline (13.4 read no share)."""
     decision = _delegation_router().decide_delegation("t", CHEAP, context_tokens=20_000, brief_tokens=400,
                                                       result_tokens=300)
-    assert decision.inline_allowed is True and decision.route.primary == MID
+    assert (decision.inline_allowed, decision.reason, decision.mode) == (False, "parent_inconsistent", "delegate")
+    assert decision.model == decision.route.primary == MID
     assert by_id(decision.route)[CHEAP].reason == INCONSISTENT
 
 
@@ -338,7 +341,7 @@ def test_design_and_changelog_state_v1_668():
              "5.1": "\n- v1.668 self-consistency minimum (row JUDGE2b): `INCONSISTENT = \"inconsistent\"` and ",
              "5.2": "\n- v1.668 self-consistency minimum (row JUDGE2b, the second part of JUDGE2): on a call whose task",
              "13.3": "\n- v1.668 rerun counts (row JUDGE2b): beside what v1.663 lists, that private copy also holds",
-             "13.4": "\n- v1.668 (row JUDGE2b): no rule reads the parent's self-consistency"}
+             "13.4": "\n- v1.668 (row JUDGE2b): no rule read the parent's self-consistency"}  # v1.669 tense
     for name, head in heads.items():
         assert parts[name].count(head) == 1, name
     assert parts["4.2"].index("\n- v1.628 latency bar") < parts["4.2"].index("\n- v1.668 ")
@@ -348,7 +351,8 @@ def test_design_and_changelog_state_v1_668():
                   "Unlike 5f, an unknown share has no `allow`", "a pin keeps rules 1 to 5h",
                   "With no minimum every decision is v1.667's bit for bit", "(row JUDGE2c, after row PROD1i)"):
         assert parts["5.2"].count(words) == 1, words
-    assert design.split("\n")[2].startswith("Status: v1.668, 2026-11-26 (v1.668, spec, code and tests: ")
+    # the Status line keeps five versions (tests/test_design_status.py), so from v1.669 the version is pinned
+    # by its changelog line, which stays
     [line] = [x for x in (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").splitlines()
               if x.startswith("- v1.668 (")]
     assert line.startswith("- v1.668 (2026-11-26): spec, code and tests (4.2, 5.1, 5.2, 13.3, 13.4, row JUDGE2, "
