@@ -27,6 +27,9 @@ v1.650 (row PROD1gbbb): the two on budgets are trimmed too, so only the one on t
 v1.604 bytes and sha256. DESIGN 5.2 v1.651 (row PROD1gbbbb): the one on task scopes is trimmed too, so none
 of the seven keeps its v1.604 bytes and sha256, and the move test checks each by its opening, its order and a
 length under the one it moved with.
+
+DESIGN 5.2 v1.659 (row PROD1): the walk-through's two paragraphs, its sentence and its list of steps, come
+between the lead and the seven, so the move test reads the seven from the paragraph after the list.
 """
 
 import hashlib
@@ -227,11 +230,15 @@ def test_the_new_section_follows_monitoring_and_precedes_evidence():
 def test_the_new_section_is_the_lead_and_the_seven_paragraphs_word_for_word():
     found = paragraphs(read("README.md"), PRODUCTION)
     assert found[0] == LEAD
+    # v1.659 (row PROD1): the walk-through's sentence and its list of steps come between the lead and the
+    # seven (tests/test_readme_walkthrough.py), so the seven start at the paragraph after the list
+    assert found[1].startswith("From a first call to steady state, ") and found[2].startswith("1. ")
+    start = 3
     # v1.605 (row GATE1d): the paragraph on `promote` and its transcripts follow the seven
     # (tests/test_promote_docs.py)
-    moved = found[1:8]
+    moved = found[start:start + 7]
     assert len(moved) == len(MOVED) == 7
-    assert found[8].startswith("Judge a challenger route against the current one only on the items ")
+    assert found[start + 7].startswith("Judge a challenger route against the current one only on the items ")
     assert [opening for opening, _, _ in MOVED if opening in TRIMMED] == list(TRIMMED)
     for paragraph, (opening, length, digest) in zip(moved, MOVED):
         assert paragraph.startswith(opening), opening

@@ -189,7 +189,10 @@ def test_the_readme_shows_the_pairs_synopsis_once_in_prose_and_in_no_transcript(
     # iter 463 sub-bullet: README shows the synopsis (DESIGN 10 v1.612), so tests/test_pairs_cli.py's pin moves
     readme = read("README.md")
     synopsis = "`model-routing pairs --log PATH --out FILE`"
-    assert readme.count("model-routing pairs") == 1 and part(SECOND).count(synopsis) == 1
+    # v1.659 (row PROD1): the other is step 8 of the walk-through (tests/test_readme_walkthrough.py)
+    assert readme.count("model-routing pairs") == 2 and part(SECOND).count(synopsis) == 1
+    steps = [line for line in readme.splitlines() if line.startswith("8. Shadow a share of calls ")]
+    assert len(steps) == 1 and steps[0].count(synopsis) == 1
     assert not [block for block in BLOCK.findall(readme) if "model-routing pairs" in block]
 
 
