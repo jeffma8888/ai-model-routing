@@ -603,10 +603,10 @@ class Router:
         """
         if task.min_self_consistency is None:
             return None
-        if self.stats.consistency(task.name, route_id)[0] < task.min_samples:
+        items, alike = self.stats.consistency(task.name, route_id)
+        if items < task.min_samples:
             return CONSISTENCY_UNKNOWN
-        share = self.stats.self_consistency(task.name, route_id)
-        return INCONSISTENT if share < task.min_self_consistency else None
+        return INCONSISTENT if alike / items < task.min_self_consistency else None
 
     @staticmethod
     def _measured_rule(task: Task, successes: int, trials: int) -> str:
