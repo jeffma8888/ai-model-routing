@@ -291,7 +291,8 @@ def test_a_file_that_cannot_be_opened_exits_2_with_nothing_on_stdout(tmp_path):
     out = tmp_path / "no-such-dir" / "labels.jsonl"
     code, stdout, stderr = run(argv(grades, out))
     assert (code, stdout) == (2, "")
-    assert stderr.startswith("error: ") and stderr.count("\n") == 1
+    # review iter-517 should-fix 1: the error is the write's, so the run got past every check
+    assert stderr.startswith("error: ") and "no-such-dir" in stderr and stderr.count("\n") == 1
     assert not out.parent.exists()
 
 
@@ -329,5 +330,7 @@ def test_no_transcript_or_script_runs_the_command():
     assert "$ model-routing consensus-labels" not in readme
     for folder in ("evidence", "research", ".github"):
         for path in (ROOT / folder).rglob("*"):
-            if path.is_file() and path.suffix in (".py", ".yml", ".yaml", ".sh"):
+            # review iter-517 nit 1: evidence's .md files too, where RESULTS.md holds transcripts
+            scanned = (".py", ".yml", ".yaml", ".sh") + ((".md",) if folder == "evidence" else ())
+            if path.is_file() and path.suffix in scanned:
                 assert "consensus-labels" not in path.read_text(encoding="utf-8"), path
