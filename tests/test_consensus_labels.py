@@ -397,6 +397,5 @@ def test_the_production_note_states_the_function_as_shipped():
     assert ("For a team with no human labels, from v1.660 `consensus_labels` builds labels from the reference "
             "judges' recorded grades, keeping an item only where every rerun of every one of them gave the same "
             "grade, gives each task's share of items kept against a minimum, and refuses a reference judge of the "
-            "generator's family; its labels measure agreement with those judges, not correctness. The changes: a "
-            "command that writes the labels and stats that say where their labels came from; and a "
-            "self-consistency minimum, so a judge whose reruns disagree is excluded whatever its bound.") in line[0]
+            "generator's family; its labels measure agreement with those judges, not correctness. ") in line[0]
+    # v1.661 (row JUDGE1ba) restates what follows (tests/test_consensus_labels_cli.py)
