@@ -26,17 +26,30 @@ class Monitor:
     lock from its append to ``records`` through the close of the file, so each record is one whole
     line and ``records`` and the file hold the records in one order. Two monitors on one path, or
     two processes, are not guarded by it.
+
+    ``keep_records=False`` (keyword-only, DESIGN 8.2 v1.656) writes each record to the file alone
+    and leaves ``records`` the empty list it starts as, so a monitor that runs for a service's life
+    holds no record in memory; read the file with ``load_records`` for ``report``. Without a path it
+    would keep no record anywhere, so it raises ``ValueError``, as does a value that is not a bool.
     """
 
-    def __init__(self, path: Optional[PathLike] = None):
+    def __init__(self, path: Optional[PathLike] = None, *, keep_records: bool = True):
+        if not isinstance(keep_records, bool):
+            raise ValueError(f"keep_records must be a bool, got {keep_records!r}")
+        if not keep_records and path is None:
+            raise ValueError("keep_records=False needs a path: a monitor with neither would keep no "
+                             "record anywhere")
         self.path = Path(path) if path is not None else None
+        self.keep_records = keep_records
         self.records: List[dict] = []
         self._lock = threading.Lock()
 
     def record(self, rec: dict) -> None:
-        """Store one attempt record and append it to the log file when set, under the lock."""
+        """Store one attempt record (unless ``keep_records`` is False) and append it to the log file
+        when set, under the lock."""
         with self._lock:
-            self.records.append(rec)
+            if self.keep_records:
+                self.records.append(rec)
             if self.path is not None:
                 with self.path.open("a", encoding="utf-8") as handle:
                     handle.write(json.dumps(rec) + "\n")
