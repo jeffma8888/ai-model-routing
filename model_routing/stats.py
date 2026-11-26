@@ -11,6 +11,7 @@ from statistics import NormalDist
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple, Union
 
 from .procedures import is_procedure_id
+from .registry import Registry
 from .tasks import is_slice_name, parse_cascade_id
 
 PathLike = Union[str, Path]
@@ -572,8 +573,11 @@ def item_outcomes(rows: Iterable[dict], *, dataset_sha256: str) -> List[dict]:
 
 
 def _real_in_unit(value: object) -> bool:
-    return (isinstance(value, (int, float)) and not isinstance(value, bool)
-            and isfinite(value) and 0 <= value <= 1)
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return False
+    if isinstance(value, int):  # review iter-516 must-fix 1: isfinite of a huge int overflows
+        return 0 <= value <= 1
+    return isfinite(value) and 0 <= value <= 1
 
 
 def consensus_labels(grades: Iterable[dict], judges: Sequence[str], *, reruns: int,
@@ -599,7 +603,11 @@ def consensus_labels(grades: Iterable[dict], judges: Sequence[str], *, reruns: i
         raise ValueError(f"min_agreement must be a finite number in [0, 1], got {min_agreement!r}")
     if (registry is None) != (generator_model is None):
         raise ValueError("registry and generator_model are given together or not at all")
-    if registry is not None:
+    if registry is not None:  # review iter-516 must-fix 2: a ValueError, never Attribute or TypeError
+        if not isinstance(registry, Registry):
+            raise ValueError(f"registry must be a Registry, got {registry!r}")
+        if not isinstance(generator_model, str) or not generator_model:
+            raise ValueError(f"generator_model must be a non-empty model ID, got {generator_model!r}")
         try:
             generator = registry.get(generator_model)
         except KeyError:

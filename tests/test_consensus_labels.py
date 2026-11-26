@@ -226,6 +226,15 @@ def test_a_judge_or_generator_outside_the_registry_is_refused(judges, generator)
         consensus_labels(rows, judges, reruns=3, registry=registry(), generator_model=generator)
 
 
+@pytest.mark.parametrize("reg, generator", [  # review iter-516 must-fix 2
+    (object(), GEN), ({GEN: "fam-g"}, GEN), ([], GEN), (registry(), []), (registry(), ""), (registry(), 3),
+    (registry(), ("vendor-g/writer",)),
+])
+def test_a_registry_or_generator_of_the_wrong_kind_is_a_value_error(reg, generator):
+    with pytest.raises(ValueError):
+        consensus_labels(synthetic(), [A, B], reruns=3, registry=reg, generator_model=generator)
+
+
 @pytest.mark.parametrize("kwargs", [{"registry": registry()}, {"generator_model": GEN}])
 def test_registry_and_generator_come_together(kwargs):
     with pytest.raises(ValueError):
@@ -281,13 +290,25 @@ GOOD = {"task": "t", "item": "i1", "judge": A, "rerun": 0, "grade": "a"}
 @pytest.mark.parametrize("bad", [
     {"grade": 0.5}, {"grade": None}, {"grade": ["a"]}, {"grade": {"a": 1}}, {"grade": float("nan")},
     {"rerun": True}, {"rerun": 0.0}, {"rerun": "0"}, {"rerun": None},
-    {"task": ""}, {"task": 1}, {"item": ""}, {"item": None}, {"judge": ""}, {"judge": 3},
+    {"task": ""}, {"task": 1}, {"item": ""}, {"item": None},
 ])
 @pytest.mark.parametrize("judge", [A, C])  # a reference judge's row and another judge's row alike
 def test_a_bad_row_is_refused(bad, judge):
-    row = dict(GOOD, judge=judge, **bad) if "judge" not in bad else dict(GOOD, **bad)
-    rows = grades_for("t", "i1", {A: "a", B: "a"}, reruns=1) + [row]
-    with pytest.raises(ValueError):
+    # review iter-516 nit 1: A's bad row replaces its good one, so no duplicate cell can raise instead,
+    # and the message names the key that is bad
+    rows = grades_for("t", "i1", {A: "a", B: "a"}, reruns=1)
+    row = dict(GOOD, judge=judge, **bad)
+    rows = [row if r["judge"] == A else r for r in rows] if judge == A else rows + [row]
+    assert consensus_labels(grades_for("t", "i1", {A: "a", B: "a"}, reruns=1), [A, B], reruns=1)["passes"]
+    (key,) = bad
+    with pytest.raises(ValueError, match=repr(key)):
+        consensus_labels(rows, [A, B], reruns=1)
+
+
+@pytest.mark.parametrize("judge", ["", 3, None])
+def test_a_row_with_a_bad_judge_is_refused(judge):
+    rows = grades_for("t", "i1", {A: "a", B: "a"}, reruns=1) + [dict(GOOD, judge=judge)]
+    with pytest.raises(ValueError, match="'judge'"):
         consensus_labels(rows, [A, B], reruns=1)
 
 
@@ -322,7 +343,8 @@ def test_reruns_is_a_positive_int(reruns):
         consensus_labels(synthetic(), [A, B], reruns=reruns)
 
 
-@pytest.mark.parametrize("minimum", [True, False, -0.01, 1.01, math.nan, math.inf, "0.9", None])
+@pytest.mark.parametrize("minimum", [True, False, -0.01, 1.01, math.nan, math.inf, "0.9", None,
+                                     2, -1, 10 ** 1000, -10 ** 1000])  # review iter-516 must-fix 1
 def test_min_agreement_is_a_finite_number_in_0_1(minimum):
     with pytest.raises(ValueError):
         consensus_labels(synthetic(), [A, B], reruns=3, min_agreement=minimum)
@@ -357,6 +379,9 @@ def test_design_and_changelog_name_the_contract():
             "generator_model: str | None = None) -> dict`") in four3
     assert "`Fraction(kept, items) >= Fraction(repr(float(min_agreement)))`" in four3
     assert "consensus is agreement between models, not human correctness" in four3
+    assert "never an `OverflowError` (review iter-516 must-fix 1)" in four3
+    assert "never an `AttributeError` or a `TypeError` (review iter-516 must-fix 2)" in four3
+    assert "under which `true` equals `1`, so a candidate judge's grades are given the reference judges' type first" in four3
     assert ("  - not in this version: the `consensus-labels` command and `label_source` in stats and `select` "
             "(row JUDGE1b). `model_routing.__all__` gains `consensus_labels`, after `pair_outcomes`\n") in four3
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").splitlines()
