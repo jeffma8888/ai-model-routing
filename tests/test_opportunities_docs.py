@@ -32,11 +32,12 @@ SAVINGS_LEAD = "A log also shows where a cheaper route, such as a procedure or a
 SAVINGS_PARAGRAPH = (
     SAVINGS_LEAD + "`model-routing report --log PATH --opportunities` gives each task its calls per day, share of "
     "spend and cost per call; `--target-cost-per-call USD` ranks the tasks by what each would save a day if a route "
-    "at that cost served all its calls and cleared the bar; `--stats FILE` adds the route `select` admits and its "
-    "list cost and, with `--audits PATH` and a target, the labelled items that a route at the target, at the task's "
+    "at that cost served all its calls and cleared the bar; `--stats FILE` adds the route `select` admits under "
+    "`cost_effective` and its list cost and, with `--audits PATH` and a target, the labelled items that a route at "
+    "the target, at the task's "
     "audited success rate, needs to be admitted; each saving is hypothetical, no return on what training, hosting or "
     "building that route costs (`DESIGN.md` 8.3 and 10).")
-SECTION_BYTES = 24_667   # at v1.654: v1.653's 23,976 plus the paragraph's 689 bytes and its blank line
+SECTION_BYTES = 24_690   # at v1.654: v1.653's 23,976 plus the paragraph's 712 bytes and its blank line
 CLAUSE = "- v1.654 README savings report (row OPP1c, 8.3 and 10 v1.645 and v1.646): "
 NOT_IN_V1_645 = ("  - Not in this version: the cost per call of the route `select` admits for the task and the labelled "
                  "items `plan` says a route at the target needs to be admitted, which v1.646 adds (row OPP1b), and the "
@@ -51,8 +52,12 @@ CLAIMS = [
      "Sort: with a target, by descending `saving_per_day_usd`"),
     ("if a route at that cost served all its calls and cleared the bar", "### 8.3 ",
      "if a route at the target cost per call served every one of them and cleared the task's bar"),
-    ("adds the route `select` admits and its list cost", "### 8.3 ",
+    ("adds the route `select` admits under `cost_effective`", "### 8.3 ",
+     "for each row, `router.select(task, \"cost_effective\")` with no other argument"),  # review iter-509 should-fix 1
+    ("adds the route `select` admits", "### 8.3 ",
      "`route` is the decision's `primary` when its `below_bar` is false, the route that clears the task's bar"),
+    ("`cost_effective` and its list cost", "### 8.3 ",
+     "`route_list_cost_usd` is that primary candidate's `list_cost` (5.1)"),  # review iter-509 nit 5
     ("the labelled items that a route at the target, at the task's audited success rate, needs to be admitted",
      "### 8.3 ", "`items_to_admit` is how many labelled items a route at the target needs on the task before "
      "`select` admits it, if its success rate there were the task's audited rate in the log"),
@@ -82,7 +87,7 @@ def test_the_sentence_ends_the_section_after_the_pin_paragraph_inside_the_cap():
     assert found[-1] == SAVINGS_PARAGRAPH and text.count(SAVINGS_LEAD) == 1
     assert found[-2] == PIN_PARAGRAPH
     assert size(text, PRODUCTION) == SECTION_BYTES <= PRODUCTION_CAP == 30_000
-    assert len(SAVINGS_PARAGRAPH.encode("utf-8")) == 689
+    assert len(SAVINGS_PARAGRAPH.encode("utf-8")) == 712
     # one sentence: no full stop inside it, and it ends at its DESIGN pointer
     assert ". " not in SAVINGS_PARAGRAPH and SAVINGS_PARAGRAPH.endswith(" (`DESIGN.md` 8.3 and 10).")
     assert "\u2014" not in SAVINGS_PARAGRAPH and "\u2013" not in SAVINGS_PARAGRAPH
@@ -119,20 +124,27 @@ def test_the_columns_and_the_sort_by_daily_saving():
 def test_stats_add_the_admitted_route_and_audits_with_a_target_the_items():
     router = build()
     rows = {r["task"]: r for r in opportunities(LOG, router=router)}
+    # under `cost_effective` (review iter-509 should-fix 1): with 60 more right on extract the dearer model
+    # has the higher bound, so `cost_blind` would pick it, while the row keeps the cheapest passing route
+    blind = build()
+    blind.stats.add("extract", "fiction/mid", 60, 60)
+    assert blind.select("extract", "cost_blind").primary == "fiction/mid"
+    assert {r["task"]: r["route"] for r in opportunities(LOG, router=blind)}["extract"] == "fiction/cheap"
     assert rows["classify"]["route"] == router.select("classify", "cost_effective").primary == "fiction/mid"
     assert rows["classify"]["route_list_cost_usd"] == 0.0063 and "items_to_admit" not in rows["classify"]
     # the items need a router, a target and audits: without audits the key is there and None
     no_audits = {r["task"]: r for r in opportunities(LOG, router=router, target_cost_per_call=0.001)}
     assert {t: r["items_to_admit"] for t, r in no_audits.items()} == dict.fromkeys(no_audits, None)
     audited = {r["task"]: r for r in opportunities(LOG, router=router, audits=AUDITS, target_cost_per_call=0.001)}
-    # rate 1.0: 35 items clear 0.9 and 16 clear 0.8 (4.3), raised to min_samples 50, 30 and 10; draft's 2/3 never does
+    # rate 1.0: 35 items clear 0.9 and 16 clear 0.8 (4.3), raised to min_samples 50 and 30 while extract's 16 is over
+    # its 10 and stands; draft's 2/3 never clears 0.8 (review iter-509 nit 1)
     assert {t: r["items_to_admit"] for t, r in audited.items()} == {
         "classify": 50, "summarize": 30, "extract": 16, "draft": None}
 
 
 def test_design_states_each_claim():
     design = read("DESIGN.md")
-    assert len(CLAIMS) == 8
+    assert len(CLAIMS) == 10
     for words, heading, phrase in CLAIMS:
         assert SAVINGS_PARAGRAPH.count(words) == 1, words
         assert subsection(design, heading).count(phrase) == 1, phrase
@@ -149,7 +161,7 @@ def test_design_states_v1_654_and_the_two_sub_bullets_name_it():
     for words in ("ends with one sentence on `report --opportunities`, after the paragraph on pinned calls (v1.641)",
                   "no return on what training, hosting or building that route costs (8.3 v1.645's Hypothetical "
                   "sub-bullet)",
-                  f"The sentence takes 691 bytes of the room row PROD1g made, so the section is {SECTION_BYTES:,} "
+                  f"The sentence takes 714 bytes of the room row PROD1g made, so the section is {SECTION_BYTES:,} "
                   f"bytes by the 12.8 measure, under v1.629's {PRODUCTION_CAP:,}-byte cap, which stays, and no "
                   "paragraph is trimmed",
                   "the v1.652 and v1.653 tests hold the section less this sentence's paragraph to the bytes they set, "

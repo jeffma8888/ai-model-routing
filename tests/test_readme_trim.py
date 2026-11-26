@@ -925,7 +925,7 @@ def test_the_v1_653_seven_and_the_section_at_most_24000_bytes():
     # v1.654 (row OPP1c) adds a sentence in the room under the cap; the rest keeps v1.653's bytes
     text = read("README.md")
     assert size(without_savings(text), PRODUCTION) == 23_976 <= TARGET < PRODUCTION_CAP == 30_000
-    assert size(text, PRODUCTION) - size(without_savings(text), PRODUCTION) == 691
+    assert size(text, PRODUCTION) - size(without_savings(text), PRODUCTION) == 714
 
 
 def test_the_v1_653_caveats_and_qualifiers_are_back_where_design_states_them():
