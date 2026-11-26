@@ -75,7 +75,8 @@ DESIGN 5.2 v1.655 (row T30): the v1.652 and v1.653 tests take out one list, LATE
 after v1.653, each with its own bytes and its blank line, so a slice that adds a paragraph appends one entry;
 one test alone names the section's last paragraph, and the docs modules place a paragraph by the one next to
 it, never by a count from the section's end. LATER's entries since: v1.656's sentence on `keep_records`
-(row PROD1b) and v1.657's on calls from a coroutine (DESIGN 7, row PROD1e), the section's last.
+(row PROD1b), v1.657's on calls from a coroutine (DESIGN 7, row PROD1e) and v1.658's on the record format
+(DESIGN 8.1, row LOG1), the section's last.
 """
 
 from pathlib import Path
@@ -469,10 +470,12 @@ SAVINGS_LEAD = "A log also shows where a cheaper route, such as a procedure or a
 # and its own bytes with its blank line; a slice that adds a paragraph appends its entry here
 MONITOR_LEAD = "A monitor that runs for a service's life need not hold every record in memory: "
 COROUTINE_LEAD = "A service built on an asyncio event loop calls the executor from a coroutine with "
+FORMAT_LEAD = "A store that loads the log, a warehouse table or a dashboard, builds its schema from the record format: "
 LATER = [
     (SAVINGS_LEAD, 714),  # v1.654, row OPP1c: 712 bytes and the blank line
     (MONITOR_LEAD, 370),  # v1.656, row PROD1b: 368 bytes and the blank line
     (COROUTINE_LEAD, 445),  # v1.657, row PROD1e: 443 bytes and the blank line
+    (FORMAT_LEAD, 340),  # v1.658, row LOG1: 338 bytes and the blank line
 ]
 
 
@@ -1028,12 +1031,14 @@ def test_design_states_the_v1_653_change_and_the_changelog_the_version():
 
 # --- v1.655 (row T30) -----------------------------------------------------------------------------
 
-def test_the_section_ends_with_the_coroutine_sentence():
+def test_the_section_ends_with_the_record_format_sentence():
     # the one test that names the section's last paragraph; a slice that adds one after it restates this alone
     # (v1.656, row PROD1b: the sentence on `keep_records` follows the savings sentence, v1.654's last;
-    # v1.657, row PROD1e: the sentence on calls from a coroutine follows it)
+    # v1.657, row PROD1e: the sentence on calls from a coroutine follows it; v1.658, row LOG1: the sentence on the
+    # record format follows that)
     found = paragraphs(read("README.md"), PRODUCTION)
-    assert found[-1].startswith(COROUTINE_LEAD)
+    assert found[-1].startswith(FORMAT_LEAD)
+    assert found[found.index(paragraph(FORMAT_LEAD)) - 1].startswith(COROUTINE_LEAD)
     assert found[found.index(paragraph(COROUTINE_LEAD)) - 1].startswith(MONITOR_LEAD)
     assert found[found.index(paragraph(MONITOR_LEAD)) - 1].startswith(SAVINGS_LEAD)
 

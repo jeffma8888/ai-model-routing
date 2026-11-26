@@ -1,6 +1,6 @@
 # Design: ai-model-routing
 
-Status: v1.657, 2026-11-25 (v1.657, docs and tests: a coroutine calls one `Executor` by awaiting `asyncio.to_thread(executor.call, ...)`, so the call blocks only its worker thread, and an await that times out does not stop a call that has started, which still writes its records and settles its hold, with no package module changing (row PROD1e); v1.656, spec, code, docs and tests: `Monitor(path, keep_records=False)` writes each record to its log alone and keeps none in `.records`, so a long-running service holds no record in memory, and without a path it raises `ValueError` (row PROD1b); v1.655, tests: each paragraph of README `## Running it in production` is placed by the paragraph next to it, not by a count from the section's end, and the v1.652 and v1.653 size tests take out one list of the paragraphs added after v1.653, with README.md and every transcript keeping their bytes (row T30); v1.654, docs and tests: README `## Running it in production` ends with one sentence on `report --opportunities`, whose savings are hypothetical and no return on a training, hosting or build cost, so the section is 24,690 bytes, with every transcript keeping its bytes (row OPP1c); v1.653, docs and tests: README `## Running it in production` gets back the caveats that a trial's time runs from your call to the route's answer and that a self-hosted row's throughputs and hour split are an approximation, eight clauses stated in 4.1, 4.2, 4.3, 4.7, 7, 8.2 or 11 traded out, so the section is 23,976 bytes, with every transcript keeping its bytes (row PROD1h); earlier versions are in CHANGELOG.md)
+Status: v1.658, 2026-11-25 (v1.658, spec, code, docs and tests: two tables in 8.1 are the record format, every key an attempt record or a budget record may hold in the order it holds them, with its JSON type, the records that carry it and the version that added it, `monitor.RECORD_KEYS` and `BUDGET_RECORD_KEYS` hold the same lists, and every record keeps its bytes (row LOG1); v1.657, docs and tests: a coroutine calls one `Executor` by awaiting `asyncio.to_thread(executor.call, ...)`, so the call blocks only its worker thread, and an await that times out does not stop a call that has started, which still writes its records and settles its hold, with no package module changing (row PROD1e); v1.656, spec, code, docs and tests: `Monitor(path, keep_records=False)` writes each record to its log alone and keeps none in `.records`, so a long-running service holds no record in memory, and without a path it raises `ValueError` (row PROD1b); v1.655, tests: each paragraph of README `## Running it in production` is placed by the paragraph next to it, not by a count from the section's end, and the v1.652 and v1.653 size tests take out one list of the paragraphs added after v1.653, with README.md and every transcript keeping their bytes (row T30); v1.654, docs and tests: README `## Running it in production` ends with one sentence on `report --opportunities`, whose savings are hypothetical and no return on a training, hosting or build cost, so the section is 24,690 bytes, with every transcript keeping its bytes (row OPP1c); earlier versions are in CHANGELOG.md)
 
 ## 1. Problem
 - A product or pipeline makes the same kind of model call many times: triage a support ticket, extract invoice fields, write a unit test, grade an answer against a rubric. Each such kind of call is a **task**: a repeated call with an **acceptance check** that says whether one output is right (agreement with a gold label, exact match on extracted fields, generated tests passing, a rubric pass)
@@ -491,6 +491,79 @@ The constructor stores its arguments as attributes `.registry`, `.tasks`, `.stat
 - v1.618 `checked` (bool), right after `shadow` (row CANARY1l, 7 v1.618): on every record that carries `pair_id` and `shadow` (v1.607), budget records included, so the three keys come in the order `pair_id`, `shadow`, `checked`, still right after `slice` and before any cascade, procedure or `budget_moves` key, and right after `tags` on a budget record. It is `true` when the shadowed call was given a `validate` and `false` when it was not, on the routed call's records and the shadow's alike. A record of a call that is not shadowed has none of the three keys, as from v1.607, and a log written before v1.618 has `pair_id` and `shadow` without `checked`, a record that 8.3 v1.618 reads as v1.610 read every record.
 - v1.639 `pinned_by` (str), right after `basis` and before `tags` (row PIN1a, 7 v1.639): on every attempt record of a pinned call, the call's tag. The same record's `basis` is `"pinned"`, which says the route was the caller's pin and not ranked, and its `below_bar` says whether the pin ran under the bar. Budget records (v1.598) take no key. No record of a call that is not pinned has the key, so it keeps v1.638's keys.
 - v1.642 `policy` (str), right after `basis` and any `pinned_by` and before `tags` (row POL2a, 7 v1.642): on every attempt record of a call under a policy whose `label` (5.1 v1.642) is not None, that label, so a pinned call's record under a policy holds `basis`, `pinned_by`, `policy` and `tags` in that order; on that call's budget records (v1.598) right after `task` and before `tags`. Its value is the policy's name when it has one, else `sha256:` and the digest of its rules, and a name never starts with `sha256:`. No record of a call under no policy or `Policy()`, and no record of `.call_delegated`, has the key, so each keeps v1.641's keys; `report` (8.3) read no `policy` key in v1.642, so its rows and the CLI `report` output were unchanged; from v1.643 `by="policy"` groups by it (8.3 v1.643, row POL2b).
+- v1.658 the record format (row LOG1): the two tables below are the record format. Each lists, in the order a record holds them, every key a record of its kind may hold, with its JSON type, the records that carry it and the version that added it, `base` for a key of the base line above, which v1.202's records held (tests/test_below_bar_records.py `V1_202_KEYS`). A record holds some of its table's keys, in the table's order, each value of a listed type, and no other key. A record with a `budget_event` key is a budget record (v1.598) and every other record an attempt record, which `.call`, `.call_delegated` and a shadow (7 v1.607) write; there are two tables because a budget record holds `model` after `budget_event` and an attempt record holds it after `flavor`, so no one order fits both. JSON types: `string`, `integer` (a whole number, never `true` or `false`), `number` (an integer or a float), `boolean`, `null`, `object` and `array`, and `string or null` allows either. The base line and the dated bullets above stay in place, as the history of when each key came and why it goes where it does; the tables restate them in one place, so a team that loads its log into a store of its own, a warehouse table or a dashboard, builds the store's schema from them. No record changes, so every record, evidence file and README transcript keeps its bytes.
+  - Code: model_routing/monitor.py holds the two lists once, as `RECORD_KEYS` and `BUDGET_RECORD_KEYS`, each a tuple of `(key, types)` pairs, `types` a tuple of the JSON type names above, in the tables' order. They are not in `__all__` (3), as `run_procedure_demo` is not (11 v1.580): the tables are the format, and the lists are the copy the tests check records against, so their shape may change in a minor version while every name in `__all__` keeps working. The executor writes records as before and reads neither list.
+  - Tests (tests/test_record_keys.py): the records of a plain call, a fallback, a below-bar fallback, a cascade, a procedure, one whose run raised, a pinned call, a call under a named policy, a shadowed call with and without a check, warn, refused and `downgrade` budget records with a moved call's, a shadow's refused budget record, a delegated call, a self-hosted model, a cached call and a `retry_same` task, read back from a `Monitor`'s log, each pass the check (their keys in their list's order, each value of a listed type), together carry every key of both lists, and so do the demo's `calls.jsonl` records; a record with a key the list lacks, two keys swapped, a value of another type or an attempt key on a budget record fails it; both tables equal the code's lists, key and types for key, and each key's `Since` names the dated bullet above that adds it, or for `base` the base line, which names it.
+  - README: `## Running it in production` ends with one sentence that names the tables, after the sentence on calls from a coroutine (7 v1.657), and its paragraph is the fourth entry of tests/test_readme_trim.py's `LATER` (5.2 v1.655).
+  - Not in this version: a check of a record in the package (the tests hold it), a JSON Schema file, the values a key may take beyond its type (for example `outcome`'s three), and moving the dated bullets to CHANGELOG.md.
+
+Attempt records:
+
+| Key | JSON type | Carried by | Since |
+|---|---|---|---|
+| `ts` | string | every record | base |
+| `call_id` | string | every record | base |
+| `task` | string | every record | base |
+| `flavor` | string | every record | base |
+| `model` | string | every record: the attempt's model, or a procedure's `.id` on its closing record | base |
+| `family` | string | every record: `""` on the closing record of a procedure with no model | base |
+| `attempt` | integer | every record | base |
+| `final` | boolean | every record | base |
+| `outcome` | string | every record: `ok`, `error` or `invalid` | base |
+| `error` | string or null | every record | base |
+| `latency_ms` | number | every record | base |
+| `input_tokens` | integer | every record | base |
+| `output_tokens` | integer | every record | base |
+| `cached_input_tokens` | integer | an attempt whose provider returned the count | v1.589 |
+| `cache_write_tokens` | integer | an attempt whose provider returned the count | v1.589 |
+| `cost_usd` | number | every record | base |
+| `routing_cost_usd` | number | every record | base |
+| `pricing_basis` | string | an attempt of a model priced `self_hosted` | v1.584 |
+| `below_bar` | boolean | every record | base |
+| `below_bar_fallback` | boolean | an attempt of one of the decision's `below_bar_fallbacks` | v1.203 |
+| `basis` | string | every record | base |
+| `pinned_by` | string | a pinned call's records | v1.639 |
+| `policy` | string | the records of a `.call` under a policy whose `label` is not None | v1.642 |
+| `tags` | object | every record | base |
+| `slice` | string or null | every record | v1.511 |
+| `pair_id` | string | a shadowed call's records and its shadow's | v1.607 |
+| `shadow` | boolean | a shadowed call's records and its shadow's | v1.607 |
+| `checked` | boolean | a shadowed call's records and its shadow's | v1.618 |
+| `cascade` | string | a cascade entry's attempts | v1.537 |
+| `escalated` | boolean | a cascade entry's attempts | v1.537 |
+| `procedure` | string | a procedure entry's records | v1.578 |
+| `procedure_version` | string | a procedure entry's records | v1.578 |
+| `model_calls` | integer | a procedure's closing record | v1.578 |
+| `tool_calls` | integer or null | a procedure's closing record: null when its run raised | v1.578 |
+| `tool_cost_usd` | number or null | a procedure's closing record: null when its run raised | v1.578 |
+| `budget_moves` | array | a call's records once a `downgrade` budget has moved it | v1.596 |
+| `prompt_tokens` | integer | every record of `.call` and of its shadow | v1.507 |
+| `prompt_tokens_estimated` | boolean | every record of `.call` and of its shadow | v1.507 |
+| `expected_cost_per_success_usd` | number or null | a call whose decision's `failure_policy` is not `"none"` | v1.567 |
+
+Budget records:
+
+| Key | JSON type | Carried by | Since |
+|---|---|---|---|
+| `ts` | string | every budget record | v1.598 |
+| `call_id` | string | every budget record | v1.598 |
+| `task` | string | every budget record | v1.598 |
+| `policy` | string | a budget record of a call under a policy whose `label` is not None | v1.642 |
+| `tags` | object | every budget record | v1.598 |
+| `pair_id` | string | a budget record of a shadowed call or of its shadow | v1.607 |
+| `shadow` | boolean | a budget record of a shadowed call or of its shadow | v1.607 |
+| `checked` | boolean | a budget record of a shadowed call or of its shadow | v1.618 |
+| `budget_event` | string | every budget record: `warn` or `refused` | v1.598 |
+| `budget` | string | every budget record | v1.598 |
+| `mode` | string | every budget record | v1.598 |
+| `window` | string or null | every budget record: null for a `total` budget | v1.598 |
+| `share` | number | a `warn` record | v1.598 |
+| `model` | string | a `refused` record: the model, or the procedure's ID, refused | v1.598 |
+| `spent_usd` | number | every budget record | v1.598 |
+| `held_usd` | number | a `refused` record | v1.598 |
+| `estimate_usd` | number | a `refused` record | v1.598 |
+| `limit_usd` | number | every budget record | v1.598 |
+| `unbounded` | boolean | a `refused` record | v1.598 |
 ### 8.2 `Monitor(path=None, *, keep_records=True)`
 - `.record(rec: dict)` appends to `.records` (a list; from v1.656 only with `keep_records=True`, the default) and, when `path` is set, appends one JSON line to that file
 - `load_records(path) -> list[dict]` reads a JSONL file, skipping blank lines. v1.1: a non-blank line that is not valid JSON, or is valid JSON but not an object, raises `ValueError` whose message contains the path and the 1-based line number (for example `calls.jsonl:3`)
