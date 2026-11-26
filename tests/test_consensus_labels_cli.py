@@ -318,11 +318,11 @@ def test_the_production_note_states_the_command_as_shipped():
     line = [line for line in text.splitlines() if line.startswith("- In this library: judge calls are its first case")]
     assert len(line) == 1
     assert "The changes: a command that writes the labels" not in line[0]
-    assert line[0].endswith(
+    assert (
         "its labels measure agreement with those judges, not correctness. From v1.661 `model-routing "
         "consensus-labels` writes those labels to a file only when every task's share of items kept reaches "
-        "the minimum. The changes: stats that say where their labels came from; and a self-consistency "
-        "minimum, so a judge whose reruns disagree is excluded whatever its bound.")
+        "the minimum. ") in line[0]
+    # v1.662 (row JUDGE1bba) restates what follows (tests/test_label_sources.py)
 
 
 def test_no_transcript_or_script_runs_the_command():

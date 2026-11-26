@@ -1,5 +1,5 @@
 """Measured quality: Wilson lower bounds, the items a bar needs, and per (task, model) counts,
-token totals, cache totals and trial times."""
+token totals, cache totals, trial times and label sources."""
 
 from __future__ import annotations
 
@@ -163,6 +163,37 @@ def _check_latencies(trials: int, latencies_ms: object) -> Optional[Tuple[float,
     return tuple(float(value) for value in latencies_ms)
 
 
+def _check_label_sources(trials: int, label_sources: object) -> Optional[Dict[str, int]]:
+    """Validate ``label_sources``: ``None``, or a dict of one or more non-empty sources, each to
+    an ``int`` from 1 to ``trials``, summing to at most ``trials`` (DESIGN 4.3 v1.662)."""
+    if label_sources is None:
+        return None
+    if not isinstance(label_sources, dict) or not label_sources:
+        raise ValueError(f"label_sources must be a dict of one or more sources to trial counts, "
+                         f"got {label_sources!r}")
+    for source, count in label_sources.items():
+        if not isinstance(source, str) or not source:
+            raise ValueError(f"label_sources keys must be non-empty strings, got {source!r}")
+        if not _is_int(count) or not 1 <= count <= trials:
+            raise ValueError(f"label_sources counts must be integers from 1 to trials={trials}, "
+                             f"got {count!r} for {source!r}")
+    total = sum(label_sources.values())
+    if total > trials:
+        raise ValueError(f"label_sources counts sum to {total}, over trials={trials}")
+    return dict(label_sources)
+
+
+def _row_correct(row: dict) -> bool:
+    """A checked results row's outcome: ``correct``, or ``prediction`` against ``gold``; on a row
+    that carries ``label_source`` the two agree only with the same type (DESIGN 4.3 v1.662)."""
+    if "correct" in row:
+        return row["correct"]
+    prediction, gold = row["prediction"], row["gold"]
+    if "label_source" in row and type(prediction) is not type(gold):
+        return False  # review iter-516 should-fix 1: as two grades agree in consensus_labels
+    return prediction == gold
+
+
 def wilson_lower_bound(successes: int, trials: int, confidence: float = 0.95) -> float:
     """Return the lower end of the two-sided Wilson score interval.
 
@@ -226,7 +257,8 @@ class Stats:
     ``>``) holds no token totals but an escalation count, the trials on which its cheap
     model handed the call up (DESIGN 7 v1.532). A procedure key (its ``id`` starts with
     ``proc:``) holds no token totals but the summed cost of its trials (DESIGN 4.3 v1.577).
-    Any key may hold the time in milliseconds of each timed trial (DESIGN 4.3 v1.626).
+    Any key may hold the time in milliseconds of each timed trial (DESIGN 4.3 v1.626), and how
+    many of its trials came from rows naming each label source (DESIGN 4.3 v1.662).
     """
 
     def __init__(self) -> None:
@@ -236,6 +268,7 @@ class Stats:
         self._cost: Dict[Tuple[str, str], float] = {}
         self._cache: Dict[Tuple[str, str], Tuple[int, int, int, int]] = {}
         self._latency: Dict[Tuple[str, str], List[float]] = {}
+        self._labels: Dict[Tuple[str, str], Dict[str, int]] = {}
 
     def get(self, task: str, model_id: str) -> Tuple[int, int]:
         """Return ``(successes, trials)``, or ``(0, 0)`` when nothing is recorded."""
@@ -247,7 +280,8 @@ class Stats:
             cost_usd: Optional[float] = None, cached_input_tokens: Optional[int] = None,
             cached_trials: Optional[int] = None, cache_write_tokens: Optional[int] = None,
             cache_write_trials: Optional[int] = None,
-            latencies_ms: Optional[Union[List[float], Tuple[float, ...]]] = None) -> None:
+            latencies_ms: Optional[Union[List[float], Tuple[float, ...]]] = None,
+            label_sources: Optional[Dict[str, int]] = None) -> None:
         """Add these counts, and any token totals, to the existing ones for the key.
 
         ``input_tokens`` and ``output_tokens`` go together and are totals over
@@ -258,8 +292,10 @@ class Stats:
         cache writes of these calls, each need the token totals and are totals over their own
         trials, ``cached_trials`` and ``cache_write_trials`` of these token trials (DESIGN 4.3
         v1.588). ``latencies_ms`` is 1 to ``trials`` times in milliseconds, one per timed trial,
-        on any key (DESIGN 4.3 v1.626). Raises ``ValueError`` and adds nothing when any
-        argument is invalid.
+        on any key (DESIGN 4.3 v1.626). ``label_sources`` maps each label source of these
+        trials to its trial count, 1 to ``trials`` each, summing to at most ``trials``, on any
+        key (DESIGN 4.3 v1.662). Raises ``ValueError`` and adds nothing when any argument is
+        invalid.
         """
         _check_counts(successes, trials)
         n = _check_tokens(trials, input_tokens, output_tokens, token_trials)
@@ -268,6 +304,7 @@ class Stats:
         cache = _check_cache(n, input_tokens, cached_input_tokens, cached_trials,
                              cache_write_tokens, cache_write_trials)
         times = _check_latencies(trials, latencies_ms)
+        sources = _check_label_sources(trials, label_sources)
         key = (task, model_id)
         if c is not None and not isfinite(self._cost.get(key, 0.0) + c):  # review iter-424 must-fix 1
             raise ValueError(f"cost_usd {c!r} would take the summed cost of {model_id!r} on "
@@ -287,6 +324,15 @@ class Stats:
                                 held[2] + cache[2], held[3] + cache[3])
         if times is not None:
             self._latency.setdefault(key, []).extend(times)
+        if sources is not None:
+            held = self._labels.setdefault(key, {})
+            for source, count in sources.items():
+                held[source] = held.get(source, 0) + count
+
+    def label_sources(self, task: str, model_id: str) -> Dict[str, int]:
+        """Return a new dict of the key's label sources and their trial counts, in source order,
+        ``{}`` when none is recorded (DESIGN 4.3 v1.662)."""
+        return dict(sorted(self._labels.get((task, model_id), {}).items()))
 
     def tokens(self, task: str, model_id: str) -> Tuple[int, int, int]:
         """Return ``(input_tokens, output_tokens, token_trials)``, ``(0, 0, 0)`` when none."""
@@ -348,8 +394,8 @@ class Stats:
         return -(-i // k), -(-o // k)
 
     def merge(self, other: "Stats") -> "Stats":
-        """Return a new Stats with the summed counts, token totals, cache totals, escalations
-        and costs, and both sides' times."""
+        """Return a new Stats with the summed counts, token totals, cache totals, escalations,
+        costs and label sources, and both sides' times."""
         merged = Stats()
         for source in (self, other):
             for key, (s, t) in source._counts.items():
@@ -363,6 +409,10 @@ class Stats:
                 merged._cache[key] = tuple(x + y for x, y in zip(held, values))
             for key, values in source._latency.items():  # DESIGN 4.3 v1.626
                 merged._latency.setdefault(key, []).extend(values)
+            for key, sources in source._labels.items():  # DESIGN 4.3 v1.662
+                held = merged._labels.setdefault(key, {})
+                for name, count in sources.items():
+                    held[name] = held.get(name, 0) + count
         return merged
 
     def items(self):
@@ -380,7 +430,8 @@ class Stats:
         and no token keys, and no other row carries ``escalated``. A procedure row (its
         ``model`` starts with ``proc:``) carries ``cost_usd`` and no token keys; any other
         row's ``cost_usd`` is ignored (DESIGN 4.3 v1.577). Any row may carry ``latencies_ms``,
-        a JSON array of 1 to ``trials`` times in milliseconds (DESIGN 4.3 v1.626).
+        a JSON array of 1 to ``trials`` times in milliseconds (DESIGN 4.3 v1.626), and
+        ``label_sources``, a JSON object of sources to trial counts (DESIGN 4.3 v1.662).
         """
         raw = json.loads(Path(path).read_text(encoding="utf-8"))
         if not isinstance(raw, dict) or not isinstance(raw.get("stats"), list):
@@ -427,6 +478,11 @@ class Stats:
                 if not isinstance(row["latencies_ms"], list):
                     raise ValueError(f"{path}: latencies_ms must be a JSON array of times: {row!r}")
                 tokens["latencies_ms"] = row["latencies_ms"]
+            if "label_sources" in row:  # DESIGN 4.3 v1.662: null is no object, never no source
+                if row["label_sources"] is None:
+                    raise ValueError(f"{path}: label_sources must be a JSON object of sources to "
+                                     f"trial counts: {row!r}")
+                tokens["label_sources"] = row["label_sources"]
             try:
                 stats.add(str(task), str(model_id), successes, trials, **tokens)
             except ValueError as exc:
@@ -437,7 +493,8 @@ class Stats:
         """Write stats as JSON with rows sorted by (task, model).
 
         A key holding times gets ``latencies_ms``, sorted, as its row's last key (DESIGN 4.3
-        v1.626); a key without one gets no such key.
+        v1.626), and a key holding label sources gets ``label_sources``, in source order, right
+        before it (DESIGN 4.3 v1.662); a key without one gets no such key.
         """
         rows = []
         for (task, model_id), (s, t) in self.items():
@@ -454,6 +511,9 @@ class Stats:
                 row.update(cached_input_tokens=cached, cached_trials=cached_trials)
             if write_trials:
                 row.update(cache_write_tokens=write, cache_write_trials=write_trials)
+            sources = self.label_sources(task, model_id)
+            if sources:  # DESIGN 4.3 v1.662, before the times
+                row["label_sources"] = sources
             times = self.latencies(task, model_id)
             if times:  # DESIGN 4.3 v1.626, the row's last key
                 row["latencies_ms"] = list(times)
@@ -473,7 +533,9 @@ def calibrate_from_results(rows: Iterable[dict]) -> Stats:
     ``escalated`` and no token counts, and no other row carries ``escalated`` (DESIGN 7). A
     procedure row carries ``cost_usd``, its trial's cost, and no token counts; any other row's
     ``cost_usd`` is ignored (DESIGN 4.3 v1.577). Any row may carry ``latency_ms``, its trial's
-    time in milliseconds (DESIGN 4.3 v1.626).
+    time in milliseconds (DESIGN 4.3 v1.626). Any row may carry ``label_source``, a non-empty
+    string, and adds one trial of that source; on such a row ``prediction`` and ``gold`` agree
+    only when they have the same type and are equal (DESIGN 4.3 v1.662).
     Every row is validated before the returned Stats exists, so a bad row anywhere
     raises ``ValueError``.
     """
@@ -481,14 +543,16 @@ def calibrate_from_results(rows: Iterable[dict]) -> Stats:
     for row in rows:
         if not isinstance(row, dict):
             raise ValueError(f"result row must be an object, got {row!r}")
+        if "label_source" in row:  # DESIGN 4.3 v1.662
+            source = row["label_source"]
+            if not isinstance(source, str) or not source:
+                raise ValueError(f"'label_source' must be a non-empty string, got {source!r}: {row!r}")
         if "correct" in row:
-            correct = row["correct"]
-            if type(correct) is not bool:
-                raise ValueError(f"'correct' must be true or false, got {correct!r}")
-        elif "prediction" in row and "gold" in row:
-            correct = row["prediction"] == row["gold"]
-        else:
+            if type(row["correct"]) is not bool:
+                raise ValueError(f"'correct' must be true or false, got {row['correct']!r}")
+        elif "prediction" not in row or "gold" not in row:
             raise ValueError(f"result row needs 'correct' or both 'prediction' and 'gold': {row!r}")
+        correct = _row_correct(row)
         try:
             task, model_id = row["task"], row["model"]
         except KeyError as exc:
@@ -528,6 +592,8 @@ def calibrate_from_results(rows: Iterable[dict]) -> Stats:
             if not _is_cost(row["latency_ms"]):
                 raise ValueError(f"'latency_ms' must be a finite number >= 0: {row!r}")
             tokens["latencies_ms"] = [row["latency_ms"]]
+        if "label_source" in row:  # DESIGN 4.3 v1.662: this one trial's source
+            tokens["label_sources"] = {row["label_source"]: 1}
         slice_name = row.get("slice")
         keys = [task]
         if slice_name is not None:
@@ -562,10 +628,7 @@ def item_outcomes(rows: Iterable[dict], *, dataset_sha256: str) -> List[dict]:
                 raise ValueError(f"an outcome row needs a non-empty string {key!r}: {row!r}")
     records = []
     for row in rows:
-        if "correct" in row:
-            correct = row["correct"]
-        else:
-            correct = row["prediction"] == row["gold"]
+        correct = _row_correct(row)  # DESIGN 4.3 v1.662: calibrate_from_results's rule
         records.append({"task": row["task"], "slice": row.get("slice"), "route": row["model"],
                         "item": row["item"], "correct": bool(correct),
                         "dataset_sha256": dataset_sha256})
