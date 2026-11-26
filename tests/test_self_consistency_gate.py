@@ -337,7 +337,7 @@ def test_design_and_changelog_state_v1_668():
     heads = {"4.2": "\n- v1.668 self-consistency minimum (row JUDGE2b, the second part of JUDGE2): `Task` gains a last field",
              "5.1": "\n- v1.668 self-consistency minimum (row JUDGE2b): `INCONSISTENT = \"inconsistent\"` and ",
              "5.2": "\n- v1.668 self-consistency minimum (row JUDGE2b, the second part of JUDGE2): on a call whose task",
-             "13.3": "\n- v1.668 rerun counts (row JUDGE2b): that private copy also holds",
+             "13.3": "\n- v1.668 rerun counts (row JUDGE2b): beside what v1.663 lists, that private copy also holds",
              "13.4": "\n- v1.668 (row JUDGE2b): no rule reads the parent's self-consistency"}
     for name, head in heads.items():
         assert parts[name].count(head) == 1, name
