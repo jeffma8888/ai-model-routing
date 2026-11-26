@@ -470,7 +470,7 @@ SAVINGS_LEAD = "A log also shows where a cheaper route, such as a procedure or a
 # and its own bytes with its blank line; a slice that adds a paragraph appends its entry here
 MONITOR_LEAD = "A monitor that runs for a service's life need not hold every record in memory: "
 COROUTINE_LEAD = "A service built on an asyncio event loop calls the executor from a coroutine with "
-FORMAT_LEAD = "A store that loads the log, a warehouse table or a dashboard, builds its schema from the record format: "
+FORMAT_LEAD = "A store that loads the log (a warehouse table or a dashboard) builds its schema from the record format: "
 LATER = [
     (SAVINGS_LEAD, 714),  # v1.654, row OPP1c: 712 bytes and the blank line
     (MONITOR_LEAD, 370),  # v1.656, row PROD1b: 368 bytes and the blank line

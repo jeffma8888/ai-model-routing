@@ -20,8 +20,9 @@ NO_TAG = "(none)"
 
 # DESIGN 8.1 v1.658 (row LOG1): the record format, the tables of 8.1 as code. Each list holds, in the order a
 # record holds them, every key a record of its kind may hold, with its JSON types; a record holds some of them,
-# in this order, and no other key. A record with a `budget_event` key is a budget record (v1.598). Not in
-# `__all__`: the tables are the format, these are the copy the tests check records against.
+# in this order, and no other key. A record with a `budget_event` key is a budget record (v1.598). Not
+# re-exported by model_routing/__init__.py: the tables are the format, these are the copy the tests check
+# records against.
 _S, _I, _N, _B, _O = ("string",), ("integer",), ("number",), ("boolean",), ("object",)
 RECORD_KEYS = (
     ("ts", _S), ("call_id", _S), ("task", _S), ("flavor", _S), ("model", _S), ("family", _S),

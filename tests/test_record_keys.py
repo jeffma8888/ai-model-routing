@@ -308,7 +308,7 @@ def table(title):
     for row in rows:
         match = re.fullmatch(r"\| `([a-z_]+)` \| ([a-z ]+?) \| (.+?) \| (base|v1\.\d+) \|", row)
         assert match, row
-        out.append((match[1], tuple(match[2].split(" or ")), match[4]))
+        out.append((match[1], tuple(match[2].split(" or ")), match[4], match[3]))
     return out
 
 
@@ -322,20 +322,47 @@ def test_the_lists_are_tuples_of_key_and_json_types():
 
 @pytest.mark.parametrize("title,listed", [("Attempt records:", RECORD_KEYS), ("Budget records:", BUDGET_RECORD_KEYS)])
 def test_each_design_table_equals_the_code_list_key_and_types_for_key(title, listed):
-    assert [(key, types) for key, types, _ in table(title)] == list(listed)
+    assert [(key, types) for key, types, _, _ in table(title)] == list(listed)
 
 
 @pytest.mark.parametrize("title", ["Attempt records:", "Budget records:"])
-def test_each_since_names_the_dated_bullet_that_adds_the_key_or_the_base_line(title):
-    text = eight1()
-    lines = text.splitlines()
+def test_each_since_names_the_first_dated_bullet_that_names_the_key_or_the_base_line(title):
+    # review iter-514 should-fix 1: the first dated bullet, in the order 8.1 holds them, that names the key (for a
+    # budget record's key, the first that also names budget records), so a later bullet that only mentions it fails
+    lines = eight1().splitlines()
     base = lines[1]
-    for key, _, since in table(title):
+    dated = [line for line in lines if re.match(r"- v1\.\d+ ", line) and not line.startswith("- v1.658 ")]
+    if title == "Budget records:":
+        dated = [line for line in dated if "budget record" in line]
+    for key, _, since, _ in table(title):
         if since == "base":
             assert f"`{key}` (" in base, key
         else:
-            [bullet] = [line for line in lines if line.startswith(f"- {since} ")]
-            assert f"`{key}`" in bullet, (key, since)
+            first = next(line for line in dated if f"`{key}`" in line)
+            assert first.startswith(f"- {since} "), (key, since, first[:40])
+
+
+@pytest.mark.parametrize("title", ["Attempt records:", "Budget records:"])
+def test_each_key_the_table_says_every_record_carries_is_on_every_record_of_its_kind(logs, demo_records, title):
+    # review iter-514 should-fix 2 and nit 4: the `Carried by` cells a loader depends on, on the scenarios and the demo
+    budget = title == "Budget records:"
+    records = [r for name in logs for r in logs[name]] + demo_records
+    kind = [r for r in records if ("budget_event" in r) == budget]
+    assert kind
+    rows = table(title)
+    every = [key for key, _, _, carried in rows if re.fullmatch(r"every (budget )?record(: .*)?", carried)]
+    # the 18 keys of the base line and `slice`; the 10 that warn and refused records share
+    assert len(every) == (10 if budget else 19)
+    assert [(i, key) for i, r in enumerate(kind) for key in every if key not in r] == []
+    sized = [key for key, _, _, carried in rows if carried == "every record of `.call` and of its shadow"]
+    assert sized == ([] if budget else ["prompt_tokens", "prompt_tokens_estimated"])
+    for r in kind:
+        delegated = r["tags"].get("delegated") == "true"
+        assert all((key in r) is not delegated for key in sized), r
+    if not budget:
+        shadows = [r for r in kind if r.get("shadow") is True]
+        assert shadows and all(set(sized) <= set(r) for r in shadows)
+        assert any(r["tags"].get("delegated") == "true" for r in kind)
 
 
 def test_the_lists_are_not_exported():

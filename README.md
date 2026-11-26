@@ -581,7 +581,7 @@ A monitor that runs for a service's life need not hold every record in memory: `
 
 A service built on an asyncio event loop calls the executor from a coroutine with `await asyncio.to_thread(executor.call, task_name, messages, ...)`, so each call blocks only the worker thread that runs it and the rules for request threads above hold there, while an await that times out or is cancelled stops waiting but not a call that has started, which still runs to its end, writes its records and settles its budget hold (`DESIGN.md` 7).
 
-A store that loads the log, a warehouse table or a dashboard, builds its schema from the record format: two tables list every key an attempt record or a budget record may hold, in the order a record holds them, with its JSON type, the records that carry it and the version that added it, and a record holds no other key (`DESIGN.md` 8.1).
+A store that loads the log (a warehouse table or a dashboard) builds its schema from the record format: two tables list every key an attempt record or a budget record may hold, in the order a record holds them, with its JSON type, the records that carry it and the version that added it, and a record holds no other key (`DESIGN.md` 8.1).
 
 ## Evidence: held-out results on public data
 
