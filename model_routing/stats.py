@@ -330,8 +330,8 @@ class Stats:
                 held[source] = held.get(source, 0) + count
 
     def label_sources(self, task: str, model_id: str) -> Dict[str, int]:
-        """Return a new dict of the key's label sources and their trial counts, in source order,
-        ``{}`` when none is recorded (DESIGN 4.3 v1.662)."""
+        """Return a new dict of the key's label sources and their trial counts, sorted by source
+        name, ``{}`` when none is recorded (DESIGN 4.3 v1.662)."""
         return dict(sorted(self._labels.get((task, model_id), {}).items()))
 
     def tokens(self, task: str, model_id: str) -> Tuple[int, int, int]:
@@ -493,8 +493,8 @@ class Stats:
         """Write stats as JSON with rows sorted by (task, model).
 
         A key holding times gets ``latencies_ms``, sorted, as its row's last key (DESIGN 4.3
-        v1.626), and a key holding label sources gets ``label_sources``, in source order, right
-        before it (DESIGN 4.3 v1.662); a key without one gets no such key.
+        v1.626), and a key holding label sources gets ``label_sources``, sorted by source name,
+        right before it (DESIGN 4.3 v1.662); a key without one gets no such key.
         """
         rows = []
         for (task, model_id), (s, t) in self.items():
@@ -522,7 +522,7 @@ class Stats:
 
 
 def calibrate_from_results(rows: Iterable[dict]) -> Stats:
-    """Count one trial per row; a row is correct by ``correct`` or ``prediction == gold``.
+    """Count one trial per row; a row is correct by ``correct`` or ``prediction`` against ``gold``.
 
     ``correct`` must be a real boolean. A row may carry ``input_tokens`` and
     ``output_tokens``, both or neither, and then adds one token trial with those counts, and

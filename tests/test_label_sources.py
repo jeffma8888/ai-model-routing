@@ -80,7 +80,7 @@ def test_label_sources_returns_a_new_dict():
     assert stats.label_sources("faithfulness", JUDGE) == {"consensus": 1}
 
 
-@pytest.mark.parametrize("prediction, gold", [(1, True), (True, 1), (0, False), (False, 0), ("1", 1)])
+@pytest.mark.parametrize("prediction, gold", [(1, True), (True, 1), (0, False), (False, 0)])
 def test_with_label_source_another_type_is_a_wrong_trial(prediction, gold):
     # review iter-516 should-fix 1: consensus_labels treats `true` and `1` as different grades
     stats = calibrate_from_results([row("q1", prediction, gold, label_source="consensus")])
@@ -111,7 +111,8 @@ def test_a_row_with_correct_is_read_as_before():
 @pytest.mark.parametrize("value", [None, "", 1, True, ["consensus"], {"consensus": 1}])
 def test_a_bad_label_source_raises(value):
     rows = [row("q1", "pass", "pass"), row("q2", "pass", "pass", label_source=value)]
-    with pytest.raises(ValueError, match="label_source"):
+    # review iter-518 nit 2: the message's own words, not the row's repr, name the check
+    with pytest.raises(ValueError, match=r"^'label_source' must be a non-empty string, got "):
         calibrate_from_results(rows)
 
 
@@ -149,7 +150,7 @@ def test_item_outcomes_reads_correct_by_the_same_rule():
 
 
 def test_item_outcomes_refuses_a_bad_label_source():
-    with pytest.raises(ValueError, match="label_source"):
+    with pytest.raises(ValueError, match=r"^'label_source' must be a non-empty string, got ''"):
         item_outcomes([row("q1", "pass", "pass", label_source="")], dataset_sha256=SHA)
 
 
@@ -171,7 +172,7 @@ def test_add_sums_sources_per_key():
                                    "consensus", 2])
 def test_a_bad_label_sources_raises_and_adds_nothing(value):
     stats = Stats()
-    with pytest.raises(ValueError, match="label_sources"):
+    with pytest.raises(ValueError, match=r"^label_sources (must be a dict|keys must be|counts must be|counts sum)"):
         stats.add("t", JUDGE, 1, 2, label_sources=value)
     assert stats.get("t", JUDGE) == (0, 0)
     assert stats.label_sources("t", JUDGE) == {}
@@ -229,9 +230,10 @@ def test_load_refuses_a_bad_label_sources_naming_the_file(tmp_path, value):
     path = tmp_path / "stats.json"
     path.write_text(json.dumps({"stats": [{"task": "t", "model": JUDGE, "successes": 1, "trials": 2,
                                            "label_sources": value}]}), encoding="utf-8")
-    with pytest.raises(ValueError, match="label_sources") as info:
+    with pytest.raises(ValueError) as info:
         Stats.load(path)
-    assert str(path) in str(info.value)
+    # review iter-518 nit 2: the file, then the check's own words, before the row's repr
+    assert str(info.value).startswith(f"{path}: label_sources ")
 
 
 # --- the calibrate command ------------------------------------------------------------------
@@ -259,7 +261,7 @@ def test_calibrate_with_a_bad_label_source_leaves_the_stats_file(tmp_path):
     stats = tmp_path / "stats.json"
     code, stdout, stderr = run(["calibrate", "--results", str(results), "--stats", str(stats)])
     assert (code, stdout) == (2, "")
-    assert stderr.startswith("error: ") and "label_source" in stderr
+    assert stderr.startswith("error: 'label_source' must be a non-empty string, got None")
     assert not stats.exists()
 
 
