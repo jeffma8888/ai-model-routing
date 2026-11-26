@@ -11,6 +11,9 @@ model_routing/router.py has its words in the paragraph (review iter-495 must-fix
 1). DESIGN 5.2 v1.639's and 8.3 v1.640's Not-in-this-version sub-bullets name v1.641 in place of
 row PIN1c. Every README transcript keeps its v1.640 bytes, and no evidence or research script opens
 a file this slice edits, so every evidence file keeps its bytes.
+
+DESIGN 5.2 v1.654 (row OPP1c): the sentence on `report --opportunities` follows the paragraph on pinned
+calls and ends the section (tests/test_opportunities_docs.py), so the pin paragraph is the second last.
 """
 
 import hashlib
@@ -34,6 +37,7 @@ from model_routing.router import (BELOW_BAR, CASCADE_UNKNOWN_MODEL, CHEAPER_PER_
 
 ROOT = Path(__file__).resolve().parents[1]
 DRIFT_START = "A route's success can drift while its all-time counts still admit it, "
+SAVINGS_LEAD = "A log also shows where a cheaper route, such as a procedure or a model of your own, would save most: "
 PIN_PARAGRAPH = (
     "A call can also pin its route. `Executor.call(..., pin_route=ROUTE, pinned_by=TAG)` runs ROUTE, a registry "
     "model, a cascade of the task (with `signals`) or one of the call's `procedures`, "  # v1.651, row PROD1gbbbb
@@ -84,11 +88,12 @@ def says(words):
 
 # --- README --------------------------------------------------------------------------------------
 
-def test_the_paragraph_ends_the_section_after_the_drift_one_inside_the_cap():
+def test_the_paragraph_follows_the_drift_one_and_precedes_the_savings_one_inside_the_cap():
     text = read("README.md")
     paragraphs = production_paragraphs(text)
-    assert text.count(PIN_PARAGRAPH) == 1 and paragraphs[-1] == PIN_PARAGRAPH
-    assert paragraphs[-2].startswith(DRIFT_START)
+    # v1.654 (row OPP1c): the savings sentence ends the section after it
+    assert text.count(PIN_PARAGRAPH) == 1 and paragraphs[-2] == PIN_PARAGRAPH
+    assert paragraphs[-3].startswith(DRIFT_START) and paragraphs[-1].startswith(SAVINGS_LEAD)
     assert size(text, PRODUCTION) <= PRODUCTION_CAP
     assert "\u2014" not in PIN_PARAGRAPH and "\u2013" not in PIN_PARAGRAPH
 

@@ -66,6 +66,10 @@ section to pay for them, each pinned in DROPPED_V1_653 to the line of 4.1, 4.2, 
 it, so the section is 23,976 bytes, at most 24,000; a rotated log's order and the shadow rate's default stay
 (review iter-508 must-fix 1 and should-fix 1). The v1.647 and v1.652 lists lose the entries v1.653 brings back.
 These tests failed on v1.652's README and pass on v1.653's.
+
+DESIGN 5.2 v1.654 (row OPP1c): the sentence on `report --opportunities` ends the section, in the room row PROD1g
+made under v1.629's cap (tests/test_opportunities_docs.py), so the v1.652 and v1.653 tests hold the section less
+that sentence's paragraph and its blank line to the bytes they set, at most 24,000 and 23,976.
 """
 
 from pathlib import Path
@@ -453,6 +457,16 @@ def paragraph(lead):
     return found
 
 
+SAVINGS_LEAD = "A log also shows where a cheaper route, such as a procedure or a model of your own, would save most: "
+
+
+def without_savings(text):
+    """`text` less v1.654's paragraph, the section's last, and its blank line (row OPP1c)."""
+    [savings] = [p for p in paragraphs(text, PRODUCTION) if p.startswith(SAVINGS_LEAD)]
+    assert text.count("\n\n" + savings + "\n\n## ") == 1
+    return text.replace("\n\n" + savings + "\n\n## ", "\n\n## ", 1)
+
+
 def subsection(design, heading):
     start = design.index("\n" + heading)
     return design[start:design.index(ENDS[heading], start)]
@@ -795,7 +809,8 @@ def test_the_v1_652_nine_are_shorter_and_the_section_at_most_24000_bytes():
         k: v for k, v in NEW_BYTES_V1_652.items() if k not in NEW_BYTES_V1_653}
     assert all(found[k] == NEW_BYTES_V1_653[k] for k in found if k in NEW_BYTES_V1_653)
     assert sum(OLD_BYTES_V1_652.values()) - sum(NEW_BYTES_V1_652.values()) == 1_166
-    assert size(read("README.md"), PRODUCTION) <= TARGET < PRODUCTION_CAP == 30_000
+    # v1.654 (row OPP1c) adds a sentence in the room under the cap; the rest stays at most TARGET
+    assert size(without_savings(read("README.md")), PRODUCTION) <= TARGET < PRODUCTION_CAP == 30_000
 
 
 def test_the_v1_652_nine_keep_their_quotes_and_links_and_no_dash():
@@ -907,7 +922,10 @@ def test_the_v1_653_seven_and_the_section_at_most_24000_bytes():
     found = {lead: len(paragraph(lead).encode("utf-8")) for lead in OLD_BYTES_V1_653}
     assert found == NEW_BYTES_V1_653
     assert sum(OLD_BYTES_V1_653.values()) - sum(NEW_BYTES_V1_653.values()) == 16
-    assert size(read("README.md"), PRODUCTION) == 23_976 <= TARGET < PRODUCTION_CAP == 30_000
+    # v1.654 (row OPP1c) adds a sentence in the room under the cap; the rest keeps v1.653's bytes
+    text = read("README.md")
+    assert size(without_savings(text), PRODUCTION) == 23_976 <= TARGET < PRODUCTION_CAP == 30_000
+    assert size(text, PRODUCTION) - size(without_savings(text), PRODUCTION) == 691
 
 
 def test_the_v1_653_caveats_and_qualifiers_are_back_where_design_states_them():

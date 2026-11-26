@@ -323,7 +323,8 @@ def test_design_and_changelog_state_v1_646():
     head = "- v1.646 `opportunities(records, *, audits=None, target_cost_per_call=None, router=None)` (row OPP1b)"
     assert eight3.count(head) == 1
     assert eight3.index("- v1.645 `opportunities(") < eight3.index(head)
-    assert "admitted, which v1.646 adds (row OPP1b), and the README sentence (row OPP1c)." in eight3
+    # v1.654 (row OPP1c) names itself in place of the row
+    assert "admitted, which v1.646 adds (row OPP1b), and the README sentence, which v1.654 adds (5.2)." in eight3
     assert "`max(items_needed(rate, task.bar, task.confidence), task.min_samples)`" in eight3
     ten = design[design.index("## 10. "):design.index("## 11. ")]
     assert ten.index("  - v1.645 `report --log PATH --opportunities") < ten.index(
