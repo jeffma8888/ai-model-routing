@@ -18,6 +18,29 @@ PathLike = Union[str, Path]
 _GROUP_KEYS = ("model", "task", "flavor", "family")
 NO_TAG = "(none)"
 
+# DESIGN 8.1 v1.658 (row LOG1): the record format, the tables of 8.1 as code. Each list holds, in the order a
+# record holds them, every key a record of its kind may hold, with its JSON types; a record holds some of them,
+# in this order, and no other key. A record with a `budget_event` key is a budget record (v1.598). Not in
+# `__all__`: the tables are the format, these are the copy the tests check records against.
+_S, _I, _N, _B, _O = ("string",), ("integer",), ("number",), ("boolean",), ("object",)
+RECORD_KEYS = (
+    ("ts", _S), ("call_id", _S), ("task", _S), ("flavor", _S), ("model", _S), ("family", _S),
+    ("attempt", _I), ("final", _B), ("outcome", _S), ("error", ("string", "null")), ("latency_ms", _N),
+    ("input_tokens", _I), ("output_tokens", _I), ("cached_input_tokens", _I), ("cache_write_tokens", _I),
+    ("cost_usd", _N), ("routing_cost_usd", _N), ("pricing_basis", _S), ("below_bar", _B),
+    ("below_bar_fallback", _B), ("basis", _S), ("pinned_by", _S), ("policy", _S), ("tags", _O),
+    ("slice", ("string", "null")), ("pair_id", _S), ("shadow", _B), ("checked", _B), ("cascade", _S),
+    ("escalated", _B), ("procedure", _S), ("procedure_version", _S), ("model_calls", _I),
+    ("tool_calls", ("integer", "null")), ("tool_cost_usd", ("number", "null")), ("budget_moves", ("array",)),
+    ("prompt_tokens", _I), ("prompt_tokens_estimated", _B), ("expected_cost_per_success_usd", ("number", "null")),
+)
+BUDGET_RECORD_KEYS = (
+    ("ts", _S), ("call_id", _S), ("task", _S), ("policy", _S), ("tags", _O), ("pair_id", _S), ("shadow", _B),
+    ("checked", _B), ("budget_event", _S), ("budget", _S), ("mode", _S), ("window", ("string", "null")),
+    ("share", _N), ("model", _S), ("spent_usd", _N), ("held_usd", _N), ("estimate_usd", _N), ("limit_usd", _N),
+    ("unbounded", _B),
+)
+
 
 class Monitor:
     """Collects attempt records in memory (by default) and optionally appends them to a JSONL file.
