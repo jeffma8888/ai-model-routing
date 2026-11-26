@@ -36,14 +36,17 @@ POLICY_START = "A tenant's rules hold whatever a route costs. "
 # v1.650 (row PROD1gbbb): the rule order, a cascade's models, a slice's count, a trial's time, a fallback's
 # attempts and the delegate's bar are DESIGN 4.3's and 5.2's (tests/test_readme_trim.py DROPPED_V1_650)
 LATENCY_PARAGRAPH = (
-    "A task can also hold its routes to a time. A `tasks.json` row's `\"max_p95_ms\"`, in milliseconds, rules "
+    # v1.653 (row PROD1h): the unit and the slowest below 20 trials are DESIGN 4.2's and 4.3's, and a trial's time runs from
+    # your call to the route's answer while a record's is one attempt's (review iter-507 should-fix 1)
+    "A task can also hold its routes to a time. A `tasks.json` row's `\"max_p95_ms\"` rules "
     "out a route whose 95th-percentile time on the task is above it, reason `too_slow`, before the success "
     "bar, and a cascade or a procedure is held to it on its own times. A route's time is known once it has as "
     "many timed trials on the task as the task's `min_samples`; until then the bar lets it through, or, with "
     "`\"latency_unknown\": \"deny\"`, rules it out as `latency_unknown`. The p95 is by nearest rank, the time at "
-    "index `ceil(0.95 * n) - 1` of the `n` sorted times, so below 20 trials it is the slowest of them. A "
-    "trial's time is a results row's `latency_ms`, which "
-    "`model-routing calibrate` keeps in the stats file, or one passed to `Stats.add(..., latencies_ms=[...])`. "
+    "index `ceil(0.95 * n) - 1` of the `n` sorted times. A "
+    "trial's time, from your call to the route's answer, is a results row's `latency_ms`, which "
+    "`model-routing calibrate` keeps in the stats file, or one passed to `Stats.add(..., latencies_ms=[...])`, "
+    "while a monitor record's `latency_ms` is one attempt's. "
     "To read a bar off a log, use `report(records, shadow=True)` or "
     "`model-routing report --shadow`, whose p50 and p95 leave shadow calls out, or drop the records whose "
     "`shadow` is JSON `true`: by default `report` puts a shadow attempt's time in its group's percentiles. "

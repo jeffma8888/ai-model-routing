@@ -340,7 +340,9 @@ def test_the_readme_names_items_per_call():
             'for example, sets `"items_per_call": 4`') in part
     # v1.649 (row PROD1gbb): the trial, the mean call over 4 and the cold price are DESIGN 4.3's and 5.2's
     # (tests/test_readme_trim.py DROPPED_V1_649)
-    assert ('sets `"items_per_call": 4`, so once measured the route is priced per item and `select` shows an '
+    # v1.653 (row PROD1h), review iter-507 nit 1: priced per item once measured with token counts (DESIGN 5.2 v1.573)
+    assert ('sets `"items_per_call": 4`, so once measured with token counts the route is priced per item and '
+            '`select` shows an '
             '`items` column.') in part
 
 

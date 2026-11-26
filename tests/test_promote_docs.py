@@ -121,7 +121,8 @@ def test_the_paragraph_says_the_check_complements_the_bar_and_how_to_use_it():
     for clause in ("pairs the challenger's outcomes with those of `select`'s primary on that one hash.",
                    "It requires the bar to admit the challenger first and exits 3 when it does not. Then",
                    "Then it prints `promote` on an exact McNemar result in the challenger's favor at `--alpha` "
-                   "(default 0.05) or, for a challenger cheaper per item, on a paired lower bound above `-M` "
+                   "(default 0.05) or, for a challenger cheaper per item at list prices, on a paired lower bound "
+                   "above `-M` "  # v1.653 (row PROD1h): at list prices again, review iter-502 nit 3
                    "([Bonett and Price, 2012](https://doi.org/10.3102/1076998611411915)); `hold` otherwise; and "
                    "`insufficient_overlap` under the task's `min_samples` pairs.",
                    "It is advisory and changes no route or file (`DESIGN.md` 4.7, with the pairs a margin needs, and 10).",

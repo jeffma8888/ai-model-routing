@@ -57,6 +57,14 @@ trimmed and v1.652 cut again to at most the bytes they left it, and the two v1.6
 first on budgets) to those bytes exactly (review iter-507 should-fix 2); their names and links tests still run on
 all nine. These tests failed on v1.651's
 README and pass on v1.652's.
+
+DESIGN 5.2 v1.653 (row PROD1h): two caveats v1.652 dropped come back in short form where each claim is made, the
+latency one (a trial's time runs from your call to the route's answer, a monitor record's is one attempt's) and
+the self-hosted one (the throughputs describe one workload, the hour's split is an approximation), with two
+qualifiers review nits asked for (`promote`'s list prices, the variants' token counts). Eight clauses leave the
+section to pay for them, each pinned in DROPPED_V1_653 to the line of 4.1, 4.2, 4.3, 7, 8.2 or 11 that states it,
+so the section is 23,995 bytes, at most 24,000. The v1.647 and v1.652 lists lose the entries v1.653 brings back.
+These tests failed on v1.652's README and pass on v1.653's.
 """
 
 from pathlib import Path
@@ -97,7 +105,7 @@ DROPPED = [
      "Then it writes the stats file as it does without the option and appends each record to FILE"),
     (PROMOTE_LEAD, "so two routes pair only when one results file graded both", "### 4.7 ",
      "so two routes pair only when that one file graded both"),
-    (PROMOTE_LEAD, "cheaper per item at list prices", "## 10. ", "so at list prices in either flavor and per item"),
+    # v1.653 (row PROD1h) brings back "cheaper per item at list prices" (review iter-502 nit 3), so it leaves this list
     (PROMOTE_LEAD, "(the adjusted Wald interval of [Bonett and Price, 2012]", "### 4.7 ",
      "the adjusted Wald interval of Bonett and Price (2012)"),
     (PROMOTE_LEAD, "each promotion against the route before it can lose up to M by the interval's reading", "### 4.7 ",
@@ -404,10 +412,7 @@ DROPPED_V1_652 = [
     (DRIFT_LEAD, "and a cascade's or a procedure's audited call counts once for its route", "### 8.3 ",
      "So an audited call that a cascade or a procedure answered counts once for that route"),
     (DRIFT_LEAD, "and which calls to audit stays yours", "### 8.3 ", "so which calls to audit stays the caller's"),
-    (SELF_LEAD, "The throughputs describe one workload, and the split of an hour between input and output is an "
-     "approximation you choose", "### 4.1 ",
-     "The throughputs describe one workload, and the split of an hour between input and output is an approximation "
-     "the caller chooses"),
+    # v1.653 (row PROD1h) brings back the one workload and the hour's split (review iter-507 should-fix 3)
     (SELF_LEAD, "and the same hour used 2% of the time makes it the dearer route", "## 11. ",
      "the same hour used a fiftieth of the time makes it the dearer route"),
     (CACHE_LEAD, "so a model that is cheaper per token but never hits the cache can cost more than a pricier one", "### 5.2 ",
@@ -427,17 +432,15 @@ DROPPED_V1_652 = [
      "needs a cascade's cheap and strong models in the matrix to route it by their rows"),
     (VAR_LEAD, "and an unmeasured variant starts cold", "### 4.3 ",
      "so a variant with no trials of its own is unmeasured (cold start, 5.3)"),
-    (LAT_LEAD, "A trial's time is yours to measure, from your call to its answer", "### 4.3 ",
-     "so a route's time is what the caller measured from its call to"),
-    (LAT_LEAD, "A monitor record's `latency_ms` is one attempt's", "### 4.3 ",
-     "an attempt record's `latency_ms` (8.1) is one attempt's"),
+    # v1.653 (row PROD1h) brings back, in short form, that a trial runs from your call to the answer and a record's time is
+    # one attempt's (review iter-507 should-fix 1)
     (EST_LEAD, "The ledger is one process's: a limit shared by many processes still needs a gateway", "### 4.6 ",
      "a limit shared by many processes still needs a gateway or the provider's own"),
 ]
 ENDS = {"### 4.7 ": "\n## 5. ", "### 8.3 ": "\n## 9. ", "## 10. ": "\n## 11. ", "### 4.1 ": "\n### 4.2 ",
         "### 5.2 ": "\n### 5.3 ", "## 6. ": "\n## 7. ", "## 7. ": "\n## 8. ", "## 11. ": "\n## 12. ",
         "### 4.3 ": "\n### 4.4 ", "### 4.5 ": "\n### 4.6 ", "### 4.6 ": "\n### 4.7 ",
-        "### 8.1 ": "\n### 8.2 "}
+        "### 8.1 ": "\n### 8.2 ", "### 4.2 ": "\n### 4.3 ", "### 8.2 ": "\n### 8.3 "}
 
 
 def read(name):
@@ -477,7 +480,7 @@ def test_each_keeps_its_lead_its_names_its_quote_and_its_links():
 
 def test_each_dropped_clause_is_gone_and_its_design_subsection_states_it():
     design = read("DESIGN.md")
-    assert len(DROPPED) == 30
+    assert len(DROPPED) == 29  # v1.653 takes one back
     for lead, clause, heading, phrase in DROPPED:
         assert clause not in paragraph(lead), clause
         assert phrase in subsection(design, heading), (heading, phrase)
@@ -785,9 +788,13 @@ def test_design_states_the_v1_651_trim_and_the_changelog_the_version():
 
 def test_the_v1_652_nine_are_shorter_and_the_section_at_most_24000_bytes():
     found = {lead: len(paragraph(lead).encode("utf-8")) for lead in OLD_BYTES_V1_652}
-    assert found == NEW_BYTES_V1_652
-    assert sum(OLD_BYTES_V1_652.values()) - sum(found.values()) == 1_166
-    assert size(read("README.md"), PRODUCTION) == 23_992 <= TARGET < PRODUCTION_CAP == 30_000
+    # v1.653 (row PROD1h) changes three of the nine again, which NEW_BYTES_V1_653 holds; the six it left keep their
+    # v1.652 bytes
+    assert {k: v for k, v in found.items() if k not in NEW_BYTES_V1_653} == {
+        k: v for k, v in NEW_BYTES_V1_652.items() if k not in NEW_BYTES_V1_653}
+    assert all(found[k] == NEW_BYTES_V1_653[k] for k in found if k in NEW_BYTES_V1_653)
+    assert sum(OLD_BYTES_V1_652.values()) - sum(NEW_BYTES_V1_652.values()) == 1_166
+    assert size(read("README.md"), PRODUCTION) <= TARGET < PRODUCTION_CAP == 30_000
 
 
 def test_the_v1_652_nine_keep_their_quotes_and_links_and_no_dash():
@@ -800,7 +807,7 @@ def test_the_v1_652_nine_keep_their_quotes_and_links_and_no_dash():
 
 def test_each_clause_the_v1_652_nine_dropped_is_gone_and_its_design_subsection_states_it():
     design = read("DESIGN.md")
-    assert len(DROPPED_V1_652) == 17
+    assert len(DROPPED_V1_652) == 14  # v1.653 takes three back
     for lead, clause, heading, phrase in DROPPED_V1_652:
         assert clause not in paragraph(lead), clause
         # a behavioural subsection, never a 5.2 history bullet of the README
@@ -842,4 +849,127 @@ def test_design_states_the_v1_652_trim_and_the_changelog_the_version():
     assert len(mine.encode("utf-8")) <= 6_000
     [line] = [x for x in read("CHANGELOG.md").splitlines() if x.startswith("- v1.652 (")]
     assert line.startswith("- v1.652 (2026-11-25): docs and tests (5.2, row PROD1g, sixth part). ")
+    assert len(line.encode("utf-8")) <= 600
+
+
+# --- v1.653 (row PROD1h): two caveats back, eight clauses traded out --------------------------------------
+
+THREADS_LEAD = "One `Executor`, with its `Monitor` and `BudgetLedger`, can serve every request thread of a process: "
+# the six paragraphs v1.653 changes, as v1.652 (f6d28c2) left them and as v1.653 leaves them
+OLD_BYTES_V1_653 = {VAR_LEAD: 1_468, SELF_LEAD: 1_382, PROMOTE_LEAD: 1_693, SHADOW_LEAD: 1_641, THREADS_LEAD: 632,
+                    LAT_LEAD: 1_389}
+NEW_BYTES_V1_653 = {VAR_LEAD: 1_486, SELF_LEAD: 1_450, PROMOTE_LEAD: 1_708, SHADOW_LEAD: 1_595, THREADS_LEAD: 549,
+                    LAT_LEAD: 1_420}
+# what comes back, each with the behavioural DESIGN subsection and the phrase of the line that states it
+BACK_V1_653 = [
+    (LAT_LEAD, "A trial's time, from your call to the route's answer, is a results row's `latency_ms`", "### 4.3 ",
+     "so a route's time is what the caller measured from its call to its answer"),  # review iter-507 should-fix 1
+    (LAT_LEAD, "while a monitor record's `latency_ms` is one attempt's. To read a bar off a log", "### 4.3 ",
+     "an attempt record's `latency_ms` (8.1) is one attempt's"),
+    (SELF_LEAD, "Its throughputs describe one workload, and its split of the hour between input and output is an "
+     "approximation you choose. ", "### 4.1 ",
+     "The throughputs describe one workload, and the split of an hour between input and output is an approximation "
+     "the caller chooses"),  # review iter-507 should-fix 3
+    (PROMOTE_LEAD, "for a challenger cheaper per item at list prices, on a paired lower bound", "## 10. ",
+     "so at list prices in either flavor and per item"),  # review iter-502 nit 3
+    (VAR_LEAD, "so once measured with token counts the route is priced per item", "### 5.2 ",
+     "for a route whose `items_per_call` k is above 1 (4.1), `list_cost`"),  # review iter-507 nit 1
+]
+# what leaves to pay for it, as v1.652 (f6d28c2) wrote it, each pinned the same way
+DROPPED_V1_653 = [
+    (SELF_LEAD, "In place of list prices, ", "### 4.1 ",
+     "prices derived from what an hour of the caller's own serving costs"),
+    (SELF_LEAD, "unmeasured it is not routed, ", "## 11. ",
+     "they give reasons `insufficient_samples`, `passes`, `passes` and `generator_family`"),
+    (SHADOW_LEAD, ", from 0, the default, to 1,", "### 4.2 ",
+     "`shadow_rate: float = 0.0`, the share of the task's `.call`s also sent to a shadow route"),
+    (SHADOW_LEAD, ", with no fallback,", "## 7. ",
+     "the executor makes one provider call of the shadow route on the same `messages`, by step 2 with no fallback"),
+    (LAT_LEAD, ", in milliseconds,", "### 4.2 ", "the highest 95th-percentile time in milliseconds a route may take"),
+    (LAT_LEAD, ", so below 20 trials it is the slowest of them", "### 4.3 ", "the slowest of them while `n` is below 20"),
+    (THREADS_LEAD, "(a rotated log's files oldest first)", "### 8.2 ", "give such files in the order they were written"),
+    (THREADS_LEAD, ", since a log given twice would count it twice", "### 8.2 ",
+     "which would count its calls and its spend twice"),
+]
+NAMES_V1_653 = {THREADS_LEAD: ["Executor", "Monitor", "BudgetLedger", "id_factory", "random", "now", "clock",
+                               "report", "pairs", "--log PATH"]}
+
+
+def test_the_v1_653_six_and_the_section_at_most_24000_bytes():
+    found = {lead: len(paragraph(lead).encode("utf-8")) for lead in OLD_BYTES_V1_653}
+    assert found == NEW_BYTES_V1_653
+    assert sum(NEW_BYTES_V1_653.values()) - sum(OLD_BYTES_V1_653.values()) == 3
+    assert size(read("README.md"), PRODUCTION) == 23_995 <= TARGET < PRODUCTION_CAP == 30_000
+
+
+def test_the_v1_653_caveats_and_qualifiers_are_back_where_design_states_them():
+    design = read("DESIGN.md")
+    assert len(BACK_V1_653) == 5
+    for lead, text, heading, phrase in BACK_V1_653:
+        assert paragraph(lead).count(text) == 1, text
+        [owner] = [line for line in subsection(design, heading).splitlines() if phrase in line]
+        assert "README" not in owner.split(":", 1)[0], (heading, phrase)
+
+
+def test_each_clause_v1_653_traded_out_is_gone_and_its_design_subsection_states_it():
+    design = read("DESIGN.md")
+    assert len(DROPPED_V1_653) == 8
+    for lead, clause, heading, phrase in DROPPED_V1_653:
+        assert clause not in paragraph(lead), clause
+        # a behavioural subsection, never a 5.2 history bullet of the README
+        [owner] = [line for line in subsection(design, heading).splitlines() if phrase in line]
+        assert "README" not in owner.split(":", 1)[0], (heading, phrase)
+
+
+def test_the_v1_653_six_keep_their_names_quotes_and_links_and_no_dash():
+    for lead in OLD_BYTES_V1_653:
+        text = paragraph(lead)
+        assert text.startswith(lead), lead
+        assert "\u2014" not in text and "\u2013" not in text
+    names = paragraph(THREADS_LEAD).split("`")[1::2]
+    assert [n for n in NAMES_V1_653[THREADS_LEAD] if n not in names] == []
+    assert paragraph(SELF_LEAD).count("](") == 1 and paragraph(PROMOTE_LEAD).count("](") == 2
+    assert paragraph(VAR_LEAD).count("](") == 1 and paragraph(THREADS_LEAD).count("](") == 0
+
+
+def test_the_v1_653_check_fails_on_a_clause_still_there_or_a_phrase_elsewhere():
+    design = read("DESIGN.md")
+    # a mutant: the paragraph with a traded clause put back fails the check
+    lat = paragraph(LAT_LEAD)
+    mutant = lat.replace("of the `n` sorted times. ", "of the `n` sorted times, so below 20 trials it is the slowest "
+                         "of them. ")
+    assert mutant != lat
+    assert [c for lead, c, _, _ in DROPPED_V1_653 if lead == LAT_LEAD and c in mutant] == [
+        ", so below 20 trials it is the slowest of them"]
+    # kept on purpose: a task with no bar routes as before, a named shadow route need not clear the bar, and a
+    # record found in two logs is refused
+    assert "A task with no bar routes as before." in lat
+    assert "a named one need not clear the bar. Once the routed call has returned" in paragraph(SHADOW_LEAD)
+    assert "refusing a record found in two of them." in paragraph(THREADS_LEAD)
+    # each owner is the behavioural line, not a line of another subsection
+    assert "give such files in the order they were written" not in subsection(design, "### 8.3 ")
+    assert "the slowest of them while `n` is below 20" not in subsection(design, "### 4.2 ")
+    assert "by step 2 with no fallback" not in subsection(design, "### 4.2 ")
+    assert "so at list prices in either flavor and per item" not in subsection(design, "### 4.7 ")
+
+
+def test_design_states_the_v1_653_change_and_the_changelog_the_version():
+    design = read("DESIGN.md")
+    five2 = subsection(design, "### 5.2 ")
+    [mine] = [line for line in five2.splitlines()
+              if line.startswith("- v1.653 README caveats (row PROD1h, review iter-507 should-fix 1 and 3): ")]
+    for kept in ("gets back, in short form where each claim is made, two caveats v1.652 dropped",
+                 "a trial's time runs from your call to the route's answer while a monitor record's `latency_ms` is "
+                 "one attempt's (4.3 v1.626)",
+                 "its throughputs describe one workload and its split of the hour between input and output is an "
+                 "approximation you choose (4.1 v1.581)",
+                 "each stated on a line of 4.1, 4.2, 4.3, 7, 8.2 or 11, so no subsection gains one",
+                 "so the section is 23,995 bytes by the 12.8 measure, at most row PROD1g's 24,000 and under v1.629's "
+                 "30,000-byte cap, which stays",
+                 "No package module, evidence file or README transcript changes."):
+        assert mine.count(kept) == 1, kept
+    assert five2.index("\n- v1.652 README trim (") < five2.index("\n" + mine)
+    assert len(mine.encode("utf-8")) <= 6_000
+    [line] = [x for x in read("CHANGELOG.md").splitlines() if x.startswith("- v1.653 (")]
+    assert line.startswith("- v1.653 (2026-11-25): docs and tests (5.2, row PROD1h). ")
     assert len(line.encode("utf-8")) <= 600

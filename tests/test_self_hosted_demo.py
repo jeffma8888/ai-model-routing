@@ -167,15 +167,16 @@ def test_the_readme_paragraph_on_self_hosted_models():
                 "`model_routing.demo.run_self_hosted_demo()`",
                 "`DESIGN.md` 4.1, 5.1, 8.1, 8.3, 10 and 11"):  # review iter-433 nit 1
         assert key in text, key
-    # v1.652 (row PROD1gbbbbb): the one workload, the hour's split and the hour used a fiftieth of the time are
-    # DESIGN 4.1's and 11's (tests/test_readme_trim.py DROPPED_V1_652)
-    assert "The throughputs describe one workload" not in text
+    # v1.652 (row PROD1gbbbbb): the hour used a fiftieth of the time is DESIGN 11's (tests/test_readme_trim.py
+    # DROPPED_V1_652); v1.653 (row PROD1h) brings back the one workload and the hour's split (review iter-507 should-fix 3)
+    assert text.count("so it is routed like any model. Its throughputs describe one workload, and its split of "
+                      "the hour between input and output is an approximation you choose. A fine-tune ") == 1
     # v1.648 (row PROD1gb): what each field means, how the row is admitted, why an hour has no one price per
     # token and that the demo's fine-tune never judges its base are DESIGN 4.1's and 11's
     # (tests/test_readme_trim.py)
     assert text.count("gives `usd_per_hour`, `tokens_per_hour_in`, `tokens_per_hour_out`, `utilization` and "
                       "`input_cost_share`. The loader derives its prices per million tokens from them, so it is "
-                      "routed like any model. A fine-tune ") == 1
+                      "routed like any model. ") == 1
     assert text.count("it is the primary at a twelfth of the list model's cost a call. Harvey reports ") == 1
     assert ("(research/production-lessons.md#your-own-trained-model-is-a-candidate-kept-to-the-tasks-"
             "it-was-measured-on)") in text

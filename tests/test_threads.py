@@ -34,8 +34,8 @@ THREADS_SENTENCE = (
     "threads and each record is one whole line of the log, while your provider, any `id_factory`, "
     "`random`, `now` or `clock` you pass and any change to the stats while calls run are yours to guard, "
     "and each process needs a log of its own, which `report` and `pairs` "
-    "read together when given `--log PATH` once per log (a rotated log's files oldest first), refusing "
-    "a record found in two of them, since a log given twice would count it twice.")  # v1.620, row PROD1d
+    "read together when given `--log PATH` once per log, refusing "
+    "a record found in two of them.")  # v1.620, row PROD1d; v1.653 (row PROD1h): the order and the reason are DESIGN 8.2's
 
 
 def router(**fields):

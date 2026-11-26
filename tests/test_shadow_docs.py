@@ -128,7 +128,9 @@ def test_the_two_paragraphs_follow_the_promotion_check_and_precede_the_sentence_
 def test_the_first_paragraph_says_what_a_shadow_is_costs_and_waits_for():
     text = part(FIRST)
     for clause in (
-            "A task's `shadow_rate`, from 0, the default, to 1, is the share of its calls the executor shadows",
+            # v1.653 (row PROD1h): the rate's range and default and the shadow's lack of a fallback are DESIGN 4.2's and
+            # 7's (tests/test_readme_trim.py DROPPED_V1_653)
+            "A task's `shadow_rate` is the share of its calls the executor shadows",
             # v1.648 (row PROD1gb): the hard rules, the primary, a fallback's or a hand-up's answer and what a
             # runner spares the call are DESIGN 7's (tests/test_readme_trim.py)
             # v1.652 (row PROD1gbbbbb): a challenger shadowed before it is admitted and that the caller waits are
