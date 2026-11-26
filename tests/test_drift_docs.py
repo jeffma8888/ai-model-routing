@@ -164,11 +164,11 @@ def test_the_paragraph_follows_the_latency_one_inside_the_cap():
     paragraphs = body.strip().split("\n\n")
     assert text.count(DRIFT_PARAGRAPH) == 1 and DRIFT_PARAGRAPH in paragraphs
     # v1.635 ended the section with it; from v1.641 the pinned-call paragraph follows (tests/test_pin_docs.py),
-    # and from v1.654 (row OPP1c) the savings sentence after that (tests/test_opportunities_docs.py)
+    # and from v1.654 (row OPP1c) the savings sentence after that (tests/test_opportunities_docs.py); from v1.655
+    # (row T30) it is placed by its neighbours, never by a count from the section's end
     at = paragraphs.index(DRIFT_PARAGRAPH)
-    assert paragraphs[at - 1].startswith(LATENCY_START)
-    assert at == len(paragraphs) - 3 and paragraphs[at + 1].startswith("A call can also pin its route. ")
-    assert paragraphs[at + 2].startswith("A log also shows where a cheaper route, ")
+    assert 0 < at < len(paragraphs) - 1 and paragraphs[at - 1].startswith(LATENCY_START)
+    assert paragraphs[at + 1].startswith("A call can also pin its route. ")
     assert size(text, PRODUCTION) <= PRODUCTION_CAP
     assert "\u2014" not in DRIFT_PARAGRAPH and "\u2013" not in DRIFT_PARAGRAPH
 

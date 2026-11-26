@@ -11,6 +11,9 @@ made under v1.629's 30,000-byte cap, so no paragraph is trimmed, and the v1.652 
 section less its paragraph to the bytes they set (tests/test_readme_trim.py). 8.3 v1.645's and v1.646's
 Not-in-this-version sub-bullets name v1.654 in place of row OPP1c. Every README transcript keeps its v1.640
 bytes, and no evidence or research script opens a file this slice edits.
+
+DESIGN 5.2 v1.655 (row T30): the sentence is placed by the pin paragraph before it, and tests/test_readme_trim.py
+alone names the section's last paragraph and holds its bytes, so a later paragraph restates no pin here.
 """
 
 import contextlib
@@ -81,12 +84,15 @@ def subsection(design, heading):
 
 # --- README --------------------------------------------------------------------------------------
 
-def test_the_sentence_ends_the_section_after_the_pin_paragraph_inside_the_cap():
+def test_the_sentence_follows_the_pin_paragraph_inside_the_cap():
     text = read("README.md")
     found = paragraphs(text, PRODUCTION)
-    assert found[-1] == SAVINGS_PARAGRAPH and text.count(SAVINGS_LEAD) == 1
-    assert found[-2] == PIN_PARAGRAPH
-    assert size(text, PRODUCTION) == SECTION_BYTES <= PRODUCTION_CAP == 30_000
+    # v1.655 (row T30): placed by its neighbour; tests/test_readme_trim.py names the last paragraph and holds
+    # the section less LATER at v1.653's 23,976, so its 24,690 at v1.654 is that plus this paragraph's 714
+    assert found.count(SAVINGS_PARAGRAPH) == 1 and text.count(SAVINGS_LEAD) == 1
+    assert found.index(SAVINGS_PARAGRAPH) > 0 and found[found.index(SAVINGS_PARAGRAPH) - 1] == PIN_PARAGRAPH
+    assert size(text, PRODUCTION) <= PRODUCTION_CAP == 30_000
+    assert SECTION_BYTES == 23_976 + len(SAVINGS_PARAGRAPH.encode("utf-8")) + 2
     assert len(SAVINGS_PARAGRAPH.encode("utf-8")) == 712
     # one sentence: no full stop inside it, and it ends at its DESIGN pointer
     assert ". " not in SAVINGS_PARAGRAPH and SAVINGS_PARAGRAPH.endswith(" (`DESIGN.md` 8.3 and 10).")

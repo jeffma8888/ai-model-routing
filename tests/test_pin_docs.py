@@ -14,6 +14,8 @@ a file this slice edits, so every evidence file keeps its bytes.
 
 DESIGN 5.2 v1.654 (row OPP1c): the sentence on `report --opportunities` follows the paragraph on pinned
 calls and ends the section (tests/test_opportunities_docs.py), so the pin paragraph is the second last.
+DESIGN 5.2 v1.655 (row T30) places it by its neighbours, the drift paragraph before it and the savings
+sentence after it, never by a count from the section's end.
 """
 
 import hashlib
@@ -91,9 +93,11 @@ def says(words):
 def test_the_paragraph_follows_the_drift_one_and_precedes_the_savings_one_inside_the_cap():
     text = read("README.md")
     paragraphs = production_paragraphs(text)
-    # v1.654 (row OPP1c): the savings sentence ends the section after it
-    assert text.count(PIN_PARAGRAPH) == 1 and paragraphs[-2] == PIN_PARAGRAPH
-    assert paragraphs[-3].startswith(DRIFT_START) and paragraphs[-1].startswith(SAVINGS_LEAD)
+    # v1.654 (row OPP1c): the savings sentence follows it; v1.655 (row T30): placed by its neighbours
+    assert text.count(PIN_PARAGRAPH) == 1 and paragraphs.count(PIN_PARAGRAPH) == 1
+    at = paragraphs.index(PIN_PARAGRAPH)
+    assert 0 < at < len(paragraphs) - 1
+    assert paragraphs[at - 1].startswith(DRIFT_START) and paragraphs[at + 1].startswith(SAVINGS_LEAD)
     assert size(text, PRODUCTION) <= PRODUCTION_CAP
     assert "\u2014" not in PIN_PARAGRAPH and "\u2013" not in PIN_PARAGRAPH
 

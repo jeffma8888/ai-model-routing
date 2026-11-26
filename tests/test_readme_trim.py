@@ -70,10 +70,16 @@ These tests failed on v1.652's README and pass on v1.653's.
 DESIGN 5.2 v1.654 (row OPP1c): the sentence on `report --opportunities` ends the section, in the room row PROD1g
 made under v1.629's cap (tests/test_opportunities_docs.py), so the v1.652 and v1.653 tests hold the section less
 that sentence's paragraph and its blank line to the bytes they set, at most 24,000 and 23,976.
+
+DESIGN 5.2 v1.655 (row T30): the v1.652 and v1.653 tests take out one list, LATER, of the paragraphs added
+after v1.653, each with its own bytes and its blank line, so a slice that adds a paragraph appends one entry;
+one test alone names the section's last paragraph, and the docs modules place a paragraph by the one next to
+it, never by a count from the section's end.
 """
 
 from pathlib import Path
 
+import pytest
 from test_readme_production import PRODUCTION, PRODUCTION_CAP, paragraphs, size
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -458,13 +464,21 @@ def paragraph(lead):
 
 
 SAVINGS_LEAD = "A log also shows where a cheaper route, such as a procedure or a model of your own, would save most: "
+# DESIGN 5.2 v1.655 (row T30): each paragraph added to the section after v1.653, in the order added, as its lead
+# and its own bytes with its blank line; a slice that adds a paragraph appends its entry here
+LATER = [
+    (SAVINGS_LEAD, 714),  # v1.654, row OPP1c: 712 bytes and the blank line
+]
 
 
-def without_savings(text):
-    """`text` less v1.654's paragraph, the section's last, and its blank line (row OPP1c)."""
-    [savings] = [p for p in paragraphs(text, PRODUCTION) if p.startswith(SAVINGS_LEAD)]
-    assert text.count("\n\n" + savings + "\n\n## ") == 1
-    return text.replace("\n\n" + savings + "\n\n## ", "\n\n## ", 1)
+def without_later(text):
+    """`text` less each LATER paragraph and its blank line, wherever in the section it sits (row T30)."""
+    for lead, size_with_blank in LATER:
+        [later] = [p for p in paragraphs(text, PRODUCTION) if p.startswith(lead)]
+        assert len(later.encode("utf-8")) + 2 == size_with_blank, lead
+        assert text.count("\n\n" + later + "\n\n") == 1, lead
+        text = text.replace("\n\n" + later + "\n\n", "\n\n", 1)
+    return text
 
 
 def subsection(design, heading):
@@ -809,8 +823,9 @@ def test_the_v1_652_nine_are_shorter_and_the_section_at_most_24000_bytes():
         k: v for k, v in NEW_BYTES_V1_652.items() if k not in NEW_BYTES_V1_653}
     assert all(found[k] == NEW_BYTES_V1_653[k] for k in found if k in NEW_BYTES_V1_653)
     assert sum(OLD_BYTES_V1_652.values()) - sum(NEW_BYTES_V1_652.values()) == 1_166
-    # v1.654 (row OPP1c) adds a sentence in the room under the cap; the rest stays at most TARGET
-    assert size(without_savings(read("README.md")), PRODUCTION) <= TARGET < PRODUCTION_CAP == 30_000
+    # v1.654 (row OPP1c) adds a sentence in the room under the cap; the section less LATER (v1.655, row T30)
+    # stays at most TARGET
+    assert size(without_later(read("README.md")), PRODUCTION) <= TARGET < PRODUCTION_CAP == 30_000
 
 
 def test_the_v1_652_nine_keep_their_quotes_and_links_and_no_dash():
@@ -922,10 +937,12 @@ def test_the_v1_653_seven_and_the_section_at_most_24000_bytes():
     found = {lead: len(paragraph(lead).encode("utf-8")) for lead in OLD_BYTES_V1_653}
     assert found == NEW_BYTES_V1_653
     assert sum(OLD_BYTES_V1_653.values()) - sum(NEW_BYTES_V1_653.values()) == 16
-    # v1.654 (row OPP1c) adds a sentence in the room under the cap; the rest keeps v1.653's bytes
+    # v1.654 (row OPP1c) adds a sentence in the room under the cap; the section less LATER (v1.655, row T30)
+    # keeps v1.653's bytes, and LATER's entries are the rest
     text = read("README.md")
-    assert size(without_savings(text), PRODUCTION) == 23_976 <= TARGET < PRODUCTION_CAP == 30_000
-    assert size(text, PRODUCTION) - size(without_savings(text), PRODUCTION) == 714
+    assert size(without_later(text), PRODUCTION) == 23_976 <= TARGET < PRODUCTION_CAP == 30_000
+    assert size(text, PRODUCTION) - size(without_later(text), PRODUCTION) == sum(b for _, b in LATER)
+    assert LATER[0] == (SAVINGS_LEAD, 714)  # v1.654's paragraph, its own 712 bytes and the blank line
 
 
 def test_the_v1_653_caveats_and_qualifiers_are_back_where_design_states_them():
@@ -1001,4 +1018,53 @@ def test_design_states_the_v1_653_change_and_the_changelog_the_version():
     assert len(mine.encode("utf-8")) <= 6_000
     [line] = [x for x in read("CHANGELOG.md").splitlines() if x.startswith("- v1.653 (")]
     assert line.startswith("- v1.653 (2026-11-25): docs and tests (5.2, row PROD1h). ")
+    assert len(line.encode("utf-8")) <= 600
+
+
+# --- v1.655 (row T30) -----------------------------------------------------------------------------
+
+def test_the_section_ends_with_the_savings_sentence():
+    # the one test that names the section's last paragraph; a slice that adds one after it restates this alone
+    assert paragraphs(read("README.md"), PRODUCTION)[-1].startswith(SAVINGS_LEAD)
+
+
+def test_later_takes_out_a_paragraph_wherever_it_sits_and_only_its_bytes():
+    text = read("README.md")
+    found = paragraphs(text, PRODUCTION)
+    # appended to, never rewritten: v1.654's entry stays first whatever a later slice adds
+    assert LATER[0] == (SAVINGS_LEAD, 714) and sum(p.startswith(SAVINGS_LEAD) for p in found) == 1
+    # a hand case: one more paragraph after the savings sentence leaves the section less LATER that paragraph more
+    extra = "A hand case puts this paragraph directly after the savings sentence."
+    savings = paragraph(SAVINGS_LEAD)
+    grown = text.replace("\n\n" + savings + "\n\n", "\n\n" + savings + "\n\n" + extra + "\n\n", 1)
+    after = paragraphs(grown, PRODUCTION)
+    assert grown.count(extra) == 1 and after[after.index(savings) + 1] == extra
+    assert size(without_later(grown), PRODUCTION) == size(without_later(text), PRODUCTION) + len(extra) + 2
+    # a mutant: an entry whose bytes are not its paragraph's own and its blank line's fails the check
+    LATER[0] = (SAVINGS_LEAD, 712)
+    try:
+        with pytest.raises(AssertionError, match="A log also shows"):
+            without_later(text)
+    finally:
+        LATER[0] = (SAVINGS_LEAD, 714)
+    assert LATER[0] == (SAVINGS_LEAD, 714)
+
+
+def test_design_states_v1_655_and_the_changelog_the_version():
+    design = read("DESIGN.md")
+    five2 = subsection(design, "### 5.2 ")
+    [mine] = [line for line in five2.splitlines() if line.startswith("- v1.655 README paragraph places (row T30): ")]
+    for kept in ("a test places a paragraph of `## Running it in production` by the paragraph directly before or "
+                 "after it, never by a count from the section's end",
+                 "in place of v1.654's third last, second last and last",
+                 "One test alone, in tests/test_readme_trim.py, names the section's last paragraph",
+                 "take out one list, `LATER`, of the paragraphs added after v1.653",
+                 "a slice that adds a paragraph appends its entry",
+                 "No package module, evidence file, README text or transcript changes."):
+        assert mine.count(kept) == 1, kept
+    assert five2.index("\n- v1.654 README savings report (") < five2.index("\n" + mine)
+    assert len(mine.encode("utf-8")) <= 6_000 and "\u2014" not in mine and "\u2013" not in mine
+    [line] = [x for x in read("CHANGELOG.md").splitlines() if x.startswith("- v1.655 (")]
+    assert line.startswith("- v1.655 (2026-11-25): tests (5.2, row T30). ")
+    assert line.endswith(" README.md and every transcript keep their bytes.")
     assert len(line.encode("utf-8")) <= 600
