@@ -1,5 +1,5 @@
 """Measured quality: Wilson lower bounds, the items a bar needs, and per (task, model) counts,
-token totals, cache totals, trial times and label sources."""
+token totals, cache totals, trial times, label sources and rerun consistency."""
 
 from __future__ import annotations
 
@@ -183,6 +183,30 @@ def _check_label_sources(trials: int, label_sources: object) -> Optional[Dict[st
     return dict(label_sources)
 
 
+def _check_consistency(rerun_items: object, consistent_items: object) -> Optional[Tuple[int, int]]:
+    """Validate ``rerun_items`` and ``consistent_items`` (DESIGN 4.3 v1.667): both ``None``, or
+    ints that are not bools, ``rerun_items >= 1`` and ``0 <= consistent_items <= rerun_items``."""
+    if rerun_items is None and consistent_items is None:
+        return None
+    if rerun_items is None or consistent_items is None:
+        raise ValueError(f"rerun_items and consistent_items go together, got {rerun_items!r} "
+                         f"and {consistent_items!r}")
+    if not (_is_int(rerun_items) and _is_int(consistent_items)):
+        raise ValueError(f"rerun_items and consistent_items must be integers, got {rerun_items!r} "
+                         f"and {consistent_items!r}")
+    if rerun_items < 1 or not 0 <= consistent_items <= rerun_items:
+        raise ValueError(f"rerun_items must be at least 1 and consistent_items from 0 to "
+                         f"rerun_items, got {rerun_items} and {consistent_items}")
+    return rerun_items, consistent_items
+
+
+def _grade(row: dict) -> tuple:
+    """A rerun row's grade (DESIGN 4.3 v1.667): its ``prediction``, else its ``correct``, with
+    its type, so two grades agree only with the same type and value."""
+    value = row["prediction"] if "prediction" in row else row["correct"]
+    return type(value), value
+
+
 def _row_correct(row: dict) -> bool:
     """A checked results row's outcome: ``correct``, or ``prediction`` against ``gold``; on a row
     that carries ``label_source`` the two agree only with the same type (DESIGN 4.3 v1.662)."""
@@ -257,8 +281,10 @@ class Stats:
     ``>``) holds no token totals but an escalation count, the trials on which its cheap
     model handed the call up (DESIGN 7 v1.532). A procedure key (its ``id`` starts with
     ``proc:``) holds no token totals but the summed cost of its trials (DESIGN 4.3 v1.577).
-    Any key may hold the time in milliseconds of each timed trial (DESIGN 4.3 v1.626), and how
-    many of its trials came from rows naming each label source (DESIGN 4.3 v1.662).
+    Any key may hold the time in milliseconds of each timed trial (DESIGN 4.3 v1.626), how
+    many of its trials came from rows naming each label source (DESIGN 4.3 v1.662), and how many
+    items were graded on two or more reruns and how many of them every rerun graded alike
+    (DESIGN 4.3 v1.667).
     """
 
     def __init__(self) -> None:
@@ -269,6 +295,7 @@ class Stats:
         self._cache: Dict[Tuple[str, str], Tuple[int, int, int, int]] = {}
         self._latency: Dict[Tuple[str, str], List[float]] = {}
         self._labels: Dict[Tuple[str, str], Dict[str, int]] = {}
+        self._consistency: Dict[Tuple[str, str], Tuple[int, int]] = {}
 
     def get(self, task: str, model_id: str) -> Tuple[int, int]:
         """Return ``(successes, trials)``, or ``(0, 0)`` when nothing is recorded."""
@@ -281,7 +308,8 @@ class Stats:
             cached_trials: Optional[int] = None, cache_write_tokens: Optional[int] = None,
             cache_write_trials: Optional[int] = None,
             latencies_ms: Optional[Union[List[float], Tuple[float, ...]]] = None,
-            label_sources: Optional[Dict[str, int]] = None) -> None:
+            label_sources: Optional[Dict[str, int]] = None,
+            rerun_items: Optional[int] = None, consistent_items: Optional[int] = None) -> None:
         """Add these counts, and any token totals, to the existing ones for the key.
 
         ``input_tokens`` and ``output_tokens`` go together and are totals over
@@ -294,8 +322,10 @@ class Stats:
         v1.588). ``latencies_ms`` is 1 to ``trials`` times in milliseconds, one per timed trial,
         on any key (DESIGN 4.3 v1.626). ``label_sources`` maps each label source of these
         trials to its trial count, 1 to ``trials`` each, summing to at most ``trials``, on any
-        key (DESIGN 4.3 v1.662). Raises ``ValueError`` and adds nothing when any argument is
-        invalid.
+        key (DESIGN 4.3 v1.662). ``rerun_items`` and ``consistent_items`` go together: the items
+        graded on two or more reruns and how many of them every rerun graded alike, the key's
+        ``rerun_items`` at most its trials once these are added (DESIGN 4.3 v1.667). Raises
+        ``ValueError`` and adds nothing when any argument is invalid.
         """
         _check_counts(successes, trials)
         n = _check_tokens(trials, input_tokens, output_tokens, token_trials)
@@ -306,6 +336,13 @@ class Stats:
         times = _check_latencies(trials, latencies_ms)
         sources = _check_label_sources(trials, label_sources)
         key = (task, model_id)
+        consistency = _check_consistency(rerun_items, consistent_items)
+        if consistency is not None:  # DESIGN 4.3 v1.667: a rerun item is a measured one
+            total = self.consistency(task, model_id)[0] + consistency[0]
+            held_trials = self.get(task, model_id)[1] + trials
+            if total > held_trials:
+                raise ValueError(f"rerun_items would be {total} on {model_id!r} on {task!r}, over "
+                                 f"its trials={held_trials}")
         if c is not None and not isfinite(self._cost.get(key, 0.0) + c):  # review iter-424 must-fix 1
             raise ValueError(f"cost_usd {c!r} would take the summed cost of {model_id!r} on "
                              f"{task!r} past the largest float")
@@ -328,6 +365,20 @@ class Stats:
             held = self._labels.setdefault(key, {})
             for source, count in sources.items():
                 held[source] = held.get(source, 0) + count
+        if consistency is not None:
+            items, alike = self.consistency(task, model_id)
+            self._consistency[key] = (items + consistency[0], alike + consistency[1])
+
+    def consistency(self, task: str, model_id: str) -> Tuple[int, int]:
+        """Return ``(rerun_items, consistent_items)``, ``(0, 0)`` when none is recorded
+        (DESIGN 4.3 v1.667)."""
+        return self._consistency.get((task, model_id), (0, 0))
+
+    def self_consistency(self, task: str, model_id: str) -> Optional[float]:
+        """Return the share of the key's rerun items that every rerun graded alike, ``None`` when
+        no item was graded on two or more reruns (DESIGN 4.3 v1.667)."""
+        items, alike = self.consistency(task, model_id)
+        return alike / items if items else None
 
     def label_sources(self, task: str, model_id: str) -> Dict[str, int]:
         """Return a new dict of the key's label sources and their trial counts, sorted by source
@@ -395,7 +446,7 @@ class Stats:
 
     def merge(self, other: "Stats") -> "Stats":
         """Return a new Stats with the summed counts, token totals, cache totals, escalations,
-        costs and label sources, and both sides' times."""
+        costs, label sources and rerun counts, and both sides' times."""
         merged = Stats()
         for source in (self, other):
             for key, (s, t) in source._counts.items():
@@ -413,6 +464,9 @@ class Stats:
                 held = merged._labels.setdefault(key, {})
                 for name, count in sources.items():
                     held[name] = held.get(name, 0) + count
+            for key, (items, alike) in source._consistency.items():  # DESIGN 4.3 v1.667
+                held_items, held_alike = merged._consistency.get(key, (0, 0))
+                merged._consistency[key] = (held_items + items, held_alike + alike)
         return merged
 
     def items(self):
@@ -430,8 +484,9 @@ class Stats:
         and no token keys, and no other row carries ``escalated``. A procedure row (its
         ``model`` starts with ``proc:``) carries ``cost_usd`` and no token keys; any other
         row's ``cost_usd`` is ignored (DESIGN 4.3 v1.577). Any row may carry ``latencies_ms``,
-        a JSON array of 1 to ``trials`` times in milliseconds (DESIGN 4.3 v1.626), and
-        ``label_sources``, a JSON object of sources to trial counts (DESIGN 4.3 v1.662).
+        a JSON array of 1 to ``trials`` times in milliseconds (DESIGN 4.3 v1.626),
+        ``label_sources``, a JSON object of sources to trial counts (DESIGN 4.3 v1.662), and
+        ``rerun_items`` with ``consistent_items``, both integers or neither (DESIGN 4.3 v1.667).
         """
         raw = json.loads(Path(path).read_text(encoding="utf-8"))
         if not isinstance(raw, dict) or not isinstance(raw.get("stats"), list):
@@ -483,6 +538,14 @@ class Stats:
                     raise ValueError(f"{path}: label_sources must be a JSON object of sources to "
                                      f"trial counts: {row!r}")
                 tokens["label_sources"] = row["label_sources"]
+            if "rerun_items" in row or "consistent_items" in row:  # DESIGN 4.3 v1.667
+                if "rerun_items" not in row or "consistent_items" not in row:
+                    raise ValueError(f"{path}: a stats row carries rerun_items and consistent_items "
+                                     f"together or neither: {row!r}")
+                if not (_is_int(row["rerun_items"]) and _is_int(row["consistent_items"])):
+                    raise ValueError(f"{path}: rerun_items and consistent_items must be integers: {row!r}")
+                tokens["rerun_items"] = row["rerun_items"]
+                tokens["consistent_items"] = row["consistent_items"]
             try:
                 stats.add(str(task), str(model_id), successes, trials, **tokens)
             except ValueError as exc:
@@ -493,8 +556,9 @@ class Stats:
         """Write stats as JSON with rows sorted by (task, model).
 
         A key holding times gets ``latencies_ms``, sorted, as its row's last key (DESIGN 4.3
-        v1.626), and a key holding label sources gets ``label_sources``, sorted by source name,
-        right before it (DESIGN 4.3 v1.662); a key without one gets no such key.
+        v1.626); a key holding label sources gets ``label_sources``, sorted by source name, before
+        it (DESIGN 4.3 v1.662), and a key holding rerun items gets ``rerun_items`` and
+        ``consistent_items`` between the two (DESIGN 4.3 v1.667); a key without one gets no such key.
         """
         rows = []
         for (task, model_id), (s, t) in self.items():
@@ -514,6 +578,9 @@ class Stats:
             sources = self.label_sources(task, model_id)
             if sources:  # DESIGN 4.3 v1.662, before the times
                 row["label_sources"] = sources
+            items, alike = self.consistency(task, model_id)
+            if items:  # DESIGN 4.3 v1.667, after the sources and before the times
+                row.update(rerun_items=items, consistent_items=alike)
             times = self.latencies(task, model_id)
             if times:  # DESIGN 4.3 v1.626, the row's last key
                 row["latencies_ms"] = list(times)
@@ -535,14 +602,25 @@ def calibrate_from_results(rows: Iterable[dict]) -> Stats:
     ``cost_usd`` is ignored (DESIGN 4.3 v1.577). Any row may carry ``latency_ms``, its trial's
     time in milliseconds (DESIGN 4.3 v1.626). Any row may carry ``label_source``, a non-empty
     string, and adds one trial of that source; on such a row ``prediction`` and ``gold`` agree
-    only when they have the same type and are equal (DESIGN 4.3 v1.662).
+    only when they have the same type and are equal (DESIGN 4.3 v1.662). Any row may carry
+    ``rerun``, an int that is not a bool, at least 0, with ``item``, a non-empty string: the
+    rerun 0 row is the item's trial, a later rerun is checked and adds only its grade, and each
+    key counts its items graded on two or more reruns and those graded alike (DESIGN 4.3 v1.667).
     Every row is validated before the returned Stats exists, so a bad row anywhere
     raises ``ValueError``.
     """
     stats = Stats()
+    reruns: Dict[Tuple[str, str, str], Dict[int, tuple]] = {}  # DESIGN 4.3 v1.667
+    with_prediction: Dict[Tuple[str, str, str], bool] = {}
+    plain_items = set()
     for row in rows:
         if not isinstance(row, dict):
             raise ValueError(f"result row must be an object, got {row!r}")
+        if "rerun" in row:  # DESIGN 4.3 v1.667
+            if not _is_int(row["rerun"]) or row["rerun"] < 0:
+                raise ValueError(f"'rerun' must be an integer >= 0, got {row['rerun']!r}: {row!r}")
+            if not isinstance(row.get("item"), str) or not row["item"]:
+                raise ValueError(f"a row with 'rerun' needs a non-empty string 'item': {row!r}")
         if "label_source" in row:  # DESIGN 4.3 v1.662
             source = row["label_source"]
             if not isinstance(source, str) or not source:
@@ -601,8 +679,42 @@ def calibrate_from_results(rows: Iterable[dict]) -> Stats:
                 raise ValueError(f"'slice' must be a non-empty string without '@' on a task "
                                  f"without '@': {row!r}")
             keys.append(f"{task}@{slice_name}")
+        if "rerun" not in row:
+            if isinstance(row.get("item"), str):
+                plain_items.update((key, model_id, row["item"]) for key in keys)
+            for key in keys:
+                stats.add(key, model_id, 1 if correct else 0, 1, **tokens)
+            continue
+        rerun, grade = row["rerun"], _grade(row)
         for key in keys:
-            stats.add(key, model_id, 1 if correct else 0, 1, **tokens)
+            name = (key, model_id, row["item"])
+            held = reruns.setdefault(name, {})
+            if rerun in held:
+                raise ValueError(f"task {key!r}, model {model_id!r}, item {row['item']!r}: rerun "
+                                 f"{rerun} is given twice")
+            if with_prediction.setdefault(name, "prediction" in row) != ("prediction" in row):
+                raise ValueError(f"task {key!r}, model {model_id!r}, item {row['item']!r}: some "
+                                 f"rerun rows carry 'prediction' and some do not")
+            held[rerun] = grade
+        # a later rerun adds no trial, only its grade; a scratch Stats runs add's own checks on it
+        target = stats if rerun == 0 else Stats()
+        for key in keys:
+            target.add(key, model_id, 1 if correct else 0, 1, **tokens)
+    counts: Dict[Tuple[str, str], List[int]] = {}
+    for (key, model_id, item), held in reruns.items():
+        if (key, model_id, item) in plain_items:
+            raise ValueError(f"task {key!r}, model {model_id!r}, item {item!r}: a row without "
+                             f"'rerun' names an item with rerun rows, a second trial of it")
+        if 0 not in held:
+            raise ValueError(f"task {key!r}, model {model_id!r}, item {item!r}: rerun rows but "
+                             f"no rerun 0, the item's trial")
+        if len(held) >= 2:
+            tally = counts.setdefault((key, model_id), [0, 0])
+            tally[0] += 1
+            grades = list(held.values())
+            tally[1] += all(grade == grades[0] for grade in grades)
+    for name, (items, alike) in counts.items():  # each item has its rerun 0 trial on the key, so
+        stats._consistency[name] = (items, alike)  # items <= trials (a cascade or procedure key too)
     return stats
 
 

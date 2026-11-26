@@ -276,6 +276,6 @@ def test_the_production_note_states_select_as_shipped():
     text = (ROOT / "research" / "production-lessons.md").read_text(encoding="utf-8")
     [line] = [x for x in text.splitlines() if x.startswith("- In this library: judge calls are its first case")]
     assert "The changes: `select` printing" not in line
-    assert line.endswith("so stats built on those labels say so. From v1.663 `select` prints where the chosen "
-                         "route's labels came from. The change: a self-consistency minimum, so a judge whose "
-                         "reruns disagree is excluded whatever its bound.")
+    assert ("so stats built on those labels say so. From v1.663 `select` prints where the chosen "
+            "route's labels came from. ") in line  # v1.667 (row JUDGE2a): what follows is
+    # tests/test_self_consistency_stats.py's

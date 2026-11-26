@@ -125,6 +125,22 @@ def test_with_prediction_the_grade_is_the_prediction_not_correct():
     assert stats.consistency("faithfulness", JUDGE) == (1, 0)
 
 
+def test_a_cascade_or_procedure_key_counts_its_reruns():
+    cascade, proc = "vendor-a/small>vendor-b/large@low_confidence", "proc:review@1"
+    rows = [dict(row("q1", 0, "pass"), model=cascade, escalated=True),
+            dict(row("q1", 1, "pass"), model=cascade, escalated=False),
+            dict(row("q1", 0, "pass"), model=proc, cost_usd=0.5),
+            dict(row("q1", 1, "fail"), model=proc, cost_usd=0.25)]
+    stats = calibrate_from_results(rows)
+    assert stats.get("faithfulness", cascade) == (1, 1)
+    assert stats.escalations("faithfulness", cascade) == 1
+    assert stats.consistency("faithfulness", cascade) == (1, 1)
+    assert stats.cost("faithfulness", proc) == 0.5
+    assert stats.consistency("faithfulness", proc) == (1, 0)
+    with pytest.raises(ValueError, match="escalated"):  # a later rerun is checked as any row
+        calibrate_from_results([rows[0], dict(row("q1", 1, "pass"), model=cascade)])
+
+
 def test_reruns_with_a_gap_are_counted():
     stats = calibrate_from_results([row("q1", 0, "pass"), row("q1", 2, "pass")])
     assert stats.consistency("faithfulness", JUDGE) == (1, 1)
@@ -317,3 +333,13 @@ def test_no_transcript_or_script_writes_rerun_into_a_results_row():
             if path.is_file() and path.suffix in (".py", ".yml", ".yaml", ".sh", ".json", ".jsonl"):
                 text = path.read_text(encoding="utf-8")
                 assert '"rerun"' not in text and "'rerun'" not in text, path
+
+
+def test_the_production_note_states_the_counts_and_keeps_the_gate_planned():
+    text = (ROOT / "research" / "production-lessons.md").read_text(encoding="utf-8")
+    [line] = [x for x in text.splitlines() if x.startswith("- In this library: judge calls are its first case")]
+    assert line.endswith("From v1.663 `select` prints where the chosen route's labels came from. From v1.667, "
+                         "calibrated on rows that number each grade's rerun, stats count the items each judge "
+                         "graded on two or more reruns and those every rerun graded alike, its "
+                         "self-consistency. The change: a self-consistency minimum, so a judge whose reruns "
+                         "disagree is excluded whatever its bound.")
