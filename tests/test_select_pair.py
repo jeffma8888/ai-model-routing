@@ -253,7 +253,9 @@ def test_the_note_s_orchestrator_line_names_select_pair_and_what_is_planned():
     assert "admitted only on runs of the two together" in line
     assert "The change: route the root and sub-agent models as a pair" not in line
     assert "planned" in line and "its tokens inside the pair" in line
-    # v1.671 (row DEL1ba): side tokens ship, reading them from a results row is planned
+    # v1.671 (row DEL1ba): side tokens ship; v1.672 (row DEL1bb): read from a results row
     assert "and from v1.671 at its tokens inside the pair when the pair's stats hold them" in line
-    assert "reading those tokens from a results row" in line
+    assert "and from v1.672 `calibrate_from_results` reads them from a results row" in line
+    assert "reading those tokens from a results row" not in line
+    assert "a `select-pair` command and a table of the spread over roots and over leaves are planned" in line
     assert "pricing each side at its tokens inside the pair" not in line
