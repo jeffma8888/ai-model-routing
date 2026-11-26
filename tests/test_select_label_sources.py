@@ -54,7 +54,8 @@ def files(tmp_path):
         dict(common, name="t", bar=0.8),
         dict(common, name="r", bar=0.8, failure_policy="retry_same"),
         dict(common, name="b", bar=0.99, on_no_model="best_available"),
-        dict(common, name="high", bar=0.99)]}), encoding="utf-8")
+        dict(common, name="high", bar=0.99),
+        dict(common, name="lat", bar=0.8, max_p95_ms=500.0)]}), encoding="utf-8")
     return tmp_path
 
 
@@ -198,6 +199,22 @@ def test_json_gains_label_sources_right_before_candidates(files):
     assert out == json.dumps(data, indent=2) + "\n"
 
 
+def test_json_puts_label_sources_after_max_p95_ms_under_a_latency_bar(files):
+    # review iter-519 nit 1: under a bar `max_p95_ms` (v1.630) is then no longer the key right before `candidates`
+    times = {"latencies_ms": [100.0] * 100}
+    rows = [("lat", CHEAP, 98, 100, dict(times, label_sources={"consensus": 98})), ("lat", BIG, 100, 100, times)]
+    write_stats(files / "plain.json", extra=[(k, m, s, t, {"latencies_ms": more["latencies_ms"]})
+                                             for k, m, s, t, more in rows])
+    write_stats(files / "tagged.json", extra=rows)
+    plain = json.loads(select(files, "plain.json", "lat", "--json")[1])
+    code, out, err = select(files, "tagged.json", "lat", "--json")
+    data = json.loads(out)
+    assert (code, err) == (0, "") and data["primary"] == CHEAP and plain["max_p95_ms"] == 500.0
+    assert list(plain)[-2:] == ["max_p95_ms", "candidates"]
+    assert list(data)[-3:] == ["max_p95_ms", "label_sources", "candidates"]
+    assert {k: v for k, v in data.items() if k != "label_sources"} == plain
+
+
 # --- 13.3 v1.663: the delegate's private copy -------------------------------------------------
 
 def test_the_briefed_copy_keeps_each_keys_sources():
@@ -240,11 +257,14 @@ def test_design_and_changelog_state_v1_663():
     for words in ("`labels:    consensus 60, human 30 of 100 trials`", "`--json` gains `label_sources`, that dict, "
                   "right before `candidates`", "Only the primary's key is read", "prints v1.662's bytes",
                   "not on human correctness (4.3 v1.660)", "the seventh entry of tests/test_readme_trim.py's `LATER`",
+                  "under a latency bar it comes after `max_p95_ms`, which is then no longer the key right before",
                   "stdout gets the same table and is flushed"):
         assert ten.count(words) == 1, words
     thirteen3 = design[design.index("\n### 13.3 "):design.index("\n### 13.4 ")]
     assert thirteen3.count("\n- v1.663 label sources (row JUDGE1bbb, review iter-518 nit 3): that private copy also "
                            "holds each key's label sources as they are (4.3 v1.662)") == 1
+    assert thirteen3.count("it holds the times from v1.628 and the label sources from v1.663, and still no cache "
+                           "counts (review iter-519 nit 2)") == 1
     four3 = design[design.index("### 4.3 "):design.index("### 4.4 ")]
     assert "(row JUDGE1bbb; both ship in 10 v1.663). " in four3
     [line] = [x for x in read("CHANGELOG.md").splitlines() if x.startswith("- v1.663 (")]

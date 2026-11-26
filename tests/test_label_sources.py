@@ -278,7 +278,8 @@ def test_design_and_changelog_state_the_sources():
     assert ("  - not in this version: `select` printing a route's label sources and README's sentence on the "
             "`consensus-labels` command (row JUDGE1bbb; both ship in 10 v1.663). ") in four3
     # v1.663 (row JUDGE1bbb) adds where `select` and README ship to DESIGN 10 v1.661's line
-    assert "(row JUDGE1bb; from 4.3 v1.662 the stats carry it, and from 10 v1.663 `select` prints it" in design
+    assert ("(row JUDGE1bb; from 4.3 v1.662 the stats carry it, and from 10 v1.663 `select` prints the chosen "
+            "route's trial counts per source") in design  # review iter-519 nit 3
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").splitlines()
     assert sum(line.startswith("- v1.662 (2026-11-26): spec, code, docs and tests (4.3, row JUDGE1b, second part). ")
                for line in changelog) == 1
