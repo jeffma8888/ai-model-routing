@@ -302,7 +302,7 @@ def test_design_and_changelog_state_the_command():
     assert ("on `promote` a challenger the bar does not admit (v1.603), and on `consensus-labels` a task whose "
             "share of items kept is under `--min-agreement` (v1.661); 4 ") in design
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").splitlines()
-    assert sum(line.startswith("- v1.661 (2026-11-26): spec, code, docs and tests (10, row JUDGE1ba). ")
+    assert sum(line.startswith("- v1.661 (2026-11-26): spec, code, docs and tests (10, row JUDGE1b, first part). ")
                for line in changelog) == 1
 
 

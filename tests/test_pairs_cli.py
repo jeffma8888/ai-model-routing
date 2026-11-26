@@ -294,7 +294,8 @@ def test_design_and_the_changelog_state_the_version():
 def test_readme_names_the_command_in_its_layout_and_its_synopsis_in_the_production_section():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     # v1.634 (row M1c) names drift after pairs
-    assert "  cli.py        model-routing select | calibrate | report | demo | evaluate | delegate | plan | promote | pairs | drift\n" in readme
+    # v1.661 (row JUDGE1ba) appends consensus-labels
+    assert "  cli.py        model-routing select | calibrate | report | demo | evaluate | delegate | plan | promote | pairs | drift | consensus-labels\n" in readme
     # v1.619 (row CANARY1e): the synopsis, once, in the second paragraph on shadow calls (tests/test_shadow_docs.py)
     production = readme.split("\n## Running it in production\n", 1)[1].split("\n## ", 1)[0]
     # v1.659 (row PROD1): step 8 of the walk-through names it too (tests/test_readme_walkthrough.py)

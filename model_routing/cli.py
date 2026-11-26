@@ -1,4 +1,4 @@
-"""Command line interface: ``model-routing select|calibrate|report|demo|evaluate|delegate|plan|promote|pairs|drift``."""
+"""Command line interface: ``model-routing select|calibrate|report|demo|evaluate|delegate|plan|promote|pairs|drift|consensus-labels``."""
 
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ from .priors import Priors
 from .promotion import pair_outcomes, paired_promotion
 from .registry import Registry
 from .router import FLAVORS, NoModelClearsBar, Policy, Router
-from .stats import (Stats, _planned_successes, calibrate_from_results, item_outcomes,
+from .stats import (Stats, _planned_successes, calibrate_from_results, consensus_labels, item_outcomes,
                     items_needed, wilson_lower_bound)
 from .tasks import is_slice_name, load_tasks
 
@@ -276,6 +276,23 @@ def _build_parser() -> argparse.ArgumentParser:
                     help="the all-time stats file (default: every audited call of the logs)")
     dr.add_argument("--tasks", default=str(DATA_DIR / "example_tasks.json"))
     dr.add_argument("--json", action="store_true")
+
+    cl = sub.add_parser("consensus-labels", help="label the items every rerun of two or more reference "
+                                                 "judges graded alike")
+    cl.add_argument("--grades", required=True, metavar="FILE",
+                    help="a JSONL file of {task, item, judge, rerun, grade} rows")
+    cl.add_argument("--judges", required=True, metavar="A,B",
+                    help="the reference judges, two or more model IDs separated by commas")
+    cl.add_argument("--reruns", required=True, type=int, metavar="N",
+                    help="each reference judge graded each item N times, reruns 0 to N - 1")
+    cl.add_argument("--out", required=True, metavar="FILE",
+                    help="the label rows, written whole, only when every task passes")
+    cl.add_argument("--min-agreement", type=float, default=0.9, metavar="M",
+                    help="the share of a task's items that must be kept (default 0.9)")
+    cl.add_argument("--generator", default=None, metavar="MODEL",
+                    help="refuse a reference judge of this model's family")
+    cl.add_argument("--registry", default=None, metavar="PATH",
+                    help="with --generator: the registry (default the packaged models.json)")
     return parser
 
 
@@ -867,14 +884,51 @@ def _cmd_drift(args) -> int:
     return EXIT_OK
 
 
+def _cmd_consensus_labels(args) -> int:
+    """DESIGN 10 v1.661: every check before FILE is written, and FILE written whole only when
+    every task's share of items kept reaches ``--min-agreement``; otherwise exit 3."""
+    if args.registry is not None and args.generator is None:
+        raise _BadInput("--registry needs --generator: the registry is read only to check the "
+                        "reference judges' family")
+    registry_path = None
+    if args.generator is not None:
+        registry_path = Path(args.registry) if args.registry is not None else DATA_DIR / "models.json"
+    out = Path(args.out)
+    inputs = [Path(args.grades)] + ([] if registry_path is None else [registry_path])
+    if out.resolve() in [path.resolve() for path in inputs]:
+        raise _BadInput(f"--out {args.out} names the grades file or the registry")
+    grades = load_records(args.grades)
+    registry = None if registry_path is None else Registry.load(registry_path)
+    result = consensus_labels(grades, args.judges.split(","), reruns=args.reruns,
+                              min_agreement=args.min_agreement, registry=registry,
+                              generator_model=args.generator)
+    table = _table(["task", "items", "kept", "agreement", "passes"],
+                   [[entry["task"], entry["items"], entry["kept"], f"{entry['agreement']:.4f}",
+                     "yes" if entry["passes"] else "no"] for entry in result["tasks"]])
+    minimum = result["min_agreement"]
+    if not result["passes"]:
+        print(table)
+        failing = ", ".join(entry["task"] for entry in result["tasks"] if not entry["passes"])
+        sys.stdout.flush()
+        print(f"error: under --min-agreement {minimum} on task {failing}: wrote no labels", file=sys.stderr)
+        return EXIT_NO_MODEL
+    _write_whole([(out, "".join(json.dumps(row) + "\n" for row in result["labels"]))])
+    print(table)
+    print(f"\nwrote {len(result['labels'])} label rows to {args.out}, every task at or above "
+          f"--min-agreement {minimum}")
+    return EXIT_OK
+
+
 _COMMANDS = {"select": _cmd_select, "calibrate": _cmd_calibrate, "report": _cmd_report,
              "demo": _cmd_demo, "evaluate": _cmd_evaluate, "delegate": _cmd_delegate,
-             "plan": _cmd_plan, "promote": _cmd_promote, "pairs": _cmd_pairs, "drift": _cmd_drift}
+             "plan": _cmd_plan, "promote": _cmd_promote, "pairs": _cmd_pairs, "drift": _cmd_drift,
+             "consensus-labels": _cmd_consensus_labels}
 
 
 def main(argv: Optional[List[str]] = None, *, today: Optional[date] = None) -> int:
     """Run the CLI and return its exit code: 0 ok, 2 bad input, 3 no model clears the bar (or,
-    from v1.603, ``promote``'s challenger is not admitted), 4 a budget refused a call
+    from v1.603, ``promote``'s challenger is not admitted, and from v1.661 a task of
+    ``consensus-labels`` is under ``--min-agreement``), 4 a budget refused a call
     (``demo --budgets``, v1.599).
 
     ``today`` dates the price expiry check of ``select``, ``delegate`` and, from v1.411,

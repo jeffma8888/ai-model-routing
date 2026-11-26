@@ -439,7 +439,8 @@ def test_design_and_changelog_name_the_contract():
     assert "(4.7, review iter-449 should-fix 3(a))" in ten
     for finding in ("must-fix 1", "should-fix 1", "should-fix 2"):
         assert f"(review iter-452 {finding})" in ten
-    assert "and on `promote` a challenger the bar does not admit (v1.603);" in ten
+    # v1.661 (row JUDGE1ba) adds consensus-labels after promote
+    assert "on `promote` a challenger the bar does not admit (v1.603), and on `consensus-labels`" in ten
     lines = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").splitlines()
     mine = [line for line in lines if line.startswith("- v1.603 (2026-11-23): ")]
     assert len(mine) == 1 and "(3, 4.7, 10, row GATE1c)" in mine[0]
@@ -461,6 +462,7 @@ def test_the_note_names_the_command_as_shipped():
 
 def test_the_readme_layout_names_the_subcommand():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    # v1.612 (row CANARY1k) names pairs after promote, v1.634 (row M1c) drift after pairs
+    # v1.612 (row CANARY1k) names pairs after promote, v1.634 (row M1c) drift after pairs,
+    # v1.661 (row JUDGE1ba) consensus-labels after drift
     assert ("  cli.py        model-routing select | calibrate | report | demo | evaluate | delegate | plan "
-            "| promote | pairs | drift\n") in readme
+            "| promote | pairs | drift | consensus-labels\n") in readme

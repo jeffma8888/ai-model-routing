@@ -370,4 +370,5 @@ def test_design_and_changelog_state_v1_634():
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     assert changelog.count("\n- v1.634 (2026-11-24): spec, code and tests (10, row M1c).") == 1
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    assert "  cli.py        model-routing select | calibrate | report | demo | evaluate | delegate | plan | promote | pairs | drift\n" in readme
+    # v1.661 (row JUDGE1ba) appends consensus-labels
+    assert "  cli.py        model-routing select | calibrate | report | demo | evaluate | delegate | plan | promote | pairs | drift | consensus-labels\n" in readme
