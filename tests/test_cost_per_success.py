@@ -63,7 +63,8 @@ def test_the_field_follows_cascades_and_is_none_by_default():
     # v1.607 (row CANARY1a): the two shadow fields follow it, so it is no longer the last
     names = [f.name for f in dataclasses.fields(Task)]
     assert names[names.index("cascades"):][:2] == ["cascades", "failure_policy"]
-    assert names[-4:] == ["shadow_rate", "shadow_route", "max_p95_ms", "latency_unknown"]  # LAT1b v1.628
+    assert names[names.index("shadow_rate"):][:4] == ["shadow_rate", "shadow_route", "max_p95_ms",
+                                                     "latency_unknown"]  # LAT1b v1.628
     assert Task("t", 0.5).failure_policy == "none"
     assert Task("t", 0.5, failure_policy="retry_same").failure_policy == "retry_same"
 

@@ -32,6 +32,8 @@ REGION_UNAVAILABLE = "region_unavailable"
 ZDR_REQUIRED = "zdr_required"
 TOO_SLOW = "too_slow"  # DESIGN 5.1 v1.628, rules 5e and 5f
 LATENCY_UNKNOWN = "latency_unknown"
+INCONSISTENT = "inconsistent"  # DESIGN 5.1 v1.668, rules 5g and 5h
+CONSISTENCY_UNKNOWN = "consistency_unknown"
 
 FLAVORS = ("cost_effective", "cost_blind")
 _BREAKDOWN_KEYS = ("uncached_input_usd", "cached_read_usd", "cache_write_usd", "output_usd")
@@ -362,7 +364,10 @@ class Router:
         rule, and a cascade or procedure whose own ID ``allowed_routes`` leaves out (DESIGN 5.2
         v1.622). Under the task's ``max_p95_ms`` a route whose p95 on the call's key is above it is
         ``too_slow``, and with ``latency_unknown`` ``"deny"`` one whose time is unknown is
-        ``latency_unknown`` (5.2 v1.628). A ``pin_route`` skips the ranking: every candidate is judged
+        ``latency_unknown`` (5.2 v1.628). Under its ``min_self_consistency`` a route whose share of rerun
+        items graded alike on the call's key is under it is ``inconsistent``, and one whose key holds fewer
+        than ``min_samples`` rerun items ``consistency_unknown`` (5.2 v1.668). A ``pin_route`` skips the
+        ranking: every candidate is judged
         as without it and the pin is the only entry, ``basis`` ``"pinned"``; a pin that is not
         ``eligible`` raises :class:`NoModelClearsBar`, as does one that does not pass unless
         ``allow_below_bar`` is True, and a pin that is no candidate ``ValueError`` (5.2 v1.639).
@@ -541,7 +546,7 @@ class Router:
         where = f"task {name!r}" + ("" if slice_name is None else f" slice {slice_name!r}")
         if not pinned.eligible:
             raise NoModelClearsBar(f"pinned route {pin_route!r} is {pinned.reason} for {where}; "
-                                   f"a pin keeps rules 1 to 5f", candidates)
+                                   f"a pin keeps rules 1 to 5h", candidates)  # 5.2 v1.668
         if not pinned.passes and not allow_below_bar:
             raise NoModelClearsBar(f"pinned route {pin_route!r} is {pinned.reason} for {where}; "
                                    f"pass allow_below_bar=True to run it under the bar", candidates)
@@ -590,6 +595,19 @@ class Router:
             return (LATENCY_UNKNOWN if task.latency_unknown == "deny" else None), None
         return (TOO_SLOW if p95 > task.max_p95_ms else None), p95
 
+    def _consistency_rule(self, task: Task, route_id: str) -> Optional[str]:
+        """Rules 5g and 5h (DESIGN 5.2 v1.668) on a route's own key: its reason or None.
+
+        The share is the key's ``self_consistency`` once it holds at least ``min_samples`` rerun items,
+        compared with no bound; with fewer it is unknown, which the minimum refuses. Without one, None.
+        """
+        if task.min_self_consistency is None:
+            return None
+        if self.stats.consistency(task.name, route_id)[0] < task.min_samples:
+            return CONSISTENCY_UNKNOWN
+        share = self.stats.self_consistency(task.name, route_id)
+        return INCONSISTENT if share < task.min_self_consistency else None
+
     @staticmethod
     def _measured_rule(task: Task, successes: int, trials: int) -> str:
         """Rules 6 to 8 (DESIGN 5.2) on these counts."""
@@ -607,7 +625,8 @@ class Router:
         slow, p95 = self._latency_rule(task, model.id)  # DESIGN 5.2 v1.628: after 5d, before 6
         reason = (self._model_rule(task, model, excluded, generator_base, generator_family,
                                    fit_input, names, policy)
-                  or slow or self._measured_rule(task, successes, trials))
+                  or slow or self._consistency_rule(task, model.id)  # 5.2 v1.668: after 5f, before 6
+                  or self._measured_rule(task, successes, trials))
         list_cost = self._list_cost(task, model)
         counts = self._cache_counts(task, model)
         mean = self.stats.mean_tokens(task.name, model.id)
@@ -659,7 +678,8 @@ class Router:
                 reason = self._model_rule(task, model, excluded, generator_base,
                                           generator_family, fit_input, names, policy)
         if reason is None:
-            reason = slow or self._measured_rule(task, successes, trials)
+            reason = (slow or self._consistency_rule(task, cascade.id)  # 5.2 v1.668
+                      or self._measured_rule(task, successes, trials))
         size_in, size_out = _sizes(self.stats, task, cheap.id)
         p = self.stats.escalations(task.name, cascade.id) / trials if trials else 0.0
         read = size_in + size_out
@@ -724,7 +744,8 @@ class Router:
             reason = self._model_rule(task, model, excluded, generator_base, generator_family,
                                       fit_input, names, policy)
         if reason is None:
-            reason = slow or self._measured_rule(task, successes, trials)
+            reason = (slow or self._consistency_rule(task, proc.id)  # 5.2 v1.668
+                      or self._measured_rule(task, successes, trials))
         list_cost = self.stats.mean_cost(task.name, proc.id)
         breakdown, unknown = None, ()
         if list_cost is None and model is None:

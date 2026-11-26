@@ -66,7 +66,8 @@ def measured(slow_cheap=2, pricey_times=None):
 
 def test_the_two_fields_are_the_last_with_their_defaults():
     names = [f.name for f in dataclasses.fields(Task)]
-    assert names[-3:] == ["shadow_route", "max_p95_ms", "latency_unknown"]
+    # v1.668 (row JUDGE2b): `min_self_consistency` follows them, tests/test_self_consistency_gate.py
+    assert names[names.index("shadow_route"):][:3] == ["shadow_route", "max_p95_ms", "latency_unknown"]
     task = Task("t", 0.5)
     assert task.max_p95_ms is None and task.latency_unknown == "allow"
     assert Task("t", 0.5, max_p95_ms=250, latency_unknown="deny").max_p95_ms == 250

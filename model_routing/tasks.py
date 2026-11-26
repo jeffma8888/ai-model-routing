@@ -123,6 +123,8 @@ class Task:
     (DESIGN 4.2 and 7 v1.607). ``max_p95_ms`` is the highest 95th-percentile time in milliseconds a
     route may take on the task's calls, None for no bar, and ``latency_unknown`` says whether a route
     whose time is unknown is ``"allow"``-ed or ``"deny"``-ed under it (DESIGN 4.2 and 5.2 v1.628).
+    ``min_self_consistency`` is the lowest share of a route's rerun items every rerun graded alike that
+    the route may have, None for no minimum (DESIGN 4.2 and 5.2 v1.668).
     Invalid values raise ``ValueError`` at construction.
     """
 
@@ -146,6 +148,7 @@ class Task:
     shadow_route: Optional[str] = None
     max_p95_ms: Optional[float] = None
     latency_unknown: str = "allow"
+    min_self_consistency: Optional[float] = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.exclude_families, tuple):
@@ -207,6 +210,11 @@ class Task:
         if not isinstance(self.latency_unknown, str) or self.latency_unknown not in LATENCY_UNKNOWN_CHOICES:
             raise ValueError(f"task {self.name!r}: latency_unknown must be one of "
                              f"{LATENCY_UNKNOWN_CHOICES}, got {self.latency_unknown!r}")
+        least = self.min_self_consistency  # DESIGN 4.2 v1.668
+        if least is not None and (isinstance(least, bool) or not isinstance(least, (int, float))
+                                  or not 0.0 <= least <= 1.0):  # NaN and the infinities fail the range
+            raise ValueError(f"task {self.name!r}: min_self_consistency must be None or a finite number in "
+                             f"[0, 1] that is not a bool, got {least!r}")
 
 
 _TASK_FIELDS = {f.name for f in fields(Task)}

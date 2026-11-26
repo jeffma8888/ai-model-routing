@@ -78,7 +78,8 @@ def attempts_of(records):
 def test_the_fields_follow_failure_policy_with_their_defaults():
     names = [f.name for f in dataclasses.fields(Task)]
     # v1.628 (row LAT1b): the two latency fields follow them
-    assert names[-5:] == ["failure_policy", "shadow_rate", "shadow_route", "max_p95_ms", "latency_unknown"]
+    assert names[names.index("failure_policy"):][:5] == ["failure_policy", "shadow_rate", "shadow_route",
+                                                       "max_p95_ms", "latency_unknown"]
     task = Task("t", 0.5)
     assert task.shadow_rate == 0.0 and task.shadow_route is None
 

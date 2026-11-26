@@ -206,7 +206,8 @@ def _briefed_stats(stats: Stats, task_name: str, brief_tokens: int) -> Stats:
     passed it. A cascade key keeps its escalation count and holds no token totals (DESIGN 7
     v1.536); a procedure key keeps its summed cost and holds none either (13.3 v1.627). Every key
     keeps its times, so a latency bar reads in the delegate what it reads in the router (v1.628),
-    and its label sources (v1.663, review iter-518 nit 3).
+    its label sources (v1.663, review iter-518 nit 3) and its rerun counts, so a self-consistency
+    minimum reads in the delegate what it reads in the router (v1.668).
     """
     rows = [(key, counts) for key, counts in stats.items() if key[0] == task_name]
     if brief_tokens == 0 or not any(stats.tokens(*key)[2] for key, _ in rows):
@@ -228,6 +229,9 @@ def _briefed_stats(stats: Stats, task_name: str, brief_tokens: int) -> Stats:
         sources = stats.label_sources(name, model_id)  # 13.3 v1.663, review iter-518 nit 3
         if sources:
             tokens["label_sources"] = sources
+        items, alike = stats.consistency(name, model_id)  # 13.3 v1.668
+        if items:
+            tokens.update(rerun_items=items, consistent_items=alike)
         copy.add(name, model_id, successes, trials, **tokens)
     return copy
 

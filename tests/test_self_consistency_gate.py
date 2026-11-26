@@ -224,6 +224,11 @@ def test_a_pin_of_an_inconsistent_route_is_refused_whatever_allow_below_bar_says
         with pytest.raises(NoModelClearsBar, match="'a/cheap' is inconsistent .*a pin keeps rules 1 to 5h"):
             r.select("t", pin_route=CHEAP, allow_below_bar=allow)
     assert r.select("t", pin_route=MID).basis == "pinned"
+    unknown = Stats()
+    unknown.add("t", CHEAP, N, N)
+    for allow in (False, True):
+        with pytest.raises(NoModelClearsBar, match="'a/cheap' is consistency_unknown .*a pin keeps rules 1 to 5h"):
+            router(unknown).select("t", pin_route=CHEAP, allow_below_bar=allow)
 
 
 # --- 13.3 and 13.4: the delegate keeps the minimum, the parent reads none (row JUDGE2d) ----------

@@ -337,11 +337,11 @@ def test_no_transcript_or_script_writes_rerun_into_a_results_row():
                 assert '"rerun"' not in text and "'rerun'" not in text, path
 
 
-def test_the_production_note_states_the_counts_and_keeps_the_gate_planned():
+def test_the_production_note_states_the_counts():
     text = (ROOT / "research" / "production-lessons.md").read_text(encoding="utf-8")
     [line] = [x for x in text.splitlines() if x.startswith("- In this library: judge calls are its first case")]
-    assert line.endswith("From v1.663 `select` prints where the chosen route's labels came from. From v1.667, "
-                         "calibrated on rows that number each grade's rerun, stats count the items each judge "
-                         "graded on two or more reruns and those every rerun graded alike, its "
-                         "self-consistency. The change: a self-consistency minimum, so a judge whose reruns "
-                         "disagree is excluded whatever its bound.")
+    # v1.668 (row JUDGE2b) states the gate as shipped, pinned in tests/test_self_consistency_gate.py
+    assert ("From v1.663 `select` prints where the chosen route's labels came from. From v1.667, "
+            "calibrated on rows that number each grade's rerun, stats count the items each judge "
+            "graded on two or more reruns and those every rerun graded alike, its "
+            "self-consistency.") in line

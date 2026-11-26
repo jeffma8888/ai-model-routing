@@ -73,6 +73,9 @@ SHARED = ("pin_route=ROUTE", "`pinned_by`", "`allow_below_bar`", "`NoModelClears
           "`report --by basis`", "`report --by pinned_by`", "hand-up")
 # a candidate's reasons that are no hard check: rules 6 to 8 and the decision's own reason
 NOT_HARD = {PASSES, INSUFFICIENT_SAMPLES, BELOW_BAR, CHEAPER_PER_SUCCESS}
+# hard checks of 5.2 rules 5g and 5h (v1.668) that the paragraph names from row JUDGE2c, after row PROD1i;
+# tests/test_self_consistency_gate.py checks that a pin of each is refused whatever allow_below_bar says
+README_LATER = {"inconsistent", "consistency_unknown"}
 
 
 def read(name):
@@ -168,7 +171,7 @@ HARD = {
 
 def test_every_reason_of_the_router_is_a_hard_check_with_its_words_or_one_the_paragraph_reads_apart():
     found = set(re.findall(r'^[A-Z_]+ = "([a-z_]+)"', inspect.getsource(router_module), re.M))
-    assert found == set(HARD) | NOT_HARD   # a new reason needs its words in the paragraph, or a place here
+    assert found == set(HARD) | NOT_HARD | README_LATER   # a new reason needs its words in the paragraph, or a place here
 
 
 @pytest.mark.parametrize("reason", sorted(HARD))

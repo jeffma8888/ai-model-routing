@@ -117,6 +117,8 @@ def _tasks_json(task: Task) -> str:
         del row["max_p95_ms"]
     if row["latency_unknown"] == "allow":
         del row["latency_unknown"]
+    if row["min_self_consistency"] is None:  # DESIGN 4.2 v1.668
+        del row["min_self_consistency"]
     return json.dumps({"tasks": [row]}, indent=2) + "\n"
 
 
