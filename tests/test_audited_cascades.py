@@ -346,8 +346,13 @@ def test_no_doc_says_a_cascade_or_procedure_route_gets_no_rows_yet():
     for name in ("README.md", "research/production-lessons.md"):
         assert "route gets no rows from the log yet" not in read(name), name
     readme = read("README.md")
-    # v1.647 (row PROD1g): the README says it in a shorter form; how such a row is read stays in DESIGN 8.3
-    assert readme.count("and a cascade's or a procedure's audited call counts once for its route.") == 1
+    # v1.647 (row PROD1g): the README says it in a shorter form; how such a row is read stays in DESIGN 8.3.
+    # v1.652 (row PROD1gbbbbb): the README's `drift` paragraph drops it, so DESIGN 8.3 states it
+    # (tests/test_readme_trim.py DROPPED_V1_652) and the note keeps its line
+    assert "audited call counts once for its route" not in readme
+    design = read("DESIGN.md")
+    eight3 = design[design.index("\n### 8.3 "):design.index("\n## 9. ")]
+    assert eight3.count("So an audited call that a cascade or a procedure answered counts once for that route") == 1
     assert read("research/production-lessons.md").count(
         "and from v1.636 a call that a cascade or a procedure answered counts for that route too. ") == 1
 
