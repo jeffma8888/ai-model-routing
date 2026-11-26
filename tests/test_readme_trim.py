@@ -91,6 +91,12 @@ name in backticks (NAMES, NAMES_V1_648), its quote and links and every clause an
 DROPPED_V1_665 holds each clause it drops or rewords, as v1.664 (76aa0e3) wrote it, pinned to the line of 7, 8.3 or 10
 that states it, a pronoun or a moved phrase aside. The v1.652 and v1.653 tests hold the two at v1.665's bytes. These
 tests failed on v1.664's README and pass on v1.665's.
+
+DESIGN 5.2 v1.666 (row PROD1ibba, the first part of row PROD1ibb): the paragraph on `promote` and the one on pinned
+calls are cut again, from 1,708 and 1,751 bytes to 1,628 and 1,724, so the section is 29,278 bytes. Each keeps its
+lead, every name in backticks (NAMES, NAMES_V1_651), its quote and links and every clause an earlier test keeps;
+DROPPED_V1_666 holds each clause it drops or rewords, as v1.665 (48a41e9) wrote it, pinned to the line of 4.7, 5.2,
+7 or 10 that states it. These tests failed on v1.665's README and pass on v1.666's.
 """
 
 from pathlib import Path
@@ -546,7 +552,8 @@ def test_each_dropped_clause_is_gone_and_its_design_subsection_states_it():
 def test_the_check_fails_on_a_clause_still_there_or_a_phrase_design_lacks():
     design = read("DESIGN.md")
     # v1.652 drops "so the check complements the bar and never replaces it" (DROPPED_V1_652); the exit stays
-    assert "It requires the bar to admit the challenger first and exits 3 when it does not. " in paragraph(PROMOTE_LEAD)
+    # v1.666 (row PROD1ibba) says the exit in a shorter form (DROPPED_V1_666)
+    assert "The bar must admit the challenger first, or it exits 3. " in paragraph(PROMOTE_LEAD)
     assert "k times M against the first route" not in subsection(design, "## 10. ")
     assert "-0.0866" not in subsection(design, "## 10. ") and "-0.0866" in subsection(design, "### 4.7 ")
 
@@ -776,8 +783,9 @@ def test_design_states_the_v1_650_trim_and_the_changelog_the_version():
 
 def test_the_v1_651_three_are_shorter_and_the_section_under_its_cap():
     found = {lead: len(paragraph(lead).encode("utf-8")) for lead in OLD_BYTES_V1_651}
-    assert found == NEW_BYTES_V1_651
-    assert sum(OLD_BYTES_V1_651.values()) - sum(found.values()) == 399
+    # v1.666 (row PROD1ibba) cuts the pinned-call one again, which NEW_BYTES_V1_666 holds
+    assert found == {k: NEW_BYTES_V1_666.get(k, v) for k, v in NEW_BYTES_V1_651.items()}
+    assert sum(OLD_BYTES_V1_651.values()) - sum(NEW_BYTES_V1_651.values()) == 399
     assert size(read("README.md"), PRODUCTION) <= PRODUCTION_CAP == 30_000
 
 
@@ -846,8 +854,9 @@ def test_design_states_the_v1_651_trim_and_the_changelog_the_version():
 def test_the_v1_652_nine_are_shorter_and_the_section_at_most_24000_bytes():
     found = {lead: len(paragraph(lead).encode("utf-8")) for lead in OLD_BYTES_V1_652}
     # v1.653 (row PROD1h) changes five of the nine again, which NEW_BYTES_V1_653 holds; the four it left keep their
-    # v1.652 bytes (review iter-508 nit 1); v1.665 (row PROD1iba) cuts two again, which NEW_BYTES_V1_665 holds
-    later = {**NEW_BYTES_V1_653, **NEW_BYTES_V1_665}
+    # v1.652 bytes (review iter-508 nit 1); v1.665 (row PROD1iba) cuts two again, which NEW_BYTES_V1_665 holds,
+    # and v1.666 (row PROD1ibba) the `promote` one, which NEW_BYTES_V1_666 holds
+    later = {**NEW_BYTES_V1_653, **NEW_BYTES_V1_665, **NEW_BYTES_V1_666}
     assert {k: v for k, v in found.items() if k not in later} == {
         k: v for k, v in NEW_BYTES_V1_652.items() if k not in later}
     assert all(found[k] == later[k] for k in found if k in later)
@@ -964,13 +973,16 @@ NAMES_V1_653 = {THREADS_LEAD: ["Executor", "Monitor", "BudgetLedger", "id_factor
 
 def test_the_v1_653_seven_and_the_section_at_most_24000_bytes():
     found = {lead: len(paragraph(lead).encode("utf-8")) for lead in OLD_BYTES_V1_653}
-    # v1.665 (row PROD1iba) cuts the first on shadows again, which NEW_BYTES_V1_665 holds
-    assert found == {k: NEW_BYTES_V1_665.get(k, v) for k, v in NEW_BYTES_V1_653.items()}
+    # v1.665 (row PROD1iba) cuts the first on shadows again, which NEW_BYTES_V1_665 holds, and v1.666 (row
+    # PROD1ibba) the `promote` one, which NEW_BYTES_V1_666 holds
+    later = {**NEW_BYTES_V1_665, **NEW_BYTES_V1_666}
+    assert found == {k: later.get(k, v) for k, v in NEW_BYTES_V1_653.items()}
     assert sum(OLD_BYTES_V1_653.values()) - sum(NEW_BYTES_V1_653.values()) == 16
     # v1.654 (row OPP1c) adds a sentence in the room under the cap; the section less LATER (v1.655, row T30)
-    # keeps v1.653's bytes, less what v1.665 (row PROD1iba) cuts, and LATER's entries are the rest
+    # keeps v1.653's bytes, less what v1.665 (row PROD1iba) and v1.666 (row PROD1ibba) cut, and LATER's entries
+    # are the rest
     text = read("README.md")
-    assert size(without_later(text), PRODUCTION) == 23_976 - CUT_V1_665 <= TARGET < PRODUCTION_CAP == 30_000
+    assert size(without_later(text), PRODUCTION) == 23_976 - CUT_V1_665 - CUT_V1_666 <= TARGET < PRODUCTION_CAP == 30_000
     assert size(text, PRODUCTION) - size(without_later(text), PRODUCTION) == sum(b for _, b in LATER)
     assert LATER[0] == (SAVINGS_LEAD, 714)  # v1.654's paragraph, its own 712 bytes and the blank line
 
@@ -1320,4 +1332,106 @@ def test_design_states_v1_665_and_the_changelog_the_version():
     assert len(mine.encode("utf-8")) <= 6_000 and "\u2014" not in mine and "\u2013" not in mine
     [line] = [x for x in read("CHANGELOG.md").splitlines() if x.startswith("- v1.665 (")]
     assert line.startswith("- v1.665 (2026-11-26): docs and tests (5.2, row PROD1i, second part). ")
+    assert len(line.encode("utf-8")) <= 600
+
+
+# --- v1.666 (row PROD1ibba, the first part of row PROD1ibb) -----------------------------------------
+
+# the paragraph on `promote` and the one on pinned calls, as v1.665 (48a41e9) left them and as v1.666 leaves them
+OLD_BYTES_V1_666 = {PROMOTE_LEAD: 1_708, PIN_LEAD: 1_751}
+NEW_BYTES_V1_666 = {PROMOTE_LEAD: 1_628, PIN_LEAD: 1_724}
+CUT_V1_666, SECTION_V1_666 = 107, 29_278
+# each clause v1.666 drops or rewords, as v1.665 wrote it, the behavioural DESIGN subsection that states it, and a
+# phrase of the line there that says it
+DROPPED_V1_666 = [
+    (PROMOTE_LEAD, "with the sha256 of the results file, to FILE", "## 10. ",
+     "the command computes the sha256 of the results file's bytes"),
+    (PROMOTE_LEAD, "It requires the bar to admit the challenger first and exits 3 when it does not", "## 10. ",
+     "the command exits 3 with one line, `error: challenger ROUTE is not admitted on task T: REASON`"),
+    (PROMOTE_LEAD, "4.7, with the pairs a margin needs, and 10", "### 4.7 ",
+     "gives `promote` from 91 pairs with no discordant pair"),
+    (PROMOTE_LEAD, "to check k challengers on one file pass `--alpha` 0.05 divided by k", "## 10. ",
+     "passes `--alpha` A / k (Bonferroni)"),
+    (PIN_LEAD, "a tag that names who or what pinned the call, a contract or a ticket for example", "## 7. ",
+     "`pinned_by=None`, the tag that names who or what pinned the call"),
+    (PIN_LEAD, "and it gives up the fallback that bullet names", "### 5.2 ",
+     "the ranking of 5.3 is skipped: the pin is the decision's only entry"),
+]
+# what each rewording keeps, in the paragraph itself
+KEPT_V1_666 = {PROMOTE_LEAD: ["appends to FILE each labeled row's outcome with the results file's sha256, and ",
+                              "The bar must admit the challenger first, or it exits 3. Then it prints ",
+                              "It is advisory and changes no route or file (`DESIGN.md` 4.7 and 10). ",
+                              "for k challengers on one file pass `--alpha` 0.05/k. "],
+               PIN_LEAD: ["a tag naming who or what pinned the call (a contract or a ticket), which each attempt",
+                          "; it gives up that bullet's fallback, while a cascade pin keeps its hand-up."]}
+
+
+def v1_666_still_there(readme):
+    """Each DROPPED_V1_666 clause still in the paragraph it was dropped from."""
+    found = paragraphs(readme, PRODUCTION)
+    return [clause for lead, clause, _, _ in DROPPED_V1_666
+            if any(p.startswith(lead) and clause in p for p in found)]
+
+
+def test_the_v1_666_two_are_shorter_and_the_section_under_its_cap():
+    found = {lead: len(paragraph(lead).encode("utf-8")) for lead in OLD_BYTES_V1_666}
+    assert found == NEW_BYTES_V1_666
+    assert sum(OLD_BYTES_V1_666.values()) - sum(found.values()) == CUT_V1_666 == SECTION_V1_665 - SECTION_V1_666
+    assert size(read("README.md"), PRODUCTION) <= SECTION_V1_666 < PRODUCTION_CAP == 30_000
+
+
+def test_the_v1_666_two_keep_their_leads_names_quote_and_links():
+    for lead, names in ((PROMOTE_LEAD, NAMES[PROMOTE_LEAD]), (PIN_LEAD, NAMES_V1_651[PIN_LEAD])):
+        text = paragraph(lead)
+        assert text.startswith(lead) and [n for n in names if n not in text.split("`")[1::2]] == [], lead
+        assert all(text.count(kept) == 1 for kept in KEPT_V1_666[lead]), lead
+        assert "\u2014" not in text and "\u2013" not in text
+    assert all(paragraph(PROMOTE_LEAD).count(link) == 1 for link in LINKS[PROMOTE_LEAD])
+    assert all(paragraph(PIN_LEAD).count(link) == 1 for link in LINKS_V1_651[PIN_LEAD])
+    assert paragraph(PROMOTE_LEAD).count("](") == 2 and paragraph(PIN_LEAD).count("](") == 1
+
+
+def test_each_clause_v1_666_dropped_is_gone_and_its_design_subsection_states_it():
+    design = read("DESIGN.md")
+    assert len(DROPPED_V1_666) == 6
+    assert v1_666_still_there(read("README.md")) == []
+    for lead, clause, heading, phrase in DROPPED_V1_666:
+        # a behavioural subsection, never a 5.2 history bullet of the README
+        [owner] = [line for line in subsection(design, heading).splitlines() if phrase in line]
+        assert "README" not in owner.split(":", 1)[0], (heading, phrase)
+
+
+def test_the_v1_666_check_names_a_clause_put_back():
+    readme = read("README.md")
+    promote, pin = paragraph(PROMOTE_LEAD), paragraph(PIN_LEAD)
+    one = promote.replace("(`DESIGN.md` 4.7 and 10)", "(`DESIGN.md` 4.7, with the pairs a margin needs, and 10)")
+    two = pin.replace("; it gives up that bullet's fallback,", ", and it gives up the fallback that bullet names,")
+    assert one != promote and two != pin
+    worse = readme.replace(promote, one, 1).replace(pin, two, 1)
+    assert v1_666_still_there(worse) == ["4.7, with the pairs a margin needs, and 10",
+                                         "and it gives up the fallback that bullet names"]
+    # a clause in another paragraph is not the dropped one's
+    other = "So a pin is the caller's, and it gives up the fallback that bullet names."
+    elsewhere = readme.replace("\n\n" + pin + "\n\n", "\n\n" + pin + "\n\n" + other + "\n\n", 1)
+    assert elsewhere.count(other) == 1 and "and it gives up the fallback that bullet names" in other
+    assert v1_666_still_there(elsewhere) == []
+
+
+def test_design_states_v1_666_and_the_changelog_the_version():
+    design = read("DESIGN.md")
+    five2 = subsection(design, "### 5.2 ")
+    [mine] = [line for line in five2.splitlines()
+              if line.startswith("- v1.666 README trim (row PROD1ibba, the first part of row PROD1ibb): ")]
+    for kept in ("the paragraph on `promote` (v1.605) is cut from 1,708 to 1,628 bytes and the one on pinned calls "
+                 "(v1.641) from 1,751 to 1,724",
+                 "Each clause it drops or rewords is stated in 4.7, 5.2, 7 or 10, so no subsection gains one",
+                 "So the section is 29,278 bytes by the 12.8 measure, 722 under v1.629's 30,000-byte cap, which stays.",
+                 "and the section less `LATER` at 23,606, v1.665's 23,713 less 107",
+                 "No package module, evidence file or README transcript changes."):
+        assert mine.count(kept) == 1, kept
+    lines = five2.splitlines()
+    assert lines[lines.index(mine) - 1].startswith("- v1.665 README trim (")
+    assert len(mine.encode("utf-8")) <= 6_000 and "\u2014" not in mine and "\u2013" not in mine
+    [line] = [x for x in read("CHANGELOG.md").splitlines() if x.startswith("- v1.666 (")]
+    assert line.startswith("- v1.666 (2026-11-26): docs and tests (5.2, row PROD1i, third part). ")
     assert len(line.encode("utf-8")) <= 600

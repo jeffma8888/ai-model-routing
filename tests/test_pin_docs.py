@@ -51,13 +51,13 @@ PIN_PARAGRAPH = (
     "under the bar or with too few trials is refused too unless `allow_below_bar=True`, and then runs with "
     "`below_bar` `true` on its decision and records. A pinned call runs its route alone, with no fallback and no "
     "shadow, so a failed or rejected answer ends it in `AllModelsFailed` and a `downgrade` budget refuses it "
-    "instead of moving it on. `.call` needs `pinned_by` with a pin and refuses it without one: a tag that names "
-    "who or what pinned the call, a contract or a ticket for example, which each attempt record carries beside "
+    "instead of moving it on. `.call` needs `pinned_by` with a pin and refuses it without one: a tag naming who "
+    "or what pinned the call (a contract or a ticket), which each attempt record carries beside "  # v1.666
     "`basis` `pinned`. `report --by basis` puts the pinned calls' spend in a row beside the routed `measured` and "
     "`prior` rows, and `report --by pinned_by` gives one row per tag beside `(none)` (`DESIGN.md` 5.2, 7, 8.1, 8.3 "
     "and 10). Next to the first bullet of [Limitations](#limitations-and-non-goals-v1), a pin is a choice the "
-    "caller makes for one call before it runs, not one the router makes from the prompt, and it gives up the "
-    "fallback that bullet names, while a cascade pin keeps its hand-up.")
+    "caller makes for one call before it runs, not one the router makes from the prompt; it gives up that "
+    "bullet's fallback, while a cascade pin keeps its hand-up.")  # v1.666, row PROD1ibba
 LIMITS = "\n## Limitations and non-goals (v1)\n"
 # v1.640 (96b08f7): README Limitations' first bullet, which a pin leaves true (review iter-493 nit 3)
 FIRST_BULLET_SHA256, FIRST_BULLET_BYTES = "b21639def7528a8146d6a271c08da252abc4b727f8f526f994e0c56b493f1ffb", 1292

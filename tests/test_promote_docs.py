@@ -119,13 +119,15 @@ def test_the_paragraph_says_the_check_complements_the_bar_and_how_to_use_it():
     # v1.652 (row PROD1gbbbbb): why a challenger is paired and that the check complements the bar are DESIGN
     # 4.7's (tests/test_readme_trim.py DROPPED_V1_652)
     for clause in ("pairs the challenger's outcomes with those of `select`'s primary on that one hash.",
-                   "It requires the bar to admit the challenger first and exits 3 when it does not. Then",
+                   # v1.666 (row PROD1ibba): shorter forms, each clause dropped or reworded pinned in
+                   # tests/test_readme_trim.py DROPPED_V1_666
+                   "The bar must admit the challenger first, or it exits 3. Then",
                    "Then it prints `promote` on an exact McNemar result in the challenger's favor at `--alpha` "
                    "(default 0.05) or, for a challenger cheaper per item at list prices, on a paired lower bound "
                    "above `-M` "  # v1.653 (row PROD1h): at list prices again, review iter-502 nit 3
                    "([Bonett and Price, 2012](https://doi.org/10.3102/1076998611411915)); `hold` otherwise; and "
                    "`insufficient_overlap` under the task's `min_samples` pairs.",
-                   "It is advisory and changes no route or file (`DESIGN.md` 4.7, with the pairs a margin needs, and 10).",
+                   "It is advisory and changes no route or file (`DESIGN.md` 4.7 and 10).",
                    # review iter-454 should-fix 1: `promote` pairs with `select`'s primary, so the paragraph says
                    # how to check a later challenger against the first route
                    "Declare M before the run, and check each later challenger against the first route, since a "
@@ -133,8 +135,8 @@ def test_the_paragraph_says_the_check_complements_the_bar_and_how_to_use_it():
                    "first route as "
                    "`current` and pass its two maps to `paired_promotion`.",
                    "Under `cost_effective` the primary is already the cheapest passing route, so a cheaper "
-                   "challenger arises under `cost_blind`, or on a `retry_same` task;",
-                   "to check k challengers on one file pass `--alpha` 0.05 divided by k.",
+                   "challenger arises under `cost_blind` or on a `retry_same` task;",
+                   "for k challengers on one file pass `--alpha` 0.05/k.",
                    "([production lessons](research/production-lessons.md#switch-models-only-on-locked-data-and-a-significant-result))"):
         assert text.count(clause) == 1, clause
     assert "\u2014" not in text and "\u2013" not in text
