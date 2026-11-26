@@ -101,15 +101,33 @@ def test_the_parent_s_share_is_compared_as_it_is_and_must_be_under_the_minimum(s
         assert not d.reason.startswith("parent_")
 
 
+@pytest.mark.parametrize("least", [LEAST, 0.0], ids=["at 0.9", "at 0"])  # review iter-526 nit 0
 @pytest.mark.parametrize("share", [None, (N - 1, N - 1), (1, 1)], ids=["no rerun data", "29 items", "1 item"])
-def test_a_parent_with_fewer_than_min_samples_rerun_items_is_consistency_unknown_with_no_allow(share):
+def test_a_parent_with_fewer_than_min_samples_rerun_items_is_consistency_unknown_with_no_allow(share, least):
     shares = {MID: ALIKE, PRICEY: ALIKE}
     if share is not None:
         shares[CHEAP] = share
     for unknown in ("allow", "deny"):  # latency_unknown is the latency bar's, and there is no bar here
-        d = decide(router(shares, latency_unknown=unknown))
+        d = decide(router(shares, latency_unknown=unknown, min_self_consistency=least))
         assert (d.mode, d.reason, d.inline_allowed) == ("delegate", UNKNOWN, False)
         assert d.model != CHEAP and by_id(d.route)[CHEAP].reason == "consistency_unknown"
+
+
+@pytest.mark.parametrize("trials", [0, 10], ids=["unmeasured", "10 trials"])
+def test_a_parent_under_min_samples_trials_is_consistency_unknown_where_v1_668_said_below_bar(trials):
+    """Review iter-526 nit 1: a key's rerun items are at most its trials, so its share is unknown."""
+    def built(**fields):
+        r = router({MID: ALIKE, PRICEY: ALIKE}, **fields)
+        stats = Stats()
+        for model_id in (MID, PRICEY):
+            stats.add("t", model_id, N, N, **TOKENS, rerun_items=N, consistent_items=N)
+        if trials:
+            stats.add("t", CHEAP, trials, trials, rerun_items=trials, consistent_items=trials)
+        return Router(r.registry, r.tasks, stats)
+    held, free = decide(built()), decide(built(min_self_consistency=None))
+    assert (held.mode, held.reason, held.inline_allowed) == ("delegate", UNKNOWN, False)
+    assert (free.mode, free.reason, free.inline_allowed) == ("delegate", "parent_below_bar", True)
+    assert held.model == free.model == MID
 
 
 @pytest.mark.parametrize("fields, reg, extra, reason", [
@@ -246,6 +264,8 @@ def test_design_and_the_changelog_state_v1_669():
     assert four.index("\n5. v1.631 (row LAT1d): ") < four.index("\n6. v1.669 (row JUDGE2d): ")
     assert four.count("is under the minimum: `parent_inconsistent` (5g); or that share is unknown: "
                       "`parent_consistency_unknown` (5h), with no `allow`, as 5h has none") == 1
+    assert four.count("under a minimum a parent that is unmeasured, or has fewer than `min_samples` trials, "
+                      "is `parent_consistency_unknown`") == 1  # review iter-526 nit 1
     assert four.count("\n- v1.669 (row JUDGE2d), why the parent's share on the task stands for its inline work: ") == 1
     assert four.count("that makes the share a proxy, not a bound") == 1
     assert four.count("From v1.669 rule 6 reads the parent's share (row JUDGE2d, the bullet below)") == 1
