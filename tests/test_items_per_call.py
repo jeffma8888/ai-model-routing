@@ -355,8 +355,7 @@ def test_the_production_note_states_items_per_call_as_shipped():
             "call is measured as a setup of its own. A variant can also carry provider options, such "
             "as an effort parameter, which the executor sends to the provider on each call of its "
             "route.") in text  # v1.574
+    # v1.660 (row JUDGE1a) restates the changes after this sentence (tests/test_consensus_labels.py)
     assert ("The number of criteria per call is measured today as a setting of the judge, a variant "
-            "with its own stats priced per item, as in the lesson on measured setups below. The "
-            "changes: labels built from the items where every run of the chosen strong judges agrees, "
-            "for a team with no human labels; and a self-consistency minimum, so a judge whose reruns "
-            "disagree is excluded whatever its bound.") in text
+            "with its own stats priced per item, as in the lesson on measured setups below. For a team "
+            "with no human labels, from v1.660 `consensus_labels` builds labels") in text

@@ -302,7 +302,7 @@ def test_design_names_the_contract():
     assert sum(line.startswith("- v1.602 (2026-11-23): spec, code and tests (3, 4.3, 4.7, 10, row GATE1b). ")
                for line in changelog) == 1
     assert ("  stats.py        wilson_lower_bound, items_needed (v1.140), Stats, calibrate_from_results, "
-            "item_outcomes (v1.602, 4.3)\n") in design
+            "item_outcomes (v1.602, 4.3), consensus_labels (v1.660, 4.3)\n") in design  # v1.660 appends (row JUDGE1a)
     four3 = design[design.index("### 4.3 "):design.index("### 4.4 ")]
     assert ("- v1.602 per-item outcomes (row GATE1b): `item_outcomes(rows: Iterable[dict], *, dataset_sha256: str) "
             "-> list[dict]` gives one outcome record per result row, in row order") in four3
