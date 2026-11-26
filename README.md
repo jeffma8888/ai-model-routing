@@ -579,7 +579,7 @@ A log also shows where a cheaper route, such as a procedure or a model of your o
 
 A monitor that runs for a service's life need not hold every record in memory: `Monitor(path, keep_records=False)` writes each record to the log at `path` as the default does but keeps none in `.records`, so `report` reads the log (`load_records(path)` or `--log PATH`), and without a path it raises `ValueError`, as it would keep no record anywhere (`DESIGN.md` 8.2).
 
-A service built on an asyncio event loop calls the executor from a coroutine with `await asyncio.to_thread(executor.call, task_name, messages, ...)`, so each call blocks only the worker thread that runs it and the rules for threads above hold there, while an await that times out or is cancelled stops waiting but not the call, which still runs to its end, writes its records and settles its budget hold (`DESIGN.md` 7).
+A service built on an asyncio event loop calls the executor from a coroutine with `await asyncio.to_thread(executor.call, task_name, messages, ...)`, so each call blocks only the worker thread that runs it and the rules for request threads above hold there, while an await that times out or is cancelled stops waiting but not a call that has started, which still runs to its end, writes its records and settles its budget hold (`DESIGN.md` 7).
 
 ## Evidence: held-out results on public data
 

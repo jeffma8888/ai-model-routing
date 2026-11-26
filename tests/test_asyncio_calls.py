@@ -5,9 +5,10 @@ From v1.657 DESIGN 7 states how a coroutine calls one `Executor`: it awaits
 so the call blocks only the worker thread that runs it and the event loop keeps serving other
 coroutines. v1.616's rules for threads hold for those worker threads unchanged. A `shadow_runner`
 may be a thread pool's `submit`, whose pool is shut down before the log is read. An await that
-times out or is cancelled does not stop its call: the call runs on to its end on its worker thread,
-writes its records and settles its hold. Native async execution stays a DESIGN 14 non-goal, and the
-tests need no code change, so the slice has no red commit.
+times out or is cancelled does not stop a call that has started: the call runs on to its end on its
+worker thread, writes its records and settles its hold, while a call still queued for a worker is
+cancelled with its await and never runs (review iter-513 should-fix 1). Native async execution stays
+a DESIGN 14 non-goal, and the tests need no code change, so the slice has no red commit.
 """
 
 import asyncio
@@ -184,16 +185,21 @@ def test_a_call_held_on_its_worker_thread_leaves_the_event_loop_free(tmp_path):
 
 
 def test_an_await_that_times_out_leaves_its_call_to_end_write_its_record_and_settle(tmp_path):
-    release = threading.Event()
+    held, release = threading.Event(), threading.Event()
 
     def hold(model_id, messages):
+        held.set()
         assert release.wait(10), "the held call was never released"
 
     executor, monitor, ledger = build(tmp_path, "timeout", hold=hold)
 
     async def main():
+        call = asyncio.create_task(asyncio.to_thread(executor.call, "judge", MESSAGES[0]))
+        # the call is in its provider, its hold placed, before the await's clock starts (review iter-513
+        # should-fix 2): it cannot end before release, so the timeout is certain whatever the load
+        assert await asyncio.to_thread(held.wait, 10)
         try:
-            await asyncio.wait_for(asyncio.to_thread(executor.call, "judge", MESSAGES[0]), 0.05)
+            await asyncio.wait_for(call, 0.05)
         except asyncio.TimeoutError:
             timed_out = True
         else:
@@ -212,18 +218,54 @@ def test_an_await_that_times_out_leaves_its_call_to_end_write_its_record_and_set
     assert isclose(ledger.spent_usd("all"), rec["cost_usd"], rel_tol=1e-12)
 
 
+def test_a_timed_out_gather_cancels_the_calls_still_queued_for_a_worker(tmp_path):
+    # review iter-513 should-fix 1: a call that has not started is cancelled with its await and never runs
+    held, release = threading.Event(), threading.Event()
+
+    def hold(model_id, messages):
+        if messages[0]["content"] == "m-0":
+            held.set()
+            assert release.wait(10), "the held call was never released"
+
+    executor, monitor, ledger = build(tmp_path, "queued", hold=hold)
+
+    async def main(pool):
+        loop = asyncio.get_running_loop()
+        calls = asyncio.gather(*(loop.run_in_executor(pool, functools.partial(executor.call, "judge", MESSAGES[index]))
+                                 for index in range(3)))
+        assert await asyncio.to_thread(held.wait, 10)   # call 0 holds the one worker; calls 1 and 2 wait for it
+        try:
+            await asyncio.wait_for(calls, 0.05)
+        except asyncio.TimeoutError:
+            timed_out = True
+        else:
+            timed_out = False
+        state = (timed_out, len(monitor.records), ledger.held_usd("all"))
+        release.set()
+        return state
+
+    with ThreadPoolExecutor(max_workers=1) as pool:   # its shutdown waits for the started call
+        timed_out, records_then, held_then = asyncio.run(main(pool))
+    assert timed_out is True and records_then == 0 and held_then > 0.0
+    # only the started call ran: one provider call, one record, and its hold the only one settled
+    assert [messages for _, messages in executor.provider.fake.calls] == [MESSAGES[0]]
+    [rec] = whole_lines(tmp_path / "queued.jsonl")
+    assert rec == monitor.records[0] and rec["final"] is True and rec["input_tokens"] == tokens(MESSAGES[0])
+    assert ledger.held_usd("all") == 0.0
+    assert isclose(ledger.spent_usd("all"), rec["cost_usd"], rel_tol=1e-12)
+
+
 def test_a_pool_submit_shadow_runner_gives_100_records_once_the_pool_is_shut_down(tmp_path):
-    pool = ThreadPoolExecutor(max_workers=4)
-    executor, monitor, ledger = build(tmp_path, "shadowed", shadow_runner=pool.submit,
-                                      task_fields={"shadow_rate": 1.0, "shadow_route": BEST})
+    with ThreadPoolExecutor(max_workers=4) as pool:   # every shadow job has run once the pool is shut down
+        executor, monitor, ledger = build(tmp_path, "shadowed", shadow_runner=pool.submit,
+                                          task_fields={"shadow_rate": 1.0, "shadow_route": BEST})
 
-    async def main():
-        return await asyncio.gather(*(asyncio.to_thread(executor.call, "judge", MESSAGES[index])
-                                      for index in range(CALLS)))
+        async def main():
+            return await asyncio.gather(*(asyncio.to_thread(executor.call, "judge", MESSAGES[index])
+                                          for index in range(CALLS)))
 
-    results = asyncio.run(main())
+        results = asyncio.run(main())   # the calls have returned before the pool shuts down (review iter-513 nit 4)
     assert [result.model for result in results] == [CHEAP] * CALLS
-    pool.shutdown(wait=True)                    # every shadow job has run once the pool is shut down
     lines = whole_lines(tmp_path / "shadowed.jsonl")
     assert lines == monitor.records and len(lines) == 2 * CALLS
     assert len({rec["call_id"] for rec in lines}) == 2 * CALLS
@@ -241,9 +283,9 @@ def test_a_pool_submit_shadow_runner_gives_100_records_once_the_pool_is_shut_dow
 COROUTINE_SENTENCE = (
     "A service built on an asyncio event loop calls the executor from a coroutine with "
     "`await asyncio.to_thread(executor.call, task_name, messages, ...)`, so each call blocks only the worker "
-    "thread that runs it and the rules for threads above hold there, while an await that times out or is "
-    "cancelled stops waiting but not the call, which still runs to its end, writes its records and settles "
-    "its budget hold (`DESIGN.md` 7).")
+    "thread that runs it and the rules for request threads above hold there, while an await that times out or "
+    "is cancelled stops waiting but not a call that has started, which still runs to its end, writes its records "
+    "and settles its budget hold (`DESIGN.md` 7).")
 LIMITS_SENTENCE = ("No async execution or streaming. A coroutine can still await `.call` on a worker thread with "
                    "`asyncio.to_thread` ([Running it in production](#running-it-in-production)). ")
 NO_DASH = ("\u2014", "\u2013")
@@ -271,7 +313,11 @@ def test_design_7_states_v1_657_and_14_points_at_it():
                  "the worker threads are request threads in v1.616's sense, so its rules hold unchanged",
                  "a `shadow_runner` may be a thread pool's `submit` (v1.617)",
                  "so a coroutine awaits `asyncio.to_thread(pool.shutdown)`",
-                 "stops waiting but does not stop its call, since a running thread cannot be cancelled",
+                 "stops waiting but does not stop a call that has started, since a running thread cannot be cancelled",
+                 "A call still queued for a worker is cancelled with its await and never runs, so it makes no "
+                 "provider call, places no hold and writes no record",
+                 "once its calls have returned, since a `submit` on a pool that is shut down raises out of `.call`",
+                 "while a call on a pool of the caller's own is waited on by that pool's `shutdown`",
                  "its records are written and its hold is settled",
                  "A deadline for a provider call is the task's `timeout_s` (4.2)",
                  "from Python 3.12 for at most 300 seconds, after which it warns and returns",
@@ -292,6 +338,7 @@ def test_the_changelog_names_v1_657():
     [line] = [x for x in read("CHANGELOG.md").splitlines() if x.startswith("- v1.657 (")]
     assert line.startswith("- v1.657 (2026-11-25): docs and tests (7, 14, row PROD1e). ")
     assert "`asyncio.to_thread(executor.call, ...)`" in line and "no package module or transcript changes" in line
+    assert "does not stop a call that has started" in line and "while a queued call never runs" in line
     assert len(line.encode("utf-8")) <= 600 and not any(d in line for d in NO_DASH)
 
 
@@ -304,7 +351,7 @@ def test_the_production_section_ends_with_the_coroutine_sentence():
     assert not any(d in COROUTINE_SENTENCE for d in NO_DASH)
     at = paragraphs.index(COROUTINE_SENTENCE)
     assert paragraphs[at - 1].startswith("A monitor that runs for a service's life need not hold every record ")
-    assert len(COROUTINE_SENTENCE.encode("utf-8")) == 420   # tests/test_readme_trim.py's LATER entry, less 2
+    assert len(COROUTINE_SENTENCE.encode("utf-8")) == 443   # tests/test_readme_trim.py's LATER entry, less 2
 
 
 def test_the_limitations_gain_one_sentence_after_the_async_clause():

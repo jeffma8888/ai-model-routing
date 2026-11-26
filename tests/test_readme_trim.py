@@ -472,7 +472,7 @@ COROUTINE_LEAD = "A service built on an asyncio event loop calls the executor fr
 LATER = [
     (SAVINGS_LEAD, 714),  # v1.654, row OPP1c: 712 bytes and the blank line
     (MONITOR_LEAD, 370),  # v1.656, row PROD1b: 368 bytes and the blank line
-    (COROUTINE_LEAD, 422),  # v1.657, row PROD1e: 420 bytes and the blank line
+    (COROUTINE_LEAD, 445),  # v1.657, row PROD1e: 443 bytes and the blank line
 ]
 
 
