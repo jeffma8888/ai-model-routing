@@ -50,10 +50,12 @@ tests/test_pin_docs.py reads (review iter-495 must-fix 1). These tests failed on
 v1.651's.
 
 DESIGN 5.2 v1.652 (row PROD1gbbbbb, sixth part): nine paragraphs that v1.647 to v1.650 trimmed are cut again, from
-15,176 bytes to 13,996, so the section is 23,978 bytes, at most row PROD1g's 24,000. DROPPED_V1_652 holds each
-deleted clause as v1.651 (2c8b0c7) wrote it, pinned to 4.1, 4.3, 4.6, 4.7, 5.2, 7, 8.3 or 11, each a behavioural
-subsection, so no subsection gains a clause. The v1.647 to v1.650 tests hold each paragraph they trimmed to at most
-the bytes they left it, and their names and links tests still run on all nine. These tests failed on v1.651's
+15,176 bytes to 14,010, so the section is 23,992 bytes, at most row PROD1g's 24,000. DROPPED_V1_652 holds each
+deleted clause as v1.651 (2c8b0c7) wrote it, pinned to 4.1, 4.3, 4.6, 4.7, 5.2, 7, 8.1, 8.3 or 11, each a
+behavioural subsection, so no subsection gains a clause. The v1.647 to v1.650 tests hold each paragraph they
+trimmed and v1.652 cut again to at most the bytes they left it, and the two v1.652 left alone (procedures, the
+first on budgets) to those bytes exactly (review iter-507 should-fix 2); their names and links tests still run on
+all nine. These tests failed on v1.651's
 README and pass on v1.652's.
 """
 
@@ -392,7 +394,7 @@ DROPPED_V1_651 = [
 OLD_BYTES_V1_652 = {PROMOTE_LEAD: 1_902, DRIFT_LEAD: 2_032, SELF_LEAD: 1_568, CACHE_LEAD: 1_798, SHADOW_LEAD: 1_728,
                     RECORDS_LEAD: 1_607, VAR_LEAD: 1_506, LAT_LEAD: 1_473, EST_LEAD: 1_562}
 NEW_BYTES_V1_652 = {PROMOTE_LEAD: 1_693, DRIFT_LEAD: 1_921, SELF_LEAD: 1_382, CACHE_LEAD: 1_586, SHADOW_LEAD: 1_641,
-                    RECORDS_LEAD: 1_475, VAR_LEAD: 1_468, LAT_LEAD: 1_375, EST_LEAD: 1_455}
+                    RECORDS_LEAD: 1_475, VAR_LEAD: 1_468, LAT_LEAD: 1_389, EST_LEAD: 1_455}
 TARGET = 24_000  # row PROD1g: the section at most 24,000 bytes, 6,000 under PRODUCTION_CAP, which stays
 DROPPED_V1_652 = [
     (PROMOTE_LEAD, "The Wilson bar admits each route on its own counts, so a challenger that clears it can still do worse",
@@ -410,8 +412,11 @@ DROPPED_V1_652 = [
      "the same hour used a fiftieth of the time makes it the dearer route"),
     (CACHE_LEAD, "so a model that is cheaper per token but never hits the cache can cost more than a pricier one", "### 5.2 ",
      "a model that is cheaper per token but never hits the cache can cost more per call"),
-    (CACHE_LEAD, "each attempt is priced at the counts its provider returned and its record carries them", "## 7. ",
+    (CACHE_LEAD, "each attempt is priced at the counts its provider returned", "## 7. ",
      "each attempt is priced at the counts its provider returns"),
+    # review iter-507 must-fix 1: that the record carries them is 8.1's record-key rule, not 7's price line
+    (CACHE_LEAD, "and its record carries them", "### 8.1 ",
+     "the cached reads and cache writes its provider returned for the call, inside the record's `input_tokens`"),
     (SHADOW_LEAD, "so a challenger can be shadowed before it is admitted", "## 7. ",
      "need not clear the bar, so a challenger can be shadowed before it is admitted"),
     (SHADOW_LEAD, "so the caller waits for it too", "## 7. ",
@@ -431,7 +436,8 @@ DROPPED_V1_652 = [
 ]
 ENDS = {"### 4.7 ": "\n## 5. ", "### 8.3 ": "\n## 9. ", "## 10. ": "\n## 11. ", "### 4.1 ": "\n### 4.2 ",
         "### 5.2 ": "\n### 5.3 ", "## 6. ": "\n## 7. ", "## 7. ": "\n## 8. ", "## 11. ": "\n## 12. ",
-        "### 4.3 ": "\n### 4.4 ", "### 4.5 ": "\n### 4.6 ", "### 4.6 ": "\n### 4.7 "}
+        "### 4.3 ": "\n### 4.4 ", "### 4.5 ": "\n### 4.6 ", "### 4.6 ": "\n### 4.7 ",
+        "### 8.1 ": "\n### 8.2 "}
 
 
 def read(name):
@@ -510,7 +516,9 @@ def test_design_states_the_trim_the_two_new_clauses_and_the_changelog_the_versio
 def test_the_three_paragraphs_are_shorter_and_the_section_under_its_cap():
     found = {lead: len(paragraph(lead).encode("utf-8")) for lead in OLD_BYTES_V1_648}
     # v1.652 (row PROD1gbbbbb) cuts some of them again, so each is at most the bytes v1.648 left it
-    assert all(found[lead] <= NEW_BYTES_V1_648[lead] for lead in found)
+    # review iter-507 should-fix 2: one v1.652 left alone keeps its v1.648 bytes exactly
+    assert all(found[lead] <= NEW_BYTES_V1_648[lead] if lead in NEW_BYTES_V1_652
+               else found[lead] == NEW_BYTES_V1_648[lead] for lead in found)
     assert sum(OLD_BYTES_V1_648.values()) - sum(found.values()) >= 1_081
     assert size(read("README.md"), PRODUCTION) <= PRODUCTION_CAP == 30_000
 
@@ -571,7 +579,9 @@ def test_design_states_the_v1_648_trim_and_the_changelog_the_version():
 def test_the_v1_649_three_are_shorter_and_the_section_under_its_cap():
     found = {lead: len(paragraph(lead).encode("utf-8")) for lead in OLD_BYTES_V1_649}
     # v1.652 (row PROD1gbbbbb) cuts some of them again, so each is at most the bytes v1.649 left it
-    assert all(found[lead] <= NEW_BYTES_V1_649[lead] for lead in found)
+    # review iter-507 should-fix 2: one v1.652 left alone keeps its v1.649 bytes exactly
+    assert all(found[lead] <= NEW_BYTES_V1_649[lead] if lead in NEW_BYTES_V1_652
+               else found[lead] == NEW_BYTES_V1_649[lead] for lead in found)
     assert sum(OLD_BYTES_V1_649.values()) - sum(found.values()) >= 768
     assert size(read("README.md"), PRODUCTION) <= PRODUCTION_CAP == 30_000
 
@@ -638,7 +648,9 @@ def test_design_states_the_v1_649_trim_and_the_changelog_the_version():
 def test_the_v1_650_three_are_shorter_and_the_section_under_its_cap():
     found = {lead: len(paragraph(lead).encode("utf-8")) for lead in OLD_BYTES_V1_650}
     # v1.652 (row PROD1gbbbbb) cuts some of them again, so each is at most the bytes v1.650 left it
-    assert all(found[lead] <= NEW_BYTES_V1_650[lead] for lead in found)
+    # review iter-507 should-fix 2: one v1.652 left alone keeps its v1.650 bytes exactly
+    assert all(found[lead] <= NEW_BYTES_V1_650[lead] if lead in NEW_BYTES_V1_652
+               else found[lead] == NEW_BYTES_V1_650[lead] for lead in found)
     assert sum(OLD_BYTES_V1_650.values()) - sum(found.values()) >= 631
     assert size(read("README.md"), PRODUCTION) <= PRODUCTION_CAP == 30_000
 
@@ -774,8 +786,8 @@ def test_design_states_the_v1_651_trim_and_the_changelog_the_version():
 def test_the_v1_652_nine_are_shorter_and_the_section_at_most_24000_bytes():
     found = {lead: len(paragraph(lead).encode("utf-8")) for lead in OLD_BYTES_V1_652}
     assert found == NEW_BYTES_V1_652
-    assert sum(OLD_BYTES_V1_652.values()) - sum(found.values()) == 1_180
-    assert size(read("README.md"), PRODUCTION) == 23_978 <= TARGET < PRODUCTION_CAP == 30_000
+    assert sum(OLD_BYTES_V1_652.values()) - sum(found.values()) == 1_166
+    assert size(read("README.md"), PRODUCTION) == 23_992 <= TARGET < PRODUCTION_CAP == 30_000
 
 
 def test_the_v1_652_nine_keep_their_quotes_and_links_and_no_dash():
@@ -788,7 +800,7 @@ def test_the_v1_652_nine_keep_their_quotes_and_links_and_no_dash():
 
 def test_each_clause_the_v1_652_nine_dropped_is_gone_and_its_design_subsection_states_it():
     design = read("DESIGN.md")
-    assert len(DROPPED_V1_652) == 16
+    assert len(DROPPED_V1_652) == 17
     for lead, clause, heading, phrase in DROPPED_V1_652:
         assert clause not in paragraph(lead), clause
         # a behavioural subsection, never a 5.2 history bullet of the README
@@ -817,10 +829,11 @@ def test_design_states_the_v1_652_trim_and_the_changelog_the_version():
     [mine] = [line for line in five2.splitlines()
               if line.startswith("- v1.652 README trim (row PROD1gbbbbb, sixth part): ")]
     for kept in ("the one on `promote` from 1,902 to 1,693 bytes, the one on `drift` from 2,032 to 1,921",
-                 "so the section is 23,978 bytes by the 12.8 measure, at most the 24,000 that row PROD1g set and "
+                 "so the section is 23,992 bytes by the 12.8 measure, at most the 24,000 that row PROD1g set and "
                  "under v1.629's 30,000-byte cap, which stays",
-                 "each clause it drops is stated in 4.1, 4.3, 4.6, 4.7, 5.2, 7, 8.3 or 11, so no subsection gains one",
-                 "the tests of v1.647 to v1.650 hold each paragraph they trimmed to at most the bytes they left it",
+                 "each clause it drops is stated in 4.1, 4.3, 4.6, 4.7, 5.2, 7, 8.1, 8.3 or 11, so no subsection gains one",
+                 "the tests of v1.647 to v1.650 hold each paragraph they trimmed to at most the bytes they left it and "
+                 "the two they did not touch again to those bytes",
                  "README `## Limitations and non-goals (v1)` still says a limit shared by many processes needs a "
                  "gateway or the provider's own",
                  "No package module, evidence file or README transcript changes."):

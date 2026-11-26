@@ -43,7 +43,7 @@ LATENCY_PARAGRAPH = (
     "`\"latency_unknown\": \"deny\"`, rules it out as `latency_unknown`. The p95 is by nearest rank, the time at "
     "index `ceil(0.95 * n) - 1` of the `n` sorted times, so below 20 trials it is the slowest of them. A "
     "trial's time is a results row's `latency_ms`, which "
-    "`model-routing calibrate` keeps in the stats file, or `Stats.add(..., latencies_ms=[...])`. "
+    "`model-routing calibrate` keeps in the stats file, or one passed to `Stats.add(..., latencies_ms=[...])`. "
     "To read a bar off a log, use `report(records, shadow=True)` or "
     "`model-routing report --shadow`, whose p50 and p95 leave shadow calls out, or drop the records whose "
     "`shadow` is JSON `true`: by default `report` puts a shadow attempt's time in its group's percentiles. "
