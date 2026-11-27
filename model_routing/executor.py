@@ -261,10 +261,18 @@ class Executor:
         sides = {f"{root}+{leaf}": (root, leaf) for root in roots for leaf in leaves}
         if len(sides) != len(roots) * len(leaves):  # an ID may hold "+", so never split one
             raise ValueError("two pairs have one ID, so a pair's root and leaf cannot be told apart")
-        registry, call_id, call_tags = self.router.registry, self.id_factory(), dict(tags or {})
         label = None if policy is None else policy.label  # select_pair checked it
-        order, attempts, moves = (decision.primary, *decision.fallbacks), [], []
+        return self._run_pair(task_name, decision, sides, messages, harness, tags, validate, label)
+
+    def _run_pair(self, task_name: str, decision: RouteDecision, sides: Dict[str, Tuple[str, str]],
+                  messages: List[dict], harness: Callable[[str, str, List[dict]], Mapping],
+                  tags: Optional[Dict[str, str]], validate: Optional[Callable[[str], object]],
+                  label: Optional[str]) -> CallResult:
+        """The attempt loop of ``.call_pair`` over a pair route, from its call ID on (DESIGN 7 v1.678
+        and v1.681); ``.call_delegated`` runs a pair decision on it too (7 v1.685)."""
         task = self.router.tasks[task_name]
+        registry, call_id, call_tags = self.router.registry, self.id_factory(), dict(tags or {})
+        order, attempts, moves = (decision.primary, *decision.fallbacks), [], []
 
         def note(fields: dict) -> None:  # DESIGN 7 v1.681: a budget record, as 8.1 v1.598
             if self.monitor is not None:
@@ -377,25 +385,42 @@ class Executor:
 
     def call_delegated(self, decision, messages: List[dict],
                        tags: Optional[Dict[str, str]] = None,
-                       validate: Optional[Callable[[str], object]] = None) -> CallResult:
+                       validate: Optional[Callable[[str], object]] = None, *,
+                       harness: Optional[Callable[[str, str, List[dict]], Mapping]] = None) -> CallResult:
         """Run the hand-off of a ``delegate`` :class:`DelegationDecision` on its route.
 
         ``messages`` is the brief. The route is used as decided, with fallback and
         validation as in :meth:`call`; every record is tagged ``delegated`` and
         ``parent``. An inline decision, or a caller tag with either name, raises
-        ``ValueError`` before any call (DESIGN 7, v1.11).
+        ``ValueError`` before any call (DESIGN 7, v1.11). A pair decision from
+        ``decide_delegation`` with ``delegate_roots`` and ``delegate_leaves`` runs through
+        ``harness(root, leaf, messages)`` as :meth:`call_pair` runs its route (7 v1.685); a pair
+        decision with no ``harness``, a ``harness`` on any other, and a route entry that does not
+        split one way into a registry root and leaf raise ``ValueError`` before any ID.
         """
         if decision.mode != DELEGATE:
             raise ValueError(f"decision mode is {decision.mode!r}: inline work happens in the "
                              f"parent's own call, so there is no hand-off to run")
         if decision.route is None:
             raise ValueError("delegate decision has no route to run")
-        primary, registry = decision.route.primary, self.router.registry
-        if primary not in registry and any(  # DESIGN 7 v1.684: a registry root and leaf, as select_pair joins them
-                primary[:i] in registry and primary[i + 1:] in registry
-                for i, char in enumerate(primary) if char == "+"):
-            raise ValueError(f"delegate route {primary!r} is a pair: a pair from delegate_roots and "
-                             f"delegate_leaves runs through a harness, so run it with call_pair")
+        if harness is not None and not callable(harness):  # DESIGN 7 v1.685
+            raise ValueError(f"harness must be None or a callable, got {type(harness).__name__}")
+        route, registry = decision.route, self.router.registry
+        if harness is None and _pair_splits(registry, route.primary):  # DESIGN 7 v1.684
+            raise ValueError(f"delegate route {route.primary!r} is a pair: a pair from delegate_roots and "
+                             f"delegate_leaves runs through a harness, so pass it as harness or run it "
+                             f"with call_pair")
+        sides: Dict[str, Tuple[str, str]] = {}
+        if harness is not None:  # DESIGN 7 v1.685: the decision holds the pair IDs alone
+            if not _pair_splits(registry, route.primary):
+                raise ValueError(f"harness runs a pair decision, and delegate route {route.primary!r} "
+                                 f"is no pair of a registry root and leaf")
+            for entry in (route.primary, *route.fallbacks):
+                splits = _pair_splits(registry, entry)
+                if len(splits) != 1:
+                    raise ValueError(f"route entry {entry!r} does not split one way into a registry root "
+                                     f"and leaf joined by '+', so its root and leaf cannot be told apart")
+                sides[entry] = splits[0]
         call_tags = dict(tags or {})
         reserved = sorted(key for key in ("delegated", "parent") if key in call_tags)
         if reserved:
@@ -403,6 +428,9 @@ class Executor:
                              f"pass other names")
         call_tags["delegated"] = "true"
         call_tags["parent"] = decision.parent
+        if harness is not None:  # DESIGN 7 v1.685: no policy, as .call_delegated takes none
+            return self._run_pair(decision.task, route, sides, messages, harness, call_tags, validate,
+                                  None)
         return self._execute(decision.task, decision.route, messages, call_tags, validate)
 
     def _execute(self, task_name: str, decision: RouteDecision, messages: List[dict],
@@ -810,6 +838,15 @@ class Executor:
         if decision.failure_policy != "none":  # DESIGN 8.1 v1.567: the last key
             record["expected_cost_per_success_usd"] = decision.expected_cost_per_success_usd
         return record
+
+
+def _pair_splits(registry, entry: str) -> List[Tuple[str, str]]:
+    """Each way ``entry``, no registry ID itself, splits into a registry root and a registry leaf
+    joined by ``+``, as ``select_pair`` names a pair (DESIGN 7 v1.684 and v1.685)."""
+    if entry in registry:
+        return []
+    return [(entry[:i], entry[i + 1:]) for i, char in enumerate(entry)
+            if char == "+" and entry[:i] in registry and entry[i + 1:] in registry]
 
 
 def _pair_run(run) -> Tuple[int, int, int, int]:
