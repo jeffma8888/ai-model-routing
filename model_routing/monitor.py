@@ -42,6 +42,17 @@ BUDGET_RECORD_KEYS = (
     ("share", _N), ("model", _S), ("spent_usd", _N), ("held_usd", _N), ("estimate_usd", _N), ("limit_usd", _N),
     ("unbounded", _B),
 )
+# DESIGN 8.1 v1.687 (row DEL2): a record with an `advised_mode` key is a mode record, written by
+# `Executor.record_mode`; every reader of a log drops it where it drops budget records (8.3 v1.687)
+MODE_RECORD_KEYS = (
+    ("ts", _S), ("call_id", _S), ("task", _S), ("flavor", _S), ("parent", _S), ("advised_mode", _S),
+    ("actual_mode", _S), ("reason", _S), ("input_tokens", _I), ("tags", _O),
+)
+
+
+def _logged_call(rec) -> bool:
+    """Neither a budget record (8.1 v1.598) nor a mode record (8.1 v1.687)."""
+    return "budget_event" not in rec and "advised_mode" not in rec
 
 
 class Monitor:
@@ -255,7 +266,7 @@ def report(records: Iterable[dict], by: str = "model",
     if not isinstance(shadow, bool):
         raise ValueError(f"shadow must be True or False, got {shadow!r}")
     group_of = _grouper(by)
-    records = [rec for rec in records if "budget_event" not in rec]  # DESIGN 8.3 v1.598
+    records = [rec for rec in records if _logged_call(rec)]  # DESIGN 8.3 v1.598 and v1.687
     shadows: List[dict] = []
     if shadow:  # DESIGN 8.3 v1.611: only a JSON true marks a shadow record
         shadows = [rec for rec in records if rec.get("shadow") is True]
@@ -449,7 +460,7 @@ def opportunities(records: Iterable[dict], *, audits: Optional[Mapping[str, bool
     if router is not None and not isinstance(router, Router):   # DESIGN 8.3 v1.646
         raise ValueError(f"router must be None or a Router, got {type(router).__name__}")
     routed = [rec for rec in records
-              if "budget_event" not in rec and rec.get("shadow") is not True]
+              if _logged_call(rec) and rec.get("shadow") is not True]
     dates: Dict[str, List[object]] = {}
     for rec in routed:
         try:
@@ -515,6 +526,8 @@ def budget_report(records: Iterable[dict], budgets: Sequence[Budget]) -> List[di
         spend: Dict[Optional[str], List[float]] = {None: []} if budget.window == "total" else {}
         counts: Dict[Optional[str], Dict[str, int]] = {}
         for rec in records:
+            if "advised_mode" in rec:  # DESIGN 8.3 v1.687: a mode record is no spend and no event
+                continue
             if "budget_event" in rec:
                 label = rec.get("window")
                 if rec.get("budget") != budget.name or (
@@ -568,7 +581,7 @@ def shadow_pairs(records: Iterable[dict], *, checked: bool = False,
                                  f"got {correct!r}")
         if checked:
             raise ValueError("pass checked=True or audits, not both: their labels could disagree")
-    records = [rec for rec in records if "budget_event" not in rec]
+    records = [rec for rec in records if _logged_call(rec)]
     shadows: List[dict] = []
     seen = set()
     for rec in records:
@@ -762,7 +775,7 @@ def audited_results(records: Iterable[dict], audits: Mapping[str, bool], *,
     calls: Dict[str, List[Mapping]] = {}
     for rec in records:
         call_id = rec.get("call_id")
-        if "budget_event" not in rec and isinstance(call_id, str) and call_id in audits:
+        if _logged_call(rec) and isinstance(call_id, str) and call_id in audits:
             calls.setdefault(call_id, []).append(rec)
     rows: List[dict] = []
     for call_id, recs in calls.items():
@@ -1007,7 +1020,7 @@ def _pair_costs(kept: List[tuple], records: List[Mapping]) -> Dict[tuple, object
     its routed call and of its shadow call in the log (DESIGN 8.3 v1.614); a cascade's or a
     procedure's routed side sums its route entry's records, and a cascade's adds
     ``(position, "escalated")`` (v1.621)."""
-    records = [rec for rec in records if "budget_event" not in rec]
+    records = [rec for rec in records if _logged_call(rec)]
     routed: Dict[str, List[Mapping]] = {}
     shadow: Dict[tuple, List[Mapping]] = {}
     calls: Dict[str, List[Mapping]] = {}  # v1.621: every record of each routed call, in log order

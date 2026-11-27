@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 from typing import Callable, Dict, Iterable, List, Optional, Sequence, Tuple
 
 from .budget import BudgetExceeded, BudgetLedger, billing_bound
-from .delegation import DELEGATE
+from .delegation import DELEGATE, INLINE, DelegationDecision
 from .procedures import Procedure
 from .providers import Provider, ProviderError
 from .router import Policy, RouteDecision, Router, _check_pin, _check_prompt_tokens
@@ -432,6 +432,36 @@ class Executor:
             return self._run_pair(decision.task, route, sides, messages, harness, call_tags, validate,
                                   None)
         return self._execute(decision.task, decision.route, messages, call_tags, validate)
+
+    def record_mode(self, decision, actual_mode: str, input_tokens: int,
+                    tags: Optional[Mapping[str, str]] = None) -> dict:
+        """Log the mode the agent took beside the mode ``decision`` advised (DESIGN 7 v1.687).
+
+        ``decision`` is a :class:`DelegationDecision`, ``actual_mode`` ``"inline"`` or
+        ``"delegate"`` and ``input_tokens`` the work's input size, an ``int`` >= 0. The mode record
+        (8.1 v1.687) holds ``ts``, ``call_id``, the decision's ``task``, ``flavor`` and ``parent``,
+        its ``mode`` as ``advised_mode``, ``actual_mode``, its ``reason``, ``input_tokens`` and
+        ``tags``; it goes to the monitor when there is one, and a copy is returned. No router,
+        provider or ledger call is made. A bad argument raises ``ValueError`` before any ID or record.
+        """
+        if not isinstance(decision, DelegationDecision):
+            raise ValueError(f"decision must be a DelegationDecision, got {type(decision).__name__}")
+        if not (isinstance(decision.mode, str) and decision.mode in (INLINE, DELEGATE)):
+            raise ValueError(f"decision mode must be 'inline' or 'delegate', got {decision.mode!r}")
+        if not (isinstance(actual_mode, str) and actual_mode in (INLINE, DELEGATE)):
+            raise ValueError(f"actual_mode must be 'inline' or 'delegate', got {actual_mode!r}")
+        if not isinstance(input_tokens, int) or isinstance(input_tokens, bool) or input_tokens < 0:
+            raise ValueError(f"input_tokens must be an int >= 0, got {input_tokens!r}")
+        if tags is not None and not (isinstance(tags, Mapping) and all(
+                isinstance(key, str) and isinstance(value, str) for key, value in tags.items())):
+            raise ValueError(f"tags must be None or a mapping of str to str, got {tags!r}")
+        rec = {"ts": self.now(), "call_id": self.id_factory(), "task": decision.task,
+               "flavor": decision.flavor, "parent": decision.parent, "advised_mode": decision.mode,
+               "actual_mode": actual_mode, "reason": decision.reason, "input_tokens": input_tokens,
+               "tags": dict(tags or {})}
+        if self.monitor is not None:
+            self.monitor.record(rec)
+        return dict(rec, tags=dict(rec["tags"]))
 
     def _execute(self, task_name: str, decision: RouteDecision, messages: List[dict],
                  call_tags: Dict[str, str],
