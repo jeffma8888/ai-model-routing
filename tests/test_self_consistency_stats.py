@@ -315,7 +315,7 @@ def test_design_and_changelog_state_v1_667():
     for words in ("`.add(task, model_id, successes, trials, *, ..., rerun_items=None, consistent_items=None)`",
                   "The rerun 0 row is the item's trial", "since a rerun is not an independent trial",
                   "after any `label_sources` and before `latencies_ms`", "saves v1.666's bytes",
-                  "as `inconsistent` whatever its bound (row JUDGE2b)", "(row JUDGE2c, after row PROD1i)",
+                  "as `inconsistent` whatever its bound (row JUDGE2b)", "(row JUDGE2c, which v1.675 adds)",
                   "self-consistency says a judge repeats its own grades, not that they are right"):
         assert four3.count(words) == 1, words
     [line] = [x for x in (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").splitlines()

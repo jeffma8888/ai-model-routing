@@ -349,7 +349,7 @@ def test_design_and_changelog_state_v1_668():
                   "5h, `consistency_unknown`, when its share is unknown",
                   "known only when that key's `rerun_items` is at least `min_samples`",
                   "Unlike 5f, an unknown share has no `allow`", "a pin keeps rules 1 to 5h",
-                  "With no minimum every decision is v1.667's bit for bit", "(row JUDGE2c, after row PROD1i)"):
+                  "With no minimum every decision is v1.667's bit for bit", "(row JUDGE2c, which v1.675 adds)"):
         assert parts["5.2"].count(words) == 1, words
     # the Status line keeps five versions (tests/test_design_status.py), so from v1.669 the version is pinned
     # by its changelog line, which stays

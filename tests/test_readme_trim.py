@@ -510,6 +510,7 @@ FORMAT_LEAD = "A store that loads the log (a warehouse table or a dashboard) bui
 WALK_LEAD = "From a first call to steady state, each step with one lesson from "
 STEPS_LEAD = "1. Define each task in `tasks.json` with its `bar` and `min_samples`, "
 CONSENSUS_LEAD = "A team with no human labels can make them from its reference judges' recorded grades: "
+CONSISTENCY_LEAD = "A judge can also be held to grading alike on reruns. "
 LATER = [
     (SAVINGS_LEAD, 714),  # v1.654, row OPP1c: 712 bytes and the blank line
     (MONITOR_LEAD, 370),  # v1.656, row PROD1b: 368 bytes and the blank line
@@ -517,7 +518,8 @@ LATER = [
     (FORMAT_LEAD, 340),  # v1.658, row LOG1: 338 bytes and the blank line
     (WALK_LEAD, 117),  # v1.659, row PROD1: the walk-through's sentence, after the lead; 115 bytes from v1.664
     (STEPS_LEAD, 3090),  # v1.659, row PROD1: its ten steps, before the seven of v1.604; 3,088 bytes from v1.664
-    (CONSENSUS_LEAD, 596),  # v1.663, row JUDGE1bbb: 594 bytes and the blank line, the section's last
+    (CONSENSUS_LEAD, 596),  # v1.663, row JUDGE1bbb: 594 bytes and the blank line
+    (CONSISTENCY_LEAD, 829),  # v1.675, row JUDGE2c: 827 bytes and the blank line, the section's last
 ]
 
 
@@ -804,8 +806,9 @@ def test_design_states_the_v1_650_trim_and_the_changelog_the_version():
 
 def test_the_v1_651_three_are_shorter_and_the_section_under_its_cap():
     found = {lead: len(paragraph(lead).encode("utf-8")) for lead in OLD_BYTES_V1_651}
-    # v1.666 (row PROD1ibba) cuts the pinned-call one again, which NEW_BYTES_V1_666 holds
-    assert found == {k: NEW_BYTES_V1_666.get(k, v) for k, v in NEW_BYTES_V1_651.items()}
+    # v1.666 (row PROD1ibba) cuts the pinned-call one again, which NEW_BYTES_V1_666 holds, and v1.675 (row JUDGE2c)
+    # adds its clause on 5.2 rules 5g and 5h, which GROWN_V1_675 holds
+    assert found == {k: NEW_BYTES_V1_666.get(k, v) + GROWN_V1_675.get(k, 0) for k, v in NEW_BYTES_V1_651.items()}
     assert sum(OLD_BYTES_V1_651.values()) - sum(NEW_BYTES_V1_651.values()) == 399
     assert size(read("README.md"), PRODUCTION) <= PRODUCTION_CAP == 30_000
 
@@ -1009,10 +1012,12 @@ def test_the_v1_653_seven_and_the_section_at_most_24000_bytes():
     assert sum(OLD_BYTES_V1_653.values()) - sum(NEW_BYTES_V1_653.values()) == 16
     # v1.654 (row OPP1c) adds a sentence in the room under the cap; the section less LATER (v1.655, row T30)
     # keeps v1.653's bytes, less what v1.665 (row PROD1iba), v1.666 (row PROD1ibba), v1.673 (row PROD1ibbba) and
-    # v1.674 (row PROD1ibbbb) cut, and LATER's entries are the rest
+    # v1.674 (row PROD1ibbbb) cut, and more the clause v1.675 (row JUDGE2c) adds to the pin paragraph, and LATER's
+    # entries are the rest
     text = read("README.md")
-    assert (size(without_later(text), PRODUCTION) == 23_976 - CUT_V1_665 - CUT_V1_666 - CUT_V1_673 - CUT_V1_674
-            == 20_274 <= TARGET < PRODUCTION_CAP == 30_000)
+    assert (size(without_later(text), PRODUCTION)
+            == 23_976 - CUT_V1_665 - CUT_V1_666 - CUT_V1_673 - CUT_V1_674 + sum(GROWN_V1_675.values())
+            == 20_343 <= TARGET < PRODUCTION_CAP == 30_000)
     assert size(text, PRODUCTION) - size(without_later(text), PRODUCTION) == sum(b for _, b in LATER)
     assert LATER[0] == (SAVINGS_LEAD, 714)  # v1.654's paragraph, its own 712 bytes and the blank line
 
@@ -1102,9 +1107,11 @@ def test_the_section_ends_with_the_record_format_sentence():
     # the one test that names the section's last paragraph; a slice that adds one after it restates this alone
     # (v1.656, row PROD1b: the sentence on `keep_records` follows the savings sentence, v1.654's last;
     # v1.657, row PROD1e: the sentence on calls from a coroutine follows it; v1.658, row LOG1: the sentence on the
-    # record format follows that; v1.663, row JUDGE1bbb: the paragraph on consensus labels follows that)
+    # record format follows that; v1.663, row JUDGE1bbb: the paragraph on consensus labels follows that; v1.675,
+    # row JUDGE2c: the paragraph on the self-consistency minimum follows that)
     found = paragraphs(read("README.md"), PRODUCTION)
-    assert found[-1].startswith(CONSENSUS_LEAD)
+    assert found[-1].startswith(CONSISTENCY_LEAD)
+    assert found[found.index(paragraph(CONSISTENCY_LEAD)) - 1].startswith(CONSENSUS_LEAD)
     assert found[found.index(paragraph(CONSENSUS_LEAD)) - 1].startswith(FORMAT_LEAD)
     assert found[found.index(paragraph(FORMAT_LEAD)) - 1].startswith(COROUTINE_LEAD)
     assert found[found.index(paragraph(COROUTINE_LEAD)) - 1].startswith(MONITOR_LEAD)
@@ -1408,6 +1415,8 @@ def v1_666_still_there(readme):
 
 def test_the_v1_666_two_are_shorter_and_the_section_under_its_cap():
     found = {lead: len(paragraph(lead).encode("utf-8")) for lead in OLD_BYTES_V1_666}
+    # v1.675 (row JUDGE2c) adds its clause on 5.2 rules 5g and 5h to the pin paragraph, which GROWN_V1_675 holds
+    found = {lead: n - GROWN_V1_675.get(lead, 0) for lead, n in found.items()}
     assert found == NEW_BYTES_V1_666
     assert sum(OLD_BYTES_V1_666.values()) - sum(found.values()) == CUT_V1_666 == SECTION_V1_665 - SECTION_V1_666
     assert size(read("README.md"), PRODUCTION) <= SECTION_V1_666 < PRODUCTION_CAP == 30_000
@@ -1757,9 +1766,10 @@ def test_the_v1_674_one_is_a_pointer_paragraph_and_the_section_at_most_26000_byt
     found = {lead: len(paragraph(lead).encode("utf-8")) for lead in OLD_BYTES_V1_674}
     assert found == NEW_BYTES_V1_674 and all(n <= POINTER_CAP for n in found.values())
     assert sum(OLD_BYTES_V1_674.values()) - sum(found.values()) == CUT_V1_674 == SECTION_V1_673 - SECTION_V1_674
-    # review iter-531 nit 2: the section is pinned to its bytes, so a later change to it restates this test
-    assert size(read("README.md"), PRODUCTION) == SECTION_V1_674 <= TARGET_V1_674 < PRODUCTION_CAP == 30_000
-    assert PRODUCTION_CAP - SECTION_V1_674 == 4_054
+    # review iter-531 nit 2: the section is pinned to its bytes, so a later change to it restates this test;
+    # v1.675 (row JUDGE2c) spends some of the room v1.674 made, by its paragraph and the pin paragraph's clause
+    assert SECTION_V1_674 <= TARGET_V1_674 < PRODUCTION_CAP == 30_000 and PRODUCTION_CAP - SECTION_V1_674 == 4_054
+    assert size(read("README.md"), PRODUCTION) == SECTION_V1_674 + ADDED_V1_675 == SECTION_V1_675
 
 
 def test_the_v1_674_one_keeps_its_lead_its_names_and_its_pointer():
@@ -1862,4 +1872,51 @@ def test_design_states_v1_674_and_the_changelog_the_version():
     [line] = [x for x in read("CHANGELOG.md").splitlines() if x.startswith("- v1.674 (")]
     assert line.startswith("- v1.674 (2026-11-26): docs and tests (5.2, row PROD1i, fifth part). ")
     assert line.count("4.1 gaining a Why with the link's lesson and the Harvey number's qualifier") == 1
+    assert len(line.encode("utf-8")) <= 600
+
+
+# --- v1.675 (row JUDGE2c, the third part of row JUDGE2): the self-consistency minimum -----------------------------
+
+# the new paragraph's own bytes, LATER's eighth entry less its blank line, and the pin paragraph's clause on 5.2
+# rules 5g and 5h (v1.668), which tests/test_pin_docs.py's HARD reads; tests/test_self_consistency_docs.py checks
+# the paragraph's claims
+CONSISTENCY_BYTES_V1_675 = 827
+PIN_CLAUSE_V1_675 = ", inconsistent or of unknown consistency under `min_self_consistency`"
+GROWN_V1_675 = {PIN_LEAD: 69}
+ADDED_V1_675 = CONSISTENCY_BYTES_V1_675 + 2 + sum(GROWN_V1_675.values())
+SECTION_V1_675 = 26_844
+
+
+def test_the_v1_675_paragraph_and_clause_and_the_section_at_its_bytes():
+    text = read("README.md")
+    assert LATER[-1] == (CONSISTENCY_LEAD, CONSISTENCY_BYTES_V1_675 + 2)
+    assert len(paragraph(CONSISTENCY_LEAD).encode("utf-8")) == CONSISTENCY_BYTES_V1_675
+    pin = paragraph(PIN_LEAD)
+    assert pin.count(PIN_CLAUSE_V1_675) == 1 and len(PIN_CLAUSE_V1_675.encode("utf-8")) == GROWN_V1_675[PIN_LEAD]
+    assert len(pin.encode("utf-8")) == NEW_BYTES_V1_666[PIN_LEAD] + GROWN_V1_675[PIN_LEAD] == 1_793
+    assert pin.count("rules 1 to 5h of `DESIGN.md` 5.2") == 1 and "5f" not in pin
+    # the section is pinned to its bytes, so a later change to it restates this test (review iter-531 nit 2)
+    assert size(text, PRODUCTION) == SECTION_V1_675 == SECTION_V1_674 + ADDED_V1_675 < PRODUCTION_CAP == 30_000
+    assert PRODUCTION_CAP - SECTION_V1_675 == 3_156
+    assert size(without_later(text), PRODUCTION) == 20_343
+
+
+def test_design_states_v1_675_and_the_changelog_the_version():
+    design = read("DESIGN.md")
+    five2 = subsection(design, "### 5.2 ")
+    [mine] = [line for line in five2.splitlines()
+              if line.startswith("- v1.675 README self-consistency minimum (row JUDGE2c, the third part of JUDGE2; ")]
+    for kept in ("The new paragraph is 827 bytes, the eighth entry of tests/test_readme_trim.py's `LATER`",
+                 "the pin paragraph grows from 1,724 to 1,793 bytes",
+                 "so the section is 26,844 bytes by the 12.8 measure, 3,156 under v1.629's 30,000-byte cap, which stays",
+                 "the section less `LATER` is 20,343, v1.674's 20,274 and the clause's 69 bytes",
+                 "says the hard checks a pin keeps are rules 1 to 5h, where it said 1 to 5f",
+                 "No package module, evidence file or README transcript changes."):
+        assert mine.count(kept) == 1, kept
+    lines = five2.splitlines()
+    assert lines[lines.index(mine) - 1].startswith("- v1.674 README pointer paragraph (")
+    assert len(mine.encode("utf-8")) <= 6_000 and "\u2014" not in mine and "\u2013" not in mine
+    [line] = [x for x in read("CHANGELOG.md").splitlines() if x.startswith("- v1.675 (")]
+    assert line.startswith("- v1.675 (2026-11-26): docs and tests (5.2, row JUDGE2, third part). ")
+    assert line.count("so the section is 26,844 bytes, 3,156 under the 30,000-byte cap") == 1
     assert len(line.encode("utf-8")) <= 600

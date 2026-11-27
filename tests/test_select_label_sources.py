@@ -240,7 +240,11 @@ def paragraph():
 
 def test_readme_ends_its_production_section_with_the_paragraph():
     found, [mine] = paragraph()
-    assert found[-1] == mine and found[-2].startswith(FORMAT_LEAD)
+    # v1.675 (row JUDGE2c): the paragraph on the self-consistency minimum follows it and ends the section, so it is
+    # placed by its neighbours (v1.655, row T30); tests/test_readme_trim.py names the section's last paragraph
+    at = found.index(mine)
+    assert 0 < at < len(found) - 1 and found[at - 1].startswith(FORMAT_LEAD)
+    assert found[at + 1].startswith("A judge can also be held to grading alike on reruns. ")
     assert size(read("README.md"), PRODUCTION) <= PRODUCTION_CAP == 30_000
     for words in (f"`{COMMAND}`", "`--min-agreement`", "agreement between models, not human correctness",
                   "`label_source`", "`calibrate`", "`select`", "`labels:`"):

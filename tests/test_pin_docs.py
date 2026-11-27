@@ -16,6 +16,11 @@ DESIGN 5.2 v1.654 (row OPP1c): the sentence on `report --opportunities` follows 
 calls and ends the section (tests/test_opportunities_docs.py), so the pin paragraph is the second last.
 DESIGN 5.2 v1.655 (row T30) places it by its neighbours, the drift paragraph before it and the savings
 sentence after it, never by a count from the section's end.
+
+DESIGN 5.2 v1.675 (row JUDGE2c): the paragraph says a pin keeps rules 1 to 5h, where it said 1 to 5f, and
+names 5.2 rules 5g and 5h (v1.668) in one clause after the latency bar's, so `inconsistent` and
+`consistency_unknown` move from `README_LATER`, which goes, into HARD with their words (review iter-525
+should-fix 1), and each refuses a pin whatever `allow_below_bar` says.
 """
 
 import hashlib
@@ -32,10 +37,10 @@ import model_routing.router as router_module
 from model_routing import (AllModelsFailed, Budget, BudgetExceeded, BudgetLedger, Cascade, Executor, FakeProvider,
                            Model, Monitor, NoModelClearsBar, Policy, Procedure, ProcedureResult, Registry, Router,
                            Stats, Task, report)
-from model_routing.router import (BELOW_BAR, CASCADE_UNKNOWN_MODEL, CHEAPER_PER_SUCCESS, CONTEXT_TOO_SMALL,
-                                  EXCLUDED_FAMILY, EXCLUDED_MODEL, GENERATOR, GENERATOR_FAMILY,
-                                  INSUFFICIENT_SAMPLES, LATENCY_UNKNOWN, OUT_OF_SCOPE, PASSES, POLICY_EXCLUDED,
-                                  PROCEDURE_UNKNOWN_MODEL, REGION_UNAVAILABLE, TOO_SLOW, ZDR_REQUIRED)
+from model_routing.router import (BELOW_BAR, CASCADE_UNKNOWN_MODEL, CHEAPER_PER_SUCCESS, CONSISTENCY_UNKNOWN,
+                                  CONTEXT_TOO_SMALL, EXCLUDED_FAMILY, EXCLUDED_MODEL, GENERATOR, GENERATOR_FAMILY,
+                                  INCONSISTENT, INSUFFICIENT_SAMPLES, LATENCY_UNKNOWN, OUT_OF_SCOPE, PASSES,
+                                  POLICY_EXCLUDED, PROCEDURE_UNKNOWN_MODEL, REGION_UNAVAILABLE, TOO_SLOW, ZDR_REQUIRED)
 
 ROOT = Path(__file__).resolve().parents[1]
 DRIFT_START = "A route's success can drift while its all-time counts still admit it, "
@@ -44,9 +49,10 @@ PIN_PARAGRAPH = (
     "A call can also pin its route. `Executor.call(..., pin_route=ROUTE, pinned_by=TAG)` runs ROUTE, a registry "
     "model, a cascade of the task (with `signals`) or one of the call's `procedures`, "  # v1.651, row PROD1gbbbb
     "and `select(..., pin_route=ROUTE)` returns it as the decision's only entry, with `basis` `pinned`. A pin keeps "
-    "the hard checks, rules 1 to 5f of `DESIGN.md` 5.2, so it raises `NoModelClearsBar`, whatever `allow_below_bar` "
+    "the hard checks, rules 1 to 5h of `DESIGN.md` 5.2, so it raises `NoModelClearsBar`, whatever `allow_below_bar` "
     "says, when it is excluded, the generator or of its family, out of scope, ruled out by the policy's allowed "
-    "routes or families, its `region` or its `require_zdr`, too slow or of unknown time under `deny`, when its "
+    "routes or families, its `region` or its `require_zdr`, too slow or of unknown time under `deny`, "
+    "inconsistent or of unknown consistency under `min_self_consistency`, when its "  # v1.675, row JUDGE2c
     "context window is too small for the call, or when it is a cascade or procedure whose model is unknown. One "
     "under the bar or with too few trials is refused too unless `allow_below_bar=True`, and then runs with "
     "`below_bar` `true` on its decision and records. A pinned call runs its route alone, with no fallback and no "
@@ -73,9 +79,6 @@ SHARED = ("pin_route=ROUTE", "`pinned_by`", "`allow_below_bar`", "`NoModelClears
           "`report --by basis`", "`report --by pinned_by`", "hand-up")
 # a candidate's reasons that are no hard check: rules 6 to 8 and the decision's own reason
 NOT_HARD = {PASSES, INSUFFICIENT_SAMPLES, BELOW_BAR, CHEAPER_PER_SUCCESS}
-# hard checks of 5.2 rules 5g and 5h (v1.668) that the paragraph names from row JUDGE2c, after row PROD1i;
-# tests/test_self_consistency_gate.py checks that a pin of each is refused whatever allow_below_bar says
-README_LATER = {"inconsistent", "consistency_unknown"}
 
 
 def read(name):
@@ -145,6 +148,15 @@ def shape(value, call):
     return ProcedureResult(call(value), tool_calls=0)
 
 
+def consistency_router(alike=None):
+    """Under a 0.9 minimum (5.2 v1.668): x/mid graded on 30 rerun items, `alike` of them alike on every rerun, or
+    with no rerun data when `alike` is None, so its share is unknown"""
+    route = router(min_self_consistency=0.9)
+    if alike is not None:
+        route.stats.add("t", "x/mid", 30, 30, rerun_items=30, consistent_items=alike)
+    return route
+
+
 UNKNOWN_CASCADE = Cascade("x/cheap", "z/none", "sig")
 UNKNOWN_PROCEDURE = Procedure("shape", "v1", shape, max_model_calls=1, max_tool_calls=0, model="z/none")
 # reason: (the paragraph's words for it, the router, the pin, select's keywords)
@@ -161,6 +173,11 @@ HARD = {
     TOO_SLOW: ("too slow", lambda: router(latencies={"x/mid": [2000.0] * 30}, max_p95_ms=1000.0), "x/mid", {}),
     LATENCY_UNKNOWN: ("of unknown time under `deny`", lambda: router(max_p95_ms=1000.0, latency_unknown="deny"),
                       "x/mid", {}),
+    # v1.675 (row JUDGE2c, review iter-525 should-fix 1): 20 of 30 alike is under 0.9, whatever x/mid's bound
+    INCONSISTENT: ("inconsistent or of unknown consistency under `min_self_consistency`",
+                   lambda: consistency_router(20), "x/mid", {}),
+    CONSISTENCY_UNKNOWN: ("inconsistent or of unknown consistency under `min_self_consistency`", consistency_router,
+                          "x/mid", {}),
     CONTEXT_TOO_SMALL: ("when its context window is too small for the call", router, "x/tiny", {}),
     CASCADE_UNKNOWN_MODEL: ("when it is a cascade or procedure whose model is unknown",
                             lambda: router(cascades=(UNKNOWN_CASCADE,)), UNKNOWN_CASCADE.id, dict(cascades=True)),
@@ -171,7 +188,7 @@ HARD = {
 
 def test_every_reason_of_the_router_is_a_hard_check_with_its_words_or_one_the_paragraph_reads_apart():
     found = set(re.findall(r'^[A-Z_]+ = "([a-z_]+)"', inspect.getsource(router_module), re.M))
-    assert found == set(HARD) | NOT_HARD | README_LATER   # a new reason needs its words in the paragraph, or a place here
+    assert found == set(HARD) | NOT_HARD   # a new reason needs its words in the paragraph, or a place here
 
 
 @pytest.mark.parametrize("reason", sorted(HARD))
