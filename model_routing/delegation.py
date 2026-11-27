@@ -202,6 +202,20 @@ class _WorkCallsRouter(Router):
         k, b = self._work_calls, self._brief_tokens
         return _work_cost(model, k, k * b, d_in, d_out, b, b, self._share)
 
+    def _pair_cost(self, task: Task, root, leaf, sides) -> float:
+        """A pair's K calls, the root's plus the leaf's, each side a history of its own (13.2 v1.686).
+
+        With no side tokens each side's K calls are ``_list_cost``'s, at its 5.2 sizes over the
+        brief; with them each side is at its mean side tokens on ``router.stats``, the brief the
+        root's base context alone. Each side per call, whatever its ``items_per_call``.
+        """
+        if sides is None:
+            return self._list_cost(task, root) + self._list_cost(task, leaf)
+        k, b, share = self._work_calls, self._brief_tokens, self._share
+        (root_in, root_out), (leaf_in, leaf_out) = sides
+        return (_work_cost(root, k, k * b, root_in, root_out, b, b, share)
+                + _work_cost(leaf, k, 0, leaf_in, leaf_out, 0, 0, share))
+
     def _cache_counts(self, task: Task, model) -> None:
         """No measured cache count: 13.2's costs are v1.587's (5.2 v1.588)."""
         return None
@@ -293,8 +307,6 @@ def decide_delegation(router: Router, task_name: str, parent_model: str,
     pair = delegate_roots is not None
     if pair != (delegate_leaves is not None):  # DESIGN 13.1 v1.684
         raise ValueError("delegate_roots and delegate_leaves go together: give both or neither")
-    if pair and k > 1:
-        raise ValueError(f"a pair delegate takes one work call in this version, got work_calls={k!r}")
     parent = router.registry.get(parent_model)
     generator_family = None
     if generator_model is not None:
@@ -342,7 +354,8 @@ def decide_delegation(router: Router, task_name: str, parent_model: str,
         block = _PARENT_CONSISTENCY_CODES[consistency_rule]
 
     # 13.3: the delegate reads the brief as well as the work's input; with K = 1 this
-    # is the v1.34 select, and K > 1 checks the last call and prices the K calls
+    # is the v1.34 select, and K > 1 checks the last call and prices the K calls, a pair's
+    # side by side (v1.686)
     if k == 1:
         briefed = replace(task, expected_input_tokens=s_in + b)
         sub = _PerCallRouter(router.registry, {task.name: briefed},
@@ -363,7 +376,7 @@ def decide_delegation(router: Router, task_name: str, parent_model: str,
         failed = exc
 
     delegate_cost = delegate_lb = None
-    if route is not None and pair:  # 13.2 v1.684: the pair's list cost stands for D's call
+    if route is not None and pair:  # 13.2 v1.684, v1.686: the pair's list cost stands for D's calls
         pair_cost = next(x.list_cost for x in route.candidates if x.model_id == route.primary)
         delegate_cost = (_shared(parent, c, rho, 0, w) + pair_cost
                          + (1 + t) * _shared(parent, c, rho, b + r))

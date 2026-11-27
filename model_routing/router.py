@@ -507,11 +507,7 @@ class Router:
                                       task.expected_input_tokens, names, policy)
                   or slow or self._consistency_rule(task, pair_id)
                   or self._measured_rule(task, successes, trials))
-        sides = self.stats.mean_side_tokens(task.name, pair_id)
-        if sides is None:
-            list_cost = self._list_cost(task, root) + self._list_cost(task, leaf)
-        else:  # DESIGN 5.2 v1.671: one call of each side, over its items_per_call (v1.573)
-            list_cost = self._side_cost(root, sides[0]) + self._side_cost(leaf, sides[1])
+        list_cost = self._pair_cost(task, root, leaf, self.stats.mean_side_tokens(task.name, pair_id))
         return Candidate(
             model_id=pair_id,
             family=root.family,
@@ -525,6 +521,15 @@ class Router:
             reason=reason,
             p95_latency_ms=p95,
         )
+
+    def _pair_cost(self, task: Task, root, leaf, sides) -> float:
+        """A pair's list cost, the root's plus the leaf's (DESIGN 5.2 v1.670): each at its 5.2 sizes on
+        the task, or with ``sides``, the pair key's mean side tokens, one call of each (v1.671). The
+        delegate's ``select_pair`` for K > 1 work calls prices each side's K calls (13.2 v1.686)."""
+        if sides is None:
+            return self._list_cost(task, root) + self._list_cost(task, leaf)
+        # DESIGN 5.2 v1.671: one call of each side, over its items_per_call (v1.573)
+        return self._side_cost(root, sides[0]) + self._side_cost(leaf, sides[1])
 
     @staticmethod
     def _side_cost(model, tokens: Tuple[int, int]) -> float:
@@ -614,11 +619,12 @@ class Router:
         13.1). A ``policy`` runs the delegate's ``select`` under it and keeps a parent it
         rules out from working inline (DESIGN 13.3 and 13.4 v1.624). With
         ``delegate_roots`` and ``delegate_leaves``, both or neither, the delegate is a
-        delegating harness's pair, this router's ``select_pair`` on the briefed task, for
-        one work call (DESIGN 13.1 to 13.3 v1.684). Raises
+        delegating harness's pair, this router's ``select_pair`` on the briefed task, and
+        for ``work_calls`` > 1 each side's window checked against the last call and its K
+        calls priced as a history of its own (DESIGN 13.1 to 13.3 v1.684, v1.686). Raises
         ``KeyError`` for an unknown task, parent or generator, ``ValueError`` for an
         unknown flavor, an invalid token count (``brief_output_tokens`` included, unless
-        None), ``work_calls`` below 1 (or above 1 with a pair), one of the pair's keywords
+        None), ``work_calls`` below 1, one of the pair's keywords
         without the other, or a
         ``cached_read_ratio`` or ``output_reread_share`` that is not a number from 0
         to 1, or a ``policy`` that is not None or a ``Policy``, and
