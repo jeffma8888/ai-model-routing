@@ -8,6 +8,7 @@ row, so the pair's key gains the trial and its side trial. The fixture is DEL1a'
 """
 
 import itertools
+import re
 from pathlib import Path
 
 import pytest
@@ -244,6 +245,9 @@ def test_design_and_changelog_state_v1_678():
     assert design.count("\n- v1.678 a pair's row (row DEL1e, 7 and 8.1 v1.678): `audited_results` ") == 1
     assert design.count("a pair in the executor and the monitor (row DEL1e, which v1.678 adds in 7 and 8)") == 2
     assert "the executor or the monitor" not in design
-    assert design.split("\n", 3)[2].startswith("Status: v1.678, 2026-11-26 (v1.678, ")
+    # v1.678 or a later version tops the Status line (it pinned v1.678 until v1.679, row DEL1f, came next);
+    # tests/test_design_status.py checks which five versions the parenthesis names
+    status = design.split("\n", 3)[2]
+    assert re.match(r"Status: v1\.(\d+), ", status) and int(re.match(r"Status: v1\.(\d+), ", status)[1]) >= 678
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     assert changelog.count("\n- v1.678 (2026-11-26): spec, code and tests (7, 8.1, 8.3, row DEL1e). ") == 1
