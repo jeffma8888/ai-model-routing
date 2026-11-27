@@ -241,7 +241,8 @@ def test_design_and_changelog_state_v1_677():
     assert ("- v1.677 pairs (row DEL1d): a last keyword, `pairs=None`, adds a last key, "
             "`pair_sensitivity`, as 12.1 v1.677 says\n") in _subsection(design, "12.3")
     assert design.count("(row DEL1d, which v1.677 adds in 12.1)") == 3
-    assert "(row DEL1d);" not in design
+    # the Status line names the row as each version does; below it no clause says DEL1d is to come
+    assert "(row DEL1d);" not in design.split("\n", 3)[3]
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     assert changelog.count("\n- v1.677 (2026-11-26): spec, code and tests (12.1, 12.3, row DEL1d, "
                            "the last part of row DEL1). ") == 1

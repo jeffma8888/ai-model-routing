@@ -193,7 +193,7 @@ def _strategies(models: Sequence[str]) -> List[str]:
 
 def evaluate(outcomes, bars, seeds=range(10), flavors=("cost_effective", "cost_blind"),
              calibration_fraction=0.5, min_samples=30, confidence=0.95,
-             cost_per_correct=False) -> dict:
+             cost_per_correct=False, pairs=None) -> dict:
     """Calibrate on one split, route each flavor at each bar, score on the other (DESIGN 12.3).
 
     Returns ``config``, ``tasks``, ``cells``, ``summary`` and ``per_task``; the
@@ -202,7 +202,9 @@ def evaluate(outcomes, bars, seeds=range(10), flavors=("cost_effective", "cost_b
     slices (v1.514), each cell of a sliced task also scores the pooled and the sliced
     route per slice, and ``per_slice`` and ``slice_summary`` follow ``per_task``. With
     ``cost_per_correct=True`` (v1.570) each ``summary`` and ``per_task`` row gains a last key,
-    ``cost_per_correct_usd``, its held-out cost over its held-out correct items.
+    ``cost_per_correct_usd``, its held-out cost over its held-out correct items. With
+    ``pairs=(roots, leaves)`` (v1.677) a last key, ``pair_sensitivity``, gives each task's spread
+    in success over roots with the leaf held and over leaves with the root held.
     """
     outcomes = tuple(outcomes)
     bars, seeds, flavors = list(bars), list(seeds), list(flavors)
@@ -211,6 +213,7 @@ def evaluate(outcomes, bars, seeds=range(10), flavors=("cost_effective", "cost_b
     _check_run_options(bars, seeds, flavors, min_samples, confidence, calibration_fraction)
     if type(cost_per_correct) is not bool:
         raise ValueError(f"cost_per_correct must be True or False, got {cost_per_correct!r}")
+    pair_ids = _pair_ids(pairs)
     for o in outcomes:
         _check_cascade_outcome(o)
 
@@ -234,6 +237,12 @@ def evaluate(outcomes, bars, seeds=range(10), flavors=("cost_effective", "cost_b
             if m not in models:
                 raise ValueError(f"cascade {cid!r}: its {role} model {m!r} is not a model of "
                                  f"the matrix")
+    if pair_ids is not None:
+        model_set = set(models)
+        pair_ids = [p for p in pair_ids if p[0] in model_set]
+        if not pair_ids:
+            raise ValueError("pairs: no pair of the roots and leaves given is a model of the "
+                             "outcomes")
     task_items: Dict[str, List[str]] = {}
     for task, item in table:
         task_items.setdefault(task, []).append(item)
@@ -300,7 +309,73 @@ def evaluate(outcomes, bars, seeds=range(10), flavors=("cost_effective", "cost_b
         result["per_slice"] = _per_slice(cells, bars, flavors, groups)
         result["slice_summary"] = _slice_summary(cells, table, splits, groups, slice_sums, bars,
                                                  flavors, seeds)
+    if pair_ids is not None:
+        result["pair_sensitivity"] = _pair_sensitivity(table, tasks, task_items, pair_ids,
+                                                       pairs[0], pairs[1])
     return result
+
+
+def _pair_ids(pairs) -> Optional[List[Tuple[str, str, str]]]:
+    """v1.677 (12.1): ``(pair ID, root, leaf)`` for each root with each leaf of
+    ``pairs=(roots, leaves)``, roots then leaves in the order given; None without it."""
+    if pairs is None:
+        return None
+    if not isinstance(pairs, (list, tuple)) or len(pairs) != 2:
+        raise ValueError(f"pairs must be (roots, leaves), a list or tuple of two items, "
+                         f"got {pairs!r}")
+    for label, ids in zip(("roots", "leaves"), pairs):
+        if not isinstance(ids, (list, tuple)) or not ids \
+                or not all(isinstance(model_id, str) for model_id in ids) \
+                or len(set(ids)) != len(ids):
+            raise ValueError(f"pairs: {label} must be a non-empty list or tuple of model IDs "
+                             f"with no ID twice, got {ids!r}")
+    seen: Dict[str, Tuple[str, str]] = {}
+    for root in pairs[0]:
+        for leaf in pairs[1]:
+            pair_id = f"{root}+{leaf}"
+            if pair_id in seen:
+                raise ValueError(f"pairs: root {root!r} and leaf {leaf!r} give the pair ID "
+                                 f"{pair_id!r} of root {seen[pair_id][0]!r} and leaf "
+                                 f"{seen[pair_id][1]!r}")
+            seen[pair_id] = (root, leaf)
+    return [(pair_id, root, leaf) for pair_id, (root, leaf) in seen.items()]
+
+
+def _spreads(counts_by_side: Dict[str, List[int]], items: int):
+    """v1.677 (12.1): each side's highest correct count less its lowest, over the items (None
+    under two counts), and the mean of those spreads, their sum over items times sides."""
+    spread: Dict[str, Optional[float]] = {}
+    total = sides = 0
+    for side, counts in counts_by_side.items():
+        if len(counts) < 2:
+            spread[side] = None
+            continue
+        spread[side] = (max(counts) - min(counts)) / items
+        total += max(counts) - min(counts)
+        sides += 1
+    return spread, (total / (items * sides) if sides else None)
+
+
+def _pair_sensitivity(table, tasks, task_items, pair_ids, roots, leaves) -> List[dict]:
+    """v1.677 (12.1): per task, ascending, the spread in success over roots with the leaf held
+    and over leaves with the root held, over all of the task's items (no split, seed, bar or
+    flavor), each value an integer over an integer."""
+    rows = []
+    for task in tasks:
+        items = task_items[task]
+        correct = {p: sum(table[task, i][p].correct for i in items) for p, _, _ in pair_ids}
+        used_roots = [r for r in roots if any(r == pr for _, pr, _ in pair_ids)]
+        used_leaves = [l for l in leaves if any(l == pl for _, _, pl in pair_ids)]
+        root_spread, mean_root = _spreads(
+            {l: [correct[p] for p, _, pl in pair_ids if pl == l] for l in used_leaves}, len(items))
+        leaf_spread, mean_leaf = _spreads(
+            {r: [correct[p] for p, pr, _ in pair_ids if pr == r] for r in used_roots}, len(items))
+        rows.append({"task": task, "items": len(items), "roots": used_roots,
+                     "leaves": used_leaves,
+                     "success": {p: correct[p] / len(items) for p, _, _ in pair_ids},
+                     "root_spread": root_spread, "leaf_spread": leaf_spread,
+                     "mean_root_spread": mean_root, "mean_leaf_spread": mean_leaf})
+    return rows
 
 
 def _split_sums(table, models, task, cal, held) -> dict:
