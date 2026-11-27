@@ -124,7 +124,9 @@ class Task:
     route may take on the task's calls, None for no bar, and ``latency_unknown`` says whether a route
     whose time is unknown is ``"allow"``-ed or ``"deny"``-ed under it (DESIGN 4.2 and 5.2 v1.628).
     ``min_self_consistency`` is the lowest share of a route's rerun items every rerun graded alike that
-    the route may have, None for no minimum (DESIGN 4.2 and 5.2 v1.668).
+    the route may have, None for no minimum (DESIGN 4.2 and 5.2 v1.668). ``min_delegation_follow`` is the
+    lowest share of the task's advised hand-offs, per parent, its agent should take, under which
+    ``delegation_follow`` flags a row; it routes nothing (DESIGN 4.2 and 8.3 v1.688).
     Invalid values raise ``ValueError`` at construction.
     """
 
@@ -149,6 +151,7 @@ class Task:
     max_p95_ms: Optional[float] = None
     latency_unknown: str = "allow"
     min_self_consistency: Optional[float] = None
+    min_delegation_follow: Optional[float] = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.exclude_families, tuple):
@@ -215,6 +218,11 @@ class Task:
                                   or not 0.0 <= least <= 1.0):  # NaN and the infinities fail the range
             raise ValueError(f"task {self.name!r}: min_self_consistency must be None or a finite number in "
                              f"[0, 1] that is not a bool, got {least!r}")
+        follow = self.min_delegation_follow  # DESIGN 4.2 v1.688
+        if follow is not None and (isinstance(follow, bool) or not isinstance(follow, (int, float))
+                                   or not 0.0 <= follow <= 1.0):  # NaN and the infinities fail the range
+            raise ValueError(f"task {self.name!r}: min_delegation_follow must be None or a finite number in "
+                             f"[0, 1] that is not a bool, got {follow!r}")
 
 
 _TASK_FIELDS = {f.name for f in fields(Task)}

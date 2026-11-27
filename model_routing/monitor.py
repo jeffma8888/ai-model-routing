@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import threading
-from math import ceil, fsum, isfinite
+from math import ceil, fsum, isfinite, sqrt
 from pathlib import Path
 from typing import Dict, Iterable, List, Mapping, Optional, Sequence, Tuple, Union
 
@@ -506,6 +506,81 @@ def opportunities(records: Iterable[dict], *, audits: Optional[Mapping[str, bool
     if target_cost_per_call is not None:   # a stable sort keeps the order above within a saving
         rows.sort(key=lambda r: (r["saving_per_day_usd"] is None, -(r["saving_per_day_usd"] or 0.0)))
     return rows
+
+
+_MODES = ("inline", "delegate")  # the two modes of a mode record (8.1 v1.687)
+
+
+def delegation_follow(records: Iterable[dict], *, tasks: Optional[Mapping[str, Task]] = None) -> List[dict]:
+    """The under-delegation report (DESIGN 8.3 v1.688, row DEL2a): one row per task and parent of a log's
+    mode records (8.1 v1.687), with the delegate and inline advice counted, the share of each the agent
+    took, and the point-biserial correlation of handing off with the work's input size; with ``tasks``, a
+    row whose task has a ``min_delegation_follow`` (4.2 v1.688) gains it and ``below_follow``.
+
+    Measurement only: it routes nothing and reads no registry or stats. Every record without an
+    ``advised_mode`` key is passed by.
+    """
+    if tasks is not None and (not isinstance(tasks, Mapping) or not all(
+            isinstance(name, str) and isinstance(task, Task) for name, task in tasks.items())):
+        raise ValueError(f"tasks must be None or a mapping of str to Task, got {tasks!r}")
+    groups: Dict[Tuple[str, str], List[Tuple[bool, bool, int]]] = {}
+    for rec in records:
+        if "advised_mode" not in rec:
+            continue
+        call_id = rec.get("call_id")
+        task, parent = rec.get("task"), rec.get("parent")
+        advised, actual, size = rec.get("advised_mode"), rec.get("actual_mode"), rec.get("work_input_tokens")
+        if not isinstance(task, str) or not isinstance(parent, str):
+            raise ValueError(f"mode record {call_id!r}: task and parent must be strings, "
+                             f"got {task!r} and {parent!r}")
+        for key, value in (("advised_mode", advised), ("actual_mode", actual)):
+            if not isinstance(value, str) or value not in _MODES:
+                raise ValueError(f"mode record {call_id!r}: {key} must be 'inline' or 'delegate', got {value!r}")
+        if isinstance(size, bool) or not isinstance(size, int) or size < 0:
+            raise ValueError(f"mode record {call_id!r}: work_input_tokens must be an int >= 0, got {size!r}")
+        groups.setdefault((task, parent), []).append((advised == "delegate", actual == "delegate", size))
+    rows = []
+    for task, parent in sorted(groups):
+        entries = groups[(task, parent)]
+        delegate = [took for advised, took, _ in entries if advised]
+        inline = [not took for advised, took, _ in entries if not advised]
+        followed = sum(delegate)
+        row = {"task": task, "parent": parent, "records": len(entries),
+               "delegate_advised": len(delegate), "delegate_followed": followed,
+               "delegate_follow_share": _share(followed, len(delegate)),
+               "inline_advised": len(inline), "inline_followed": sum(inline),
+               "inline_follow_share": _share(sum(inline), len(inline)),
+               "delegate_size_correlation": _point_biserial([(took, size) for _, took, size in entries])}
+        least = tasks[task].min_delegation_follow if tasks is not None and task in tasks else None
+        if least is not None:
+            row["min_delegation_follow"] = float(least)
+            row["below_follow"] = followed / len(delegate) < least if delegate else None
+        rows.append(row)
+    return rows
+
+
+def _share(part: int, whole: int) -> Optional[float]:
+    """``part / whole`` rounded to 6 places, None at a whole of 0 (8.3 v1.688)."""
+    return round(part / whole, 6) if whole else None
+
+
+def _point_biserial(points: List[Tuple[bool, int]]) -> Optional[float]:
+    """The Pearson correlation of x (1 for a hand-off taken, else 0) with y (the work's input size), from
+    integer sums: its square is divided in integers, so a size too large for a float raises nothing
+    (8.3 v1.688). None with fewer than two points or when x or y is the same on every point."""
+    n = len(points)
+    if n < 2:
+        return None
+    sx = sum(1 for took, _ in points if took)  # x is 0 or 1, so the sum of x squared is sx
+    sy = sum(size for _, size in points)
+    sxy = sum(size for took, size in points if took)
+    syy = sum(size * size for _, size in points)
+    spread_x, spread_y = n * sx - sx * sx, n * syy - sy * sy
+    if spread_x == 0 or spread_y == 0:
+        return None
+    num = n * sxy - sx * sy
+    size = sqrt(num * num / (spread_x * spread_y))  # int / int: no float of a size is ever made
+    return round(size if num >= 0 else -size, 6)
 
 
 def budget_report(records: Iterable[dict], budgets: Sequence[Budget]) -> List[dict]:
