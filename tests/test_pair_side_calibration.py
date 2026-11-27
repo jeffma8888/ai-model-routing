@@ -188,9 +188,15 @@ def test_design_4_3_states_v1_672_and_the_v1_671_lists_point_to_it():
 
 
 def test_no_readme_evidence_or_research_file_writes_the_four():
-    paths = [ROOT / "README.md", *(ROOT / ".github" / "workflows").glob("*"),
+    paths = [*(ROOT / ".github" / "workflows").glob("*"),
              *(path for path in (ROOT / "evidence").rglob("*") if path.is_file()),
              *(path for path in (ROOT / "research").rglob("*") if path.is_file())]
     assert len(paths) > 50
     for path in paths:
         assert not any(key.encode() in path.read_bytes() for key in SIDES), path
+    # from v1.680 (row PROD1j) README names the four in its paragraph on the pair route alone
+    # (tests/test_pair_route_docs.py), so README less that paragraph names none
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    [pair] = [p for p in readme.split("\n\n") if all(key in p for key in SIDES)]
+    assert pair.startswith("A delegating harness's root and sub-agent models can be routed as a pair: ")
+    assert not any(key in readme.replace(pair, "", 1) for key in SIDES)
