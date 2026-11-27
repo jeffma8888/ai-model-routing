@@ -512,6 +512,7 @@ STEPS_LEAD = "1. Define each task in `tasks.json` with its `bar` and `min_sample
 CONSENSUS_LEAD = "A team with no human labels can make them from its reference judges' recorded grades: "
 CONSISTENCY_LEAD = "A judge can also be held to grading alike on reruns. "
 PAIR_LEAD = "A delegating harness's root and sub-agent models can be routed as a pair: "
+FOLLOW_LEAD = "An agent's hand-offs can be checked against the advice: "
 LATER = [
     (SAVINGS_LEAD, 714),  # v1.654, row OPP1c: 712 bytes and the blank line
     (MONITOR_LEAD, 370),  # v1.656, row PROD1b: 368 bytes and the blank line
@@ -521,7 +522,8 @@ LATER = [
     (STEPS_LEAD, 3090),  # v1.659, row PROD1: its ten steps, before the seven of v1.604; 3,088 bytes from v1.664
     (CONSENSUS_LEAD, 596),  # v1.663, row JUDGE1bbb: 594 bytes and the blank line
     (CONSISTENCY_LEAD, 829),  # v1.675, row JUDGE2c: 827 bytes and the blank line
-    (PAIR_LEAD, 602),  # v1.680, row PROD1j: 587 bytes and the blank line, the section's last; 600 from v1.682
+    (PAIR_LEAD, 602),  # v1.680, row PROD1j: 587 bytes and the blank line; 600 from v1.682
+    (FOLLOW_LEAD, 600),  # v1.690, row DEL2c: 598 bytes and the blank line, the section's last
 ]
 
 
@@ -1111,9 +1113,10 @@ def test_the_section_ends_with_the_record_format_sentence():
     # v1.657, row PROD1e: the sentence on calls from a coroutine follows it; v1.658, row LOG1: the sentence on the
     # record format follows that; v1.663, row JUDGE1bbb: the paragraph on consensus labels follows that; v1.675,
     # row JUDGE2c: the paragraph on the self-consistency minimum follows that; v1.680, row PROD1j: the paragraph
-    # on the pair route follows that)
+    # on the pair route follows that; v1.690, row DEL2c: the paragraph on following delegation advice follows that)
     found = paragraphs(read("README.md"), PRODUCTION)
-    assert found[-1].startswith(PAIR_LEAD)
+    assert found[-1].startswith(FOLLOW_LEAD)
+    assert found[found.index(paragraph(FOLLOW_LEAD)) - 1].startswith(PAIR_LEAD)
     assert found[found.index(paragraph(PAIR_LEAD)) - 1].startswith(CONSISTENCY_LEAD)
     assert found[found.index(paragraph(CONSISTENCY_LEAD)) - 1].startswith(CONSENSUS_LEAD)
     assert found[found.index(paragraph(CONSENSUS_LEAD)) - 1].startswith(FORMAT_LEAD)
@@ -1602,8 +1605,9 @@ def test_the_v1_673_two_are_pointer_paragraphs_and_the_section_under_its_cap():
     assert found == NEW_BYTES_V1_673 and all(n <= POINTER_CAP for n in found.values())
     assert sum(OLD_BYTES_V1_673.values()) - sum(found.values()) == CUT_V1_673 == SECTION_V1_666 - SECTION_V1_673
     # v1.680 (row PROD1j) adds its paragraph in the room v1.673 and v1.674 made, so the section less it is at most
-    # v1.673's bytes; v1.682 (row PROD1k) grows it, so the section less it subtracts the growth too
-    assert (size(read("README.md"), PRODUCTION) - ADDED_V1_680 - GROWN_V1_682 <= SECTION_V1_673
+    # v1.673's bytes; v1.682 (row PROD1k) grows it, so the section less it subtracts the growth too, and v1.690
+    # (row DEL2c) adds its paragraph after it, so the section less both
+    assert (size(read("README.md"), PRODUCTION) - ADDED_V1_680 - GROWN_V1_682 - ADDED_V1_690 <= SECTION_V1_673
             < PRODUCTION_CAP == 30_000)
     for lead, (first, names, pointer) in POINTERS_V1_673.items():
         assert pointer_problems(paragraph(lead), first, names, pointer) == [], lead
@@ -1775,11 +1779,13 @@ def test_the_v1_674_one_is_a_pointer_paragraph_and_the_section_at_most_26000_byt
     assert sum(OLD_BYTES_V1_674.values()) - sum(found.values()) == CUT_V1_674 == SECTION_V1_673 - SECTION_V1_674
     # review iter-531 nit 2: the section is pinned to its bytes, so a later change to it restates this test;
     # v1.675 (row JUDGE2c) spends some of the room v1.674 made, by its paragraph and the pin paragraph's clause,
-    # and v1.680 (row PROD1j) more, by its paragraph, and v1.682 (row PROD1k) more, by that paragraph's clause
+    # and v1.680 (row PROD1j) more, by its paragraph, and v1.682 (row PROD1k) more, by that paragraph's clause,
+    # and v1.690 (row DEL2c) more, by its paragraph
     assert SECTION_V1_674 <= TARGET_V1_674 < PRODUCTION_CAP == 30_000 and PRODUCTION_CAP - SECTION_V1_674 == 4_054
     assert SECTION_V1_674 + ADDED_V1_675 == SECTION_V1_675
     assert SECTION_V1_675 + ADDED_V1_680 == SECTION_V1_680
-    assert size(read("README.md"), PRODUCTION) == SECTION_V1_680 + GROWN_V1_682 == SECTION_V1_682
+    assert SECTION_V1_680 + GROWN_V1_682 == SECTION_V1_682
+    assert size(read("README.md"), PRODUCTION) == SECTION_V1_682 + ADDED_V1_690 == SECTION_V1_690
 
 
 def test_the_v1_674_one_keeps_its_lead_its_names_and_its_pointer():
@@ -1906,10 +1912,12 @@ def test_the_v1_675_paragraph_and_clause_and_the_section_at_its_bytes():
     assert len(pin.encode("utf-8")) == NEW_BYTES_V1_666[PIN_LEAD] + GROWN_V1_675[PIN_LEAD] == 1_793
     assert pin.count("rules 1 to 5h of `DESIGN.md` 5.2") == 1 and "5f" not in pin
     # the section is pinned to its bytes, so a later change to it restates this test (review iter-531 nit 2):
-    # v1.680 (row PROD1j) adds its paragraph after this one, and v1.682 (row PROD1k) grows that paragraph
+    # v1.680 (row PROD1j) adds its paragraph after this one, v1.682 (row PROD1k) grows that paragraph, and v1.690
+    # (row DEL2c) adds its paragraph after that one
     assert SECTION_V1_675 == SECTION_V1_674 + ADDED_V1_675 < PRODUCTION_CAP == 30_000
     assert PRODUCTION_CAP - SECTION_V1_675 == 3_156
-    assert size(text, PRODUCTION) == SECTION_V1_675 + ADDED_V1_680 + GROWN_V1_682 == SECTION_V1_682
+    assert SECTION_V1_675 + ADDED_V1_680 + GROWN_V1_682 == SECTION_V1_682
+    assert size(text, PRODUCTION) == SECTION_V1_682 + ADDED_V1_690 == SECTION_V1_690
     assert size(without_later(text), PRODUCTION) == 20_343
 
 
@@ -1945,13 +1953,15 @@ SECTION_V1_680 = 27_433
 
 def test_the_v1_680_paragraph_and_the_section_at_its_bytes():
     text = read("README.md")
-    # v1.682 (row PROD1k) grows the paragraph by its budgets clause, so LATER's ninth entry and the section add it
-    assert LATER[8] == LATER[-1] == (PAIR_LEAD, ADDED_V1_680 + GROWN_V1_682) and len(LATER) == 9
+    # v1.682 (row PROD1k) grows the paragraph by its budgets clause, so LATER's ninth entry and the section add it;
+    # v1.690 (row DEL2c) appends the tenth entry, the section's last
+    assert LATER[8] == (PAIR_LEAD, ADDED_V1_680 + GROWN_V1_682) and len(LATER) == 10
     assert len(paragraph(PAIR_LEAD).encode("utf-8")) == PAIR_BYTES_V1_680 + GROWN_V1_682 <= PAIR_CAP_V1_680
     # the section is pinned to its bytes, so a later change to it restates this test (review iter-531 nit 2)
     assert SECTION_V1_680 == SECTION_V1_675 + ADDED_V1_680 < PRODUCTION_CAP == 30_000
     assert PRODUCTION_CAP - SECTION_V1_680 == 2_567
-    assert size(text, PRODUCTION) == SECTION_V1_680 + GROWN_V1_682 == SECTION_V1_682
+    assert SECTION_V1_680 + GROWN_V1_682 == SECTION_V1_682
+    assert size(text, PRODUCTION) == SECTION_V1_682 + ADDED_V1_690 == SECTION_V1_690
     # the paragraph is in LATER, so the section less LATER keeps v1.675's bytes
     assert size(without_later(text), PRODUCTION) == 20_343
 
@@ -1997,9 +2007,11 @@ def test_the_v1_682_paragraph_and_the_section_at_its_bytes():
     assert len(CLAUSE_V1_682.encode("utf-8")) - (len(old) - len(new)) - 1 == GROWN_V1_682
     assert len(pair.encode("utf-8")) == PAIR_BYTES_V1_682 == PAIR_BYTES_V1_680 + GROWN_V1_682 <= PAIR_CAP_V1_680
     assert LATER[8] == (PAIR_LEAD, PAIR_BYTES_V1_682 + 2)
-    # the section is pinned to its bytes, so a later change to it restates this test (review iter-531 nit 2)
-    assert size(text, PRODUCTION) == SECTION_V1_682 == SECTION_V1_680 + GROWN_V1_682 < PRODUCTION_CAP == 30_000
+    # the section is pinned to its bytes, so a later change to it restates this test (review iter-531 nit 2):
+    # v1.690 (row DEL2c) adds its paragraph after this one
+    assert SECTION_V1_682 == SECTION_V1_680 + GROWN_V1_682 < PRODUCTION_CAP == 30_000
     assert PRODUCTION_CAP - SECTION_V1_682 == 2_554
+    assert size(text, PRODUCTION) == SECTION_V1_682 + ADDED_V1_690 == SECTION_V1_690
     # the paragraph is in LATER, so the section less LATER keeps v1.675's bytes
     assert size(without_later(text), PRODUCTION) == 20_343
     # README names no DESIGN version, so the clause names none either
@@ -2029,5 +2041,49 @@ def test_design_states_v1_682_and_the_changelog_the_version():
     [line] = [x for x in read("CHANGELOG.md").splitlines() if x.startswith("- v1.682 (")]
     assert line.startswith("- v1.682 (2026-11-27): docs and tests (5.2, row PROD1k). ")
     assert line.count(", so the section is 27,446 bytes, 2,554 under the 30,000-byte cap. ") == 1
+    assert line.endswith(" README.md transcripts and every evidence file keep their bytes.")
+    assert len(line.encode("utf-8")) <= 600
+
+
+# --- v1.690 (row DEL2c, the remainder of row DEL2b): following delegation advice -----------------------------
+
+# the new paragraph's own bytes, LATER's tenth entry less its blank line; tests/test_delegation_follow_docs.py
+# checks its claims, its names and its link
+FOLLOW_BYTES_V1_690, FOLLOW_CAP_V1_690 = 598, 600
+ADDED_V1_690 = FOLLOW_BYTES_V1_690 + 2
+SECTION_V1_690 = 28_046
+
+
+def test_the_v1_690_paragraph_and_the_section_at_its_bytes():
+    text = read("README.md")
+    assert LATER[9] == LATER[-1] == (FOLLOW_LEAD, ADDED_V1_690) and len(LATER) == 10
+    assert len(paragraph(FOLLOW_LEAD).encode("utf-8")) == FOLLOW_BYTES_V1_690 <= FOLLOW_CAP_V1_690
+    # the section is pinned to its bytes, so a later change to it restates this test (review iter-531 nit 2)
+    assert size(text, PRODUCTION) == SECTION_V1_690 == SECTION_V1_682 + ADDED_V1_690 < PRODUCTION_CAP == 30_000
+    assert PRODUCTION_CAP - SECTION_V1_690 == 1_954
+    # the paragraph is in LATER, so the section less LATER keeps v1.675's bytes
+    assert size(without_later(text), PRODUCTION) == 20_343
+    # README names no DESIGN version, so the paragraph names none either
+    assert "v1." not in text
+
+
+def test_design_states_v1_690_and_the_changelog_the_version():
+    design = read("DESIGN.md")
+    five2 = subsection(design, "### 5.2 ")
+    [mine] = [line for line in five2.splitlines()
+              if line.startswith("- v1.690 README delegation follow (row DEL2c, the remainder of row DEL2b; ")]
+    for kept in ("ends with one paragraph of at most 600 bytes on checking whether an agent takes the hand-offs it "
+                 "is advised to, right after the one on the pair route (v1.680, v1.682)",
+                 "The new paragraph is 598 bytes, the tenth entry of tests/test_readme_trim.py's `LATER`",
+                 "so the section is 28,046 bytes by the 12.8 measure, 1,954 under v1.629's 30,000-byte cap, which stays",
+                 "the section less `LATER` stays 20,343",
+                 "No package module, evidence file or README transcript changes."):
+        assert mine.count(kept) == 1, kept
+    lines = five2.splitlines()
+    assert lines[lines.index(mine) - 1].startswith("- v1.682 README pair paragraph and budgets (row PROD1k, ")
+    assert len(mine.encode("utf-8")) <= 6_000 and "\u2014" not in mine and "\u2013" not in mine
+    [line] = [x for x in read("CHANGELOG.md").splitlines() if x.startswith("- v1.690 (")]
+    assert line.startswith("- v1.690 (2026-11-27): docs and tests (5.2, row DEL2c). ")
+    assert line.count(", so the section is 28,046 bytes, 1,954 under the 30,000-byte cap. ") == 1
     assert line.endswith(" README.md transcripts and every evidence file keep their bytes.")
     assert len(line.encode("utf-8")) <= 600

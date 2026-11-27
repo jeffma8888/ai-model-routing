@@ -241,12 +241,14 @@ def test_design_states_v1_689_in_10_and_the_changelog_the_version():
                  "`error: --tasks needs --opportunities or --delegation: only the savings and delegation reports "
                  "read it`", "a None as `n/a` and a key the row lacks as `-`",
                  "Without `--delegation` every other output keeps its bytes",
-                 "Not in this version: the README sentence (row DEL2c)."):
+                 # v1.690 (row DEL2c) adds the README sentence, tests/test_delegation_follow_docs.py
+                 "Not in this version: the README sentence (row DEL2c, which v1.690 adds in 5.2)."):
         assert mine.count(kept) == 1, kept
     assert len(mine.encode("utf-8")) <= 6_000 and "\u2014" not in mine and "\u2013" not in mine
-    assert "`report --delegation` (row DEL2b), which v1.689 adds (10), and the README sentence (row DEL2c). " in seven
+    assert ("`report --delegation` (row DEL2b), which v1.689 adds (10), and the README sentence (row DEL2c, which "
+            "v1.690 adds in 5.2). ") in seven
     assert ("  - Not in this version: `report --delegation` (row DEL2b), which v1.689 adds (10), and the README "
-            "sentence (row DEL2c). ") in eight3
+            "sentence (row DEL2c, which v1.690 adds in 5.2). ") in eight3
     [line] = [x for x in (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").splitlines() if x.startswith("- v1.689 (")]
     assert line.startswith("- v1.689 (2026-11-27): spec, code, tests and docs (10, row DEL2b). ")
     assert len(line.encode("utf-8")) <= 600
@@ -262,9 +264,16 @@ def test_the_production_lessons_line_says_the_command_ships_and_the_cap_is_the_c
     assert "that report on the command line" not in line
 
 
-def test_no_evidence_or_research_script_workflow_or_readme_runs_it():
+def test_no_evidence_or_research_script_or_workflow_runs_it_and_readme_names_it_once():
     paths = [p for d in ("evidence", "research") for p in (ROOT / d).rglob("*.py")]
-    paths += list((ROOT / ".github" / "workflows").glob("*.yml")) + [ROOT / "README.md"]
+    paths += list((ROOT / ".github" / "workflows").glob("*.yml"))
     assert len(paths) > 10
     for path in paths:
         assert "--delegation" not in path.read_text(encoding="utf-8"), path
+    # v1.690 (row DEL2c): README names it once, in the paragraph on following delegation advice, in no transcript,
+    # tests/test_delegation_follow_docs.py
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    [line] = [l for l in readme.splitlines() if "--delegation" in l]
+    assert line.startswith("An agent's hand-offs can be checked against the advice: ")
+    assert line.count("--delegation") == 1
+    assert "$ model-routing report" not in line
