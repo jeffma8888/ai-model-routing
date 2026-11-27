@@ -367,7 +367,8 @@ def test_design_and_the_changelog_state_the_version():
             ("## 10. ", "## 11. ", "  - v1.611 `--shadow` (row CANARY1c)")]:
         part = design[design.index(start):design.index(end)]
         assert part.count(opening) == 1, start
-    assert "- `report --log PATH [--by KEY] [--json] [--audits PATH] [--cache] [--shadow]`" in design
+    # v1.693 (row CACHE2b) adds `[--anomalies]` after `[--shadow]`
+    assert "- `report --log PATH [--by KEY] [--json] [--audits PATH] [--cache] [--shadow] [--anomalies]`" in design
     assert "(row CANARY1c, which v1.611 adds as `shadow=True`, 8.3;" in design
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").splitlines()
     mine = [line for line in changelog if line.startswith("- v1.611 (")]

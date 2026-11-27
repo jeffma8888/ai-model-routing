@@ -258,8 +258,9 @@ def lesson_lines():
     return lines
 
 
-# review iter-552 nit 1: named for what v1.692 leaves planned, the switch and the check's count in `report`
-def test_the_cache_lessons_plan_only_the_switch_and_the_report_count():
+# review iter-552 nit 1: named for what is left planned; v1.693 (row CACHE2b): the check's count in `report`
+# ships too, so only the switch is
+def test_the_cache_lessons_plan_only_the_switch():
     lines = lesson_lines()
     planned = {h: line.count("planned") for h, line in lines.items() if "planned" in line}
     # v1.692 (row CACHE2a): the monitor check ships, so only the switch is planned, tests/test_cache_miss.py
@@ -269,11 +270,9 @@ def test_the_cache_lessons_plan_only_the_switch_and_the_report_count():
             "calls falls under a floor the task sets, `min_cache_hit_rate`.") in prefix
     assert "a planned change also prices a call moved to another model mid-session" in prefix
     changes = {h: line.split("The change: ", 1)[1] for h, line in lines.items() if "The change" in line}
-    assert list(changes) == [CACHE_LESSONS[5]]
     # v1.596 (row B1b): the budget that refuses or moves a call is shipped; v1.692 (row CACHE2a): so is the
-    # check, so only its count in `report` is planned (row CACHE2b)
-    # v1.692 (row CACHE2a): the check ships, so its count in `report` is the change left (row CACHE2b)
-    assert changes[CACHE_LESSONS[5]] == "a count of those records in `report`."
+    # check; v1.693 (row CACHE2b): so is its count in `report`, so no cache lesson names a change left
+    assert changes == {}
     for line in lines.values():
         assert "The changes" not in line and "measured cached and written tokens per task and model" not in line
 
@@ -286,7 +285,8 @@ def test_the_bill_lesson_says_report_cache_gives_the_hit_rate():
             "still clears the bar (v1.596), as in the Uber lesson on spend tiers. From v1.692 a `Monitor` "
             "given the tasks writes an anomaly record, and calls an optional callback, when a task and model's "
             "hit rate over its last `cache_miss_calls` attempts with a count falls under the task's "
-            "`min_cache_hit_rate`.") in lesson_lines()[CACHE_LESSONS[5]]
+            "`min_cache_hit_rate`, and from v1.693 `report --anomalies` gives each model's or task's count of "
+            "those records.") in lesson_lines()[CACHE_LESSONS[5]]
 
 
 def test_the_delegation_decision_still_passes_no_measured_count():
