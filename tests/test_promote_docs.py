@@ -91,7 +91,8 @@ def test_the_paragraph_follows_the_two_on_budgets_and_precedes_the_one_on_thread
     body = production()
     at = body.index("\n\n" + OPENING)
     assert body.index("\n\n" + LAST_BUDGET) < at
-    assert body[:at].rstrip().endswith("not a measurement of this library.")
+    # v1.673 (row PROD1ibbba): the second on budgets is a pointer paragraph that ends with its pointer
+    assert body[:at].rstrip().endswith("(`DESIGN.md` 4.6, 7, 8.1, 8.3, 10 and 11).")
     assert body.index(DEMO) > at and body.index(CALIBRATE) > body.index(DEMO)
     assert body.index(PROMOTE) > body.index(CALIBRATE) and body.index(AFTER) > body.index(PROMOTE)
     # review iter-454 should-fix 3: the last sentence says the hold is the point and nothing was switched;

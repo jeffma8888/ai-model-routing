@@ -72,7 +72,17 @@ def test_the_paragraph_follows_the_scope_paragraph_and_ends_the_part():
 
 def test_the_paragraph_names_each_field_option_and_section():
     text = paragraph()
-    for kept in ("`price_cached_in` and `price_cache_write`, USD per 1M input tokens",
+    # v1.673 (row PROD1ibbba): a pointer paragraph, so it keeps the two prices, the two counts and its pointer; each
+    # clause it drops is DESIGN 4.1's, 4.3's, 5.1's, 5.2's, 6's or 8.3's (tests/test_readme_trim.py DROPPED_V1_673)
+    for kept in ("A `models.json` row may give `price_cached_in` and `price_cache_write`, and a results line its "
+                 "`cached_input_tokens` and `cache_write_tokens` (`DESIGN.md` 4.1, 4.3, 5.1, 5.2, 6, 7, 8.3 and 10). ",):
+        assert text.count(kept) == 1, kept
+    assert len(text.encode("utf-8")) <= 400
+
+
+def test_the_v1_594_clauses_left_the_paragraph():
+    text = paragraph()
+    for gone in ("`price_cached_in` and `price_cache_write`, USD per 1M input tokens",
                  # review iter-442 should-fix 3 and 2
                  "except a row with `price_tiers` or a self-hosted one, which may hold neither",
                  "an absent one is the input price, and a candidate that priced a measured count "
@@ -92,7 +102,7 @@ def test_the_paragraph_names_each_field_option_and_section():
                  "An adapter for another API keeps `input_tokens` inclusive",
                  "returns the sum of `input_tokens`, `cache_read_input_tokens` and "
                  "`cache_creation_input_tokens` as the input (`DESIGN.md` 4.1, 4.3, 5.1, 5.2, 6, 7, 8.3 and 10)"):
-        assert text.count(kept) == 1, kept
+        assert gone not in text, gone
 
 
 def test_the_names_it_gives_are_the_librarys(capsys):
@@ -114,8 +124,10 @@ def test_the_names_it_gives_are_the_librarys(capsys):
 def test_the_manus_line_is_the_notes_word_for_word_and_its_link_resolves():
     note = read("research/production-lessons.md")
     text = paragraph()
-    assert text.endswith("Manus: " + MANUS + " ([production lessons]"
-                         "(research/production-lessons.md#the-cache-hit-rate-is-a-cost-number))")
+    # v1.673 (row PROD1ibbba): the quote stays in the note's lesson, which the pointer paragraph links by its heading
+    assert MANUS not in text and "Manus" not in text
+    assert text.endswith(" [The cache hit rate is a cost number]"
+                         "(research/production-lessons.md#the-cache-hit-rate-is-a-cost-number).")
     lesson = note.split("\n### The cache hit rate is a cost number\n", 1)[1].split("\n### ", 1)[0]
     assert lesson.count("Manus: " + MANUS + " ([Manus](https://manus.im/blog/") == 1
     assert slug("The cache hit rate is a cost number") == "the-cache-hit-rate-is-a-cost-number"

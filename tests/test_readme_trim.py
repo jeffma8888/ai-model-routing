@@ -97,6 +97,14 @@ calls are cut again, from 1,708 and 1,751 bytes to 1,628 and 1,724, so the secti
 lead, every name in backticks (NAMES, NAMES_V1_651), its quote and links and every clause an earlier test keeps;
 DROPPED_V1_666 holds each clause it drops or rewords, as v1.665 (48a41e9) wrote it, pinned to the line of 4.7, 5.2,
 7 or 10 that states it. These tests failed on v1.665's README and pass on v1.666's.
+
+DESIGN 5.2 v1.673 (row PROD1ibbba, the first part of row PROD1ibbb): the second paragraph on budgets and the one on
+the prompt cache become pointer paragraphs by row PROD1ibbb's rule, from 1,455 and 1,586 bytes to 399 and 394, so the
+section is 27,030 bytes. Each keeps its lead sentence, its option's names in backticks and its one `DESIGN.md`
+pointer (POINTERS_V1_673), at most 400 bytes; DROPPED_V1_673 pins each clause and name it drops, as v1.666 (def0b69)
+wrote it, to the line of 3, 4.1, 4.3, 4.6, 5.1, 5.2, 6, 7, 8.3 or 10 that states it, and QUOTES_V1_673 each quote to
+the note's lesson that keeps it. The v1.648 and v1.650 names tests leave the two to these tests. These tests failed
+on v1.666's README and pass on v1.673's.
 """
 
 from pathlib import Path
@@ -470,7 +478,7 @@ DROPPED_V1_652 = [
     (EST_LEAD, "The ledger is one process's: a limit shared by many processes still needs a gateway", "### 4.6 ",
      "a limit shared by many processes still needs a gateway or the provider's own"),
 ]
-ENDS = {"### 4.7 ": "\n## 5. ", "### 8.3 ": "\n## 9. ", "## 10. ": "\n## 11. ", "### 4.1 ": "\n### 4.2 ",
+ENDS = {"### 5.1 ": "\n### 5.2 ", "## 3. ": "\n## 4. ", "### 4.7 ": "\n## 5. ", "### 8.3 ": "\n## 9. ", "## 10. ": "\n## 11. ", "### 4.1 ": "\n### 4.2 ",
         "### 5.2 ": "\n### 5.3 ", "## 6. ": "\n## 7. ", "## 7. ": "\n## 8. ", "## 11. ": "\n## 12. ",
         "### 4.3 ": "\n### 4.4 ", "### 4.5 ": "\n### 4.6 ", "### 4.6 ": "\n### 4.7 ",
         "### 8.1 ": "\n### 8.2 ", "### 4.2 ": "\n### 4.3 ", "### 8.2 ": "\n### 8.3 "}
@@ -591,7 +599,8 @@ def test_the_three_paragraphs_are_shorter_and_the_section_under_its_cap():
 
 
 def test_the_three_keep_their_leads_their_names_their_quotes_and_their_links():
-    for lead in OLD_BYTES_V1_648:
+    # v1.673 (row PROD1ibbba): the cache one is a pointer paragraph, which the v1.673 tests hold
+    for lead in [lead for lead in OLD_BYTES_V1_648 if lead not in POINTERS_V1_673]:
         text = paragraph(lead)
         names = []
         for name in text.split("`")[1::2]:
@@ -723,7 +732,8 @@ def test_the_v1_650_three_are_shorter_and_the_section_under_its_cap():
 
 
 def test_the_v1_650_three_keep_their_leads_their_names_their_quotes_and_their_links():
-    for lead in OLD_BYTES_V1_650:
+    # v1.673 (row PROD1ibbba): the second on budgets is a pointer paragraph, which the v1.673 tests hold
+    for lead in [lead for lead in OLD_BYTES_V1_650 if lead not in POINTERS_V1_673]:
         text = paragraph(lead)
         names = []
         for name in text.split("`")[1::2]:
@@ -752,7 +762,9 @@ def test_the_v1_650_check_fails_on_a_clause_still_there_or_a_phrase_elsewhere():
     assert "by default `report` puts a shadow attempt's time in its group's percentiles" in paragraph(LAT_LEAD)
     assert "its output the slice's or the task's `expected_output_tokens`" in paragraph(BUDGET_LEAD)
     assert "so its spend stays under its limit while providers bill within the bound" in paragraph(EST_LEAD)
-    assert "its policy, for which it gives no saving, not a measurement of this library" in paragraph(EST_LEAD)
+    # v1.673 (row PROD1ibbba): the Uber quotes leave with their caveat, which the note's lesson states
+    assert "its policy, for which it gives no saving" not in paragraph(EST_LEAD)
+    assert "neither source gives a saving for its policy" in read("research/production-lessons.md")
     assert "a parent whose own time on the task is above the bar, or unknown under `deny`" in paragraph(LAT_LEAD)
     assert "so tokens a provider bills for a failed call are in no budget" not in subsection(design, "### 4.6 ")
     assert "Why after 5d" not in subsection(design, "## 7. ")
@@ -855,8 +867,9 @@ def test_the_v1_652_nine_are_shorter_and_the_section_at_most_24000_bytes():
     found = {lead: len(paragraph(lead).encode("utf-8")) for lead in OLD_BYTES_V1_652}
     # v1.653 (row PROD1h) changes five of the nine again, which NEW_BYTES_V1_653 holds; the four it left keep their
     # v1.652 bytes (review iter-508 nit 1); v1.665 (row PROD1iba) cuts two again, which NEW_BYTES_V1_665 holds,
-    # and v1.666 (row PROD1ibba) the `promote` one, which NEW_BYTES_V1_666 holds
-    later = {**NEW_BYTES_V1_653, **NEW_BYTES_V1_665, **NEW_BYTES_V1_666}
+    # and v1.666 (row PROD1ibba) the `promote` one, which NEW_BYTES_V1_666 holds; v1.673 (row PROD1ibbba) makes the
+    # second on budgets and the cache one pointer paragraphs, which NEW_BYTES_V1_673 holds
+    later = {**NEW_BYTES_V1_653, **NEW_BYTES_V1_665, **NEW_BYTES_V1_666, **NEW_BYTES_V1_673}
     assert {k: v for k, v in found.items() if k not in later} == {
         k: v for k, v in NEW_BYTES_V1_652.items() if k not in later}
     assert all(found[k] == later[k] for k in found if k in later)
@@ -870,7 +883,8 @@ def test_the_v1_652_nine_keep_their_quotes_and_links_and_no_dash():
     for lead in OLD_BYTES_V1_652:
         text = paragraph(lead)
         assert text.startswith(lead), lead
-        assert text.count("](") == {PROMOTE_LEAD: 2, EST_LEAD: 2, SHADOW_LEAD: 0, LAT_LEAD: 0}.get(lead, 1), lead
+        # v1.673 (row PROD1ibbba): the second on budgets keeps no link, and the cache one its lesson's
+        assert text.count("](") == {PROMOTE_LEAD: 2, EST_LEAD: 0, SHADOW_LEAD: 0, LAT_LEAD: 0}.get(lead, 1), lead
         assert "\u2014" not in text and "\u2013" not in text
 
 
@@ -890,7 +904,9 @@ def test_the_v1_652_check_fails_on_a_clause_still_there_or_a_phrase_elsewhere():
     # kept on purpose: what each paragraph's claim rests on stays in it
     assert "a named one need not clear the bar. Once the routed call has returned" in paragraph(SHADOW_LEAD)
     assert "With no `shadow_runner` the shadow runs before `.call` returns. " in paragraph(SHADOW_LEAD)
-    assert "Only reported counts are priced as hits, never a repeated prompt. " in paragraph(CACHE_LEAD)
+    # v1.673 (row PROD1ibbba): the cache one is a pointer paragraph, and DESIGN 4.1 states it (DROPPED_V1_673)
+    assert "Only reported counts are priced as hits" not in paragraph(CACHE_LEAD)
+    assert "a repeated prompt is never assumed to hit" in subsection(design, "### 4.1 ")
     assert "so a flag is a reason to audit more calls, not proof of a change (" in paragraph(DRIFT_LEAD)
     # the one-process ledger leaves the section but not the README: Limitations still says it
     limits = readme[readme.index("\n## Limitations and non-goals (v1)\n"):readme.index("\n## Layout\n")]
@@ -979,10 +995,11 @@ def test_the_v1_653_seven_and_the_section_at_most_24000_bytes():
     assert found == {k: later.get(k, v) for k, v in NEW_BYTES_V1_653.items()}
     assert sum(OLD_BYTES_V1_653.values()) - sum(NEW_BYTES_V1_653.values()) == 16
     # v1.654 (row OPP1c) adds a sentence in the room under the cap; the section less LATER (v1.655, row T30)
-    # keeps v1.653's bytes, less what v1.665 (row PROD1iba) and v1.666 (row PROD1ibba) cut, and LATER's entries
-    # are the rest
+    # keeps v1.653's bytes, less what v1.665 (row PROD1iba), v1.666 (row PROD1ibba) and v1.673 (row PROD1ibbba) cut,
+    # and LATER's entries are the rest
     text = read("README.md")
-    assert size(without_later(text), PRODUCTION) == 23_976 - CUT_V1_665 - CUT_V1_666 <= TARGET < PRODUCTION_CAP == 30_000
+    assert (size(without_later(text), PRODUCTION) == 23_976 - CUT_V1_665 - CUT_V1_666 - CUT_V1_673 == 21_358
+            <= TARGET < PRODUCTION_CAP == 30_000)
     assert size(text, PRODUCTION) - size(without_later(text), PRODUCTION) == sum(b for _, b in LATER)
     assert LATER[0] == (SAVINGS_LEAD, 714)  # v1.654's paragraph, its own 712 bytes and the blank line
 
@@ -1434,4 +1451,197 @@ def test_design_states_v1_666_and_the_changelog_the_version():
     assert len(mine.encode("utf-8")) <= 6_000 and "\u2014" not in mine and "\u2013" not in mine
     [line] = [x for x in read("CHANGELOG.md").splitlines() if x.startswith("- v1.666 (")]
     assert line.startswith("- v1.666 (2026-11-26): docs and tests (5.2, row PROD1i, third part). ")
+    assert len(line.encode("utf-8")) <= 600
+
+
+# --- v1.673 (row PROD1ibbba, the first part of row PROD1ibbb): two pointer paragraphs ---------------
+
+# the second on budgets and the one on the prompt cache, as v1.666 (def0b69) left them and as v1.673 leaves them
+OLD_BYTES_V1_673 = {EST_LEAD: 1_455, CACHE_LEAD: 1_586}
+NEW_BYTES_V1_673 = {EST_LEAD: 399, CACHE_LEAD: 394}
+CUT_V1_673, SECTION_V1_673, POINTER_CAP = 2_248, 27_030, 400
+# row PROD1ibbb's rule (SCOUT iter 530): a pointer paragraph keeps its lead sentence, the names in backticks of the
+# option it introduces and its one pointer to DESIGN, and is at most POINTER_CAP bytes
+POINTERS_V1_673 = {
+    EST_LEAD: ("The estimate is no bound: a call that reads or writes more than its estimate costs more than its hold, "
+               "so a `refuse` budget can end past its limit by the overrun of the calls in flight. ",
+               ["refuse", "strict=True", "billing_bound", "DESIGN.md"],
+               "(`DESIGN.md` 4.6, 7, 8.1, 8.3, 10 and 11)."),
+    CACHE_LEAD: (CACHE_LEAD, ["models.json", "price_cached_in", "price_cache_write", "cached_input_tokens",
+                              "cache_write_tokens", "DESIGN.md"],
+                 "(`DESIGN.md` 4.1, 4.3, 5.1, 5.2, 6, 7, 8.3 and 10). "),
+}
+# what each keeps besides: a strict budget's promise, and the cache lesson's link by its heading
+KEPT_V1_673 = {EST_LEAD: ["A `strict=True` budget holds each call's `billing_bound` instead and refuses one it cannot "
+                          "bound, so its spend stays under its limit while providers bill within the bound "],
+               CACHE_LEAD: ["[The cache hit rate is a cost number](research/production-lessons.md#the-cache-hit-rate-is-a-"
+                            "cost-number)."]}
+# each clause and name v1.673 drops, as v1.666 wrote it, the behavioural DESIGN subsection that states it, and a phrase
+# of the line there that says it
+DROPPED_V1_673 = [
+    (EST_LEAD, "the most it can cost given a `max_tokens`, `max_completion_tokens` or `max_output_tokens` in its route's "
+     "`provider_options` and its model's context window", "### 4.6 ",
+     "its `provider_options` hold at least one of `max_tokens`, `max_completion_tokens` and `max_output_tokens`"),
+    (EST_LEAD, "it charges that bound for a call that raised anything but a provider error", "## 7. ",
+     "releases with `.settle_unpriced`, not `.settle` at 0.0, a hold whose provider call raised"),
+    (EST_LEAD, "With a monitor the executor writes each warn crossing and each refusal to the log as a budget record",
+     "## 7. ", "with a ledger and a monitor, the executor writes a budget record (8.1 v1.598)"),
+    (EST_LEAD, "which `report` skips", "### 8.3 ",
+     "`report` drops every record with a `budget_event` key (8.1 v1.598) before it reads any"),
+    (EST_LEAD, "`budget_report(records, budgets)` gives each budget's `budget_used_pct`", "### 8.3 ",
+     "gives each budget's spend in each window as a percent of its limit, the row's `budget_used_pct`"),
+    (EST_LEAD, "as the example at the end of [Monitoring and cost attribution](#monitoring-and-cost-attribution) shows",
+     "## 3. ", "a fourth block, at the end of `## Monitoring and cost attribution`"),
+    (EST_LEAD, "`model-routing demo --budgets FILE` runs the demo under a file of budgets and exits 4 when a call is "
+     "refused", "## 10. ", "the demo ends at that call and the command exits 4 with one line on stderr"),
+    (CACHE_LEAD, "USD per 1M input tokens its provider reads from and writes to the prompt cache", "### 4.1 ",
+     "USD per 1M input tokens that the provider serves from its prompt cache (a cached read) and that it writes to the "
+     "cache (a cache write)"),
+    (CACHE_LEAD, "except a row with `price_tiers` or a self-hosted one, which may hold neither", "### 4.1 ",
+     "A model with `price_tiers` holding either raises `ValueError`"),
+    (CACHE_LEAD, "an absent one is the input price", "### 4.1 ",
+     "the `price_cached_in` and `price_cache_write`, each `p_in` when `None`"),
+    (CACHE_LEAD, "names the absent field in `cache_price_unknown`", "### 5.1 ",
+     "that are `None` on the model while its own measured count is above 0, so those tokens were priced at the call's "
+     "input price"),
+    (CACHE_LEAD, "beside its `input_tokens` and `output_tokens`", "### 4.3 ",
+     "`calibrate_from_results`: a row may carry `cached_input_tokens` and `cache_write_tokens`, either or both, only "
+     "beside its `input_tokens` and `output_tokens`"),
+    (CACHE_LEAD, "counted inside its `input_tokens`", "### 4.3 ",
+     "since a call's cached reads and cache writes are input tokens of it (4.1 v1.587)"),
+    (CACHE_LEAD, "and once a model has them on a task it is priced there at their means", "### 5.2 ",
+     "`cached` and `write` are `stats.mean_cache_tokens` (4.3 v1.588)"),
+    (CACHE_LEAD, "the four parts in its candidate's `cost_breakdown`", "### 5.1 ",
+     "the USD parts of its `list_cost` (uncached input, cached reads, cache writes, output)"),
+    (CACHE_LEAD, "Only reported counts are priced as hits, never a repeated prompt.", "### 4.1 ",
+     "a repeated prompt is never assumed to hit"),
+    (CACHE_LEAD, "The inline-or-sub-agent decision reads only `--cached-read-ratio`.", "## 6. ",
+     "the delegation costs of 13.2 read no measured cache count"),
+    (CACHE_LEAD, "`OpenAICompatibleProvider` maps `usage.prompt_tokens_details.cached_tokens`", "## 6. ",
+     "`OpenAICompatibleProvider.complete` reads `usage.prompt_tokens_details.cached_tokens`"),
+    (CACHE_LEAD, "`report --cache` gives each group's `cache_hit_rate`", "### 8.3 ",
+     "and `cache_hit_rate`, the first over the second"),
+    (CACHE_LEAD, "An adapter for another API keeps `input_tokens` inclusive", "## 6. ",
+     "an adapter of another API fills `Completion` by 4.1 v1.587's inclusive rule"),
+    (CACHE_LEAD, "Anthropic's Messages API counts cache reads and writes outside its `usage.input_tokens`", "## 6. ",
+     "Anthropic's Messages API gives `usage.input_tokens` as the"),
+    (CACHE_LEAD, "so its adapter returns the sum of `input_tokens`, `cache_read_input_tokens` and "
+     "`cache_creation_input_tokens` as the input", "## 6. ", "so its adapter returns the sum of the three as `input_tokens`"),
+]
+# each quote v1.673 drops, as v1.666 wrote it, and the lesson of research/production-lessons.md that keeps it word for
+# word; the 5.2 bullet names the lesson (no behavioural subsection quotes a source)
+UBER_CAPS = '"To avoid imposing strict caps, we implemented real-time spend tracking and automated nudges"'
+UBER_ALERTS = '"Alerts at 50/80/100% of expected spend so engineers have time to plan."'
+MANUS_V1_673 = ("\"If I had to choose just one metric, I'd argue that the KV-cache hit rate is the single most "
+                "important metric for a production-stage AI agent.\"")
+QUOTES_V1_673 = [(EST_LEAD, UBER_CAPS, "Spend tiers and nudges, not strict caps"),
+                 (EST_LEAD, UBER_ALERTS, "Spend tiers and nudges, not strict caps"),
+                 (CACHE_LEAD, MANUS_V1_673, "The cache hit rate is a cost number")]
+
+
+def v1_673_still_there(readme):
+    """Each DROPPED_V1_673 clause and QUOTES_V1_673 quote still in the paragraph it was dropped from."""
+    found = paragraphs(readme, PRODUCTION)
+    return [clause for lead, clause, *_ in DROPPED_V1_673 + QUOTES_V1_673
+            if any(p.startswith(lead) and clause in p for p in found)]
+
+
+def pointer_problems(text, first, names, pointer, cap=POINTER_CAP):
+    """What a pointer paragraph lacks by row PROD1ibbb's rule, in a fixed order; [] when it has all."""
+    problems = []
+    if len(text.encode("utf-8")) > cap:
+        problems.append(f"{len(text.encode('utf-8'))} bytes, over {cap}")
+    if not text.startswith(first):
+        problems.append("no lead sentence")
+    problems += [f"no `{n}`" for n in names if n not in text.split("`")[1::2]]
+    if text.count(pointer) != 1:
+        problems.append("no pointer")
+    if "\u2014" in text or "\u2013" in text:
+        problems.append("a dash")
+    return problems
+
+
+def test_the_v1_673_two_are_pointer_paragraphs_and_the_section_under_its_cap():
+    found = {lead: len(paragraph(lead).encode("utf-8")) for lead in OLD_BYTES_V1_673}
+    assert found == NEW_BYTES_V1_673 and all(n <= POINTER_CAP for n in found.values())
+    assert sum(OLD_BYTES_V1_673.values()) - sum(found.values()) == CUT_V1_673 == SECTION_V1_666 - SECTION_V1_673
+    assert size(read("README.md"), PRODUCTION) <= SECTION_V1_673 < PRODUCTION_CAP == 30_000
+    for lead, (first, names, pointer) in POINTERS_V1_673.items():
+        assert pointer_problems(paragraph(lead), first, names, pointer) == [], lead
+        assert all(paragraph(lead).count(kept) == 1 for kept in KEPT_V1_673[lead]), lead
+    # the budget one keeps no link and the cache one only its lesson's
+    assert paragraph(EST_LEAD).count("](") == 0 and paragraph(CACHE_LEAD).count("](") == 1
+
+
+def test_the_pointer_check_names_what_a_paragraph_lacks():
+    first, names, pointer = POINTERS_V1_673[CACHE_LEAD]
+    text = paragraph(CACHE_LEAD)
+    assert pointer_problems(text, first, names, pointer) == []
+    assert pointer_problems(text, first, names, pointer, cap=len(text.encode("utf-8")) - 1) == [
+        f"{len(text.encode('utf-8'))} bytes, over {len(text.encode('utf-8')) - 1}"]
+    assert pointer_problems(text.replace("`price_cache_write`", "price_cache_write"), first, names, pointer) == [
+        "no `price_cache_write`"]
+    assert pointer_problems(text.replace(pointer, "(`DESIGN.md` 4.1). "), first, names, pointer) == ["no pointer"]
+    assert pointer_problems(text.replace("A prompt cache", "The prompt cache", 1), first, names, pointer) == [
+        "no lead sentence"]
+    assert pointer_problems(text.replace(", and a results", " \u2014 and a results"), first, names, pointer) == [
+        "a dash"]
+
+
+def test_each_clause_and_quote_v1_673_dropped_is_gone_and_stated_where_it_lives():
+    design = read("DESIGN.md")
+    assert len(DROPPED_V1_673) == 22 and len(QUOTES_V1_673) == 3
+    assert v1_673_still_there(read("README.md")) == []
+    for lead, clause, heading, phrase in DROPPED_V1_673:
+        # a behavioural subsection, never a 5.2 history bullet of the README
+        [owner] = [line for line in subsection(design, heading).splitlines() if phrase in line]
+        assert "README" not in owner.split(":", 1)[0], (heading, phrase)
+    note = read("research/production-lessons.md")
+    for lead, quote, lesson in QUOTES_V1_673:
+        body = note.split(f"\n### {lesson}\n", 1)[1].split("\n### ", 1)[0]
+        assert body.count(quote) == 1, quote
+    # the section still links both lessons: step 7 the spend tiers, the cache pointer its own
+    section = "\n\n".join(paragraphs(read("README.md"), PRODUCTION))
+    assert section.count("(research/production-lessons.md#spend-tiers-and-nudges-not-strict-caps)") == 1
+    assert section.count("(research/production-lessons.md#the-cache-hit-rate-is-a-cost-number)") == 1
+    assert "neither source gives a saving for its policy" in note
+
+
+def test_the_v1_673_check_names_a_clause_put_back():
+    readme = read("README.md")
+    est, cache = paragraph(EST_LEAD), paragraph(CACHE_LEAD)
+    one = est.replace(" (`DESIGN.md` 4.6,", "; `budget_report(records, budgets)` gives each budget's `budget_used_pct` "
+                      "(`DESIGN.md` 4.6,")
+    two = cache.replace("[The cache hit rate", "Manus: " + MANUS_V1_673 + " [The cache hit rate")
+    assert one != est and two != cache
+    worse = readme.replace(est, one, 1).replace(cache, two, 1)
+    assert v1_673_still_there(worse) == ["`budget_report(records, budgets)` gives each budget's `budget_used_pct`",
+                                         MANUS_V1_673]
+    # a clause in another paragraph is not the dropped one's
+    other = "So `budget_report(records, budgets)` gives each budget's `budget_used_pct` from the log."
+    elsewhere = readme.replace("\n\n" + est + "\n\n", "\n\n" + est + "\n\n" + other + "\n\n", 1)
+    assert elsewhere.count(other) == 1 and v1_673_still_there(elsewhere) == []
+
+
+def test_design_states_v1_673_and_the_changelog_the_version():
+    design = read("DESIGN.md")
+    five2 = subsection(design, "### 5.2 ")
+    [mine] = [line for line in five2.splitlines()
+              if line.startswith("- v1.673 README pointer paragraphs (row PROD1ibbba, the first part of row PROD1ibbb): ")]
+    for kept in ("the second paragraph on budgets, on the estimate and strict budgets (v1.600), is cut from 1,455 to 399 "
+                 "bytes and the one on the prompt cache (v1.594) from 1,586 to 394",
+                 "each a pointer paragraph of at most 400 bytes by row PROD1ibbb's rule",
+                 "is stated in 3, 4.1, 4.3, 4.6, 5.1, 5.2, 6, 7, 8.3 or 10, so no subsection gains one",
+                 "Uber's two under `Spend tiers and nudges, not strict caps`, which step 7 of the walk-through still links",
+                 "Manus's under `The cache hit rate is a cost number`, which the cache one links by that heading",
+                 "So the section is 27,030 bytes by the 12.8 measure, 2,970 under v1.629's 30,000-byte cap, which stays",
+                 "row PROD1ibbbb makes the paragraph on self-hosted rows (1,450 bytes) a pointer paragraph",
+                 "and the section less `LATER` at 21,358, v1.666's 23,606 less 2,248",
+                 "No package module, evidence file or README transcript changes."):
+        assert mine.count(kept) == 1, kept
+    lines = five2.splitlines()
+    assert lines[lines.index(mine) - 1].startswith("- v1.666 README trim (")
+    assert len(mine.encode("utf-8")) <= 6_000 and "\u2014" not in mine and "\u2013" not in mine
+    [line] = [x for x in read("CHANGELOG.md").splitlines() if x.startswith("- v1.673 (")]
+    assert line.startswith("- v1.673 (2026-11-26): docs and tests (5.2, row PROD1i, fourth part). ")
     assert len(line.encode("utf-8")) <= 600

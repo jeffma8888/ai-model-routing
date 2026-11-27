@@ -101,18 +101,14 @@ def test_the_paragraph_names_each_part_once():
                  "and fits, and refuses when none does, so no call goes below the bar to fit a budget",
                  "The estimate is no bound",
                  "A `strict=True` budget holds each call's `billing_bound` instead",
-                 "`max_tokens`, `max_completion_tokens` or `max_output_tokens` in its route's `provider_options`",
-                 "refuses a call it cannot bound; it charges that bound",
-                 # review iter-448 should-fix 1: a strict hold of a call that raised settles at its bound
-                 "it charges that bound for a call that raised anything but a provider error, so its spend",
+                 # v1.673 (row PROD1ibbba): the second is a pointer paragraph; the output keys, the bound a
+                 # raised call settles at, the budget records, `budget_report` and `demo --budgets FILE` are
+                 # DESIGN 3's, 4.6's, 7's, 8.3's and 10's (tests/test_readme_trim.py DROPPED_V1_673)
+                 "and refuses one it cannot bound, so its spend",
                  "so its spend stays under its limit while providers bill within the bound",
-                 "as a budget record, which `report` skips",
-                 "`budget_report(records, budgets)` gives each budget's `budget_used_pct`, as the example",
-                 "[Monitoring and cost attribution](#monitoring-and-cost-attribution)",
-                 "`model-routing demo --budgets FILE` runs the demo under a file of budgets and exits 4",
                  # v1.652 (row PROD1gbbbbb): the one-process ledger is DESIGN 4.6's and README Limitations'
                  # (tests/test_readme_trim.py DROPPED_V1_652)
-                 "exits 4 when a call is refused (`DESIGN.md` 4.6, 7, 8.1, 8.3, 10 and 11).",
+                 "within the bound (`DESIGN.md` 4.6, 7, 8.1, 8.3, 10 and 11).",
                  "(`DESIGN.md` 4.6, 7, 8.1, 8.3, 10 and 11)"):
         assert text.count(kept) == 1, kept
 
@@ -152,10 +148,12 @@ def test_each_output_key_the_paragraph_names_bounds_a_call(key):
 
 def test_the_uber_quotes_are_the_notes_word_for_word_and_the_link_resolves():
     text = paragraph()
-    assert text.endswith("Uber describes one spend tier across its interactive tools: " + CAPS + ", with "
-                         + ALERTS + " ([production lessons](research/production-lessons.md#"
-                         "spend-tiers-and-nudges-not-strict-caps)): its policy, for which it gives no saving, "
-                         "not a measurement of this library.")
+    # v1.673 (row PROD1ibbba): the second paragraph is a pointer paragraph, so the quotes and their caveat stay in
+    # the note's lesson, which step 7 of the walk-through still links (tests/test_readme_trim.py QUOTES_V1_673)
+    assert CAPS not in text and ALERTS not in text and "Uber" not in text
+    production = section(read("README.md"), "Running it in production")
+    assert production.count("[spend tiers and nudges, not strict caps](research/production-lessons.md#"
+                            "spend-tiers-and-nudges-not-strict-caps)") == 1
     note = read("research/production-lessons.md")
     lesson = note.split(f"\n### {LESSON}\n", 1)[1].split("\n### ", 1)[0]
     for quote in (CAPS, ALERTS):
