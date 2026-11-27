@@ -309,8 +309,9 @@ def test_design_and_changelog_state_the_command():
 
 def test_readme_layout_names_the_command():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    # v1.676 (row DEL1c) appends select-pair after consensus-labels
     assert ("  cli.py        model-routing select | calibrate | report | demo | evaluate | delegate | plan | "
-            "promote | pairs | drift | consensus-labels\n") in readme
+            "promote | pairs | drift | consensus-labels | select-pair\n") in readme
 
 
 def test_the_production_note_states_the_command_as_shipped():
