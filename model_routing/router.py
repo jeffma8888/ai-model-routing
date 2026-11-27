@@ -511,8 +511,7 @@ class Router:
         if sides is None:
             list_cost = self._list_cost(task, root) + self._list_cost(task, leaf)
         else:  # DESIGN 5.2 v1.671: one call of each side, over its items_per_call (v1.573)
-            list_cost = (root.cost(*sides[0]) / root.items_per_call
-                         + leaf.cost(*sides[1]) / leaf.items_per_call)
+            list_cost = self._side_cost(root, sides[0]) + self._side_cost(leaf, sides[1])
         return Candidate(
             model_id=pair_id,
             family=root.family,
@@ -526,6 +525,11 @@ class Router:
             reason=reason,
             p95_latency_ms=p95,
         )
+
+    @staticmethod
+    def _side_cost(model, tokens: Tuple[int, int]) -> float:
+        """One side of a pair at its mean side tokens, over its items_per_call (5.2 v1.671)."""
+        return model.cost(*tokens) / model.items_per_call
 
     def _choose(self, task: Task, flavor: str, candidates: Tuple[Candidate, ...], name: str,
                 slice_name: Optional[str], no_prior: set) -> RouteDecision:
@@ -589,7 +593,9 @@ class Router:
                           brief_output_tokens: Optional[int] = None,
                           generator_model: Optional[str] = None,
                           exclude_models: Iterable[str] = (),
-                          policy: Optional[Policy] = None):
+                          policy: Optional[Policy] = None,
+                          delegate_roots: Optional[Sequence[str]] = None,
+                          delegate_leaves: Optional[Sequence[str]] = None):
         """Decide whether ``parent_model`` does the work inline or delegates it.
 
         The work is ``work_calls`` successive calls of the task, one by default.
@@ -606,10 +612,14 @@ class Router:
         what the call that writes the brief outputs, by default ``brief_tokens``; it prices
         that output alone, while every read of the brief keeps ``brief_tokens`` (DESIGN
         13.1). A ``policy`` runs the delegate's ``select`` under it and keeps a parent it
-        rules out from working inline (DESIGN 13.3 and 13.4 v1.624). Raises
+        rules out from working inline (DESIGN 13.3 and 13.4 v1.624). With
+        ``delegate_roots`` and ``delegate_leaves``, both or neither, the delegate is a
+        delegating harness's pair, this router's ``select_pair`` on the briefed task, for
+        one work call (DESIGN 13.1 to 13.3 v1.684). Raises
         ``KeyError`` for an unknown task, parent or generator, ``ValueError`` for an
         unknown flavor, an invalid token count (``brief_output_tokens`` included, unless
-        None), ``work_calls`` below 1 or a
+        None), ``work_calls`` below 1 (or above 1 with a pair), one of the pair's keywords
+        without the other, or a
         ``cached_read_ratio`` or ``output_reread_share`` that is not a number from 0
         to 1, or a ``policy`` that is not None or a ``Policy``, and
         :class:`NoModelClearsBar` when neither path is allowed (DESIGN section 13).
@@ -624,7 +634,8 @@ class Router:
                                  output_reread_share=output_reread_share,
                                  brief_output_tokens=brief_output_tokens,
                                  generator_model=generator_model,
-                                 exclude_models=exclude_models, policy=policy)
+                                 exclude_models=exclude_models, policy=policy,
+                                 delegate_roots=delegate_roots, delegate_leaves=delegate_leaves)
 
     def _pinned(self, task: Task, flavor: str, candidates: Tuple[Candidate, ...], pin_route: str,
                 allow_below_bar: bool, name: str, slice_name: Optional[str]) -> RouteDecision:

@@ -74,10 +74,11 @@ def reasons(route):
 
 @pytest.mark.parametrize("function", [delegation.decide_delegation, Router.decide_delegation],
                          ids=["module", "Router method"])
-def test_policy_is_the_last_keyword_after_exclude_models_defaulting_to_none(function):
+def test_policy_follows_exclude_models_defaulting_to_none_before_the_pair_keywords(function):
     params = list(inspect.signature(function).parameters.values())
-    assert [p.name for p in params[-2:]] == ["exclude_models", "policy"]
-    assert params[-1].kind is inspect.Parameter.KEYWORD_ONLY and params[-1].default is None
+    # v1.684 (row DEL1h): the pair's two keywords follow it, so it is the last but two
+    assert [p.name for p in params[-4:]] == ["exclude_models", "policy", "delegate_roots", "delegate_leaves"]
+    assert params[-3].kind is inspect.Parameter.KEYWORD_ONLY and params[-3].default is None
 
 
 def test_the_three_parent_codes_have_their_pinned_values_and_stay_in_the_module():

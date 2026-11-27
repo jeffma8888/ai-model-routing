@@ -92,7 +92,8 @@ def test_a_parent_that_does_not_clear_delegates_to_the_cheapest_admitted_pair():
     brief, reads = parent_terms("r/weak")
     # each side at its 5.2 sizes on the briefed task: 1000 + B in, 200 out
     assert d.delegate_cost_usd == brief + (cost("r/strong", 1300) + cost("l/cheap", 1300)) + reads
-    assert d.inline_cost_usd == decide(rt, "r/weak").inline_cost_usd
+    # 13.2: the parent unmeasured, at the task's sizes, in a call of its own over C
+    assert d.inline_cost_usd == cost("r/weak", 6000) + 3 * cost("r/weak", 1200, 0)
 
 
 def test_a_parent_that_costs_more_delegates_to_the_pair_as_delegate_cheaper():

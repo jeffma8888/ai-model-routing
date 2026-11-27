@@ -165,6 +165,11 @@ class _PerCallRouter(Router):
     def _list_cost(self, task: Task, model) -> float:
         return model.cost(*_sizes(self.stats, task, model.id))
 
+    @staticmethod
+    def _side_cost(model, tokens) -> float:
+        """A pair's side per call too, whatever its ``items_per_call`` (13.2 v1.684)."""
+        return model.cost(*tokens)
+
     def _cache_counts(self, task: Task, model) -> None:
         """No measured cache count: 13.2's costs are v1.587's (5.2 v1.588)."""
         return None
@@ -212,10 +217,13 @@ def _briefed_stats(stats: Stats, task_name: str, brief_tokens: int) -> Stats:
     v1.536); a procedure key keeps its summed cost and holds none either (13.3 v1.627). Every key
     keeps its times, so a latency bar reads in the delegate what it reads in the router (v1.628),
     its label sources (v1.663, review iter-518 nit 3) and its rerun counts, so a self-consistency
-    minimum reads in the delegate what it reads in the router (v1.668).
+    minimum reads in the delegate what it reads in the router (v1.668). A pair key keeps its side
+    tokens with B added to the root's input over its side trials, the side that reads the brief, and
+    a side token on the task builds the copy even with no token totals (v1.684).
     """
     rows = [(key, counts) for key, counts in stats.items() if key[0] == task_name]
-    if brief_tokens == 0 or not any(stats.tokens(*key)[2] for key, _ in rows):
+    if brief_tokens == 0 or not any(stats.tokens(*key)[2] or stats.side_tokens(*key)[4]
+                                    for key, _ in rows):
         return stats
     copy = Stats()
     for (name, model_id), (successes, trials) in rows:
@@ -237,6 +245,10 @@ def _briefed_stats(stats: Stats, task_name: str, brief_tokens: int) -> Stats:
         items, alike = stats.consistency(name, model_id)  # 13.3 v1.668
         if items:
             tokens.update(rerun_items=items, consistent_items=alike)
+        ri, ro, li, lo, sides = stats.side_tokens(name, model_id)  # 13.3 v1.684
+        if sides:
+            tokens.update(root_input_tokens=ri + brief_tokens * sides, root_output_tokens=ro,
+                          leaf_input_tokens=li, leaf_output_tokens=lo, side_trials=sides)
         copy.add(name, model_id, successes, trials, **tokens)
     return copy
 
@@ -250,7 +262,9 @@ def decide_delegation(router: Router, task_name: str, parent_model: str,
                       brief_output_tokens: Optional[int] = None,
                       generator_model: Optional[str] = None,
                       exclude_models: Iterable[str] = (),
-                      policy: Optional[Policy] = None) -> DelegationDecision:
+                      policy: Optional[Policy] = None,
+                      delegate_roots: Optional[Sequence[str]] = None,
+                      delegate_leaves: Optional[Sequence[str]] = None) -> DelegationDecision:
     """The logic of :meth:`Router.decide_delegation` (DESIGN 13.1 to 13.5)."""
     if flavor not in FLAVORS:
         raise ValueError(f"unknown flavor {flavor!r}; expected one of {FLAVORS}")
@@ -276,6 +290,11 @@ def decide_delegation(router: Router, task_name: str, parent_model: str,
     w = b if brief_output_tokens is None else _count("brief_output_tokens", brief_output_tokens)
     if policy is not None and not isinstance(policy, Policy):  # DESIGN 13.1 v1.624
         raise ValueError(f"policy must be None or a Policy, got {type(policy).__name__}")
+    pair = delegate_roots is not None
+    if pair != (delegate_leaves is not None):  # DESIGN 13.1 v1.684
+        raise ValueError("delegate_roots and delegate_leaves go together: give both or neither")
+    if pair and k > 1:
+        raise ValueError(f"a pair delegate takes one work call in this version, got work_calls={k!r}")
     parent = router.registry.get(parent_model)
     generator_family = None
     if generator_model is not None:
@@ -333,13 +352,24 @@ def decide_delegation(router: Router, task_name: str, parent_model: str,
     route: Optional[RouteDecision] = None
     failed: Optional[NoModelClearsBar] = None
     try:
-        route = sub.select(task.name, flavor=flavor, generator_model=generator_model,
-                           exclude_models=excluded, policy=policy)
+        if pair:  # 13.3 v1.684: a delegating harness's pair on the briefed task
+            route = sub.select_pair(task.name, delegate_roots, delegate_leaves, flavor,
+                                    generator_model=generator_model, exclude_models=excluded,
+                                    policy=policy)
+        else:
+            route = sub.select(task.name, flavor=flavor, generator_model=generator_model,
+                               exclude_models=excluded, policy=policy)
     except NoModelClearsBar as exc:
         failed = exc
 
     delegate_cost = delegate_lb = None
-    if route is not None:
+    if route is not None and pair:  # 13.2 v1.684: the pair's list cost stands for D's call
+        pair_cost = next(x.list_cost for x in route.candidates if x.model_id == route.primary)
+        delegate_cost = (_shared(parent, c, rho, 0, w) + pair_cost
+                         + (1 + t) * _shared(parent, c, rho, b + r))
+        delegate_lb = next(x.quality_lb for x in route.candidates
+                           if x.model_id == route.primary)
+    elif route is not None:
         delegate = router.registry.get(route.primary)
         d_in, d_out = _sizes(router.stats, task, delegate.id)
         delegate_cost = (_shared(parent, c, rho, 0, w)
