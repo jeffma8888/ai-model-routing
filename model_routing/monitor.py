@@ -46,7 +46,7 @@ BUDGET_RECORD_KEYS = (
 # `Executor.record_mode`; every reader of a log drops it where it drops budget records (8.3 v1.687)
 MODE_RECORD_KEYS = (
     ("ts", _S), ("call_id", _S), ("task", _S), ("flavor", _S), ("parent", _S), ("advised_mode", _S),
-    ("actual_mode", _S), ("reason", _S), ("input_tokens", _I), ("tags", _O),
+    ("actual_mode", _S), ("reason", _S), ("work_input_tokens", _I), ("tags", _O),
 )
 
 

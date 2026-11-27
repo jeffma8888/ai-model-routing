@@ -440,8 +440,8 @@ class Executor:
         ``decision`` is a :class:`DelegationDecision`, ``actual_mode`` ``"inline"`` or
         ``"delegate"`` and ``input_tokens`` the work's input size, an ``int`` >= 0. The mode record
         (8.1 v1.687) holds ``ts``, ``call_id``, the decision's ``task``, ``flavor`` and ``parent``,
-        its ``mode`` as ``advised_mode``, ``actual_mode``, its ``reason``, ``input_tokens`` and
-        ``tags``; it goes to the monitor when there is one, and a copy is returned. No router,
+        its ``mode`` as ``advised_mode``, ``actual_mode``, its ``reason``, ``input_tokens`` as
+        ``work_input_tokens`` and ``tags``; it goes to the monitor when there is one, and a copy is returned. No router,
         provider or ledger call is made. A bad argument raises ``ValueError`` before any ID or record.
         """
         if not isinstance(decision, DelegationDecision):
@@ -457,7 +457,7 @@ class Executor:
             raise ValueError(f"tags must be None or a mapping of str to str, got {tags!r}")
         rec = {"ts": self.now(), "call_id": self.id_factory(), "task": decision.task,
                "flavor": decision.flavor, "parent": decision.parent, "advised_mode": decision.mode,
-               "actual_mode": actual_mode, "reason": decision.reason, "input_tokens": input_tokens,
+               "actual_mode": actual_mode, "reason": decision.reason, "work_input_tokens": input_tokens,
                "tags": dict(tags or {})}
         if self.monitor is not None:
             self.monitor.record(rec)

@@ -24,7 +24,7 @@ from test_record_keys import COUNTS, JSON_TYPES, MODELS, Run, model, ok, router,
 ROOT = Path(__file__).resolve().parents[1]
 # a day no record of the scenarios has: theirs are all 2026-11-25 (tests/test_record_keys.py TS)
 DAY2 = "2026-11-26T09:00:00Z"
-KEYS = ["ts", "call_id", "task", "flavor", "parent", "advised_mode", "actual_mode", "reason", "input_tokens",
+KEYS = ["ts", "call_id", "task", "flavor", "parent", "advised_mode", "actual_mode", "reason", "work_input_tokens",
         "tags"]
 
 
@@ -34,7 +34,7 @@ def delegated():
     route = router(models=other, counts=dict(COUNTS, **{"y/cheap": 60}))
     decision = route.decide_delegation("t", "y/cheap", context_tokens=2000, brief_tokens=1000, result_tokens=1000,
                                        inline_separate_call=False)
-    assert (decision.mode, decision.reason) == ("delegate", "parent_below_bar")
+    assert (decision.mode, decision.reason) == ("delegate", "parent_below_bar") and decision.route is not None
     return route, decision
 
 
@@ -64,7 +64,7 @@ def test_record_mode_logs_the_advised_and_the_taken_mode_and_returns_a_copy(tmp_
     rec = run.ex.record_mode(decision, "inline", 4000, tags=tags)
     expected = {"ts": DAY2, "call_id": "mode-1", "task": "t", "flavor": "cost_effective", "parent": "y/cheap",
                 "advised_mode": "delegate", "actual_mode": "inline", "reason": "parent_below_bar",
-                "input_tokens": 4000, "tags": {"team": "a"}}
+                "work_input_tokens": 4000, "tags": {"team": "a"}}
     assert rec == expected and list(rec) == KEYS
     assert (run.now_calls, run.id_calls) == (1, 1)
     assert load_records(path) == [expected] and run.ex.monitor.records == [expected]
@@ -79,7 +79,7 @@ def test_record_mode_with_no_monitor_returns_the_record_alone():
     run = Counted(route)
     assert run.ex.record_mode(decision, "delegate", 0) == {
         "ts": DAY2, "call_id": "mode-1", "task": "t", "flavor": "cost_effective", "parent": "y/cheap",
-        "advised_mode": "delegate", "actual_mode": "delegate", "reason": "parent_below_bar", "input_tokens": 0,
+        "advised_mode": "delegate", "actual_mode": "delegate", "reason": "parent_below_bar", "work_input_tokens": 0,
         "tags": {}}
 
 
@@ -176,7 +176,7 @@ def test_8_1_names_the_mode_record_and_its_place():
 
 def mode(call_id, ts, **extra):
     rec = {"ts": ts, "call_id": call_id, "task": "t", "flavor": "cost_effective", "parent": "x/big",
-           "advised_mode": "delegate", "actual_mode": "inline", "reason": "delegate_cheaper", "input_tokens": 5000,
+           "advised_mode": "delegate", "actual_mode": "inline", "reason": "delegate_cheaper", "work_input_tokens": 5000,
            "tags": {"team": "a"}}
     rec.update(extra)
     return rec
@@ -203,7 +203,6 @@ def readers(clean):
     audits.update({"mode-1": True, "mode-2": False})
     budgets = [Budget("day", 1.0, "warn", window="day"), Budget("month", 1.0, "warn", window="month"),
                Budget("all", 1.0, "warn")]
-    pairs = shadow_pairs(clean)
     out = {f"report by {by}": (lambda r, by=by: report(r, by=by))
            for by in ("model", "task", "flavor", "family", "basis", "policy", "tag:team")}
     out.update({
@@ -214,8 +213,8 @@ def readers(clean):
         "opportunities audits": lambda r: opportunities(r, audits=audits, target_cost_per_call=0.0001),
         "budget_report": lambda r: budget_report(r, budgets),
         "shadow_pairs": lambda r: shadow_pairs(r),
-        "shadow_pairs checked": lambda r: shadow_pairs(r, checked=True),
-        "pair_results records": lambda r: pair_results(pairs, records=r),
+        "shadow_pairs audits": lambda r: shadow_pairs(r, audits=audits),
+        "pair_results records": lambda r: pair_results(shadow_pairs(clean, audits=audits), records=r),
         "audited_results": lambda r: audited_results(r, audits),
         "audited_results window": lambda r: audited_results(r, audits, since="2026-11-25T00:00:00Z",
                                                             until="2026-11-27T00:00:00Z"),
@@ -233,12 +232,33 @@ READERS = list(readers([]))
 
 @pytest.mark.parametrize("reader", READERS)
 def test_each_reader_gives_on_a_log_with_mode_records_what_it_gives_without_them(logs, reader):
-    differ = []
+    differ, filled = [], []
     for name, clean in logs.items():
         fn = readers(clean)[reader]
-        if result(fn, mixed(clean)) != result(fn, clean):
+        found = result(fn, clean)
+        if result(fn, mixed(clean)) != found:
             differ.append(name)
+        if found[0] == "ok" and found[1]:
+            filled.append(name)
     assert differ == []
+    assert filled  # review iter-546 nit 4: not two equal errors on every scenario
+
+
+def test_shadow_pairs_and_pair_results_pass_by_a_record_with_an_advised_mode_key_whatever_it_holds(logs):
+    # review iter-546 should-fix 2: a mode record holds no pair key, so these two readers would pass it by
+    # without their filter; a copy of every record of a shadowed log, marked as a mode record, pins it
+    filled = []
+    for name in ("shadowed", "shadow's refused budget"):
+        clean = logs[name]
+        audits = {rec["call_id"]: True for rec in clean}
+        marked = clean + [dict(rec, advised_mode="delegate") for rec in clean]
+        for labels in ({}, {"audits": audits}):
+            assert shadow_pairs(marked, **labels) == shadow_pairs(clean, **labels)
+        pairs = shadow_pairs(clean, audits=audits)
+        rows = pair_results(pairs, records=clean)
+        assert pair_results(pairs, records=marked) == rows
+        filled.append(bool(pairs) and bool(rows))
+    assert filled[0]
 
 
 def test_a_log_of_mode_records_alone_gives_no_row():
