@@ -154,6 +154,19 @@ def test_a_harness_that_is_not_callable_and_a_ledger_raise_before_any_id_or_reco
     assert ex.call_pair("t", ROOTS, LEAVES, MESSAGES, harness([])).call_id == "call-0"
 
 
+def test_two_pairs_with_one_id_raise_before_the_id_and_the_harness():
+    from model_routing import Model, Registry, Router, Stats, Task
+    reg = Registry([Model(m, "f", 1.0, 2.0, 100_000) for m in ("a", "a+b", "c", "b+c")])
+    stats = Stats()
+    stats.add("t", "a+b+c", 40, 40)
+    ex, monitor = executor(Router(reg, {"t": Task("t", bar=0.5, min_samples=30)}, stats))
+    calls = []
+    with pytest.raises(ValueError, match="one ID"):
+        ex.call_pair("t", ["a+b", "a"], ["c", "b+c"], MESSAGES, harness(calls))
+    assert calls == [] and monitor.records == []
+    assert ex.id_factory() == "call-0"
+
+
 def test_select_pair_errors_propagate_before_the_harness():
     ex, monitor = executor()
     calls = []

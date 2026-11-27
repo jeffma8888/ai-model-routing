@@ -10,7 +10,7 @@ from typing import Dict, Iterable, List, Mapping, Optional, Sequence, Tuple, Uni
 
 from .budget import Budget, _instant
 from .router import NoModelClearsBar, Router
-from .stats import Stats, items_needed, wilson_lower_bound
+from .stats import _SIDE_TOTALS, Stats, items_needed, wilson_lower_bound
 from .tasks import Task
 
 PathLike = Union[str, Path]
@@ -32,7 +32,8 @@ RECORD_KEYS = (
     ("below_bar_fallback", _B), ("basis", _S), ("pinned_by", _S), ("policy", _S), ("tags", _O),
     ("slice", ("string", "null")), ("pair_id", _S), ("shadow", _B), ("checked", _B), ("cascade", _S),
     ("escalated", _B), ("procedure", _S), ("procedure_version", _S), ("model_calls", _I),
-    ("tool_calls", ("integer", "null")), ("tool_cost_usd", ("number", "null")), ("budget_moves", ("array",)),
+    ("tool_calls", ("integer", "null")), ("tool_cost_usd", ("number", "null")), ("root_input_tokens", _I),
+    ("root_output_tokens", _I), ("leaf_input_tokens", _I), ("leaf_output_tokens", _I), ("budget_moves", ("array",)),
     ("prompt_tokens", _I), ("prompt_tokens_estimated", _B), ("expected_cost_per_success_usd", ("number", "null")),
 )
 BUDGET_RECORD_KEYS = (
@@ -820,6 +821,9 @@ def _audited_row(call_id: str, rec: Mapping, correct: bool, recs: List[Mapping])
         sizes = (rec.get("input_tokens"), rec.get("output_tokens"))
         if all(isinstance(n, int) and not isinstance(n, bool) and n >= 0 for n in sizes):
             out["input_tokens"], out["output_tokens"] = sizes
+        sides = [rec.get(key) for key in _SIDE_TOTALS]  # DESIGN 8.3 v1.678: a pair's four, or none
+        if all(isinstance(n, int) and not isinstance(n, bool) and n >= 0 for n in sides):
+            out.update(zip(_SIDE_TOTALS, sides))
     if all(_finite_cost(value) for value in times):
         try:
             total = fsum(times)

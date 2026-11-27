@@ -364,8 +364,9 @@ def test_each_key_the_table_says_every_record_carries_is_on_every_record_of_its_
     sized = [key for key, _, _, carried in rows if carried == "every record of `.call` and of its shadow"]
     assert sized == ([] if budget else ["prompt_tokens", "prompt_tokens_estimated"])
     for r in kind:
-        delegated = r["tags"].get("delegated") == "true"
-        assert all((key in r) is not delegated for key in sized), r
+        # v1.678 (row DEL1e): a `.call_pair` record, which holds the side keys, has no size either
+        other = r["tags"].get("delegated") == "true" or "root_input_tokens" in r
+        assert all((key in r) is not other for key in sized), r
     if not budget:
         shadows = [r for r in kind if r.get("shadow") is True]
         assert shadows and all(set(sized) <= set(r) for r in shadows)

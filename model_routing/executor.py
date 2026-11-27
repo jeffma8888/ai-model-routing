@@ -19,6 +19,7 @@ from .delegation import DELEGATE
 from .procedures import Procedure
 from .providers import Provider, ProviderError
 from .router import Policy, RouteDecision, Router, _check_pin, _check_prompt_tokens
+from .stats import _SIDE_TOTALS
 
 
 @dataclass(frozen=True)
@@ -234,6 +235,62 @@ class Executor:
         label = None if policy is None else policy.label  # DESIGN 7 v1.642: select checked it
         return self._execute(task_name, decision, messages, dict(tags or {}), validate,
                              (size, estimated), cascades, signals, routed, shadow, pinned_by, label)
+
+    def call_pair(self, task_name: str, roots: Sequence[str], leaves: Sequence[str],
+                  messages: List[dict], harness: Callable[[str, str, List[dict]], Mapping],
+                  flavor: str = "cost_effective", *, generator_model: Optional[str] = None,
+                  exclude_models: Iterable[str] = (), policy: Optional[Policy] = None,
+                  tags: Optional[Dict[str, str]] = None,
+                  validate: Optional[Callable[[str], object]] = None) -> CallResult:
+        """Route a root and leaf pair with ``select_pair`` and run ``harness(root, leaf, messages)``
+        on each pair of the route in turn, as ``.call`` runs a model, with one record per attempt
+        holding the four side token counts the harness returned (DESIGN 7 and 8.1 v1.678).
+
+        Raises ``ValueError`` for a ``harness`` that is not callable or an executor with a ledger,
+        before ``select_pair``; for two pairs with one ID; and for a return value that is not a
+        mapping of a ``str`` ``text`` and the four counts, each an int >= 0 that is not a bool.
+        """
+        if not callable(harness):
+            raise ValueError(f"harness must be a callable, got {type(harness).__name__}")
+        if self.ledger is not None:
+            raise ValueError("call_pair takes no ledger: a budget for a pair is not in this version")
+        decision = self.router.select_pair(task_name, roots, leaves, flavor,
+                                           generator_model=generator_model,
+                                           exclude_models=exclude_models, policy=policy)
+        sides = {f"{root}+{leaf}": (root, leaf) for root in roots for leaf in leaves}
+        if len(sides) != len(roots) * len(leaves):  # an ID may hold "+", so never split one
+            raise ValueError("two pairs have one ID, so a pair's root and leaf cannot be told apart")
+        registry, call_id, call_tags = self.router.registry, self.id_factory(), dict(tags or {})
+        label = None if policy is None else policy.label  # select_pair checked it
+        order, attempts = (decision.primary, *decision.fallbacks), []
+        for position, entry in enumerate(order):
+            root, leaf = sides[entry]
+            start = self.clock()
+            try:
+                run, error = harness(root, leaf, messages), None
+            except ProviderError as exc:
+                run, error = None, f"{type(exc).__name__}: {exc}"
+            latency_ms = float((self.clock() - start) * 1000.0)
+            counts, text = (0, 0, 0, 0), None
+            if error is not None:
+                attempt = Attempt(entry, "error", error, latency_ms, 0, 0, 0.0)
+            else:
+                counts, text = _pair_run(run), run["text"]
+                cost = float(registry.get(root).cost(*counts[:2]) + registry.get(leaf).cost(*counts[2:]))
+                attempt = Attempt(entry, "ok", None, latency_ms, counts[0] + counts[2],
+                                  counts[1] + counts[3], cost)
+                if validate is not None and not validate(text):
+                    attempt, text = replace(attempt, outcome="invalid", error="validation failed"), None
+            attempts.append(attempt)
+            if self.monitor is not None:  # DESIGN 8.1 v1.678: the four after slice
+                self.monitor.record(self._record(
+                    call_id, decision, registry, position, text is not None or position == len(order) - 1,
+                    attempt, call_tags, entry=entry, keys=dict(zip(_SIDE_TOTALS, counts)),
+                    family=registry.get(root).family, policy_label=label))
+            if text is not None:
+                return CallResult(call_id, text, entry, tuple(attempts), decision)
+        raise AllModelsFailed(f"all {len(attempts)} routed pairs failed for task {task_name!r}",
+                              tuple(attempts), decision)
 
     def _shadow_route(self, task_name: str, decision: RouteDecision,
                       tags: Optional[Dict[str, str]]) -> Optional[str]:
@@ -693,6 +750,16 @@ class Executor:
         if decision.failure_policy != "none":  # DESIGN 8.1 v1.567: the last key
             record["expected_cost_per_success_usd"] = decision.expected_cost_per_success_usd
         return record
+
+
+def _pair_run(run) -> Tuple[int, int, int, int]:
+    """A harness's four side counts, its return value checked (DESIGN 7 v1.678)."""
+    if not isinstance(run, Mapping) or not isinstance(run.get("text"), str) or not all(
+            isinstance(run.get(key), int) and not isinstance(run[key], bool) and run[key] >= 0
+            for key in _SIDE_TOTALS):
+        raise ValueError(f"harness must return a mapping of a str text and {', '.join(_SIDE_TOTALS)}, "
+                         f"each an int >= 0, got {run!r}")
+    return tuple(run[key] for key in _SIDE_TOTALS)
 
 
 def _policy_key(label: Optional[str]) -> dict:
