@@ -258,7 +258,8 @@ def lesson_lines():
     return lines
 
 
-def test_the_cache_lessons_plan_only_the_monitor_check_the_switch_and_the_budget():
+# review iter-552 nit 1: named for what v1.692 leaves planned, the switch and the check's count in `report`
+def test_the_cache_lessons_plan_only_the_switch_and_the_report_count():
     lines = lesson_lines()
     planned = {h: line.count("planned") for h, line in lines.items() if "planned" in line}
     # v1.692 (row CACHE2a): the monitor check ships, so only the switch is planned, tests/test_cache_miss.py
@@ -269,7 +270,8 @@ def test_the_cache_lessons_plan_only_the_monitor_check_the_switch_and_the_budget
     assert "a planned change also prices a call moved to another model mid-session" in prefix
     changes = {h: line.split("The change: ", 1)[1] for h, line in lines.items() if "The change" in line}
     assert list(changes) == [CACHE_LESSONS[5]]
-    # v1.596 (row B1b): the budget that refuses or moves a call is shipped, so only the check is planned
+    # v1.596 (row B1b): the budget that refuses or moves a call is shipped; v1.692 (row CACHE2a): so is the
+    # check, so only its count in `report` is planned (row CACHE2b)
     # v1.692 (row CACHE2a): the check ships, so its count in `report` is the change left (row CACHE2b)
     assert changes[CACHE_LESSONS[5]] == "a count of those records in `report`."
     for line in lines.values():

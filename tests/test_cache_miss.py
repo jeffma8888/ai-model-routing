@@ -61,8 +61,8 @@ def run(monitor, records):
     return monitor.records
 
 
-def expected(rec, rate, cached, counted, floor=0.5, calls=10, model="x/a"):
-    return {"ts": rec["ts"], "call_id": rec["call_id"], "task": "t", "model": model, "anomaly": "cache_miss",
+def expected(rec, rate, cached, counted, floor=0.5, calls=10, model="x/a", task="t"):
+    return {"ts": rec["ts"], "call_id": rec["call_id"], "task": task, "model": model, "anomaly": "cache_miss",
             "cache_hit_rate": rate, "min_cache_hit_rate": floor, "cache_miss_calls": calls,
             "cached_input_tokens": cached, "cache_counted_input_tokens": counted}
 
@@ -169,6 +169,26 @@ def test_each_task_and_model_has_its_own_window():
     assert anomalies(run(monitor, records)) == [expected(records[27], 0.0, 0, 10000)]
 
 
+# review iter-552 should-fix 1: the rate weighs each attempt by its input tokens, and two watched tasks on one
+# model keep two windows
+def test_the_rate_is_cached_over_input_tokens_not_a_mean_of_each_attempt_s_rate():
+    # 200 of 1,200 is 0.166667, under 0.5, though the three attempts' own rates average 0.667
+    records = [attempt(0, 100, size=100), attempt(1, 100, size=100), attempt(2, 0, size=1000)]
+    assert anomalies(run(watched(calls=3), records)) == [expected(records[2], 0.166667, 200, 1200, calls=3)]
+    # 1,000 of 1,200 is 0.833333, at or above 0.5, though the three attempts' own rates average 0.333
+    records = [attempt(0, 0, size=100), attempt(1, 0, size=100), attempt(2, 1000, size=1000)]
+    assert anomalies(run(watched(calls=3), records)) == []
+
+
+def test_two_watched_tasks_on_one_model_keep_two_windows():
+    records = []
+    for n in range(10):
+        records += [attempt(2 * n, 0), attempt(2 * n + 1, 1000, task="w")]
+    monitor = watched(w=Task("w", 0.5, min_cache_hit_rate=0.5))
+    # one window of both tasks would hold 5,000 of 10,000, at the floor, and give none
+    assert anomalies(run(monitor, records)) == [expected(records[18], 0.0, 0, 10000)]
+
+
 def test_a_shadow_record_counts_by_its_model_and_a_slice_with_its_task():
     records = stream([0] * 5, slice="deep") + stream([0] * 5, start=5)
     records += stream([0] * 10, start=10, model="x/shadow", shadow=True)
@@ -193,6 +213,12 @@ def test_a_record_of_a_floored_task_with_a_bad_count_is_a_value_error_before_it_
         monitor = watched(path)
         with pytest.raises(ValueError, match=r"call_id 'c-0': "):
             monitor.record(attempt(0, 0, **bad))
+        assert monitor.records == [] and not path.exists()
+    # review iter-552 should-fix 2: a model that is not a str, which no window key could name
+    for model in (None, 7, ["x/a"]):
+        monitor = watched(path)
+        with pytest.raises(ValueError, match=r"call_id 'c-0': model must be a str, got "):
+            monitor.record(attempt(0, 0, model=model))
         assert monitor.records == [] and not path.exists()
     # a task without a floor reads no count, so the same record is stored as before
     plain = Monitor(tasks={"t": Task("t", 0.5)})
@@ -228,6 +254,17 @@ def test_an_exception_from_the_callback_propagates_once_both_records_are_written
         monitor.record(records[9])
     assert monitor.records == records + [expected(records[9], 0.0, 0, 10000)]
     assert len(path.read_text(encoding="utf-8").splitlines()) == 11
+
+
+# review iter-552 should-fix 2: `.tasks` is a new dict, so a change to the caller's mapping is not read
+def test_the_monitor_reads_its_own_copy_of_the_tasks():
+    tasks = {"t": Task("t", 0.5, min_cache_hit_rate=0.5)}
+    monitor = Monitor(tasks=tasks)
+    assert monitor.tasks == tasks and monitor.tasks is not tasks
+    tasks["u"] = Task("u", 0.5, min_cache_hit_rate=0.5)
+    del tasks["t"]
+    records = stream([0] * 10, task="u") + stream([0] * 10, start=10)
+    assert anomalies(run(monitor, records)) == [expected(records[19], 0.0, 0, 10000)]
 
 
 @pytest.mark.parametrize("kwargs,message", [
