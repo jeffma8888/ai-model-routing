@@ -992,8 +992,8 @@ _COMMANDS = {"select": _cmd_select, "calibrate": _cmd_calibrate, "report": _cmd_
 def main(argv: Optional[List[str]] = None, *, today: Optional[date] = None) -> int:
     """Run the CLI and return its exit code: 0 ok, 2 bad input, 3 no model clears the bar (from
     v1.676 no pair can be chosen on ``select-pair``; from v1.603 ``promote``'s challenger is not
-    admitted, and from v1.661 a task of ``consensus-labels`` is under ``--min-agreement``), 4 a
-    budget refused a call (``demo --budgets``, v1.599).
+    admitted, and from v1.661 a task of ``consensus-labels`` is under ``--min-agreement``),
+    4 a budget refused a call (``demo --budgets``, v1.599).
 
     ``today`` dates the price expiry check of ``select``, from v1.676 ``select-pair``, ``delegate``
     and, from v1.411, ``evaluate``, from v1.646 of ``report --opportunities --stats``, and from
