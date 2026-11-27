@@ -390,10 +390,12 @@ class Executor:
                              f"parent's own call, so there is no hand-off to run")
         if decision.route is None:
             raise ValueError("delegate decision has no route to run")
-        if decision.route.primary not in self.router.registry:  # DESIGN 7 v1.684
-            raise ValueError(f"delegate route {decision.route.primary!r} is no registry model: a pair "
-                             f"from delegate_roots and delegate_leaves runs through a harness, so run "
-                             f"it with call_pair")
+        primary, registry = decision.route.primary, self.router.registry
+        if primary not in registry and any(  # DESIGN 7 v1.684: a registry root and leaf, as select_pair joins them
+                primary[:i] in registry and primary[i + 1:] in registry
+                for i, char in enumerate(primary) if char == "+"):
+            raise ValueError(f"delegate route {primary!r} is a pair: a pair from delegate_roots and "
+                             f"delegate_leaves runs through a harness, so run it with call_pair")
         call_tags = dict(tags or {})
         reserved = sorted(key for key in ("delegated", "parent") if key in call_tags)
         if reserved:

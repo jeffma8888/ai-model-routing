@@ -7,7 +7,6 @@ mean side tokens with B on the root alone. One work call only in this version. T
 DEL1a's (tests/test_select_pair.py).
 """
 
-import hashlib
 import inspect
 import json
 from pathlib import Path
@@ -17,13 +16,15 @@ import pytest
 from model_routing import FakeProvider, Model, Monitor, Policy, Router, delegation
 from model_routing.registry import Variant
 from model_routing.stats import wilson_lower_bound
+from decision_hash import decision_sha256
 from test_select_pair import LEAVES, ROOTS, cost, registry, router
 
 ROOT = Path(__file__).resolve().parents[1]
 SIZES = dict(context_tokens=5000, brief_tokens=300, result_tokens=150, carry_turns=2)
 PAIR = dict(delegate_roots=ROOTS, delegate_leaves=LEAVES)
-# taken on v1.683 (6b5ee61) by the grid below, before the keywords existed
-NO_PAIR_SHA256 = "b90c5b13972b0af4ffae4a336d1a441f745f9c9e083c9373c6e54aa5e3b17a19"
+# taken on an export of v1.683 (6b5ee61) by the grid below, before the keywords existed, through
+# decision_sha256 so a bound's last bit cannot move it by platform (tests/test_decision_hash_pins.py)
+NO_PAIR_SHA256 = "82d8d7fc59ddbb0160a92b2d87863213c8368d15d81d0c7a4150c3e68e952542"
 SIDES = {("r/strong", "l/cheap"): dict(root_input_tokens=48000, root_output_tokens=9000,
                                        leaf_input_tokens=30000, leaf_output_tokens=7000)}
 
@@ -204,7 +205,7 @@ def no_pair_grid():
 def test_every_no_pair_decision_on_the_fixture_keeps_its_v1_683_bytes():
     grid = no_pair_grid()
     assert len(grid) == 224
-    assert hashlib.sha256(json.dumps(grid, sort_keys=True).encode()).hexdigest() == NO_PAIR_SHA256
+    assert decision_sha256(grid) == NO_PAIR_SHA256
 
 
 # --- the spec ------------------------------------------------------------------------------------
