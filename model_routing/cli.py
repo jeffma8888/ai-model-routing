@@ -187,9 +187,9 @@ def _build_parser() -> argparse.ArgumentParser:
                     help="with --leaf: the roots of the pair rows; adds each task's pair table "
                          "(DESIGN 12.4 v1.679)")
     ev.add_argument("--leaf", nargs="+", action="extend", default=None, metavar="MODEL",
-                    help="with --root: the sub-agent models of the pair rows")
+                    help="with --root: the sub-agent models of the pair rows (DESIGN 12.4 v1.679)")
     ev.add_argument("--json", action="store_true")
-    ev.set_defaults(print_usage=ev.print_usage)  # v1.679: --root or --leaf alone is a usage error
+    ev.set_defaults(parser=ev)  # v1.679: --root or --leaf alone is a usage error (review iter-537 nit 2)
 
     dg = sub.add_parser("delegate",
                         help="do work of one or more calls of a task inline in the parent "
@@ -681,8 +681,7 @@ def _cmd_evaluate(args) -> int:
     from .evaluate import _read_rows, evaluate, outcomes_from_rows
     for given, missing in (("root", "leaf"), ("leaf", "root")):  # 12.4 v1.679, before any file
         if getattr(args, given) is not None and getattr(args, missing) is None:
-            args.print_usage(sys.stderr)
-            raise _BadInput(f"--{given} needs --{missing}: the pair table reads each root with each leaf")
+            args.parser.error(f"--{given} needs --{missing}: the pair table reads each root with each leaf")
     registry = Registry.load(args.registry)
     matrix_rows = _read_rows(args.outcomes)
     outcomes = outcomes_from_rows(matrix_rows, registry, slice_by=args.slice_by)

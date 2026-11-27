@@ -449,3 +449,28 @@ def test_design_and_changelog_state_v1_679():
                                              "CLI contract (12.4)") == 1
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     assert changelog.count("\n- v1.679 (2026-11-26): spec, code and tests (12.4, row DEL1f). ") == 1
+
+
+@pytest.mark.parametrize("json_flag", [(), ("--json",)])
+def test_cli_with_the_options_keeps_the_price_warnings(capsys, tmp_path, json_flag):
+    # review iter-537 nit 3: s/solo's rows in token form, priced by a registry whose stated end
+    # date for it, 2026-11-21, is before the run's day, 2026-11-26
+    registry = tmp_path / "models.json"
+    registry.write_text(json.dumps({"version": "1", "as_of": "2026-01-01", "currency": "USD", "models": [
+        {"id": "s/solo", "family": "s", "price_in": 1, "price_out": 2, "context_window": 100000,
+         "source": "https://example.com/pricing", "price_valid_until": "2026-11-21"}]}), encoding="utf-8")
+    rows = _rows()
+    for row in rows:
+        if row["model"] == "s/solo":
+            del row["cost_usd"]
+            row.update(input_tokens=1000, output_tokens=200)
+    extra = ("--registry", str(registry), *json_flag)
+    _, without, plain_err = _cli(capsys, tmp_path, *extra, rows=rows)
+    code, out, err = _cli(capsys, tmp_path, *extra, *PAIR_OPTIONS, rows=rows)
+    warning = ("warning: list price of s/solo was stated valid through 2026-11-21; "
+               "check the vendor page and update the registry\n")
+    assert code == 0 and err == plain_err == warning
+    if json_flag:
+        assert json.loads(out)["pair_sensitivity"] == [DILIGENCE, TRIAGE]
+    else:
+        assert out == without[:-1] + "\n\n" + PAIR_TEXT
