@@ -84,6 +84,15 @@ def test_the_flag_is_a_share_under_the_minimum_not_at_it(taken, least, below):
     assert row["min_delegation_follow"] == float(least) and type(row["min_delegation_follow"]) is float
 
 
+@pytest.mark.parametrize("taken, least, shown, below", [(1, 0.3333332, 0.333333, False), (1, 0.3333334, 0.333333, True),
+                                                        (2, 0.6666668, 0.666667, True)])
+def test_the_flag_reads_the_unrounded_share_not_the_shown_one(taken, least, shown, below):
+    # review iter-547 should-fix 1: 1/3 shows as 0.333333 but is above 0.3333332, and 2/3 shows as 0.666667
+    # but is under 0.6666668, so a flag read off the rounded share would get the first and the last wrong
+    row, = delegation_follow(hand_offs(taken, advised=3), tasks=tasks(min_delegation_follow=least))
+    assert row["delegate_follow_share"] == shown and row["below_follow"] is below
+
+
 def test_the_correlation_is_the_hand_computed_point_biserial_value():
     sizes = [(900, "delegate"), (1200, "delegate"), (600, "delegate"), (100, "inline"), (300, "inline")]
     recs = [mode(i, "delegate", actual, size) for i, (size, actual) in enumerate(sizes)]
@@ -104,7 +113,7 @@ def test_the_correlation_is_none_on_one_record_one_mode_or_one_size(recs):
     assert delegation_follow(recs)[0]["delegate_size_correlation"] is None
 
 
-def test_two_points_correlate_fully_and_no_spread_in_the_sum_is_zero():
+def test_two_points_correlate_fully_and_zero_covariance_gives_zero():  # review iter-547 nit 1
     two = [mode(0, "delegate", "inline", 5000), mode(1, "delegate", "delegate", 9000)]
     assert delegation_follow(two)[0]["delegate_size_correlation"] == 1.0
     even = [mode(0, "delegate", "delegate", 100), mode(1, "delegate", "inline", 100),
