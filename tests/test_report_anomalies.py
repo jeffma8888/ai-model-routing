@@ -270,8 +270,9 @@ def test_a_missing_log_exits_2(tmp_path):
     assert (code, out) == (2, "") and "missing.jsonl" in err and err.count("\n") == 1
 
 
-# sha256 of f"{code}\n{stdout}\n{stderr}" for each run at v1.692 (5237e54), on the scenario log above with its one
-# anomaly record (loop-side scratch script, the same log and runs as below)
+# sha256 of f"{code}\n{stdout}\n{stderr}" for each run below, `cli` on `write_log`'s scenario log with its one
+# anomaly record, computed with the v1.692 package (`git archive 5237e54 model_routing`), before v1.693 changed
+# `report` and the CLI (review iter-553 nit 2)
 V1_692 = [
     ([], "b21a567e8e96a43a143a86771b49282663873295f1ace8dba43535665a9f79ec"),
     (["--json"], "70f18a4e8063acaa898d849945b4b666e6b3806edd79af13e0082238f51ded47"),
@@ -325,7 +326,9 @@ def test_design_states_v1_693_in_8_3_and_10_and_the_changelog_the_version():
         "  - v1.693 `report --log PATH [--by model|task] --anomalies` (row CACHE2b, 8.3 v1.693): ")]
     ten_lines = ten.splitlines()
     assert ten_lines[ten_lines.index(cli_line) - 1].startswith("  - v1.689 `report --log PATH --delegation ")
+    # review iter-553 nit 1: an unknown key gets the CLI's message, before report's
     for kept in ("`error: --anomalies counts records that hold only a task and a model, so it takes no --by KEY`",
+                 "known or not (so an unknown key gets this message, not `report`'s)",
                  "`error: --delegation reads mode records alone, so it takes no --anomalies`",
                  "`error: --opportunities groups by task alone, so it takes no --anomalies`",
                  "Without the option every output keeps its bytes"):
