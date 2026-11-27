@@ -11,6 +11,7 @@ and the library beside the words that state it, on a fixture of two roots and on
 are tests/test_readme_trim.py's v1.680 block, and every README transcript keeps its bytes (gates.py).
 """
 
+import argparse
 import contextlib
 import io
 import json
@@ -126,7 +127,7 @@ def test_the_link_is_the_lesson_that_holds_harvey_s_two_gaps():
 def test_the_command_and_its_two_options_are_the_parser_s():
     says("`model-routing select-pair TASK --root MODEL ... --leaf MODEL ...`")
     parser = _build_parser()
-    [sub] = [a for a in parser._actions if a.__class__.__name__ == "_SubParsersAction"]
+    [sub] = [a for a in parser._actions if isinstance(a, argparse._SubParsersAction)]
     pair = sub.choices["select-pair"]
     options = {o: a for a in pair._actions for o in a.option_strings}
     for flag in ("--root", "--leaf"):
@@ -202,3 +203,6 @@ def test_the_pointer_names_each_subsection_that_states_a_claim():
     assert "\n- v1.678 a pair through the executor (row DEL1e, 5.2 v1.670): `.call_pair(" in part["7"]
     assert "\n- v1.676 `select-pair TASK --root MODEL [MODEL ...] --leaf MODEL [MODEL ...]" in part["10"]
     assert "\n- v1.680 README pair route (row PROD1j; " in part["5.2"]
+    # review iter-538 should-fix 2: 10 v1.676's Not-in-this-version clause names the version that adds it
+    assert "README's paragraph on the pair route (row PROD1j, which v1.680 adds in 5.2); " in part["10"]
+    assert "README's paragraph on the pair route (row PROD1j);" not in design

@@ -187,7 +187,7 @@ def test_design_4_3_states_v1_672_and_the_v1_671_lists_point_to_it():
     assert "``root_input_tokens``" in doc and "(DESIGN 4.3 v1.672)" in doc
 
 
-def test_no_readme_evidence_or_research_file_writes_the_four():
+def test_no_evidence_or_research_file_and_only_the_readme_pair_paragraph_writes_the_four():
     paths = [*(ROOT / ".github" / "workflows").glob("*"),
              *(path for path in (ROOT / "evidence").rglob("*") if path.is_file()),
              *(path for path in (ROOT / "research").rglob("*") if path.is_file())]
