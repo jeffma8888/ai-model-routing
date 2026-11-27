@@ -74,6 +74,7 @@ def test_task_defaults_and_frozen_dataclass():
         "min_self_consistency": None,  # v1.668 (row JUDGE2b)
         "min_delegation_follow": None,  # v1.688 (row DEL2a)
         "max_delegation_depth": None,  # v1.691 (row DEL3)
+        "min_cache_hit_rate": None, "cache_miss_calls": 10,  # v1.692 (row CACHE2a)
     }
     with pytest.raises(FrozenInstanceError):
         task.bar = 0.1

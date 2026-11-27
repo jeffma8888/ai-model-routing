@@ -176,9 +176,10 @@ def test_the_reason_code_is_a_module_constant_not_exported():
 
 # --- 4.2 v1.691: the task field -------------------------------------------------------------------
 
-def test_the_task_field_is_the_last_with_its_default():
+def test_the_task_field_follows_min_delegation_follow_with_its_default():
     names = [f.name for f in dataclasses.fields(Task)]
-    assert names[-2:] == ["min_delegation_follow", "max_delegation_depth"]
+    # v1.692 (row CACHE2a): `min_cache_hit_rate` and `cache_miss_calls` follow it, tests/test_cache_miss.py
+    assert names[names.index("min_delegation_follow"):][:2] == ["min_delegation_follow", "max_delegation_depth"]
     assert Task("t", 0.5).max_delegation_depth is None
     for value in (0, 1, 3):
         assert Task("t", 0.5, max_delegation_depth=value).max_delegation_depth == value

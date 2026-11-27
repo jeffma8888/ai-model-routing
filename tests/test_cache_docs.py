@@ -261,25 +261,30 @@ def lesson_lines():
 def test_the_cache_lessons_plan_only_the_monitor_check_the_switch_and_the_budget():
     lines = lesson_lines()
     planned = {h: line.count("planned") for h, line in lines.items() if "planned" in line}
-    assert planned == {"Keep the prompt prefix the same, byte for byte": 2}
+    # v1.692 (row CACHE2a): the monitor check ships, so only the switch is planned, tests/test_cache_miss.py
+    assert planned == {"Keep the prompt prefix the same, byte for byte": 1}
     prefix = lines["Keep the prompt prefix the same, byte for byte"]
-    assert "a planned monitor check flags a task and model whose hit rate stays under a floor" in prefix
+    assert ("and from v1.692 a `Monitor` given the tasks flags a task and model whose hit rate over its latest "
+            "calls falls under a floor the task sets, `min_cache_hit_rate`.") in prefix
     assert "a planned change also prices a call moved to another model mid-session" in prefix
     changes = {h: line.split("The change: ", 1)[1] for h, line in lines.items() if "The change" in line}
     assert list(changes) == [CACHE_LESSONS[5]]
     # v1.596 (row B1b): the budget that refuses or moves a call is shipped, so only the check is planned
-    assert changes[CACHE_LESSONS[5]] == ("a monitor check that flags a run of calls whose hit rate stays "
-                                         "under the task's floor.")
+    # v1.692 (row CACHE2a): the check ships, so its count in `report` is the change left (row CACHE2b)
+    assert changes[CACHE_LESSONS[5]] == "a count of those records in `report`."
     for line in lines.values():
         assert "The changes" not in line and "measured cached and written tokens per task and model" not in line
 
 
 def test_the_bill_lesson_says_report_cache_gives_the_hit_rate():
-    # review iter-442 nit 5: the hit rate is measured and shown today; the check on a floor is planned
+    # review iter-442 nit 5: the hit rate is measured and shown today; v1.692 (row CACHE2a): the check on a
+    # floor ships, tests/test_cache_miss.py
     assert ("so a cache that mostly misses shows in the log, and `report --cache` gives each group's "
             "hit rate, and an in-process budget refuses a call (v1.595) or moves it only to a route that "
-            "still clears the bar (v1.596), as in the Uber lesson on spend tiers. The change: a monitor "
-            "check") in lesson_lines()[CACHE_LESSONS[5]]
+            "still clears the bar (v1.596), as in the Uber lesson on spend tiers. From v1.692 a `Monitor` "
+            "given the tasks writes an anomaly record, and calls an optional callback, when a task and model's "
+            "hit rate over its last `cache_miss_calls` attempts with a count falls under the task's "
+            "`min_cache_hit_rate`.") in lesson_lines()[CACHE_LESSONS[5]]
 
 
 def test_the_delegation_decision_still_passes_no_measured_count():

@@ -95,7 +95,8 @@ def test_keep_records_must_be_a_bool(tmp_path, value):
 
 def test_keep_records_is_keyword_only_after_path(tmp_path):
     params = inspect.signature(Monitor).parameters
-    assert list(params) == ["path", "keep_records"]
+    # v1.692 (row CACHE2a): `tasks` and `on_anomaly` follow it, tests/test_cache_miss.py
+    assert list(params)[:2] == ["path", "keep_records"]
     assert params["path"].default is None
     assert params["keep_records"].kind is inspect.Parameter.KEYWORD_ONLY
     assert params["keep_records"].default is True
@@ -158,7 +159,8 @@ def test_design_8_2_states_v1_656_and_the_changelog_the_version():
     design = read("DESIGN.md")
     start = design.index("\n### 8.2 ")
     eight2 = design[start:design.index("\n### 8.3 ", start)]
-    assert eight2.startswith("\n### 8.2 `Monitor(path=None, *, keep_records=True)`\n")
+    # v1.692 (row CACHE2a): the heading names `tasks` and `on_anomaly` too, tests/test_cache_miss.py
+    assert eight2.startswith("\n### 8.2 `Monitor(path=None, *, keep_records=True, tasks=None, on_anomaly=None)`\n")
     [mine] = [line for line in eight2.splitlines() if line.startswith("- v1.656 `keep_records` (row PROD1b): ")]
     for kept in ("a keyword-only `keep_records=True`, after `path`, so `Monitor(path, False)` raises `TypeError`",
                  "`.records` stays the empty list it starts as",
