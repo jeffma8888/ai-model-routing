@@ -99,8 +99,8 @@ DROPPED_V1_666 holds each clause it drops or rewords, as v1.665 (48a41e9) wrote 
 7 or 10 that states it. These tests failed on v1.665's README and pass on v1.666's.
 
 DESIGN 5.2 v1.673 (row PROD1ibbba, the first part of row PROD1ibbb): the second paragraph on budgets and the one on
-the prompt cache become pointer paragraphs by row PROD1ibbb's rule, from 1,455 and 1,586 bytes to 399 and 394, so the
-section is 27,030 bytes. Each keeps its lead sentence, its option's names in backticks and its one `DESIGN.md`
+the prompt cache become pointer paragraphs by row PROD1ibbb's rule, from 1,455 and 1,586 bytes to 397 and 394, so the
+section is 27,028 bytes. Each keeps its lead sentence, its option's names in backticks and its one `DESIGN.md`
 pointer (POINTERS_V1_673), at most 400 bytes; DROPPED_V1_673 pins each clause and name it drops, as v1.666 (def0b69)
 wrote it, to the line of 3, 4.1, 4.3, 4.6, 5.1, 5.2, 6, 7, 8.3 or 10 that states it, and QUOTES_V1_673 each quote to
 the note's lesson that keeps it. The v1.648 and v1.650 names tests leave the two to these tests. These tests failed
@@ -998,7 +998,7 @@ def test_the_v1_653_seven_and_the_section_at_most_24000_bytes():
     # keeps v1.653's bytes, less what v1.665 (row PROD1iba), v1.666 (row PROD1ibba) and v1.673 (row PROD1ibbba) cut,
     # and LATER's entries are the rest
     text = read("README.md")
-    assert (size(without_later(text), PRODUCTION) == 23_976 - CUT_V1_665 - CUT_V1_666 - CUT_V1_673 == 21_358
+    assert (size(without_later(text), PRODUCTION) == 23_976 - CUT_V1_665 - CUT_V1_666 - CUT_V1_673 == 21_356
             <= TARGET < PRODUCTION_CAP == 30_000)
     assert size(text, PRODUCTION) - size(without_later(text), PRODUCTION) == sum(b for _, b in LATER)
     assert LATER[0] == (SAVINGS_LEAD, 714)  # v1.654's paragraph, its own 712 bytes and the blank line
@@ -1458,22 +1458,27 @@ def test_design_states_v1_666_and_the_changelog_the_version():
 
 # the second on budgets and the one on the prompt cache, as v1.666 (def0b69) left them and as v1.673 leaves them
 OLD_BYTES_V1_673 = {EST_LEAD: 1_455, CACHE_LEAD: 1_586}
-NEW_BYTES_V1_673 = {EST_LEAD: 399, CACHE_LEAD: 394}
-CUT_V1_673, SECTION_V1_673, POINTER_CAP = 2_248, 27_030, 400
+NEW_BYTES_V1_673 = {EST_LEAD: 397, CACHE_LEAD: 394}
+CUT_V1_673, SECTION_V1_673, POINTER_CAP = 2_250, 27_028, 400
 # row PROD1ibbb's rule (SCOUT iter 530): a pointer paragraph keeps its lead sentence, the names in backticks of the
-# option it introduces and its one pointer to DESIGN, and is at most POINTER_CAP bytes
+# option it introduces and its one pointer to DESIGN, and is at most POINTER_CAP bytes; review iter-531 should-fix 2:
+# the cache one's lead is its first two sentences, the second naming the option, and nit 1: the names are the
+# option's alone, the pointer holding `DESIGN.md` and the lead `refuse`
+CACHE_SECOND = ("A `models.json` row may give `price_cached_in` and `price_cache_write`, and a results line its "
+                "`cached_input_tokens` and `cache_write_tokens` ")
 POINTERS_V1_673 = {
     EST_LEAD: ("The estimate is no bound: a call that reads or writes more than its estimate costs more than its hold, "
                "so a `refuse` budget can end past its limit by the overrun of the calls in flight. ",
-               ["refuse", "strict=True", "billing_bound", "DESIGN.md"],
+               ["strict=True", "billing_bound"],
                "(`DESIGN.md` 4.6, 7, 8.1, 8.3, 10 and 11)."),
-    CACHE_LEAD: (CACHE_LEAD, ["models.json", "price_cached_in", "price_cache_write", "cached_input_tokens",
-                              "cache_write_tokens", "DESIGN.md"],
+    CACHE_LEAD: (CACHE_LEAD + CACHE_SECOND, ["models.json", "price_cached_in", "price_cache_write",
+                                            "cached_input_tokens", "cache_write_tokens"],
                  "(`DESIGN.md` 4.1, 4.3, 5.1, 5.2, 6, 7, 8.3 and 10). "),
 }
 # what each keeps besides: a strict budget's promise, and the cache lesson's link by its heading
-KEPT_V1_673 = {EST_LEAD: ["A `strict=True` budget holds each call's `billing_bound` instead and refuses one it cannot "
-                          "bound, so its spend stays under its limit while providers bill within the bound "],
+# review iter-531 should-fix 1: "an unbounded call", where "one" could be read as the bound
+KEPT_V1_673 = {EST_LEAD: ["A `strict=True` budget holds each call's `billing_bound` instead and refuses an unbounded "
+                          "call, so its spend stays under its limit while providers bill within the bound "],
                CACHE_LEAD: ["[The cache hit rate is a cost number](research/production-lessons.md#the-cache-hit-rate-is-a-"
                             "cost-number)."]}
 # each clause and name v1.673 drops, as v1.666 wrote it, the behavioural DESIGN subsection that states it, and a phrase
@@ -1482,7 +1487,9 @@ DROPPED_V1_673 = [
     (EST_LEAD, "the most it can cost given a `max_tokens`, `max_completion_tokens` or `max_output_tokens` in its route's "
      "`provider_options` and its model's context window", "### 4.6 ",
      "its `provider_options` hold at least one of `max_tokens`, `max_completion_tokens` and `max_output_tokens`"),
-    (EST_LEAD, "it charges that bound for a call that raised anything but a provider error", "## 7. ",
+    # review iter-531 must-fix 1: the charge is 4.6's `.settle_unpriced`, and the calls it is charged for are 7's
+    (EST_LEAD, "it charges that bound", "### 4.6 ", "a strict budget adds the bound it held"),
+    (EST_LEAD, "for a call that raised anything but a provider error", "## 7. ",
      "releases with `.settle_unpriced`, not `.settle` at 0.0, a hold whose provider call raised"),
     (EST_LEAD, "With a monitor the executor writes each warn crossing and each refusal to the log as a budget record",
      "## 7. ", "with a ledger and a monitor, the executor writes a budget record (8.1 v1.598)"),
@@ -1579,18 +1586,25 @@ def test_the_pointer_check_names_what_a_paragraph_lacks():
     assert pointer_problems(text, first, names, pointer) == []
     assert pointer_problems(text, first, names, pointer, cap=len(text.encode("utf-8")) - 1) == [
         f"{len(text.encode('utf-8'))} bytes, over {len(text.encode('utf-8')) - 1}"]
+    # the cache one's names sit in its lead, so a bare one breaks both (review iter-531 should-fix 2)
     assert pointer_problems(text.replace("`price_cache_write`", "price_cache_write"), first, names, pointer) == [
-        "no `price_cache_write`"]
+        "no lead sentence", "no `price_cache_write`"]
     assert pointer_problems(text.replace(pointer, "(`DESIGN.md` 4.1). "), first, names, pointer) == ["no pointer"]
     assert pointer_problems(text.replace("A prompt cache", "The prompt cache", 1), first, names, pointer) == [
         "no lead sentence"]
-    assert pointer_problems(text.replace(", and a results", " \u2014 and a results"), first, names, pointer) == [
+    # the second sentence is the cache one's lead too, and a bare name is no name (review iter-531 should-fix 2, nit 1)
+    assert pointer_problems(text.replace("and a results line its", "and a results row its"), first, names,
+                            pointer) == ["no lead sentence"]
+    est_first, est_names, est_pointer = POINTERS_V1_673[EST_LEAD]
+    assert pointer_problems(paragraph(EST_LEAD).replace("`billing_bound`", "billing_bound"), est_first, est_names,
+                            est_pointer) == ["no `billing_bound`"]
+    assert pointer_problems(text.replace(" (`DESIGN.md`", " \u2014 (`DESIGN.md`"), first, names, pointer) == [
         "a dash"]
 
 
 def test_each_clause_and_quote_v1_673_dropped_is_gone_and_stated_where_it_lives():
     design = read("DESIGN.md")
-    assert len(DROPPED_V1_673) == 22 and len(QUOTES_V1_673) == 3
+    assert len(DROPPED_V1_673) == 23 and len(QUOTES_V1_673) == 3
     assert v1_673_still_there(read("README.md")) == []
     for lead, clause, heading, phrase in DROPPED_V1_673:
         # a behavioural subsection, never a 5.2 history bullet of the README
@@ -1628,15 +1642,19 @@ def test_design_states_v1_673_and_the_changelog_the_version():
     five2 = subsection(design, "### 5.2 ")
     [mine] = [line for line in five2.splitlines()
               if line.startswith("- v1.673 README pointer paragraphs (row PROD1ibbba, the first part of row PROD1ibbb): ")]
-    for kept in ("the second paragraph on budgets, on the estimate and strict budgets (v1.600), is cut from 1,455 to 399 "
+    for kept in ("the second paragraph on budgets, on the estimate and strict budgets (v1.600), is cut from 1,455 to 397 "
                  "bytes and the one on the prompt cache (v1.594) from 1,586 to 394",
                  "each a pointer paragraph of at most 400 bytes by row PROD1ibbb's rule",
                  "is stated in 3, 4.1, 4.3, 4.6, 5.1, 5.2, 6, 7, 8.3 or 10, so no subsection gains one",
                  "Uber's two under `Spend tiers and nudges, not strict caps`, which step 7 of the walk-through still links",
                  "Manus's under `The cache hit rate is a cost number`, which the cache one links by that heading",
-                 "So the section is 27,030 bytes by the 12.8 measure, 2,970 under v1.629's 30,000-byte cap, which stays",
+                 "So the section is 27,028 bytes by the 12.8 measure, 2,972 under v1.629's 30,000-byte cap, which stays",
+                 # review iter-531 must-fix 1: the bound is 4.6's charge, for the raised calls 7 names
+                 "the bound a strict budget charges a call whose cost is not known (4.6), which 7 limits to a provider "
+                 "call that raised by a bug or with cache counts `Model.cost` refuses",
+                 "it keeps its lead sentence (the cache one its first two, the second naming the option)",
                  "row PROD1ibbbb makes the paragraph on self-hosted rows (1,450 bytes) a pointer paragraph",
-                 "and the section less `LATER` at 21,358, v1.666's 23,606 less 2,248",
+                 "and the section less `LATER` at 21,356, v1.666's 23,606 less 2,250",
                  "No package module, evidence file or README transcript changes."):
         assert mine.count(kept) == 1, kept
     lines = five2.splitlines()

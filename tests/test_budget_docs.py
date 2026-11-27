@@ -104,7 +104,7 @@ def test_the_paragraph_names_each_part_once():
                  # v1.673 (row PROD1ibbba): the second is a pointer paragraph; the output keys, the bound a
                  # raised call settles at, the budget records, `budget_report` and `demo --budgets FILE` are
                  # DESIGN 3's, 4.6's, 7's, 8.3's and 10's (tests/test_readme_trim.py DROPPED_V1_673)
-                 "and refuses one it cannot bound, so its spend",
+                 "and refuses an unbounded call, so its spend",  # review iter-531 should-fix 1
                  "so its spend stays under its limit while providers bill within the bound",
                  # v1.652 (row PROD1gbbbbb): the one-process ledger is DESIGN 4.6's and README Limitations'
                  # (tests/test_readme_trim.py DROPPED_V1_652)
