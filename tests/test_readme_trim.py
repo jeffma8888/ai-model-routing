@@ -1107,8 +1107,9 @@ def test_design_states_the_v1_653_change_and_the_changelog_the_version():
 
 # --- v1.655 (row T30) -----------------------------------------------------------------------------
 
-def test_the_section_ends_with_the_record_format_sentence():
+def test_the_section_ends_with_its_later_paragraphs_in_the_order_added():
     # the one test that names the section's last paragraph; a slice that adds one after it restates this alone
+    # (named for the record format sentence, v1.658's last, until review iter-549 nit 2)
     # (v1.656, row PROD1b: the sentence on `keep_records` follows the savings sentence, v1.654's last;
     # v1.657, row PROD1e: the sentence on calls from a coroutine follows it; v1.658, row LOG1: the sentence on the
     # record format follows that; v1.663, row JUDGE1bbb: the paragraph on consensus labels follows that; v1.675,

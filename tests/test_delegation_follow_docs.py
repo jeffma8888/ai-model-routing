@@ -176,7 +176,9 @@ def test_the_pointer_names_each_subsection_that_states_a_claim():
     assert "\n- v1.687 `.record_mode(decision, actual_mode, input_tokens, tags=None) -> dict` (row DEL2, " in part["7"]
     assert "\n- v1.688 `delegation_follow(records, *, tasks=None) -> list[dict]` (row DEL2a, " in part["8.3"]
     assert "\n  - v1.689 `report --log PATH --delegation [--tasks PATH] [--json]` (row DEL2b, " in part["10"]
-    assert "\n- v1.690 README delegation follow (row DEL2c, " in design[design.index("\n### 5.2 "):]
+    # review iter-549 nit 1: bounded by 5.3, as the four above are by their next headings
+    five2 = design[design.index("\n### 5.2 "):design.index("\n### 5.3 ", design.index("\n### 5.2 "))]
+    assert "\n- v1.690 README delegation follow (row DEL2c, " in five2
     # the Not-in-this-version clauses that named the README sentence's row name the version that adds it
     for k in ("7", "8.3", "10"):
         assert part[k].count("the README sentence (row DEL2c, which v1.690 adds in 5.2)") == 1, k
