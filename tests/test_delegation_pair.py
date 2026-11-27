@@ -3,8 +3,9 @@
 `decide_delegation(..., delegate_roots=..., delegate_leaves=...)` hands the work to a delegating
 harness: the delegate is `select_pair` on the briefed task, and the delegate path is priced at the
 pair's `list_cost` there, each side at its 5.2 sizes on the briefed task (so each reads B), or at its
-mean side tokens with B on the root alone. One work call only in this version. The fixture is
-DEL1a's (tests/test_select_pair.py).
+mean side tokens with B on the root alone. K > 1 work calls on a pair, which raised `ValueError`
+until v1.686, are tests/test_delegation_pair_calls.py's (row DEL1m). The fixture is DEL1a's
+(tests/test_select_pair.py).
 """
 
 import inspect
@@ -58,14 +59,6 @@ def test_one_without_the_other_raises_after_policy_and_before_the_parent(given):
         decide(rt, "no/such-parent", **given)
     with pytest.raises(ValueError, match="policy"):
         decide(rt, "r/weak", policy="not a policy", **given)
-
-
-def test_a_pair_with_more_than_one_work_call_raises_naming_work_calls_before_the_parent():
-    rt = router()
-    for parent in ("r/weak", "no/such-parent"):
-        with pytest.raises(ValueError, match="work_calls"):
-            decide(rt, parent, work_calls=2, **PAIR)
-    assert decide(rt, "r/weak", work_calls=2).route.primary in ROOTS + LEAVES
 
 
 def test_select_pair_checks_the_lists_after_the_parent():
