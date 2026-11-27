@@ -76,9 +76,12 @@ def reasons(route):
                          ids=["module", "Router method"])
 def test_policy_follows_exclude_models_defaulting_to_none_before_the_pair_keywords(function):
     params = list(inspect.signature(function).parameters.values())
-    # v1.684 (row DEL1h): the pair's two keywords follow it, so it is the last but two
-    assert [p.name for p in params[-4:]] == ["exclude_models", "policy", "delegate_roots", "delegate_leaves"]
-    assert params[-3].kind is inspect.Parameter.KEYWORD_ONLY and params[-3].default is None
+    # v1.684 (row DEL1h): the pair's two keywords follow it, and v1.691 (row DEL3) `depth` follows them, so it is
+    # the last but three, tests/test_delegation_depth.py
+    assert [p.name for p in params[-5:]] == ["exclude_models", "policy", "delegate_roots", "delegate_leaves",
+                                             "depth"]
+    assert params[-4].name == "policy"
+    assert params[-4].kind is inspect.Parameter.KEYWORD_ONLY and params[-4].default is None
 
 
 def test_the_three_parent_codes_have_their_pinned_values_and_stay_in_the_module():
