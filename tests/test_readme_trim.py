@@ -110,9 +110,9 @@ DESIGN 5.2 v1.674 (row PROD1ibbbb, the second part of row PROD1ibbb): the paragr
 pointer paragraph by the same rule, from 1,450 bytes to 368, so the section is 25,946 bytes, at most row PROD1i's
 26,000. It keeps its lead and the sentence after it, which names the option, a fine-tune's `"base_model"` and
 `"deployment"` and its one `DESIGN.md` pointer (POINTERS_V1_674); DROPPED_V1_674 pins each clause and name it drops,
-as v1.673 (23b02ba) wrote it, to the line of 4.1, 5.1, 5.2, 8.1, 8.3, 10 or 11 that states it, QUOTES_V1_674 Harvey's
-quote to its lesson and NOTE_V1_674 the quote's qualifier to the note's opening rule. The v1.648 names test leaves it
-to these tests. These tests failed on v1.673's README and pass on v1.674's.
+as v1.673 (23b02ba) wrote it, to the line of 4.1, 5.1, 5.2, 8.1, 8.3, 10 or 11 that states it, the lesson's link and
+the Harvey sentence's qualifier to the Why that 4.1's v1.581 line gains (review iter-532 must-fix 1 and 2), and
+QUOTES_V1_674 Harvey's quote to its lesson. The v1.648 names test leaves it to these tests. These tests failed on v1.673's README and pass on v1.674's.
 """
 
 from pathlib import Path
@@ -1726,25 +1726,30 @@ DROPPED_V1_674 = [
      "so a log's spend splits into what self-hosted models cost by their hour and the rest"),
     (SELF_LEAD, "`model_routing.demo.run_self_hosted_demo()` routes a fictional fine-tune", "## 11. ",
      "`run_self_hosted_demo() -> dict`, in `demo.py` and not in `__all__`"),
-    (SELF_LEAD, "served at 2 USD an hour against a list-priced model", "## 11. ", "`usd_per_hour` 2.0"),
+    # review iter-532 should-fix 1: the hour and the list-priced rival each by the line that states it
+    (SELF_LEAD, "served at 2 USD an hour", "## 11. ", "`usd_per_hour` 2.0"),
+    (SELF_LEAD, "against a list-priced model", "## 11. ", "against a list-priced model by measured success"),
     (SELF_LEAD, "once its own runs clear the bar it is the primary at a twelfth of the list model's cost a call",
      "## 11. ", "one whose own runs clear the bar is the primary at a twelfth of the list model's cost a call"),
+    # review iter-532 must-fix 1 and 2: the link and the qualifier, which no DESIGN line stated, are the Why of 4.1's
+    # v1.581 line from v1.674
+    (SELF_LEAD, "([production lessons](research/production-lessons.md#your-own-trained-model-is-a-candidate-kept-to-the-"
+     "tasks-it-was-measured-on))", "### 4.1 ",
+     "which is the lesson on your own trained model of `research/production-lessons.md`"),
+    (SELF_LEAD, "its own number, with no hourly cost given, not a measurement of this library", "### 4.1 ",
+     "for its Firm Knowledge model: its own number, with no hourly cost given, not a measurement of this library"),
 ]
 # the quote v1.674 drops, as v1.673 wrote it, and the lesson of research/production-lessons.md that keeps it
 SELF_LESSON = "Your own trained model is a candidate, kept to the tasks it was measured on"
 HARVEY_V1_674 = '"completes tasks competitively with leading frontier models while reducing cost per query by 90%."'
 QUOTES_V1_674 = [(SELF_LEAD, HARVEY_V1_674, SELF_LESSON)]
-# the quote's qualifier, as v1.673 wrote it, and the note's opening rule that states it for every number it quotes
-NOTE_V1_674 = [(SELF_LEAD, "its own number, with no hourly cost given, not a measurement of this library",
-                "The numbers are each author's own, measured on its own tasks, models and prices with data it does not "
-                "publish, so this repository reproduces none of them")]
 SELF_LINK = "(research/production-lessons.md#your-own-trained-model-is-a-candidate-kept-to-the-tasks-it-was-measured-on)"
 
 
 def v1_674_still_there(readme):
-    """Each DROPPED_V1_674 clause, QUOTES_V1_674 quote and NOTE_V1_674 qualifier still in the paragraph it left."""
+    """Each DROPPED_V1_674 clause and QUOTES_V1_674 quote still in the paragraph it left."""
     found = paragraphs(readme, PRODUCTION)
-    return [clause for lead, clause, *_ in DROPPED_V1_674 + QUOTES_V1_674 + NOTE_V1_674
+    return [clause for lead, clause, *_ in DROPPED_V1_674 + QUOTES_V1_674
             if any(p.startswith(lead) and clause in p for p in found)]
 
 
@@ -1786,7 +1791,7 @@ def test_the_v1_674_pointer_check_names_what_it_lacks():
 
 def test_each_clause_and_quote_v1_674_dropped_is_gone_and_stated_where_it_lives():
     design = read("DESIGN.md")
-    assert len(DROPPED_V1_674) == 13 and len(QUOTES_V1_674) == 1 and len(NOTE_V1_674) == 1
+    assert len(DROPPED_V1_674) == 16 and len(QUOTES_V1_674) == 1
     assert v1_674_still_there(read("README.md")) == []
     for lead, clause, heading, phrase in DROPPED_V1_674:
         # a behavioural subsection, never a 5.2 history bullet of the README
@@ -1796,14 +1801,17 @@ def test_each_clause_and_quote_v1_674_dropped_is_gone_and_stated_where_it_lives(
     lesson = note.split(f"\n### {SELF_LESSON}\n", 1)[1].split("\n### ", 1)[0]
     for lead, quote, _ in QUOTES_V1_674:
         assert lesson.count(quote) == 1, quote
-    # the qualifier: the note's opening rule, and the lesson's Result line, which gives Harvey's training in GPUs and
-    # months, no hourly cost
-    opening = note.split("\n## ", 1)[0]
-    for lead, clause, rule in NOTE_V1_674:
-        assert opening.count(rule) == 1, rule
+    # the quote is the Firm Knowledge model's, as 4.1's Why says
     [result] = [line for line in lesson.splitlines() if line.startswith("- Result: ")]
     assert result.startswith("- Result: its Firm Knowledge model " + HARVEY_V1_674)
-    assert "150 NVIDIA B300 GPUs over the course of 2 months" in result and "hour" not in result
+    # review iter-532 must-fix 1 and 2: the Why that states the link and the qualifier closes 4.1's v1.581 line
+    [owner] = [line for line in subsection(design, "### 4.1 ").splitlines()
+               if "which is the lesson on your own trained model of" in line]
+    assert owner.startswith("- v1.581 self-hosted pricing (row SELF1a): ")
+    assert owner.endswith(". Why (v1.674, row PROD1ibbbb): a model a team trains or serves itself is a route like any "
+                          "other, which is the lesson on your own trained model of `research/production-lessons.md`, "
+                          "where Harvey reports a 90% cut in cost per query for its Firm Knowledge model: its own number, "
+                          "with no hourly cost given, not a measurement of this library.")
     # the section still links the lesson twice: step 5 of the walk-through and the paragraph on task scope
     section = "\n\n".join(paragraphs(read("README.md"), PRODUCTION))
     assert section.count(SELF_LINK) == 2
@@ -1834,11 +1842,13 @@ def test_design_states_v1_674_and_the_changelog_the_version():
                  "it keeps its lead sentence and the one after it, which names the option",
                  "a fine-tune's `\"base_model\"` and `\"deployment\"`, which no other README paragraph names",
                  "and its one pointer to this file (4.1, 5.1, 8.1, 8.3, 10 and 11)",
-                 "is stated in 4.1, 5.1, 5.2, 8.1, 8.3, 10 or 11, so no subsection gains one",
+                 "is stated in 4.1, 5.1, 5.2, 8.1, 8.3, 10 or 11, and `DROPPED_V1_674` pins it",
+                 # review iter-532 must-fix 1 and 2
+                 "the link and the qualifier of the Harvey sentence, which no line stated, are 4.1's from this version, "
+                 "a Why on its v1.581 line",
                  "the caveat v1.653 brought back that its throughputs describe one workload",
                  "which step 5 of the walk-through and the paragraph on task scope still link",
                  "under `Your own trained model is a candidate, kept to the tasks it was measured on` (`QUOTES_V1_674`)",
-                 "is the note's opening rule that the numbers are each author's own",
                  "So the section is 25,946 bytes by the 12.8 measure, at most row PROD1i's 26,000 and 4,054 under "
                  "v1.629's 30,000-byte cap, which stays",
                  "the section less `LATER` is 20,274, v1.673's 21,356 less 1,082",
@@ -1851,4 +1861,5 @@ def test_design_states_v1_674_and_the_changelog_the_version():
     assert len(mine.encode("utf-8")) <= 6_000 and "\u2014" not in mine and "\u2013" not in mine
     [line] = [x for x in read("CHANGELOG.md").splitlines() if x.startswith("- v1.674 (")]
     assert line.startswith("- v1.674 (2026-11-26): docs and tests (5.2, row PROD1i, fifth part). ")
+    assert line.count("4.1 gaining a Why with the link's lesson and the Harvey number's qualifier") == 1
     assert len(line.encode("utf-8")) <= 600
