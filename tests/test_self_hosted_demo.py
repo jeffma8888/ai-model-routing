@@ -163,30 +163,27 @@ def test_the_readme_paragraph_on_self_hosted_models():
     text = paragraph()
     for key in ('`"pricing_basis": "self_hosted"`', "`usd_per_hour`", "`tokens_per_hour_in`",
                 "`tokens_per_hour_out`", "`utilization`", "`input_cost_share`", '`"base_model"`',
-                '`"deployment"`', "`report --by pricing_basis`",
-                "`model_routing.demo.run_self_hosted_demo()`",
+                '`"deployment"`',
                 "`DESIGN.md` 4.1, 5.1, 8.1, 8.3, 10 and 11"):  # review iter-433 nit 1
         assert key in text, key
-    # v1.652 (row PROD1gbbbbb): the hour used a fiftieth of the time is DESIGN 11's (tests/test_readme_trim.py
-    # DROPPED_V1_652); v1.653 (row PROD1h) brings back the one workload and the hour's split (review iter-507 should-fix 3)
-    assert text.count("so it is routed like any model. Its throughputs describe one workload, and its split of "
-                      "the hour between input and output is an approximation you choose. A fine-tune ") == 1
-    # v1.648 (row PROD1gb): what each field means, how the row is admitted, why an hour has no one price per
-    # token and that the demo's fine-tune never judges its base are DESIGN 4.1's and 11's
-    # (tests/test_readme_trim.py)
+    # v1.674 (row PROD1ibbbb): a pointer paragraph of at most 400 bytes, so it keeps the row's keys, the fine-tune's
+    # two and its pointer; `report --by pricing_basis`, the demo, the one workload and the hour's split (v1.653), the
+    # twelfth, the lesson's link and Harvey's quote are DESIGN 4.1's, 8.3's and 11's and the note's
+    # (tests/test_readme_trim.py DROPPED_V1_674, QUOTES_V1_674)
     assert text.count("gives `usd_per_hour`, `tokens_per_hour_in`, `tokens_per_hour_out`, `utilization` and "
-                      "`input_cost_share`. The loader derives its prices per million tokens from them, so it is "
-                      "routed like any model. ") == 1
-    assert text.count("it is the primary at a twelfth of the list model's cost a call. Harvey reports ") == 1
-    assert ("(research/production-lessons.md#your-own-trained-model-is-a-candidate-kept-to-the-tasks-"
-            "it-was-measured-on)") in text
-    # every quote in the paragraph is one of the note's checked quotes, word for word
+                      "`input_cost_share`. A fine-tune names its base with `\"base_model\"`, and `\"deployment\"` "
+                      "records where a model runs (`DESIGN.md` 4.1, 5.1, 8.1, 8.3, 10 and 11).") == 1
+    assert len(text.encode("utf-8")) <= 400
+    for gone in ("`report --by pricing_basis`", "`model_routing.demo.run_self_hosted_demo()`",
+                 "Its throughputs describe one workload", "at a twelfth of the list model's cost a call",
+                 "(research/production-lessons.md#your-own-trained-model-is-a-candidate-kept-to-the-tasks-"
+                 "it-was-measured-on)"):
+        assert gone not in text, gone
+    # the paragraph quotes no one now, and Harvey's quote stays in the note word for word
     note = (ROOT / "research" / "production-lessons.md").read_text(encoding="utf-8")
-    quotes = text.split('"')[1::2]
-    harvey = [q for q in quotes if " " in q]
-    assert harvey == ["completes tasks competitively with leading frontier models while reducing "
-                      "cost per query by 90%."]
-    assert all(f'"{q}"' in note for q in harvey)
+    assert [q for q in text.split('"')[1::2] if " " in q] == []
+    assert note.count('"completes tasks competitively with leading frontier models while reducing '
+                      'cost per query by 90%."') == 1
     readme = readme_part()
     assert readme.index("Recurring tool work can be a route") < readme.index(text)
 

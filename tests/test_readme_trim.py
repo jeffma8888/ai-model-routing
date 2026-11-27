@@ -105,6 +105,14 @@ pointer (POINTERS_V1_673), at most 400 bytes; DROPPED_V1_673 pins each clause an
 wrote it, to the line of 3, 4.1, 4.3, 4.6, 5.1, 5.2, 6, 7, 8.3 or 10 that states it, and QUOTES_V1_673 each quote to
 the note's lesson that keeps it. The v1.648 and v1.650 names tests leave the two to these tests. These tests failed
 on v1.666's README and pass on v1.673's.
+
+DESIGN 5.2 v1.674 (row PROD1ibbbb, the second part of row PROD1ibbb): the paragraph on self-hosted rows becomes a
+pointer paragraph by the same rule, from 1,450 bytes to 368, so the section is 25,946 bytes, at most row PROD1i's
+26,000. It keeps its lead and the sentence after it, which names the option, a fine-tune's `"base_model"` and
+`"deployment"` and its one `DESIGN.md` pointer (POINTERS_V1_674); DROPPED_V1_674 pins each clause and name it drops,
+as v1.673 (23b02ba) wrote it, to the line of 4.1, 5.1, 5.2, 8.1, 8.3, 10 or 11 that states it, QUOTES_V1_674 Harvey's
+quote to its lesson and NOTE_V1_674 the quote's qualifier to the note's opening rule. The v1.648 names test leaves it
+to these tests. These tests failed on v1.673's README and pass on v1.674's.
 """
 
 from pathlib import Path
@@ -599,8 +607,9 @@ def test_the_three_paragraphs_are_shorter_and_the_section_under_its_cap():
 
 
 def test_the_three_keep_their_leads_their_names_their_quotes_and_their_links():
-    # v1.673 (row PROD1ibbba): the cache one is a pointer paragraph, which the v1.673 tests hold
-    for lead in [lead for lead in OLD_BYTES_V1_648 if lead not in POINTERS_V1_673]:
+    # v1.673 (row PROD1ibbba): the cache one is a pointer paragraph, which the v1.673 tests hold, and v1.674 (row
+    # PROD1ibbbb) the self-hosted one, which the v1.674 tests hold
+    for lead in [lead for lead in OLD_BYTES_V1_648 if lead not in {**POINTERS_V1_673, **POINTERS_V1_674}]:
         text = paragraph(lead)
         names = []
         for name in text.split("`")[1::2]:
@@ -868,8 +877,9 @@ def test_the_v1_652_nine_are_shorter_and_the_section_at_most_24000_bytes():
     # v1.653 (row PROD1h) changes five of the nine again, which NEW_BYTES_V1_653 holds; the four it left keep their
     # v1.652 bytes (review iter-508 nit 1); v1.665 (row PROD1iba) cuts two again, which NEW_BYTES_V1_665 holds,
     # and v1.666 (row PROD1ibba) the `promote` one, which NEW_BYTES_V1_666 holds; v1.673 (row PROD1ibbba) makes the
-    # second on budgets and the cache one pointer paragraphs, which NEW_BYTES_V1_673 holds
-    later = {**NEW_BYTES_V1_653, **NEW_BYTES_V1_665, **NEW_BYTES_V1_666, **NEW_BYTES_V1_673}
+    # second on budgets and the cache one pointer paragraphs, which NEW_BYTES_V1_673 holds, and v1.674 (row PROD1ibbbb)
+    # the self-hosted one, which NEW_BYTES_V1_674 holds
+    later = {**NEW_BYTES_V1_653, **NEW_BYTES_V1_665, **NEW_BYTES_V1_666, **NEW_BYTES_V1_673, **NEW_BYTES_V1_674}
     assert {k: v for k, v in found.items() if k not in later} == {
         k: v for k, v in NEW_BYTES_V1_652.items() if k not in later}
     assert all(found[k] == later[k] for k in found if k in later)
@@ -883,8 +893,10 @@ def test_the_v1_652_nine_keep_their_quotes_and_links_and_no_dash():
     for lead in OLD_BYTES_V1_652:
         text = paragraph(lead)
         assert text.startswith(lead), lead
-        # v1.673 (row PROD1ibbba): the second on budgets keeps no link, and the cache one its lesson's
-        assert text.count("](") == {PROMOTE_LEAD: 2, EST_LEAD: 0, SHADOW_LEAD: 0, LAT_LEAD: 0}.get(lead, 1), lead
+        # v1.673 (row PROD1ibbba): the second on budgets keeps no link, and the cache one its lesson's; v1.674 (row
+        # PROD1ibbbb): the self-hosted one keeps none, since step 5 and the scope paragraph link its lesson
+        assert text.count("](") == {PROMOTE_LEAD: 2, EST_LEAD: 0, SHADOW_LEAD: 0, LAT_LEAD: 0,
+                                    SELF_LEAD: 0}.get(lead, 1), lead
         assert "\u2014" not in text and "\u2013" not in text
 
 
@@ -990,16 +1002,17 @@ NAMES_V1_653 = {THREADS_LEAD: ["Executor", "Monitor", "BudgetLedger", "id_factor
 def test_the_v1_653_seven_and_the_section_at_most_24000_bytes():
     found = {lead: len(paragraph(lead).encode("utf-8")) for lead in OLD_BYTES_V1_653}
     # v1.665 (row PROD1iba) cuts the first on shadows again, which NEW_BYTES_V1_665 holds, and v1.666 (row
-    # PROD1ibba) the `promote` one, which NEW_BYTES_V1_666 holds
-    later = {**NEW_BYTES_V1_665, **NEW_BYTES_V1_666}
+    # PROD1ibba) the `promote` one, which NEW_BYTES_V1_666 holds, and v1.674 (row PROD1ibbbb) the self-hosted one,
+    # which NEW_BYTES_V1_674 holds
+    later = {**NEW_BYTES_V1_665, **NEW_BYTES_V1_666, **NEW_BYTES_V1_674}
     assert found == {k: later.get(k, v) for k, v in NEW_BYTES_V1_653.items()}
     assert sum(OLD_BYTES_V1_653.values()) - sum(NEW_BYTES_V1_653.values()) == 16
     # v1.654 (row OPP1c) adds a sentence in the room under the cap; the section less LATER (v1.655, row T30)
-    # keeps v1.653's bytes, less what v1.665 (row PROD1iba), v1.666 (row PROD1ibba) and v1.673 (row PROD1ibbba) cut,
-    # and LATER's entries are the rest
+    # keeps v1.653's bytes, less what v1.665 (row PROD1iba), v1.666 (row PROD1ibba), v1.673 (row PROD1ibbba) and
+    # v1.674 (row PROD1ibbbb) cut, and LATER's entries are the rest
     text = read("README.md")
-    assert (size(without_later(text), PRODUCTION) == 23_976 - CUT_V1_665 - CUT_V1_666 - CUT_V1_673 == 21_356
-            <= TARGET < PRODUCTION_CAP == 30_000)
+    assert (size(without_later(text), PRODUCTION) == 23_976 - CUT_V1_665 - CUT_V1_666 - CUT_V1_673 - CUT_V1_674
+            == 20_274 <= TARGET < PRODUCTION_CAP == 30_000)
     assert size(text, PRODUCTION) - size(without_later(text), PRODUCTION) == sum(b for _, b in LATER)
     assert LATER[0] == (SAVINGS_LEAD, 714)  # v1.654's paragraph, its own 712 bytes and the blank line
 
@@ -1008,7 +1021,9 @@ def test_the_v1_653_caveats_and_qualifiers_are_back_where_design_states_them():
     design = read("DESIGN.md")
     assert len(BACK_V1_653) == 7
     for lead, text, heading, phrase in BACK_V1_653:
-        assert paragraph(lead).count(text) == 1, text
+        # v1.674 (row PROD1ibbbb): the self-hosted one is a pointer paragraph, so its one-workload caveat is 4.1's
+        # alone (DROPPED_V1_674)
+        assert paragraph(lead).count(text) == (0 if lead in POINTERS_V1_674 else 1), text
         [owner] = [line for line in subsection(design, heading).splitlines() if phrase in line]
         assert "README" not in owner.split(":", 1)[0], (heading, phrase)
 
@@ -1030,7 +1045,8 @@ def test_the_v1_653_seven_keep_their_names_quotes_and_links_and_no_dash():
         assert "\u2014" not in text and "\u2013" not in text
     names = paragraph(THREADS_LEAD).split("`")[1::2]
     assert [n for n in NAMES_V1_653[THREADS_LEAD] if n not in names] == []
-    assert paragraph(SELF_LEAD).count("](") == 1 and paragraph(PROMOTE_LEAD).count("](") == 2
+    # v1.674 (row PROD1ibbbb): the self-hosted one is a pointer paragraph with no link
+    assert paragraph(SELF_LEAD).count("](") == 0 and paragraph(PROMOTE_LEAD).count("](") == 2
     assert paragraph(VAR_LEAD).count("](") == 1 and paragraph(THREADS_LEAD).count("](") == 0
     assert paragraph(EXAMPLE_LEAD).count("`demo/atlas-max`") == 2 and paragraph(EXAMPLE_LEAD).count("](") == 0
 
@@ -1662,4 +1678,177 @@ def test_design_states_v1_673_and_the_changelog_the_version():
     assert len(mine.encode("utf-8")) <= 6_000 and "\u2014" not in mine and "\u2013" not in mine
     [line] = [x for x in read("CHANGELOG.md").splitlines() if x.startswith("- v1.673 (")]
     assert line.startswith("- v1.673 (2026-11-26): docs and tests (5.2, row PROD1i, fourth part). ")
+    assert len(line.encode("utf-8")) <= 600
+
+
+# --- v1.674 (row PROD1ibbbb, the second part of row PROD1ibbb): the self-hosted one a pointer paragraph ---------
+
+# as v1.673 (23b02ba) left it and as v1.674 leaves it; the section by the 12.8 measure and row PROD1i's target
+OLD_BYTES_V1_674 = {SELF_LEAD: 1_450}
+NEW_BYTES_V1_674 = {SELF_LEAD: 368}
+CUT_V1_674, SECTION_V1_674, TARGET_V1_674 = 1_082, 25_946, 26_000
+# its lead is its first two sentences, the second naming the option and its five keys, as the cache one's (v1.673)
+SELF_SECOND = ('A `models.json` row with `"pricing_basis": "self_hosted"` gives `usd_per_hour`, `tokens_per_hour_in`, '
+               '`tokens_per_hour_out`, `utilization` and `input_cost_share`. ')
+POINTERS_V1_674 = {
+    SELF_LEAD: (SELF_LEAD + SELF_SECOND,
+                ["models.json", '"pricing_basis": "self_hosted"', "usd_per_hour", "tokens_per_hour_in",
+                 "tokens_per_hour_out", "utilization", "input_cost_share", '"base_model"', '"deployment"'],
+                "(`DESIGN.md` 4.1, 5.1, 8.1, 8.3, 10 and 11)."),
+}
+# what it keeps besides: the fine-tune's two keys, which no other README paragraph names
+KEPT_V1_674 = {SELF_LEAD: ['A fine-tune names its base with `"base_model"`, and `"deployment"` records where a model '
+                           'runs ']}
+# each clause and name v1.674 drops, as v1.673 wrote it, the behavioural DESIGN subsection that states it, and a phrase
+# of the line there that says it
+DROPPED_V1_674 = [
+    (SELF_LEAD, "The loader derives its prices per million tokens from them", "### 4.1 ",
+     "since its prices are derived: they are `self_hosted_prices` of the five"),
+    (SELF_LEAD, "so it is routed like any model", "### 4.1 ",
+     "so a self-hosted model is routed by its measured success at its derived price"),
+    # v1.653's caveat (review iter-507 should-fix 3), now 4.1's alone
+    (SELF_LEAD, "Its throughputs describe one workload, and its split of the hour between input and output is an "
+     "approximation you choose.", "### 4.1 ",
+     "The throughputs describe one workload, and the split of an hour between input and output is an approximation "
+     "the caller chooses"),
+    (SELF_LEAD, "and has its base's family", "### 4.1 ", "So a fine-tune is its base's family"),
+    (SELF_LEAD, "so with generator isolation on it never judges its base's output", "### 5.2 ",
+     "So with `independent_of_generator` a fine-tune has reason `generator_family` when the generator is its base"),
+    (SELF_LEAD, "`api` or `self_hosted`", "### 4.1 ",
+     "`deployment` says where the model runs: `\"api\"`, a vendor's endpoint, or `\"self_hosted\"`, weights the caller "
+     "serves"),
+    (SELF_LEAD, "Decisions, attempt records and the `select` table name a self-hosted model's `pricing_basis`",
+     "### 5.1 ", "a registry model's candidate holds that model's `pricing_basis`"),
+    (SELF_LEAD, "attempt records", "### 8.1 ",
+     "only on an attempt whose `model` is a registry model with `pricing_basis` `\"self_hosted\"`"),
+    (SELF_LEAD, "the `select` table", "## 10. ", "gains a `pricing_basis` column right before `list_cost`"),
+    (SELF_LEAD, "`report --by pricing_basis` splits a log's spend into that part and the rest", "### 8.3 ",
+     "so a log's spend splits into what self-hosted models cost by their hour and the rest"),
+    (SELF_LEAD, "`model_routing.demo.run_self_hosted_demo()` routes a fictional fine-tune", "## 11. ",
+     "`run_self_hosted_demo() -> dict`, in `demo.py` and not in `__all__`"),
+    (SELF_LEAD, "served at 2 USD an hour against a list-priced model", "## 11. ", "`usd_per_hour` 2.0"),
+    (SELF_LEAD, "once its own runs clear the bar it is the primary at a twelfth of the list model's cost a call",
+     "## 11. ", "one whose own runs clear the bar is the primary at a twelfth of the list model's cost a call"),
+]
+# the quote v1.674 drops, as v1.673 wrote it, and the lesson of research/production-lessons.md that keeps it
+SELF_LESSON = "Your own trained model is a candidate, kept to the tasks it was measured on"
+HARVEY_V1_674 = '"completes tasks competitively with leading frontier models while reducing cost per query by 90%."'
+QUOTES_V1_674 = [(SELF_LEAD, HARVEY_V1_674, SELF_LESSON)]
+# the quote's qualifier, as v1.673 wrote it, and the note's opening rule that states it for every number it quotes
+NOTE_V1_674 = [(SELF_LEAD, "its own number, with no hourly cost given, not a measurement of this library",
+                "The numbers are each author's own, measured on its own tasks, models and prices with data it does not "
+                "publish, so this repository reproduces none of them")]
+SELF_LINK = "(research/production-lessons.md#your-own-trained-model-is-a-candidate-kept-to-the-tasks-it-was-measured-on)"
+
+
+def v1_674_still_there(readme):
+    """Each DROPPED_V1_674 clause, QUOTES_V1_674 quote and NOTE_V1_674 qualifier still in the paragraph it left."""
+    found = paragraphs(readme, PRODUCTION)
+    return [clause for lead, clause, *_ in DROPPED_V1_674 + QUOTES_V1_674 + NOTE_V1_674
+            if any(p.startswith(lead) and clause in p for p in found)]
+
+
+def test_the_v1_674_one_is_a_pointer_paragraph_and_the_section_at_most_26000_bytes():
+    found = {lead: len(paragraph(lead).encode("utf-8")) for lead in OLD_BYTES_V1_674}
+    assert found == NEW_BYTES_V1_674 and all(n <= POINTER_CAP for n in found.values())
+    assert sum(OLD_BYTES_V1_674.values()) - sum(found.values()) == CUT_V1_674 == SECTION_V1_673 - SECTION_V1_674
+    # review iter-531 nit 2: the section is pinned to its bytes, so a later change to it restates this test
+    assert size(read("README.md"), PRODUCTION) == SECTION_V1_674 <= TARGET_V1_674 < PRODUCTION_CAP == 30_000
+    assert PRODUCTION_CAP - SECTION_V1_674 == 4_054
+
+
+def test_the_v1_674_one_keeps_its_lead_its_names_and_its_pointer():
+    readme = read("README.md")
+    for lead, (first, names, pointer) in POINTERS_V1_674.items():
+        text = paragraph(lead)
+        assert pointer_problems(text, first, names, pointer) == [], lead
+        assert all(text.count(kept) == 1 for kept in KEPT_V1_674[lead]), lead
+        assert text.endswith(KEPT_V1_674[lead][0] + pointer), lead
+        assert text.count("](") == 0, lead
+    # the fine-tune's two keys are named nowhere else in README.md, so the pointer keeps them
+    assert readme.count('`"base_model"`') == 1 and readme.count('`"deployment"`') == 1
+
+
+def test_the_v1_674_pointer_check_names_what_it_lacks():
+    first, names, pointer = POINTERS_V1_674[SELF_LEAD]
+    text = paragraph(SELF_LEAD)
+    assert pointer_problems(text, first, names, pointer, cap=len(text.encode("utf-8")) - 1) == [
+        f"{len(text.encode('utf-8'))} bytes, over {len(text.encode('utf-8')) - 1}"]
+    # a key of the second sentence is the lead's too, while the fine-tune's are names alone
+    assert pointer_problems(text.replace("`utilization`", "utilization"), first, names, pointer) == [
+        "no lead sentence", "no `utilization`"]
+    assert pointer_problems(text.replace('`"base_model"`', '"base_model"'), first, names, pointer) == [
+        'no `"base_model"`']
+    assert pointer_problems(text.replace(" 10 and 11).", " 10).", 1), first, names, pointer) == ["no pointer"]
+    assert pointer_problems(text.replace("is a row priced from its hour", "is priced from its hour"), first, names,
+                            pointer) == ["no lead sentence"]
+
+
+def test_each_clause_and_quote_v1_674_dropped_is_gone_and_stated_where_it_lives():
+    design = read("DESIGN.md")
+    assert len(DROPPED_V1_674) == 13 and len(QUOTES_V1_674) == 1 and len(NOTE_V1_674) == 1
+    assert v1_674_still_there(read("README.md")) == []
+    for lead, clause, heading, phrase in DROPPED_V1_674:
+        # a behavioural subsection, never a 5.2 history bullet of the README
+        [owner] = [line for line in subsection(design, heading).splitlines() if phrase in line]
+        assert "README" not in owner.split(":", 1)[0], (heading, phrase)
+    note = read("research/production-lessons.md")
+    lesson = note.split(f"\n### {SELF_LESSON}\n", 1)[1].split("\n### ", 1)[0]
+    for lead, quote, _ in QUOTES_V1_674:
+        assert lesson.count(quote) == 1, quote
+    # the qualifier: the note's opening rule, and the lesson's Result line, which gives Harvey's training in GPUs and
+    # months, no hourly cost
+    opening = note.split("\n## ", 1)[0]
+    for lead, clause, rule in NOTE_V1_674:
+        assert opening.count(rule) == 1, rule
+    [result] = [line for line in lesson.splitlines() if line.startswith("- Result: ")]
+    assert result.startswith("- Result: its Firm Knowledge model " + HARVEY_V1_674)
+    assert "150 NVIDIA B300 GPUs over the course of 2 months" in result and "hour" not in result
+    # the section still links the lesson twice: step 5 of the walk-through and the paragraph on task scope
+    section = "\n\n".join(paragraphs(read("README.md"), PRODUCTION))
+    assert section.count(SELF_LINK) == 2
+    assert SELF_LINK in walk_parts(read("README.md"))[1][4] and SELF_LINK in paragraph(SCOPE_LEAD)
+
+
+def test_the_v1_674_check_names_a_clause_put_back():
+    readme = read("README.md")
+    text = paragraph(SELF_LEAD)
+    back = text.replace(" (`DESIGN.md` 4.1,", "; `report --by pricing_basis` splits a log's spend into that part and the "
+                        "rest (`DESIGN.md` 4.1,")
+    assert back != text
+    assert v1_674_still_there(readme.replace(text, back, 1)) == [
+        "`report --by pricing_basis` splits a log's spend into that part and the rest"]
+    # a clause in another paragraph is not the dropped one's
+    other = "So `report --by pricing_basis` splits a log's spend into that part and the rest."
+    elsewhere = readme.replace("\n\n" + text + "\n\n", "\n\n" + text + "\n\n" + other + "\n\n", 1)
+    assert elsewhere.count(other) == 1 and v1_674_still_there(elsewhere) == []
+
+
+def test_design_states_v1_674_and_the_changelog_the_version():
+    design = read("DESIGN.md")
+    five2 = subsection(design, "### 5.2 ")
+    [mine] = [line for line in five2.splitlines()
+              if line.startswith("- v1.674 README pointer paragraph (row PROD1ibbbb, the second part of row PROD1ibbb): ")]
+    for kept in ("the paragraph on self-hosted rows (v1.585) is cut from 1,450 to 368 bytes, a pointer paragraph by row "
+                 "PROD1ibbb's rule (SCOUT iter 530)",
+                 "it keeps its lead sentence and the one after it, which names the option",
+                 "a fine-tune's `\"base_model\"` and `\"deployment\"`, which no other README paragraph names",
+                 "and its one pointer to this file (4.1, 5.1, 8.1, 8.3, 10 and 11)",
+                 "is stated in 4.1, 5.1, 5.2, 8.1, 8.3, 10 or 11, so no subsection gains one",
+                 "the caveat v1.653 brought back that its throughputs describe one workload",
+                 "which step 5 of the walk-through and the paragraph on task scope still link",
+                 "under `Your own trained model is a candidate, kept to the tasks it was measured on` (`QUOTES_V1_674`)",
+                 "is the note's opening rule that the numbers are each author's own",
+                 "So the section is 25,946 bytes by the 12.8 measure, at most row PROD1i's 26,000 and 4,054 under "
+                 "v1.629's 30,000-byte cap, which stays",
+                 "the section less `LATER` is 20,274, v1.673's 21,356 less 1,082",
+                 "with this part rows PROD1ibbb, PROD1ibb, PROD1ib and PROD1i close",
+                 "tests/test_self_hosted_demo.py restates its pins of it",
+                 "No package module, evidence file or README transcript changes."):
+        assert mine.count(kept) == 1, kept
+    lines = five2.splitlines()
+    assert lines[lines.index(mine) - 1].startswith("- v1.673 README pointer paragraphs (")
+    assert len(mine.encode("utf-8")) <= 6_000 and "\u2014" not in mine and "\u2013" not in mine
+    [line] = [x for x in read("CHANGELOG.md").splitlines() if x.startswith("- v1.674 (")]
+    assert line.startswith("- v1.674 (2026-11-26): docs and tests (5.2, row PROD1i, fifth part). ")
     assert len(line.encode("utf-8")) <= 600
