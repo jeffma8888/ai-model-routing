@@ -329,6 +329,10 @@ def _pair_ids(pairs) -> Optional[List[Tuple[str, str, str]]]:
                 or len(set(ids)) != len(ids):
             raise ValueError(f"pairs: {label} must be a non-empty list or tuple of model IDs "
                              f"with no ID twice, got {ids!r}")
+        for model_id in ids:
+            if ">" in model_id:
+                raise ValueError(f"pairs: {label} {model_id!r} holds '>', which names a cascade "
+                                 f"(12.1 v1.538), never one side of a pair")
     seen: Dict[str, Tuple[str, str]] = {}
     for root in pairs[0]:
         for leaf in pairs[1]:

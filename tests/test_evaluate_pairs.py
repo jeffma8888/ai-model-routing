@@ -10,12 +10,12 @@ number of sides with a spread.
 """
 from __future__ import annotations
 
-import hashlib
 import json
 from pathlib import Path
 
 import pytest
 
+from decision_hash import decision_sha256
 from model_routing import evaluate, outcomes_from_rows
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -79,7 +79,8 @@ TRIAGE = {
 }
 ROW_KEYS = ["task", "items", "roots", "leaves", "success", "root_spread", "leaf_spread",
             "mean_root_spread", "mean_leaf_spread"]
-# sha256 of json.dumps(evaluate(_outcomes(), **RUN), sort_keys=True), taken on e8dd6ac (v1.676)
+# sha256 of json.dumps(evaluate(_outcomes(), **RUN), sort_keys=True), taken on e8dd6ac (v1.676);
+# the dict holds no Wilson bound, so decision_sha256 (tests/decision_hash.py) gives the same digest
 DIGEST = "bfba1fe745794866f7d39f57652d2cb00da35b39e820dd0008e791b0af274bdf"
 
 
@@ -194,8 +195,7 @@ def test_a_sliced_run_keeps_its_slice_keys_and_the_table_comes_last():
 def test_without_pairs_the_dict_keeps_its_v1_676_bytes():
     result = evaluate(_outcomes(), **RUN)
     assert "pair_sensitivity" not in result
-    digest = hashlib.sha256(json.dumps(result, sort_keys=True).encode("utf-8")).hexdigest()
-    assert digest == DIGEST
+    assert decision_sha256(result, sort_keys=True) == DIGEST
     assert evaluate(_outcomes(), **RUN, pairs=None) == result
 
 
@@ -207,6 +207,16 @@ def test_without_pairs_the_dict_keeps_its_v1_676_bytes():
 ])
 def test_a_malformed_pairs_is_a_value_error(pairs):
     with pytest.raises(ValueError, match=r"^pairs"):
+        evaluate(_outcomes(), **RUN, pairs=pairs)
+
+
+@pytest.mark.parametrize("pairs, label", [
+    ((("r/a", "r/b>r/c"), LEAVES), "roots 'r/b>r/c'"),
+    ((ROOTS, ("l/x>l/y",)), "leaves 'l/x>l/y'"),
+])
+def test_a_side_holding_a_cascade_mark_is_a_value_error(pairs, label):
+    # review iter-535 should-fix 1: a model holding `>` is a cascade (12.1 v1.538), never a side
+    with pytest.raises(ValueError, match=rf"^pairs: {label} holds '>'"):
         evaluate(_outcomes(), **RUN, pairs=pairs)
 
 
