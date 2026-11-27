@@ -326,7 +326,8 @@ def test_design_7_states_v1_657_and_14_points_at_it():
                  "native async, that is `async def` methods or an async provider, and streaming (14)"):
         assert text.count(kept) == 1, kept
     assert seven.index("\n- v1.642 a call's policy on its records (") < seven.index("\n" + lines[head])
-    assert seven.rstrip("\n").endswith(block[-1])            # the last clause of section 7
+    # the last clause of section 7 until v1.678 (row DEL1e), whose pair call follows it
+    assert lines[lines.index(block[-1]) + 1].startswith("- v1.678 a pair through the executor (row DEL1e, ")
     assert all(len(line.encode("utf-8")) <= 6_000 and not any(d in line for d in NO_DASH) for line in block)
     fourteen = design.split("\n## 14. ", 1)[1]
     assert fourteen.count("\n- Native vendor SDK adapters (the OpenAI-compatible adapter covers gateways), async "
