@@ -257,5 +257,7 @@ def test_the_note_s_orchestrator_line_names_select_pair_and_what_is_planned():
     assert "and from v1.671 at its tokens inside the pair when the pair's stats hold them" in line
     assert "and from v1.672 `calibrate_from_results` reads them from a results row" in line
     assert "reading those tokens from a results row" not in line
-    assert "a `select-pair` command and a table of the spread over roots and over leaves are planned" in line
+    # v1.676 (row DEL1c): the command ships, the table stays planned (tests/test_select_pair_cli.py)
+    assert "from v1.676 `model-routing select-pair` prints the pair's decision from the command line" in line
+    assert "a table of the spread over roots and over leaves is planned" in line
     assert "pricing each side at its tokens inside the pair" not in line

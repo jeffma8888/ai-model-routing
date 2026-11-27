@@ -463,6 +463,6 @@ def test_the_note_names_the_command_as_shipped():
 def test_the_readme_layout_names_the_subcommand():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     # v1.612 (row CANARY1k) names pairs after promote, v1.634 (row M1c) drift after pairs,
-    # v1.661 (row JUDGE1ba) consensus-labels after drift
+    # v1.661 (row JUDGE1ba) consensus-labels after drift, v1.676 (row DEL1c) select-pair after it
     assert ("  cli.py        model-routing select | calibrate | report | demo | evaluate | delegate | plan "
-            "| promote | pairs | drift | consensus-labels\n") in readme
+            "| promote | pairs | drift | consensus-labels | select-pair\n") in readme
