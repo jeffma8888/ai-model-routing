@@ -143,21 +143,18 @@ def test_a_labelled_policy_names_itself_on_the_record_before_tags():
 
 # --- 7 v1.678: the checks -----------------------------------------------------------------------
 
-def test_a_harness_that_is_not_callable_and_a_ledger_raise_before_any_id_or_record():
+def test_a_harness_that_is_not_callable_raises_before_any_id_or_record_with_or_without_a_ledger():
+    # until v1.681 (row DEL1g, tests/test_call_pair_budget.py) a ledger raised here too
     ex, monitor = executor()
-    with pytest.raises(ValueError, match="harness"):
-        ex.call_pair("t", ROOTS, LEAVES, MESSAGES, "not callable")
     ex2, monitor2 = executor(ledger=BudgetLedger([Budget("cap", 1.0, "warn")]))
     selected = []
     for each in (ex, ex2):  # review iter-536 nit 1: both raise before select_pair
         each.router.select_pair = lambda *args, _real=each.router.select_pair, **kw: (
             selected.append(args), _real(*args, **kw))[1]
-    calls = []
-    with pytest.raises(ValueError, match="harness"):
-        ex.call_pair("t", ROOTS, LEAVES, MESSAGES, "not callable")
-    with pytest.raises(ValueError, match="ledger"):
-        ex2.call_pair("t", ROOTS, LEAVES, MESSAGES, harness(calls))
-    assert monitor.records == monitor2.records == [] and calls == [] and selected == []
+    for each in (ex, ex2):
+        with pytest.raises(ValueError, match="harness"):
+            each.call_pair("t", ROOTS, LEAVES, MESSAGES, "not callable")
+    assert monitor.records == monitor2.records == [] and selected == []
     assert ex2.id_factory() == "call-0"
     assert ex.call_pair("t", ROOTS, LEAVES, MESSAGES, harness([])).call_id == "call-0" and len(selected) == 1
 
