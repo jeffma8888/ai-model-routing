@@ -118,7 +118,7 @@ def test_the_command_takes_exactly_its_options():
 def test_select_s_other_options_are_unrecognized(files, flag, value):
     code, out, err = pair(files, "t", ROOTS, LEAVES, flag, value)
     assert (code, out) == (2, "")
-    assert err.startswith("usage: model-routing select-pair")
+    assert err.startswith("usage: model-routing [-h]\n")   # argparse's top-level usage, as for any command
     assert err.endswith(f"error: unrecognized arguments: {flag} {value}\n")
 
 
@@ -126,7 +126,7 @@ def test_select_s_other_options_are_unrecognized(files, flag, value):
 
 TABLE = """\
 model             family  measured  quality_lb  list_cost  routing_cost  reason
-----------------  ------  --------  ----------  ---------  ------------  ------------
+----------------  ------  --------  ----------  ---------  ------------  ---------
 r/strong+l/cheap  strong  39/40     0.871       0.016160   0.016160      passes
 r/strong+l/mid    strong  40/40     0.912       0.017600   0.017600      passes
 r/strong+l/dear   strong  40/40     0.912       0.032000   0.032000      passes

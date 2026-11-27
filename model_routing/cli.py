@@ -1,4 +1,4 @@
-"""Command line interface: ``model-routing select|calibrate|report|demo|evaluate|delegate|plan|promote|pairs|drift|consensus-labels``."""
+"""Command line interface: ``model-routing select|calibrate|report|demo|evaluate|delegate|plan|promote|pairs|drift|consensus-labels|select-pair``."""
 
 from __future__ import annotations
 
@@ -293,6 +293,24 @@ def _build_parser() -> argparse.ArgumentParser:
                     help="refuse a reference judge of this model's family")
     cl.add_argument("--registry", default=None, metavar="PATH",
                     help="with --generator: the registry (default the packaged models.json)")
+
+    sp = sub.add_parser("select-pair", help="choose a delegating harness's root and sub-agent models "
+                                            "together, as a pair")
+    sp.add_argument("task")
+    sp.add_argument("--root", required=True, nargs="+", action="extend", metavar="MODEL",
+                    help="a model that may plan and write the answer; give one or more")
+    sp.add_argument("--leaf", required=True, nargs="+", action="extend", metavar="MODEL",
+                    help="a model the sub-agents may run on; give one or more")
+    sp.add_argument("--flavor", default="cost_effective", help="cost_effective or cost_blind")
+    sp.add_argument("--generator", default=None)
+    sp.add_argument("--exclude", nargs="+", action="extend", default=[])
+    sp.add_argument("--policy", default=None, metavar="FILE",
+                    help="a tenant's Policy as a JSON object of allowed_routes, "
+                    "allowed_families, region, require_zdr and name")
+    sp.add_argument("--registry", default=str(DATA_DIR / "models.json"))
+    sp.add_argument("--tasks", default=str(DATA_DIR / "example_tasks.json"))
+    sp.add_argument("--stats", default="stats.json")
+    sp.add_argument("--json", action="store_true")
     return parser
 
 
@@ -397,11 +415,22 @@ def _cmd_select(args) -> int:
                                  exclude_models=tuple(args.exclude),
                                  prompt_tokens=args.prompt_tokens, slice=args.slice, policy=policy)
     except NoModelClearsBar as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        print(_candidate_table(exc.candidates, registry), file=sys.stderr)
-        _warn_expired_prices(registry, args.today, _eligible(exc.candidates))
-        return EXIT_NO_MODEL
-    used = _eligible(decision.candidates)
+        return _no_model(exc, registry, args.today, _eligible(exc.candidates))
+    return _print_decision(args, decision, stats, registry, _eligible(decision.candidates))
+
+
+def _no_model(exc: NoModelClearsBar, registry: Registry, today: date, used) -> int:
+    """Exit 3 as ``select`` exits: the error line and the candidate table on stderr, then the
+    price warnings for ``used`` (DESIGN 10; shared by ``select-pair`` from v1.676)."""
+    print(f"error: {exc}", file=sys.stderr)
+    print(_candidate_table(exc.candidates, registry), file=sys.stderr)
+    _warn_expired_prices(registry, today, used)
+    return EXIT_NO_MODEL
+
+
+def _print_decision(args, decision, stats: Stats, registry: Registry, used) -> int:
+    """Print a decision as ``select`` prints one, text or ``--json``, then the price warnings for
+    ``used`` (DESIGN 10; shared by ``select-pair`` from v1.676, whose routes are pairs)."""
     key = decision.task if decision.slice is None else f"{decision.task}@{decision.slice}"
     sources = stats.label_sources(key, decision.primary)  # DESIGN 10 v1.663: the primary's key only
     if args.json:
@@ -437,6 +466,31 @@ def _cmd_select(args) -> int:
     print(_candidate_table(decision.candidates, registry))
     _warn_expired_prices(registry, args.today, used)
     return EXIT_OK
+
+
+def _cmd_select_pair(args) -> int:
+    """DESIGN 10 v1.676: ``Router.select_pair`` printed as ``select`` prints a decision, with no
+    priors; the models whose expired price warns are the root and the leaf of each eligible pair."""
+    registry = Registry.load(args.registry)
+    tasks = load_tasks(args.tasks)
+    stats = Stats.load(args.stats) if Path(args.stats).exists() else Stats()
+    for model_id in [args.generator, *args.exclude]:
+        if model_id is not None:
+            registry.get(model_id)
+    policy = _load_policy(args.policy)  # as select reads it: after the IDs, before the routing
+    router = Router(registry, tasks, stats)
+    pairs = [(root, leaf) for root in args.root for leaf in args.leaf]  # select_pair's order
+
+    def used(candidates) -> set:
+        return {model_id for (root, leaf), c in zip(pairs, candidates) if c.eligible
+                for model_id in (root, leaf)}
+    try:
+        decision = router.select_pair(args.task, args.root, args.leaf, args.flavor,
+                                      generator_model=args.generator,
+                                      exclude_models=tuple(args.exclude), policy=policy)
+    except NoModelClearsBar as exc:
+        return _no_model(exc, registry, args.today, used(exc.candidates))
+    return _print_decision(args, decision, stats, registry, used(decision.candidates))
 
 
 def _cmd_calibrate(args) -> int:
@@ -932,16 +986,17 @@ def _cmd_consensus_labels(args) -> int:
 _COMMANDS = {"select": _cmd_select, "calibrate": _cmd_calibrate, "report": _cmd_report,
              "demo": _cmd_demo, "evaluate": _cmd_evaluate, "delegate": _cmd_delegate,
              "plan": _cmd_plan, "promote": _cmd_promote, "pairs": _cmd_pairs, "drift": _cmd_drift,
-             "consensus-labels": _cmd_consensus_labels}
+             "consensus-labels": _cmd_consensus_labels, "select-pair": _cmd_select_pair}
 
 
 def main(argv: Optional[List[str]] = None, *, today: Optional[date] = None) -> int:
-    """Run the CLI and return its exit code: 0 ok, 2 bad input, 3 no model clears the bar (or,
-    from v1.603, ``promote``'s challenger is not admitted, and from v1.661 a task of
+    """Run the CLI and return its exit code: 0 ok, 2 bad input, 3 no model clears the bar (from
+    v1.676 no pair can be chosen on ``select-pair``; from v1.603 ``promote``'s challenger is not
+    admitted, and from v1.661 a task of
     ``consensus-labels`` is under ``--min-agreement``), 4 a budget refused a call
     (``demo --budgets``, v1.599).
 
-    ``today`` dates the price expiry check of ``select``, ``delegate`` and, from v1.411,
+    ``today`` dates the price expiry check of ``select``, from v1.676 ``select-pair``, ``delegate`` and, from v1.411,
     ``evaluate``, from v1.646 of ``report --opportunities --stats``, and from v1.634 ends the window
     of ``drift`` and ``select --window``; ``None`` means ``datetime.date.today()``.
     """
