@@ -98,7 +98,8 @@ def test_design_states_w_in_13_1_and_13_2():
 
 # v1.410 (row DOC32): 13.2 writes the brief's output charge as W in each expression that charges
 # it, so a reader who checks the formulas against the code gets the code's cost at any W. Each
-# expression below is pinned as 13.2 writes it and then evaluated, as written, against
+# expression below is pinned as 13.2 writes it (SEPARATE_1 and the FOLDED_1 pair as 13.19 does from
+# v1.683, row DOC51, which moved the D = P difference of one call there) and then evaluated, as written, against
 # `decide_delegation` with D = P (fiction/mid delegates for fiction/mid in cost_effective).
 DELEGATE_1 = "P.cost(0, W) + D.cost(B + S_in, S_out) + (1 + T) * P.cost(B + R, 0)"
 DELEGATE_K = ("P.cost(0, W) + D.cost(K * B + w_in * S_in + w_out * S_out, K * S_out) "
@@ -121,18 +122,23 @@ def subsection(number, following):
 
 def test_13_2_writes_the_brief_output_as_w_and_13_9_keeps_b():
     s13_2 = subsection("13.2", "13.3")
+    design = (ROOT / "DESIGN.md").read_text(encoding="utf-8")
+    s13_19 = design[design.index("### 13.19 "):design.index("\n## 14. ")]
     for written in (f"`delegate_cost_usd = {DELEGATE_1}`", f"`delegate_cost_usd = {DELEGATE_K}`",
-                    f"`{SEPARATE_1}`", f"`{FOLDED_1_GAIN}` exceeds `{FOLDED_1_COST}`",
                     f"`{SEPARATE_K}`", f"Folded it is `{FOLDED_K}`", f"`{SEPARATE_RHO}`",
-                    "So the decision turn's brief on the delegate path is `W * out(C)` (A = 0)",
-                    "and its brief on the delegated path is the `W * out(C)` above",
-                    "W is what the decision turn writes, R what the next call reads back"):
+                    "So the decision turn's brief on the delegate path is `W * out(C)` (A = 0)"):
         assert written in s13_2, written
-    for term, count in (("P.cost(0, W)", 2), ("W * out(C)", 2), ("P.cost(B, W)", 2),
-                        ("P.cost(K * B, W)", 3)):
-        assert s13_2.count(term) == count, term
+    # v1.683 (row DOC51): the D = P difference of one call and the v1.242 bullet are 13.19's
+    for written in (f"`{SEPARATE_1}`", f"`{FOLDED_1_GAIN}` exceeds `{FOLDED_1_COST}`",
+                    "and its brief on the delegated path is the `W * out(C)` of 13.2",
+                    "W is what the decision turn writes, R what the next call reads back"):
+        assert written in s13_19 and written not in s13_2, written
+    # each count is the v1.682 one of 13.2 (2, 2, 2 and 3), split between 13.2 and 13.19
+    for term, count_13_2, count_13_19 in (("P.cost(0, W)", 2, 0), ("W * out(C)", 1, 1), ("P.cost(B, W)", 0, 2),
+                                          ("P.cost(K * B, W)", 3, 0)):
+        assert (s13_2.count(term), s13_19.count(term)) == (count_13_2, count_13_19), term
     for term in ("P.cost(0, B)", "B * out(C)", "P.cost(B, B)", "P.cost(K * B, B)"):
-        assert term not in s13_2, term
+        assert term not in s13_2 and term not in s13_19, term
     # the evaluator keeps W = B (13.1 v1.409), so its delegated expressions keep B
     s13_9 = subsection("13.9", "13.10")
     assert s13_9.count("delegated: `P.cost(0, B) + D.cost(") == 3

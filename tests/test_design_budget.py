@@ -101,14 +101,19 @@ The token permissions and Python versions out of 12.13 (v1.558, row DOC47): the 
 `ci.yml` as much as the `evidence` workflow are 12.31, in the same order, word for word but for the two `this
 workflow`, each now `evidence.yml`, a workflow subsection with 12.13's cap (SHARED_CI), so 12.13 has room for the
 queued workflow lines; 12.13's job bullet names 12.31 for the `ci.yml` matrix.
+Notes out of 13.2 (v1.683, row DOC51): the two items of 13.2 that state no cost, the D = P difference for work
+of one call and the v1.242 bullet on why the parent's own output in a shared call stays uncharged, are 13.19,
+in the same order, word for word but for the v1.242 opening and its `above` and `this section`, each now 13.2
+(COST_NOTES), a contract subsection with 13.2's cap, which raises the `## 13.` total by 16,000 to 300,000, so
+13.2 has room for the pair's delegate cost.
 
 The section totals (v1.456, row DOC37): each total is the one last set with the subsections it counted,
 `## 12.` 300,000 at v1.390 with 12.1 to 12.22 and `## 13.` 185,000 at v1.386 with 13.1 to 13.14
 (TOTAL_BASES), raised by the cap of each subsection added after them (12.23 and 12.24, 13.15, from v1.461,
 13.16, from v1.468, 13.17, from v1.478, 12.25, from v1.481, 12.26, from v1.498, 13.18, from v1.523, 12.27,
-from v1.528, 12.28, from v1.541, 12.29, from v1.553, 12.30, from v1.558, 12.31 and, from v1.575, 12.32), so
-460,000 and
-284,000. While PENDING is not empty, each section with every PENDING subsection cut to its cap
+from v1.528, 12.28, from v1.541, 12.29, from v1.553, 12.30, from v1.558, 12.31, from v1.575, 12.32 and, from
+v1.683, 13.19), so 460,000 and
+300,000. While PENDING is not empty, each section with every PENDING subsection cut to its cap
 (`projected`) must fit its total; the DESIGN 12 Caps bullet names each subsection of GROUPS in its class,
 with that class's cap, and states the totals (CAPS_CLAUSES, `caps_bullet_problems`). So a subsection
 added without a class, a Caps clause or a raised total fails in its own slice, not at the last trim.
@@ -123,7 +128,7 @@ from test_readme_evidence_budget import design_12_8
 ROOT = Path(__file__).resolve().parents[1]
 DESIGN = ROOT / "DESIGN.md"
 SECTIONS = ("12", "13")
-SECTION_CAPS = {"12": 460_000, "13": 284_000}  # v1.456, 12 v1.575 (445,000 at v1.558, 420,000 at v1.553, 405,000 at v1.541, 390,000 at v1.528, 375,000 at v1.523, 360,000 at v1.481, 345,000 at v1.478, 330,000 at v1.456), 13 v1.498 (262,000 at v1.468, 240,000 at v1.461); 12 300,000 at v1.390 and 260,000 at v1.386, 13 185,000
+SECTION_CAPS = {"12": 460_000, "13": 300_000}  # v1.456, 12 v1.575 (445,000 at v1.558, 420,000 at v1.553, 405,000 at v1.541, 390,000 at v1.528, 375,000 at v1.523, 360,000 at v1.481, 345,000 at v1.478, 330,000 at v1.456), 13 v1.683 (284,000 at v1.498, 262,000 at v1.468, 240,000 at v1.461); 12 300,000 at v1.390 and 260,000 at v1.386, 13 185,000
 # The total each section had when it last counted its subsections, the version that set it, and the last
 # subsection number it counted (12 v1.390 with 12.1 to 12.22, 13 v1.386 with 13.1 to 13.14); each
 # subsection numbered after it raises its section's total by the cap of its class (v1.456, row DOC37).
@@ -131,7 +136,8 @@ TOTAL_BASES = {"12": (300_000, "v1.390", 22), "13": (185_000, "v1.386", 14)}
 LINE_CAP = 6_000
 # The class of each subsection number (DESIGN 12 v1.386 Caps bullet; research notes v1.390) and the cap of each class.
 GROUPS = {
-    "contract": ("12.1", "12.2", "12.3", "12.4", "12.5", "13.1", "13.2", "13.3", "13.4", "13.5", "13.6", "13.7"),
+    "contract": ("12.1", "12.2", "12.3", "12.4", "12.5", "13.1", "13.2", "13.3", "13.4", "13.5", "13.6", "13.7",
+                 "13.19"),
     "converter": ("12.6", "12.9", "12.11", "12.14", "12.16", "12.18", "12.20", "12.23", "12.25", "13.11", "13.15"),
     "routing results": ("12.7", "12.10", "12.12", "12.15", "12.17", "12.19", "12.21", "12.24", "12.26", "12.27",
                         "12.28", "12.29", "12.30", "12.32"),
@@ -287,7 +293,7 @@ def test_the_class_table_names_every_heading_once_in_order():
     numbers = [number for number, _ in subsections]
     by_number = sorted(CLASS, key=lambda n: tuple(int(part) for part in n.split(".")))
     assert numbers == by_number
-    assert len(CLASS) == sum(len(group) for group in GROUPS.values()) == 50  # 36 before 13.15 (v1.394), 37 before 12.23 (v1.431), 38 before 12.24 (v1.433), 39 before 13.16 (v1.461), 40 before 13.17 (v1.468), 41 before 12.25 (v1.478), 42 before 12.26 (v1.481), 43 before 13.18 (v1.498), 44 before 12.27 (v1.523), 45 before 12.28 (v1.528), 46 before 12.29 (v1.541), 47 before 12.30 (v1.553), 48 before 12.31 (v1.558), 49 before 12.32 (v1.575)
+    assert len(CLASS) == sum(len(group) for group in GROUPS.values()) == 51  # 36 before 13.15 (v1.394), 37 before 12.23 (v1.431), 38 before 12.24 (v1.433), 39 before 13.16 (v1.461), 40 before 13.17 (v1.468), 41 before 12.25 (v1.478), 42 before 12.26 (v1.481), 43 before 13.18 (v1.498), 44 before 12.27 (v1.523), 45 before 12.28 (v1.528), 46 before 12.29 (v1.541), 47 before 12.30 (v1.553), 48 before 12.31 (v1.558), 49 before 12.32 (v1.575), 50 before 13.19 (v1.683)
     assert set(GROUPS) == set(CAPS)
     assert strays == []
 
@@ -774,11 +780,11 @@ def test_the_12_opening_gives_the_research_notes_cap_and_the_12_total():
     caps = [line for line in opening if line.startswith("- Caps, each a ceiling ")]
     assert len(caps) == 1
     assert "; the research notes 12.22 (v1.390, row DOC21o) and 13.16 (v1.461, row DOC38c), 40,000 each;" in caps[0]
-    assert ("; and the totals `## 12.` 460,000 and `## 13.` 284,000 (v1.456, row DOC37, v1.461, row DOC38c, v1.468, "
+    assert ("; and the totals `## 12.` 460,000 and `## 13.` 300,000 (v1.456, row DOC37, v1.461, row DOC38c, v1.468, "
             "row E25a, v1.478, row E26a, v1.481, row E26c, v1.498, row E27a, v1.523, row STRAT3f, v1.528, row "
-            "STRAT3h, v1.541, row ESC3c, v1.553, row ESC3m, v1.558, row DOC47, and v1.575, row VAR1b), "
+            "STRAT3h, v1.541, row ESC3c, v1.553, row ESC3m, v1.558, row DOC47, v1.575, row VAR1b, and v1.683, row DOC51), "
             in caps[0])
-    assert (CAPS["research notes"], SECTION_CAPS["12"], SECTION_CAPS["13"]) == (40_000, 460_000, 284_000)
+    assert (CAPS["research notes"], SECTION_CAPS["12"], SECTION_CAPS["13"]) == (40_000, 460_000, 300_000)
     moved = [line for line in opening if line.startswith("- Research notes out of 12.8 (v1.390, row DOC21o): ")]
     assert len(moved) == 1
     for words in ("are 12.22, a research-notes spec with a cap of 40,000 bytes, in the same order",
@@ -875,7 +881,7 @@ def test_the_caps_bullet_names_each_subsection_in_its_class_and_the_totals():
      "(v1.541), the LiveCodeBench cascade results 12.30 (v1.553) and the LiveCodeBench variant results 12.32 (v1.575)",
      "12.21, 12.24, 12.25, 12.26, 12.27, 12.28, 12.29, 12.30 and 12.32",
      ["the routing results clause names 12.25, not of its class"]),
-    ("the contract, 12.1 to 12.5 and", "the contract, 12.1 to 12.4 and",
+    ("the contract, 12.1 to 12.5,", "the contract, 12.1 to 12.4,",
      ["the contract clause lacks 12.5"]),
     ("16,000 bytes each", "15,000 bytes each", ["the contract clause gives 15,000, not its cap 16,000"]),
     ("; the workflow 12.13 and the token permissions and Python versions of both workflows 12.31 (v1.558, row DOC47), "
@@ -900,8 +906,10 @@ def test_the_caps_bullet_names_each_subsection_in_its_class_and_the_totals():
     (", the LiveCodeBench cascade results 12.30 (v1.553)", "", ["the routing results clause lacks 12.30"]),
     # v1.575 (row VAR1b)
     (" and the LiveCodeBench variant results 12.32 (v1.575)", "", ["the routing results clause lacks 12.32"]),
-    ("`## 13.` 284,000", "`## 13.` 262,000", ["the Caps bullet gives `## 13.` 262,000, not 284,000"]),
-    (" and `## 13.` 284,000", "", ["the Caps bullet gives `## 13.` 0 times, not once"]),
+    ("`## 13.` 300,000", "`## 13.` 284,000", ["the Caps bullet gives `## 13.` 284,000, not 300,000"]),
+    (" and `## 13.` 300,000", "", ["the Caps bullet gives `## 13.` 0 times, not once"]),
+    # v1.683 (row DOC51)
+    (" and the notes on the cost of each path 13.19 (v1.683, row DOC51)", "", ["the contract clause lacks 13.19"]),
     # v1.468 (row E25a)
     (", the registry-pair delegation results 13.17 (v1.468)", "", ["the delegation results clause lacks 13.17"]),
     # v1.498 (row E27a)
@@ -926,8 +934,8 @@ def test_each_total_is_its_base_raised_by_the_cap_of_each_subsection_added_after
         added += later
         raised[section] = base + sum(CAPS[CLASS[number]] for number in later)
     assert sorted(added, key=by_number) == ["12.23", "12.24", "12.25", "12.26", "12.27", "12.28", "12.29", "12.30", "12.31",
-                                                "12.32", "13.15", "13.16", "13.17", "13.18"]
-    assert raised == SECTION_CAPS == {"12": 460_000, "13": 284_000}
+                                                "12.32", "13.15", "13.16", "13.17", "13.18", "13.19"]
+    assert raised == SECTION_CAPS == {"12": 460_000, "13": 300_000}
 
 
 def test_the_projected_totals_fit_the_totals_the_caps_bullet_states():
@@ -951,12 +959,14 @@ def test_the_section_totals_bullet_gives_each_base_and_each_raise():
                   f"12.29 (v1.541), 12.30 (v1.553) and 12.32 (v1.575), and {CAPS['workflow']:,} for 12.31 (v1.558), "
                   f"so {SECTION_CAPS['12']:,}",
                   f"`## 13.` the {base13:,} of {set13}, which counts 13.1 to 13.{last13}, plus 15,000 for 13.15 "
-                  f"(v1.394), 40,000 for 13.16 (v1.461) and 22,000 for each of 13.17 (v1.468) and 13.18 (v1.498), "
+                  f"(v1.394), 40,000 for 13.16 (v1.461), 22,000 for each of 13.17 (v1.468) and 13.18 (v1.498) and "
+                  f"{CAPS['contract']:,} for 13.19 (v1.683), "
                   f"so {SECTION_CAPS['13']:,}",
                   "once `PENDING` is empty and, until then, the section with each `PENDING` subsection cut to "
                   "exactly its cap and the rest as measured"):
         assert words in bullets[0], words
-    assert (CAPS["converter"], CAPS["routing results"], CAPS["workflow"]) == (15_000, 15_000, 25_000)
+    assert (CAPS["converter"], CAPS["routing results"], CAPS["workflow"], CAPS["contract"]) == (15_000, 15_000, 25_000,
+                                                                                       16_000)
 
 
 def test_the_12_8_size_budget_clause_holds_no_history():
@@ -1257,3 +1267,94 @@ def test_12_31_holds_the_two_bullets_that_bind_both_workflows_and_12_13_neither(
             assert not [name for name, text in texts.items() if stale in text], stale
     sizes = dict(measure(text)[1])
     assert CLASS["12.31"] == CLASS["12.13"] == "workflow" and sizes["12.31"] <= CAPS["workflow"]
+
+
+# --- the notes on the cost of each path out of 13.2 (DESIGN 13 v1.683, row DOC51) --------------------
+
+COST_NOTES_HEADING = "### 13.19 Notes on the cost of each path (out of 13.2 v1.683)"
+# The two items as 13.2 held them at v1.682 (6960bbe), in their 13.2 order.
+COST_NOTES_V1_682 = (
+    (
+    '- With K = 1, C appears only in the separate inline call. With a separate call, inline minus '
+    "delegating to the parent's own model (D = P) is, in exact arithmetic, `P.cost(C, 0) - P.cost(B, W) "
+    '+ (1 + T) * (P.cost(S_in + S_out, 0) - P.cost(B + R, 0))`, so delegating even to its own model can '
+    "save in two ways: the separate call's re-read of a large context C (the context-isolation case), "
+    "and later calls that re-read a short brief and result instead of the work's input and output. When "
+    "the work folds into the next call, C cancels, and delegating to the parent's own model is cheaper "
+    'only when `T * P.cost(S_in + S_out, 0)` exceeds `P.cost(B, W) + (1 + T) * P.cost(B + R, 0)`, so '
+    'never with T = 0'
+    ),
+    (
+    '  - v1.242 why that output stays uncharged (row P1d): no input gives it a size. Of the shared '
+    'calls, only the 1 + T calls after the work can be at a tier that differs between the paths: the '
+    'decision turn reads C on both paths, A = 0, so it pays in(C) and out(C) on both, and its brief on '
+    'the delegated path is the `W * out(C)` above. What each of the 1 + T calls writes besides the work, '
+    "the parent's own next step (in a folded next call, besides its S_out), is the size of no 13.1 "
+    'input: W is what the decision turn writes, R what the next call reads back and S_out what each work '
+    'call writes, and each is charged where this section charges it. So a call of those 1 + T that reads '
+    "C + A on one path and C + A' on the other leaves out o * (out(C + A) - out(C + A')) of the "
+    "difference between the paths, o that call's own output, which no input states: 0 on a parent "
+    'without tiers and wherever both reads are in one tier, else an under-statement of the path whose '
+    "read is in the dearer tier. Pricing it would need a new input, the size of the parent's own output "
+    "in each later call, which v1.242 does not add: the 13.9 rows record only the work's calls, so no "
+    'committed delegation result could set it. No cost, reason, check or committed result changes'
+    ),
+)
+# What 13.19 changes in the v1.242 bullet, its opening and its two pointers to 13.2; the D = P item none.
+COST_NOTES_CHANGES = (
+    ("  - v1.242 why that output stays uncharged (row P1d): ",
+     "- v1.242 why the parent's own output in a shared call stays uncharged (row P1d): "),
+    ("its brief on the delegated path is the `W * out(C)` above.",
+     "its brief on the delegated path is the `W * out(C)` of 13.2."),
+    ("and each is charged where this section charges it.", "and each is charged where 13.2 charges it."),
+)
+
+
+def test_13_19_holds_the_two_13_2_items_that_state_no_cost_word_for_word_and_13_2_neither():
+    text = DESIGN.read_text(encoding="utf-8")
+    body, contract = subsection_body(text, "13.19"), subsection_body(text, "13.2")
+    assert [line for line in text.splitlines() if line.startswith("### 13.19 ")] == [COST_NOTES_HEADING]
+    # A Purpose line, the two items in their 13.2 order, then the blank line before `## 14.`.
+    assert len(body) == 4 and body[0].startswith("Purpose: ") and body[3] == ""
+    assert text.split("\n### 13.19 ", 1)[1].split("\n", 4)[4].startswith("\n## 14. ")
+    moved_dp, moved_242 = COST_NOTES_V1_682
+    for old, new in COST_NOTES_CHANGES:
+        assert moved_242.count(old) == 1 and moved_dp.count(old) == 0, old
+        moved_242 = moved_242.replace(old, new)
+    assert body[1:3] == [moved_dp, moved_242]
+    assert "this section" not in "\n".join(body[1:]) and " above" not in body[2]
+    # 13.2 holds neither, and nothing of them: no line of the file but these two opens as either did.
+    for line in COST_NOTES_V1_682:
+        assert line not in contract and line[:60] not in "\n".join(contract), line[:60]
+    assert sum(line == COST_NOTES_V1_682[0] for line in text.splitlines()) == 1
+    assert COST_NOTES_V1_682[1] not in text.splitlines()
+    assert sum("- v1.242 why " in line for line in text.splitlines()) == 1
+    for words in ("Purpose: the two items of 13.2 that state no cost, the D = P difference for work of one call and "
+                  "the v1.242 reason the parent's own output in a shared call stays uncharged, in their 13.2 order (13 "
+                  "v1.683, row DOC51), so 13.2 has room for its contract: ",
+                  "word for word but for the v1.242 bullet's level, its `that output`, now the parent's own output in a "
+                  "shared call, which 13.2's v1.219 `Not charged` sub-bullet names, and its `above` and `this "
+                  "section`, each now 13.2.",
+                  "Its class is contract, with 13.2's cap (the 12 Caps bullet).",
+                  "A reference to one of them as 13.2, with or without a version, in this file, a test or a script, "
+                  "names its item here."):
+        assert words in body[0], words
+    # 13.2 points to each: the v1.33 bullet to the D = P item, the `Not charged` sub-bullet to v1.242.
+    assert sum("so the 13.19 D = P difference holds with S_in(P) and S_out(P)" in line for line in contract) == 1
+    assert sum(line.startswith("  - Not charged, as before: ") and "README Limitations states (why: 13.19 v1.242). "
+               in line for line in contract) == 1
+    assert "the D = P difference above" not in text
+    # No script, test, note, workflow, README or DESIGN.md line names v1.242 as 13.2, in either form the loop
+    # builds (CHANGELOG.md lines are history and stay), and 13.9 names 13.19 for it twice.
+    files = [ROOT / "DESIGN.md", ROOT / "README.md"] + sorted((ROOT / ".github" / "workflows").glob("*.yml"))
+    for folder in ("evidence", "model_routing", "research", "tests"):
+        files += sorted(path for path in (ROOT / folder).rglob("*") if path.suffix in (".py", ".md"))
+    texts = {path.relative_to(ROOT).as_posix(): path.read_text(encoding="utf-8") for path in files}
+    assert "DESIGN.md" in texts and "tests/test_delegation_tiers.py" in texts and len(texts) > 100
+    for stale in ("13.2 " + "v1.242", "13.2, " + "v1.242"):
+        assert not [name for name, content in texts.items() if stale in content], stale
+    assert "\n".join(subsection_body(text, "13.9")).count("(13.19 v1.242)") == 2
+    sizes = dict(measure(text)[1])
+    assert CLASS["13.19"] == CLASS["13.2"] == "contract" and sizes["13.19"] <= CAPS["contract"]
+    # 13.2 has the room DOC51 asks for, at least 1,500 bytes under its cap, with the cap unchanged.
+    assert CAPS["contract"] == 16_000 and sizes["13.2"] <= CAPS["contract"] - 1_500
