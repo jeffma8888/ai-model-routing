@@ -44,7 +44,8 @@ def parent_terms(parent, b=300, r=150, t=2):
 def test_the_signature_ends_with_the_two_keywords_defaulting_to_none():
     for function in (delegation.decide_delegation, Router.decide_delegation):
         params = inspect.signature(function).parameters
-        assert list(params)[-3:] == ["policy", "delegate_roots", "delegate_leaves"]
+        # v1.691 (row DEL3): `depth` follows them, tests/test_delegation_depth.py
+        assert list(params)[-4:-1] == ["policy", "delegate_roots", "delegate_leaves"]
         for name in ("delegate_roots", "delegate_leaves"):
             assert params[name].kind is inspect.Parameter.KEYWORD_ONLY
             assert params[name].default is None
@@ -209,7 +210,8 @@ def test_design_states_the_pair_in_13_1_13_2_13_3_and_7():
     s13_1 = design[design.index("### 13.1 Inputs"):design.index("### 13.2 ")]
     s13_2 = design[design.index("### 13.2 "):design.index("### 13.3 ")]
     s13_3 = design[design.index("### 13.3 "):design.index("### 13.4 ")]
-    assert "policy=None, delegate_roots=None, delegate_leaves=None) -> DelegationDecision`" in s13_1
+    # v1.691 (row DEL3): `depth=None` follows them, tests/test_delegation_depth.py
+    assert "policy=None, delegate_roots=None, delegate_leaves=None, depth=None) -> DelegationDecision`" in s13_1
     assert "- `delegate_roots` and `delegate_leaves` (v1.684, row DEL1h, default None):" in s13_1
     assert "- v1.684 a pair delegate (row DEL1h, 13.3 v1.684):" in s13_2
     assert "with B added to the root's input alone" in s13_2

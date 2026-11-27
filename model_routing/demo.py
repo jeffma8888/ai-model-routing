@@ -121,6 +121,8 @@ def _tasks_json(task: Task) -> str:
         del row["min_self_consistency"]
     if row["min_delegation_follow"] is None:  # DESIGN 4.2 v1.688
         del row["min_delegation_follow"]
+    if row["max_delegation_depth"] is None:  # DESIGN 4.2 v1.691
+        del row["max_delegation_depth"]
     return json.dumps({"tasks": [row]}, indent=2) + "\n"
 
 

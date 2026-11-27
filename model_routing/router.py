@@ -600,7 +600,8 @@ class Router:
                           exclude_models: Iterable[str] = (),
                           policy: Optional[Policy] = None,
                           delegate_roots: Optional[Sequence[str]] = None,
-                          delegate_leaves: Optional[Sequence[str]] = None):
+                          delegate_leaves: Optional[Sequence[str]] = None,
+                          depth: Optional[int] = None):
         """Decide whether ``parent_model`` does the work inline or delegates it.
 
         The work is ``work_calls`` successive calls of the task, one by default.
@@ -628,7 +629,10 @@ class Router:
         without the other, or a
         ``cached_read_ratio`` or ``output_reread_share`` that is not a number from 0
         to 1, or a ``policy`` that is not None or a ``Policy``, and
-        :class:`NoModelClearsBar` when neither path is allowed (DESIGN section 13).
+        :class:`NoModelClearsBar` when neither path is allowed (DESIGN section 13). ``depth`` is where the
+        caller sits in a tree of hand-offs, the root at 0 (None counts as 0); at or past the task's
+        ``max_delegation_depth`` the work stays inline with ``depth_cap`` when the parent may and clears the
+        bar, else :class:`NoModelClearsBar` (DESIGN 13.1 and 13.5 v1.691).
         """
         from .delegation import decide_delegation
         return decide_delegation(self, task_name, parent_model, flavor,
@@ -641,7 +645,8 @@ class Router:
                                  brief_output_tokens=brief_output_tokens,
                                  generator_model=generator_model,
                                  exclude_models=exclude_models, policy=policy,
-                                 delegate_roots=delegate_roots, delegate_leaves=delegate_leaves)
+                                 delegate_roots=delegate_roots, delegate_leaves=delegate_leaves,
+                                 depth=depth)
 
     def _pinned(self, task: Task, flavor: str, candidates: Tuple[Candidate, ...], pin_route: str,
                 allow_below_bar: bool, name: str, slice_name: Optional[str]) -> RouteDecision:

@@ -396,7 +396,9 @@ class Executor:
         ``decide_delegation`` with ``delegate_roots`` and ``delegate_leaves`` runs through
         ``harness(root, leaf, messages)`` as :meth:`call_pair` runs its route (7 v1.685); a pair
         decision with no ``harness``, a ``harness`` on any other, and a route entry that does not
-        split one way into a registry root and leaf raise ``ValueError`` before any ID.
+        split one way into a registry root and leaf raise ``ValueError`` before any ID. A decision whose
+        ``depth`` is not None tags each record ``depth``, the sub-agent's depth ``decision.depth + 1``, and a
+        caller tag of that name then raises ``ValueError`` (7 v1.691).
         """
         if decision.mode != DELEGATE:
             raise ValueError(f"decision mode is {decision.mode!r}: inline work happens in the "
@@ -421,13 +423,19 @@ class Executor:
                     raise ValueError(f"route entry {entry!r} does not split one way into a registry root "
                                      f"and leaf joined by '+', so its root and leaf cannot be told apart")
                 sides[entry] = splits[0]
+        depth = getattr(decision, "depth", None)  # DESIGN 7 v1.691
+        if depth is not None and (isinstance(depth, bool) or not isinstance(depth, int) or depth < 0):
+            raise ValueError(f"decision depth must be None or an int >= 0 that is not a bool, got {depth!r}")
         call_tags = dict(tags or {})
-        reserved = sorted(key for key in ("delegated", "parent") if key in call_tags)
+        names = ("delegated", "parent") if depth is None else ("delegated", "parent", "depth")
+        reserved = sorted(key for key in names if key in call_tags)
         if reserved:
             raise ValueError(f"tag names {', '.join(reserved)} are set by call_delegated; "
                              f"pass other names")
         call_tags["delegated"] = "true"
         call_tags["parent"] = decision.parent
+        if depth is not None:
+            call_tags["depth"] = str(depth + 1)
         if harness is not None:  # DESIGN 7 v1.685: no policy, as .call_delegated takes none
             return self._run_pair(decision.task, route, sides, messages, harness, call_tags, validate,
                                   None)

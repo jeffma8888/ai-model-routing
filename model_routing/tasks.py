@@ -126,7 +126,9 @@ class Task:
     ``min_self_consistency`` is the lowest share of a route's rerun items every rerun graded alike that
     the route may have, None for no minimum (DESIGN 4.2 and 5.2 v1.668). ``min_delegation_follow`` is the
     lowest share of the task's advised hand-offs, per parent, its agent should take, under which
-    ``delegation_follow`` flags a row; it routes nothing (DESIGN 4.2 and 8.3 v1.688).
+    ``delegation_follow`` flags a row; it routes nothing (DESIGN 4.2 and 8.3 v1.688). ``max_delegation_depth``
+    is the deepest a sub-agent doing the task's work may sit in a tree of hand-offs, the root at 0, None for no
+    cap (DESIGN 4.2 and 13.5 v1.691).
     Invalid values raise ``ValueError`` at construction.
     """
 
@@ -152,6 +154,7 @@ class Task:
     latency_unknown: str = "allow"
     min_self_consistency: Optional[float] = None
     min_delegation_follow: Optional[float] = None
+    max_delegation_depth: Optional[int] = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.exclude_families, tuple):
@@ -223,6 +226,10 @@ class Task:
                                    or not 0.0 <= follow <= 1.0):  # NaN and the infinities fail the range
             raise ValueError(f"task {self.name!r}: min_delegation_follow must be None or a finite number in "
                              f"[0, 1] that is not a bool, got {follow!r}")
+        cap = self.max_delegation_depth  # DESIGN 4.2 v1.691
+        if cap is not None and (isinstance(cap, bool) or not isinstance(cap, int) or cap < 0):
+            raise ValueError(f"task {self.name!r}: max_delegation_depth must be None or an int >= 0 "
+                             f"that is not a bool, got {cap!r}")
 
 
 _TASK_FIELDS = {f.name for f in fields(Task)}

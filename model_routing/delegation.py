@@ -40,6 +40,7 @@ DELEGATE_BETTER = "delegate_better"
 INLINE_AS_GOOD = "inline_as_good"
 ONLY_PARENT_CLEARS = "only_parent_clears"
 NONE_CLEAR = "none_clear"
+DEPTH_CAP = "depth_cap"  # DESIGN 13.5 v1.691
 
 # 5.2 rules 5b to 5d on the parent, as its 13.4 rule 4 codes
 _PARENT_POLICY_CODES = {POLICY_EXCLUDED: PARENT_POLICY_EXCLUDED, REGION_UNAVAILABLE: PARENT_REGION_UNAVAILABLE,
@@ -67,10 +68,11 @@ class DelegationDecision:
     parent_quality_lb: float
     delegate_quality_lb: Optional[float]
     route: Optional[RouteDecision]
+    depth: Optional[int] = None  # DESIGN 13.6 v1.691
 
     def to_dict(self) -> dict:
-        """Return the decision as plain JSON-able types, keys in field order."""
-        return {
+        """Return the decision as plain JSON-able types, keys in field order, ``depth`` only when set."""
+        data = {
             "task": self.task,
             "flavor": self.flavor,
             "parent": self.parent,
@@ -85,6 +87,9 @@ class DelegationDecision:
             "delegate_quality_lb": self.delegate_quality_lb,
             "route": None if self.route is None else self.route.to_dict(),
         }
+        if self.depth is not None:  # DESIGN 13.6 v1.691
+            data["depth"] = self.depth
+        return data
 
 
 def _count(name: str, value) -> int:
@@ -278,7 +283,8 @@ def decide_delegation(router: Router, task_name: str, parent_model: str,
                       exclude_models: Iterable[str] = (),
                       policy: Optional[Policy] = None,
                       delegate_roots: Optional[Sequence[str]] = None,
-                      delegate_leaves: Optional[Sequence[str]] = None) -> DelegationDecision:
+                      delegate_leaves: Optional[Sequence[str]] = None,
+                      depth: Optional[int] = None) -> DelegationDecision:
     """The logic of :meth:`Router.decide_delegation` (DESIGN 13.1 to 13.5)."""
     if flavor not in FLAVORS:
         raise ValueError(f"unknown flavor {flavor!r}; expected one of {FLAVORS}")
@@ -307,6 +313,8 @@ def decide_delegation(router: Router, task_name: str, parent_model: str,
     pair = delegate_roots is not None
     if pair != (delegate_leaves is not None):  # DESIGN 13.1 v1.684
         raise ValueError("delegate_roots and delegate_leaves go together: give both or neither")
+    if depth is not None:  # DESIGN 13.1 v1.691
+        _count("depth", depth)
     parent = router.registry.get(parent_model)
     generator_family = None
     if generator_model is not None:
@@ -401,12 +409,21 @@ def decide_delegation(router: Router, task_name: str, parent_model: str,
             model=parent.id if mode == INLINE else route.primary, reason=reason,
             below_bar=below_bar, inline_allowed=block is None, inline_cost_usd=inline_cost,
             delegate_cost_usd=delegate_cost, parent_quality_lb=parent_lb,
-            delegate_quality_lb=delegate_lb, route=route)
+            delegate_quality_lb=delegate_lb, route=route, depth=depth)
 
     def refuse() -> NoModelClearsBar:
         # only reached when the delegate's select raised, so ``failed`` is set (13.5)
         return NoModelClearsBar(f"no way to do task {task.name!r} inline or delegated",
                                 failed.candidates)
+
+    # 13.5 v1.691: at or past an enabled cap no hand-off is advised; inline when the parent may and clears
+    cap = task.max_delegation_depth
+    if cap is not None and (depth or 0) >= cap:
+        if block is None and parent_clears:
+            return decision(INLINE, DEPTH_CAP, False)
+        raise NoModelClearsBar(f"no way to do task {task.name!r} ({DEPTH_CAP}): depth {depth or 0} is at or past "
+                               f"the task's max_delegation_depth {cap}, and the parent may not do it inline "
+                               f"at the bar", route.candidates if route is not None else failed.candidates)
 
     # 13.5: the first row that applies wins; floats are compared exactly
     if block is not None:
