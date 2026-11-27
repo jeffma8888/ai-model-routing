@@ -1356,5 +1356,7 @@ def test_13_19_holds_the_two_13_2_items_that_state_no_cost_word_for_word_and_13_
     assert "\n".join(subsection_body(text, "13.9")).count("(13.19 v1.242)") == 2
     sizes = dict(measure(text)[1])
     assert CLASS["13.19"] == CLASS["13.2"] == "contract" and sizes["13.19"] <= CAPS["contract"]
-    # 13.2 has the room DOC51 asks for, at least 1,500 bytes under its cap, with the cap unchanged.
-    assert CAPS["contract"] == 16_000 and sizes["13.2"] <= CAPS["contract"] - 1_500
+    # 13.2 had the room DOC51 asked for, at least 1,500 bytes under its cap, with the cap unchanged, until
+    # v1.684 (row DEL1h) spent it on the pair delegate's cost: from then on 13.2 is within its cap.
+    assert CAPS["contract"] == 16_000 and sizes["13.2"] <= CAPS["contract"]
+    assert sum(line.startswith("- v1.684 a pair delegate (row DEL1h, ") for line in contract) == 1
