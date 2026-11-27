@@ -194,7 +194,8 @@ def test_the_router_is_not_modified_and_the_fields_are_unchanged():
     task, stats = router.tasks[TASK], dict(router.stats.items())
     decision = decide(router, "fiction/best", cached_read_ratio=0.1, work_calls=2)
     assert router.tasks == {TASK: task} and dict(router.stats.items()) == stats
-    assert [f.name for f in dataclasses.fields(decision)] == FIELDS
+    # v1.691 (row DEL3): a last field, `depth`, which to_dict() holds only when set, tests/test_delegation_depth.py
+    assert [f.name for f in dataclasses.fields(decision)] == FIELDS + ["depth"]
     assert list(decision.to_dict()) == FIELDS
 
 

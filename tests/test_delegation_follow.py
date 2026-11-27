@@ -221,9 +221,10 @@ def test_a_mode_record_missing_a_key_is_a_value_error():
 
 # --- 4.2 v1.688: the field ----------------------------------------------------------------------
 
-def test_the_field_is_the_last_with_its_default():
+def test_the_field_follows_min_self_consistency_with_its_default():
     names = [f.name for f in dataclasses.fields(Task)]
-    assert names[-2:] == ["min_self_consistency", "min_delegation_follow"]
+    # v1.691 (row DEL3): `max_delegation_depth` follows it, tests/test_delegation_depth.py
+    assert names[names.index("min_self_consistency"):][:2] == ["min_self_consistency", "min_delegation_follow"]
     assert Task("t", 0.5).min_delegation_follow is None
     for value in (0, 1, 0.0, 0.7, 1.0):
         assert Task("t", 0.5, min_delegation_follow=value).min_delegation_follow == value
@@ -305,13 +306,14 @@ def test_design_states_v1_688_in_4_2_and_8_3_and_the_changelog_the_version():
     assert changelog.count("\n- v1.688 (2026-11-27): ") == 1
 
 
-# review iter-548 nit 1: named for the line as v1.689 left it, the command shipped and the cap the one change left
-def test_the_production_lessons_line_says_the_report_ships_and_the_cap_is_the_one_change_left():
+# review iter-548 nit 1, then v1.691 (row DEL3): named for what the line says of the report
+def test_the_production_lessons_line_says_the_report_ships():
     text = (ROOT / "research" / "production-lessons.md").read_text(encoding="utf-8")
     section = text[text.index("### Under-delegation is a failure you can measure"):]
     line = next(l for l in section.splitlines() if l.startswith("- In this library:"))
     assert "from v1.688 `delegation_follow` reads those records back, per task and parent" in line
     assert "flags a share under a task's `min_delegation_follow`" in line
-    # v1.689 (row DEL2b): the command ships, so the cap is the one change left, tests/test_report_delegation.py
-    assert line.endswith(" The change: a cap on delegation depth.")
+    # v1.689 (row DEL2b): the command ships, tests/test_report_delegation.py; v1.691 (row DEL3): so does the
+    # cap, tests/test_delegation_depth.py
+    assert " The change: a cap on delegation depth." not in line
     assert "nothing yet reads those records back" not in line

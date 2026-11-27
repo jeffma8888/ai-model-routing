@@ -183,7 +183,8 @@ def test_the_router_is_not_modified_and_the_bounds_stay_per_call():
     assert many.route.primary == one.route.primary
     assert (many.parent_quality_lb, many.delegate_quality_lb) == (one.parent_quality_lb,
                                                                   one.delegate_quality_lb)
-    assert [f.name for f in dataclasses.fields(many)] == FIELDS
+    # v1.691 (row DEL3): a last field, `depth`, which to_dict() holds only when set, tests/test_delegation_depth.py
+    assert [f.name for f in dataclasses.fields(many)] == FIELDS + ["depth"]
 
 
 # 13.2 cost of each path

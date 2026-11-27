@@ -254,13 +254,14 @@ def test_design_states_v1_689_in_10_and_the_changelog_the_version():
     assert len(line.encode("utf-8")) <= 600
 
 
-def test_the_production_lessons_line_says_the_command_ships_and_the_cap_is_the_change():
+def test_the_production_lessons_line_says_the_command_ships():
     text = (ROOT / "research" / "production-lessons.md").read_text(encoding="utf-8")
     section = text[text.index("### Under-delegation is a failure you can measure"):]
     line = next(l for l in section.splitlines() if l.startswith("- In this library:"))
     assert ("; and from v1.689 `model-routing report --log PATH --delegation` prints that report, with "
             "`--tasks FILE` for the minimum.") in line
-    assert line.endswith(" The change: a cap on delegation depth.")
+    # v1.691 (row DEL3): the cap ships too, tests/test_delegation_depth.py
+    assert " The change: a cap on delegation depth." not in line
     assert "that report on the command line" not in line
 
 
