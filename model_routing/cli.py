@@ -183,7 +183,13 @@ def _build_parser() -> argparse.ArgumentParser:
                     help="the outcome-row key that names each row's slice (DESIGN 12.4 v1.514)")
     ev.add_argument("--cost-per-correct", action="store_true",
                     help="add each strategy's held-out cost per correct item (DESIGN 12.4 v1.570)")
+    ev.add_argument("--root", nargs="+", action="extend", default=None, metavar="MODEL",
+                    help="with --leaf: the roots of the pair rows; adds each task's pair table "
+                         "(DESIGN 12.4 v1.679)")
+    ev.add_argument("--leaf", nargs="+", action="extend", default=None, metavar="MODEL",
+                    help="with --root: the sub-agent models of the pair rows")
     ev.add_argument("--json", action="store_true")
+    ev.set_defaults(print_usage=ev.print_usage)  # v1.679: --root or --leaf alone is a usage error
 
     dg = sub.add_parser("delegate",
                         help="do work of one or more calls of a task inline in the parent "
@@ -673,6 +679,10 @@ def _cmd_demo(args) -> int:
 
 def _cmd_evaluate(args) -> int:
     from .evaluate import _read_rows, evaluate, outcomes_from_rows
+    for given, missing in (("root", "leaf"), ("leaf", "root")):  # 12.4 v1.679, before any file
+        if getattr(args, given) is not None and getattr(args, missing) is None:
+            args.print_usage(sys.stderr)
+            raise _BadInput(f"--{given} needs --{missing}: the pair table reads each root with each leaf")
     registry = Registry.load(args.registry)
     matrix_rows = _read_rows(args.outcomes)
     outcomes = outcomes_from_rows(matrix_rows, registry, slice_by=args.slice_by)
@@ -682,7 +692,8 @@ def _cmd_evaluate(args) -> int:
                       seeds=range(args.seeds), flavors=args.flavor or FLAVORS,
                       calibration_fraction=args.calibration_fraction,
                       min_samples=args.min_samples, confidence=args.confidence,
-                      cost_per_correct=args.cost_per_correct)
+                      cost_per_correct=args.cost_per_correct,
+                      pairs=None if args.root is None else (args.root, args.leaf))
     result.pop("cells")
     if args.json:
         print(json.dumps(result, indent=2))
@@ -719,6 +730,13 @@ def _cmd_evaluate(args) -> int:
                 blocks.append(f"bar {bar}, {flavor}, slices\n" + _table(
                     ["strategy", "success", "cost_usd", "below_bar_rate", "cleared_rate",
                      "bar_violation_rate", "slice_miss_rate"], rows))
+    for row in result.get("pair_sensitivity", ()):
+        # v1.679: per task, each side's spreads in the order given, its mean row last
+        rows = ([["root", leaf, fmt(row["root_spread"][leaf])] for leaf in row["leaves"]]
+                + [["root", "mean", fmt(row["mean_root_spread"])]]
+                + [["leaf", root, fmt(row["leaf_spread"][root])] for root in row["roots"]]
+                + [["leaf", "mean", fmt(row["mean_leaf_spread"])]])
+        blocks.append(f"pairs, {row['task']}\n" + _table(["varies", "held", "spread"], rows))
     print("\n\n".join(blocks))
     _warn_expired_prices(registry, args.today, token_priced)
     return EXIT_OK
