@@ -292,7 +292,9 @@ def test_design_states_v1_688_in_4_2_and_8_3_and_the_changelog_the_version():
     assert eight3.count("\n- v1.688 `delegation_follow(records, *, tasks=None) -> list[dict]` (row DEL2a") == 1
     assert "`below_follow` flag (row DEL2a), which v1.688 adds (4.2, 8.3); " in seven
     assert "  - Not in this version: a reader of mode records (row DEL2a), which v1.688 adds. " in eight3
-    assert "  - Not in this version: `report --delegation` and the README sentence (row DEL2b). " in eight3
+    # v1.689 (row DEL2b) adds the command and names the README sentence's row, tests/test_report_delegation.py
+    assert ("  - Not in this version: `report --delegation` (row DEL2b), which v1.689 adds (10), and the README "
+            "sentence (row DEL2c). ") in eight3
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     assert changelog.count("\n- v1.688 (2026-11-27): ") == 1
 
@@ -303,5 +305,6 @@ def test_the_production_lessons_line_says_the_report_ships_and_the_cli_and_the_c
     line = next(l for l in section.splitlines() if l.startswith("- In this library:"))
     assert "from v1.688 `delegation_follow` reads those records back, per task and parent" in line
     assert "flags a share under a task's `min_delegation_follow`" in line
-    assert line.endswith("The changes: that report on the command line, and a cap on delegation depth.")
+    # v1.689 (row DEL2b): the command ships, so the cap is the one change left, tests/test_report_delegation.py
+    assert line.endswith(" The change: a cap on delegation depth.")
     assert "nothing yet reads those records back" not in line
