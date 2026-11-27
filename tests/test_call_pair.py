@@ -147,24 +147,46 @@ def test_a_harness_that_is_not_callable_and_a_ledger_raise_before_any_id_or_reco
     with pytest.raises(ValueError, match="harness"):
         ex.call_pair("t", ROOTS, LEAVES, MESSAGES, "not callable")
     ex2, monitor2 = executor(ledger=BudgetLedger([Budget("cap", 1.0, "warn")]))
+    selected = []
+    for each in (ex, ex2):  # review iter-536 nit 1: both raise before select_pair
+        each.router.select_pair = lambda *args, _real=each.router.select_pair, **kw: (
+            selected.append(args), _real(*args, **kw))[1]
     calls = []
+    with pytest.raises(ValueError, match="harness"):
+        ex.call_pair("t", ROOTS, LEAVES, MESSAGES, "not callable")
     with pytest.raises(ValueError, match="ledger"):
         ex2.call_pair("t", ROOTS, LEAVES, MESSAGES, harness(calls))
-    assert monitor.records == monitor2.records == [] and calls == []
-    assert ex.call_pair("t", ROOTS, LEAVES, MESSAGES, harness([])).call_id == "call-0"
+    assert monitor.records == monitor2.records == [] and calls == [] and selected == []
+    assert ex2.id_factory() == "call-0"
+    assert ex.call_pair("t", ROOTS, LEAVES, MESSAGES, harness([])).call_id == "call-0" and len(selected) == 1
+
+
+def plus_router():
+    """Model IDs that hold ``+``: the pairs v/a+v/b with v/c and v/a with v/b+v/c share one ID."""
+    from model_routing import Model, Registry, Router, Stats, Task
+    reg = Registry([Model(m, "f", 1.0, 2.0, 100_000) for m in ("v/a", "v/a+v/b", "v/c", "v/b+v/c")])
+    stats = Stats()
+    stats.add("t", "v/a+v/b+v/c", 40, 40)
+    return Router(reg, {"t": Task("t", bar=0.5, min_samples=30)}, stats)
 
 
 def test_two_pairs_with_one_id_raise_before_the_id_and_the_harness():
-    from model_routing import Model, Registry, Router, Stats, Task
-    reg = Registry([Model(m, "f", 1.0, 2.0, 100_000) for m in ("a", "a+b", "c", "b+c")])
-    stats = Stats()
-    stats.add("t", "a+b+c", 40, 40)
-    ex, monitor = executor(Router(reg, {"t": Task("t", bar=0.5, min_samples=30)}, stats))
+    ex, monitor = executor(plus_router())
     calls = []
     with pytest.raises(ValueError, match="one ID"):
-        ex.call_pair("t", ["a+b", "a"], ["c", "b+c"], MESSAGES, harness(calls))
+        ex.call_pair("t", ["v/a+v/b", "v/a"], ["v/c", "v/b+v/c"], MESSAGES, harness(calls))
     assert calls == [] and monitor.records == []
     assert ex.id_factory() == "call-0"
+
+
+def test_a_root_whose_id_holds_a_plus_is_run_as_given_never_split():
+    # review iter-536 nit 2: a split at the first "+" would call the harness with v/a and v/b+v/c
+    ex, monitor = executor(plus_router())
+    calls = []
+    result = ex.call_pair("t", ["v/a+v/b"], ["v/c"], MESSAGES, harness(calls))
+    assert result.model == "v/a+v/b+v/c" and [c[:2] for c in calls] == [("v/a+v/b", "v/c")]
+    [record] = monitor.records
+    assert record["family"] == "f" and record["cost_usd"] == (6200 * 1.0 + 1100 * 2.0) / 1_000_000
 
 
 def test_select_pair_errors_propagate_before_the_harness():
