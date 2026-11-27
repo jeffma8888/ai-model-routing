@@ -282,13 +282,13 @@ def test_a_real_log_of_a_hand_off_and_its_mode_record_reports_the_hand_off_alone
 
 # --- docs ----------------------------------------------------------------------------------------
 
-def test_the_production_lessons_line_says_the_log_ships_and_the_report_is_still_a_change():
+def test_the_production_lessons_line_says_the_log_ships():
     text = (ROOT / "research" / "production-lessons.md").read_text(encoding="utf-8")
     section = text[text.index("### Under-delegation is a failure you can measure"):]
     line = next(l for l in section.splitlines() if l.startswith("- In this library:"))
     assert "from v1.687 `Executor.record_mode` logs the mode it advised beside the mode the agent took" in line
-    assert "The changes: report the share of advised hand-offs the agent skipped, and a cap on delegation depth." \
-        in line
+    # v1.688 (row DEL2a): the report ships too, tests/test_delegation_follow.py
+    assert "a record every log reader passes by; from v1.688 `delegation_follow` reads those records back" in line
     assert "log the advised mode" not in line
 
 

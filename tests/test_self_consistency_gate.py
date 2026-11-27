@@ -57,9 +57,10 @@ def judges(cheap_alike=27, **more):
 
 # --- 4.2 the field -------------------------------------------------------------------------------
 
-def test_the_field_is_the_last_with_its_default():
+def test_the_field_follows_latency_unknown_with_its_default():
     names = [f.name for f in dataclasses.fields(Task)]
-    assert names[-2:] == ["latency_unknown", "min_self_consistency"]
+    # v1.688 (row DEL2a): `min_delegation_follow` follows it, tests/test_delegation_follow.py
+    assert names[names.index("latency_unknown"):][:2] == ["latency_unknown", "min_self_consistency"]
     assert Task("t", 0.5).min_self_consistency is None
     for value in (0, 1, 0.0, 0.85, 1.0):
         assert Task("t", 0.5, min_self_consistency=value).min_self_consistency == value
