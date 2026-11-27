@@ -164,6 +164,8 @@ def _build_parser() -> argparse.ArgumentParser:
     rep.add_argument("--delegation", action="store_true",
                      help="one row per task and parent of the log's mode records: the share of advised "
                           "hand-offs and of advised inline work the agent took")
+    rep.add_argument("--anomalies", action="store_true",
+                     help="adds each group's count of cache_miss anomaly records; with --by model or task")
 
     demo = sub.add_parser("demo", help="run the offline demo with fictional models")
     demo.add_argument("--out", default="model-routing-demo")
@@ -545,12 +547,14 @@ def _cmd_report(args) -> int:
                             ("--audits", args.audits is not None), ("--cache", args.cache),
                             ("--shadow", args.shadow),
                             ("--target-cost-per-call", args.target_cost_per_call is not None),
-                            ("--stats", args.stats is not None), ("--registry", args.registry is not None)):
+                            ("--stats", args.stats is not None), ("--registry", args.registry is not None),
+                            ("--anomalies", args.anomalies)):   # v1.693: the last
             if given:
                 raise _BadInput(f"--delegation reads mode records alone, so it takes no {flag}")
         return _report_delegation(args)
     if args.opportunities:   # DESIGN 10 v1.645: the checks before any path is read
-        for flag, given in (("--by", args.by is not None), ("--cache", args.cache), ("--shadow", args.shadow)):
+        for flag, given in (("--by", args.by is not None), ("--cache", args.cache), ("--shadow", args.shadow),
+                            ("--anomalies", args.anomalies)):   # v1.693: after --shadow
             if given:
                 raise _BadInput(f"--opportunities groups by task alone, so it takes no {flag}")
         for flag, given in (("--registry", args.registry), ("--tasks", args.tasks)):   # v1.646
@@ -566,10 +570,13 @@ def _cmd_report(args) -> int:
     if args.tasks is not None:   # v1.689: --delegation reads it too
         raise _BadInput("--tasks needs --opportunities or --delegation: only the savings and delegation "
                         "reports read it")
+    if args.anomalies and args.by not in (None, "model", "task"):   # DESIGN 10 v1.693: before any path is read
+        raise _BadInput("--anomalies counts records that hold only a task and a model, so it takes no "
+                        f"--by {args.by}")
     args.by = "model" if args.by is None else args.by
     audits = None if args.audits is None else load_audits(args.audits)
     rows = report(load_logs(args.log), by=args.by, audits=audits, cache=args.cache,
-                  shadow=args.shadow)
+                  shadow=args.shadow, anomalies=args.anomalies)
     if args.json:
         print(json.dumps(rows, indent=2))
         return EXIT_OK
@@ -595,7 +602,9 @@ def _cmd_report(args) -> int:
                  na(r["cache_hit_rate"], 3)] if args.cache else [])
              # DESIGN 10 v1.611: three columns after those only with --shadow
              + ([r["shadow_calls"], r["shadow_failed_calls"], f"{r['shadow_cost_usd']:.6f}"]
-                if args.shadow else []) for r in rows]
+                if args.shadow else [])
+             # DESIGN 10 v1.693: one column after those only with --anomalies
+             + ([r["cache_miss_anomalies"]] if args.anomalies else []) for r in rows]
     print(_table([args.by, "calls", "attempts", "errors", "invalid", "fallback_calls",
                   "fallback_rate"] + (["below_bar_calls"] if under else [])
                  + ["cost_usd", "routing_cost_usd", "p50_ms", "p95_ms"]
@@ -604,7 +613,8 @@ def _cmd_report(args) -> int:
                  + (["cached_input_tokens", "cache_counted_input_tokens", "cache_hit_rate"]
                     if args.cache else [])
                  + (["shadow_calls", "shadow_failed_calls", "shadow_cost_usd"]
-                    if args.shadow else []), table))
+                    if args.shadow else [])
+                 + (["cache_miss_anomalies"] if args.anomalies else []), table))
     return EXIT_OK
 
 

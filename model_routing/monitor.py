@@ -298,7 +298,7 @@ def _nearest_rank(sorted_values: List[float], q: float) -> Optional[float]:
 
 def report(records: Iterable[dict], by: str = "model",
            audits: Optional[Mapping[str, bool]] = None, cache: bool = False,
-           shadow: bool = False) -> List[dict]:
+           shadow: bool = False, anomalies: bool = False) -> List[dict]:
     """Aggregate attempt records by ``by``.
 
     ``by`` is ``model``, ``task``, ``flavor``, ``family``, ``pricing_basis``, ``basis``,
@@ -337,11 +337,29 @@ def report(records: Iterable[dict], by: str = "model",
     each row gains, last, ``shadow_calls``, ``shadow_failed_calls`` and ``shadow_cost_usd``, read from
     the group's shadow records alone; a group that only shadow records reach has a row of routed
     zeros. A ``shadow`` that is not a ``bool`` raises ``ValueError`` before any record is read.
+
+    With ``anomalies=True`` (DESIGN 8.3, v1.693) each row gains, last, ``cache_miss_anomalies``, the
+    group's records whose ``anomaly`` is ``"cache_miss"`` (8.1 v1.692), which enter no other key; a
+    group that only they reach has a row of zeros. Only ``by`` ``model`` or ``task`` is allowed, since
+    an anomaly record holds no other group key, and an ``anomalies`` that is not a ``bool`` raises
+    ``ValueError``, each before any record is read.
     """
     if not isinstance(shadow, bool):
         raise ValueError(f"shadow must be True or False, got {shadow!r}")
+    if not isinstance(anomalies, bool):
+        raise ValueError(f"anomalies must be True or False, got {anomalies!r}")
     group_of = _grouper(by)
-    records = [rec for rec in records if _logged_call(rec)]  # DESIGN 8.3 v1.598 and v1.687
+    if anomalies and by not in ("model", "task"):
+        raise ValueError("anomalies=True groups by model or task alone, since an anomaly record holds no other "
+                         f"key report groups by, got by={by!r}")
+    kept: List[dict] = []
+    flagged: List[dict] = []
+    for rec in records:  # DESIGN 8.3 v1.598, v1.687 and v1.692; v1.693 keeps the cache_miss records apart
+        if _logged_call(rec):
+            kept.append(rec)
+        elif anomalies and rec.get("anomaly") == "cache_miss":
+            flagged.append(rec)
+    records = kept
     shadows: List[dict] = []
     if shadow:  # DESIGN 8.3 v1.611: only a JSON true marks a shadow record
         shadows = [rec for rec in records if rec.get("shadow") is True]
@@ -393,6 +411,8 @@ def report(records: Iterable[dict], by: str = "model",
                 under[group] += 1
     for rec in shadows:  # a group that only shadow records reach still has a row
         row_of(group_of(rec))
+    for rec in flagged:  # v1.693: so does a group that only anomaly records reach
+        row_of(group_of(rec))
     rows = []
     for group, row in groups.items():
         row["cost_usd"] = round(row["cost_usd"], 6)
@@ -409,6 +429,11 @@ def report(records: Iterable[dict], by: str = "model",
         _add_cache_keys(records, groups, group_of)
     if shadow:
         _add_shadow_keys(shadows, groups, group_of)
+    if anomalies:  # DESIGN 8.3 v1.693: the last key
+        for row in groups.values():
+            row["cache_miss_anomalies"] = 0
+        for rec in flagged:
+            groups[group_of(rec)]["cache_miss_anomalies"] += 1
     rows.sort(key=lambda r: (-r["cost_usd"], r["group"]))
     return rows
 
