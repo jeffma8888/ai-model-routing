@@ -246,14 +246,15 @@ class Executor:
         on each pair of the route in turn, as ``.call`` runs a model, with one record per attempt
         holding the four side token counts the harness returned (DESIGN 7 and 8.1 v1.678).
 
-        Raises ``ValueError`` for a ``harness`` that is not callable or an executor with a ledger,
-        before ``select_pair``; for two pairs with one ID; and for a return value that is not a
-        mapping of a ``str`` ``text`` and the four counts, each an int >= 0 that is not a bool.
+        With a ``ledger`` each pair holds its list-price estimate before its harness call and
+        settles its side cost after, so warn, refuse, downgrade and strict budgets meet it as they
+        meet ``.call``, with budget records and ``budget_moves`` (DESIGN 7 v1.681). Raises
+        ``ValueError`` for a ``harness`` that is not callable, before ``select_pair``; for two pairs
+        with one ID; and for a return value that is not a mapping of a ``str`` ``text`` and the four
+        counts, each an int >= 0 that is not a bool.
         """
         if not callable(harness):
             raise ValueError(f"harness must be a callable, got {type(harness).__name__}")
-        if self.ledger is not None:
-            raise ValueError("call_pair takes no ledger: a budget for a pair is not in this version")
         decision = self.router.select_pair(task_name, roots, leaves, flavor,
                                            generator_model=generator_model,
                                            exclude_models=exclude_models, policy=policy)
@@ -262,35 +263,86 @@ class Executor:
             raise ValueError("two pairs have one ID, so a pair's root and leaf cannot be told apart")
         registry, call_id, call_tags = self.router.registry, self.id_factory(), dict(tags or {})
         label = None if policy is None else policy.label  # select_pair checked it
-        order, attempts = (decision.primary, *decision.fallbacks), []
+        order, attempts, moves = (decision.primary, *decision.fallbacks), [], []
+        task = self.router.tasks[task_name]
+
+        def note(fields: dict) -> None:  # DESIGN 7 v1.681: a budget record, as 8.1 v1.598
+            if self.monitor is not None:
+                self.monitor.record({"ts": self.now(), "call_id": call_id, "task": decision.task,
+                                     **_policy_key(label), "tags": dict(call_tags), **fields})
+
+        moving = None  # DESIGN 7 v1.681: the last downgrade refusal while the call is moving
         for position, entry in enumerate(order):
+            if moving is not None:
+                if decision.below_bar or entry in decision.below_bar_fallbacks:
+                    break  # a move never lands under the bar (7 v1.596)
+                moving = None
             root, leaf = sides[entry]
-            start = self.clock()
+            hold = None
+            if self.ledger is not None:
+                try:
+                    hold = self._pair_hold(task, entry, registry.get(root), registry.get(leaf),
+                                           call_tags)
+                except BudgetExceeded as exc:  # only this call's own reservation is caught here
+                    note(_refused(exc))
+                    if exc.budget.mode != "downgrade":
+                        exc.attempts, exc.decision = tuple(attempts), decision
+                        raise
+                    moving = exc
+                    moves.append({"entry": entry, "model": entry, "budget": exc.budget.name})
+                    continue
+            cost = None if self._strict else 0.0  # 7 v1.597: a raised run's cost is not known
             try:
-                run, error = harness(root, leaf, messages), None
-            except ProviderError as exc:
-                run, error = None, f"{type(exc).__name__}: {exc}"
-            latency_ms = float((self.clock() - start) * 1000.0)
-            counts, text = (0, 0, 0, 0), None
-            if error is not None:
-                attempt = Attempt(entry, "error", error, latency_ms, 0, 0, 0.0)
-            else:
-                counts, text = _pair_run(run), run["text"]
-                cost = float(registry.get(root).cost(*counts[:2]) + registry.get(leaf).cost(*counts[2:]))
-                attempt = Attempt(entry, "ok", None, latency_ms, counts[0] + counts[2],
-                                  counts[1] + counts[3], cost)
-                if validate is not None and not validate(text):
-                    attempt, text = replace(attempt, outcome="invalid", error="validation failed"), None
+                start = self.clock()
+                try:
+                    run, error = harness(root, leaf, messages), None
+                except ProviderError as exc:
+                    run, error = None, f"{type(exc).__name__}: {exc}"
+                latency_ms = float((self.clock() - start) * 1000.0)
+                counts, text = (0, 0, 0, 0), None
+                if error is not None:
+                    attempt = Attempt(entry, "error", error, latency_ms, 0, 0, 0.0)
+                else:
+                    counts, text = _pair_run(run), run["text"]
+                    side = float(registry.get(root).cost(*counts[:2]) + registry.get(leaf).cost(*counts[2:]))
+                    attempt = Attempt(entry, "ok", None, latency_ms, counts[0] + counts[2],
+                                      counts[1] + counts[3], side)
+                cost = attempt.cost_usd
+            finally:
+                if hold is not None:  # DESIGN 7 v1.681: settled before the attempt's record
+                    events = (self.ledger.settle_unpriced(hold) if cost is None
+                              else self.ledger.settle(hold, cost))
+                    for event in events:
+                        note(_warned(event))
+            if text is not None and validate is not None and not validate(text):
+                attempt, text = replace(attempt, outcome="invalid", error="validation failed"), None
             attempts.append(attempt)
             if self.monitor is not None:  # DESIGN 8.1 v1.678: the four after slice
                 self.monitor.record(self._record(
-                    call_id, decision, registry, position, text is not None or position == len(order) - 1,
-                    attempt, call_tags, entry=entry, keys=dict(zip(_SIDE_TOTALS, counts)),
-                    family=registry.get(root).family, policy_label=label))
+                    call_id, decision, registry, len(attempts) - 1,
+                    text is not None or position == len(order) - 1, attempt, call_tags, entry=entry,
+                    keys=dict(zip(_SIDE_TOTALS, counts)), family=registry.get(root).family,
+                    moves=moves, policy_label=label))
             if text is not None:
                 return CallResult(call_id, text, entry, tuple(attempts), decision)
+        if moving is not None:
+            moving.attempts, moving.decision = tuple(attempts), decision
+            raise moving
         raise AllModelsFailed(f"all {len(attempts)} routed pairs failed for task {task_name!r}",
                               tuple(attempts), decision)
+
+    def _pair_hold(self, task, entry: str, root, leaf, tags: Dict[str, str]):
+        """Hold a pair's list-price estimate, one whole run (DESIGN 7 v1.681): each side at its mean
+        tokens inside the pair when the pair's key holds them (4.3 v1.671), else at the task's
+        expected sizes, with no cache count; a strict budget meets no billing bound (v1.597)."""
+        side_tokens = self.router.stats.mean_side_tokens(task.name, entry)
+        if side_tokens is None:
+            side_tokens = ((task.expected_input_tokens, task.expected_output_tokens),) * 2
+        estimate = float(root.cost(*side_tokens[0]) + leaf.cost(*side_tokens[1]))
+        extra = self._at()
+        if self._strict:  # a harness may call either side any number of times
+            extra["bound_usd"] = None
+        return self.ledger.reserve(task.name, tags, estimate, entry, **extra)
 
     def _shadow_route(self, task_name: str, decision: RouteDecision,
                       tags: Optional[Dict[str, str]]) -> Optional[str]:

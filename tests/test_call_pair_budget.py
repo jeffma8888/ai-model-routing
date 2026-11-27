@@ -173,7 +173,7 @@ def test_a_downgrade_refusing_every_pair_raises_the_last_refusal():
 
 
 def test_a_downgrade_never_lands_on_a_pair_under_the_bar():
-    pairs = dict(PAIRS, **{("r/strong", "l/mid"): 30, ("r/strong", "l/dear"): 30, ("r/good", "l/dear"): 30})
+    pairs = {**PAIRS, ("r/strong", "l/mid"): 30, ("r/strong", "l/dear"): 30, ("r/good", "l/dear"): 30}
     route = router(pairs=pairs, fallback_below_bar=True)
     decision = route.select_pair("t", ROOTS, LEAVES)
     assert decision.primary == FIRST and decision.fallbacks == decision.below_bar_fallbacks != ()
