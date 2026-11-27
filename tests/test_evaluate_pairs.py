@@ -266,3 +266,186 @@ def test_the_note_s_orchestrator_line_states_the_table_as_shipped():
     assert line.endswith("; and from v1.677 `evaluate(..., pairs=(roots, leaves))` gives each "
                          "task's spread in success over roots with the leaf held and over leaves "
                          "with the root held, the two gaps the result above reports.")
+
+
+# v1.679 (DESIGN 12.4, row DEL1f): the pair table in `model-routing evaluate`. Every table below
+# is written by hand from the dicts above, in the rates' format: 16/40 is 0.400, 17/40 0.425,
+# (16 + 16 + 17)/120 0.408, 2/40 0.050, 3/40 0.075, (2 + 2 + 2 + 3)/160 0.056; on triage 3/40,
+# 9/120 0.075, 20/40 and 80/160 0.500.
+
+PAIR_TEXT = """\
+pairs, diligence
+varies  held  spread
+------  ----  ------
+root    l/x   0.400
+root    l/y   0.400
+root    l/z   0.425
+root    mean  0.408
+leaf    r/a   0.050
+leaf    r/b   0.050
+leaf    r/c   0.050
+leaf    r/d   0.075
+leaf    mean  0.056
+
+pairs, triage
+varies  held  spread
+------  ----  ------
+root    l/x   0.075
+root    l/y   0.075
+root    l/z   0.075
+root    mean  0.075
+leaf    r/a   0.500
+leaf    r/b   0.500
+leaf    r/c   0.500
+leaf    r/d   0.500
+leaf    mean  0.500
+"""
+PAIR_OPTIONS = ["--root", *ROOTS, "--leaf", *LEAVES]
+# sha256 of the command's stdout without --root and --leaf, taken on 2e0ab44 (v1.678)
+CLI_DIGESTS = {
+    "text": "28dae78c9ea2452d4985739418f7c346d273ef89ae24ab64343c427926dd0a58",
+    "json": "f75530a46396c7c4b55d071b98c7dfcb79323bb1d4b1f49c0cc8fa8f033b4c6f",
+    "slices-text": "3cb217f7493c6c6672b59b416321d761475b000c5001104598d89edd7eead597",
+    "slices-json": "6c1612dd5251b465f419c92c3dab4c9117127f9afde5bd5794e51ed911ee0817",
+}
+USAGE_ERRORS = {
+    "--root": "error: --root needs --leaf: the pair table reads each root with each leaf",
+    "--leaf": "error: --leaf needs --root: the pair table reads each root with each leaf",
+}
+
+
+def _cli(capsys, tmp_path, *extra, rows=None, outcomes=None):
+    from datetime import date
+
+    from model_routing.cli import main
+    if outcomes is None:
+        outcomes = tmp_path / "m.jsonl"
+        outcomes.write_text("".join(json.dumps(r) + "\n" for r in (_rows() if rows is None else rows)),
+                            encoding="utf-8")
+    code = main(["evaluate", "--outcomes", str(outcomes), "--bar", "0.6", "0.8", "--seeds", "3",
+                 "--min-samples", "5", *extra], today=date(2026, 11, 26))
+    out = capsys.readouterr()
+    return code, out.out, out.err
+
+
+@pytest.mark.parametrize("name, part, extra", [
+    ("text", False, ()), ("json", False, ("--json",)),
+    ("slices-text", True, ("--slice-by", "part")), ("slices-json", True, ("--slice-by", "part", "--json")),
+])
+def test_cli_without_the_options_keeps_its_v1_678_bytes(capsys, tmp_path, name, part, extra):
+    import hashlib
+    code, out, err = _cli(capsys, tmp_path, *extra, rows=_rows(part=part))
+    assert (code, err) == (0, "")
+    assert hashlib.sha256(out.encode("utf-8")).hexdigest() == CLI_DIGESTS[name]
+
+
+def test_cli_text_gains_a_pair_table_per_task_after_the_strategy_tables(capsys, tmp_path):
+    _, without, _ = _cli(capsys, tmp_path)
+    code, out, err = _cli(capsys, tmp_path, *PAIR_OPTIONS)
+    assert (code, err) == (0, "")
+    assert out == without[:-1] + "\n\n" + PAIR_TEXT
+
+
+def test_cli_text_puts_the_pair_tables_after_the_last_slices_table(capsys, tmp_path):
+    rows = _rows(part=True)
+    _, without, _ = _cli(capsys, tmp_path, "--slice-by", "part", rows=rows)
+    assert without.rstrip("\n").split("\n\n")[-1].startswith("bar 0.8, cost_blind, slices\n")
+    code, out, err = _cli(capsys, tmp_path, "--slice-by", "part", *PAIR_OPTIONS, rows=rows)
+    assert (code, err) == (0, "")
+    assert out == without[:-1] + "\n\n" + PAIR_TEXT
+
+
+def test_cli_text_with_cost_per_correct_keeps_its_tables(capsys, tmp_path):
+    _, without, _ = _cli(capsys, tmp_path, "--cost-per-correct")
+    code, out, _ = _cli(capsys, tmp_path, "--cost-per-correct", *PAIR_OPTIONS)
+    assert code == 0 and out == without[:-1] + "\n\n" + PAIR_TEXT
+
+
+def test_cli_json_keeps_pair_sensitivity_last(capsys, tmp_path):
+    _, without, _ = _cli(capsys, tmp_path, "--json")
+    code, out, err = _cli(capsys, tmp_path, "--json", *PAIR_OPTIONS)
+    assert (code, err) == (0, "")
+    plain, result = json.loads(without), json.loads(out)
+    assert list(result) == list(plain) + ["pair_sensitivity"]
+    assert all(result[key] == plain[key] for key in plain)
+    assert result["pair_sensitivity"] == [DILIGENCE, TRIAGE]
+
+
+def test_cli_options_may_be_repeated_and_keep_the_order_given(capsys, tmp_path):
+    code, out, _ = _cli(capsys, tmp_path, "--json", "--root", "r/d", "r/c", "--leaf", "l/z",
+                        "--root", "r/b", "r/a", "--leaf", "l/y", "l/x")
+    assert code == 0
+    row = json.loads(out)["pair_sensitivity"][0]
+    assert row["roots"] == ["r/d", "r/c", "r/b", "r/a"] and row["leaves"] == ["l/z", "l/y", "l/x"]
+    assert list(row["success"])[:2] == ["r/d+l/z", "r/d+l/y"]
+    code, out, _ = _cli(capsys, tmp_path, "--root", "r/d", "r/c", "r/b", "r/a",
+                        "--leaf", "l/z", "l/y", "l/x")
+    table = out.split("\n\npairs, diligence\n", 1)[1].split("\n\n", 1)[0].splitlines()
+    assert [line.split()[:2] for line in table[2:]] == [
+        ["root", "l/z"], ["root", "l/y"], ["root", "l/x"], ["root", "mean"],
+        ["leaf", "r/d"], ["leaf", "r/c"], ["leaf", "r/b"], ["leaf", "r/a"], ["leaf", "mean"]]
+
+
+def test_cli_text_prints_a_dash_for_none(capsys, tmp_path):
+    correct = {"diligence": {("r/a", "l/x"): 20, ("r/a", "l/y"): 21, ("r/b", "l/x"): 28}}
+    rows = _rows(correct=correct)
+    code, out, _ = _cli(capsys, tmp_path, "--root", "r/a", "r/b", "r/e",
+                        "--leaf", "l/x", "l/y", "l/w", rows=rows)
+    assert code == 0
+    # l/x: (28 - 20)/40 = 0.200, l/y one root; r/a: (21 - 20)/40 = 0.025, r/b one leaf
+    assert out.endswith("\n\npairs, diligence\n"
+                        "varies  held  spread\n"
+                        "------  ----  ------\n"
+                        "root    l/x   0.200\n"
+                        "root    l/y   -\n"
+                        "root    mean  0.200\n"
+                        "leaf    r/a   0.025\n"
+                        "leaf    r/b   -\n"
+                        "leaf    mean  0.025\n")
+    code, out, _ = _cli(capsys, tmp_path, "--root", "r/a", "--leaf", "l/x")
+    one = ("varies  held  spread\n------  ----  ------\nroot    l/x   -\nroot    mean  -\n"
+           "leaf    r/a   -\nleaf    mean  -\n")
+    assert code == 0 and out.endswith(f"\n\npairs, diligence\n{one}\npairs, triage\n{one}")
+
+
+@pytest.mark.parametrize("given", ["--root", "--leaf"])
+def test_one_option_without_the_other_is_a_usage_error_before_any_file_is_read(capsys, tmp_path,
+                                                                                given):
+    code, out, err = _cli(capsys, tmp_path, given, "r/a", outcomes=tmp_path / "missing.jsonl")
+    lines = err.splitlines()
+    assert (code, out) == (2, "")
+    assert lines[0].startswith("usage: model-routing evaluate ")
+    assert lines[-1] == USAGE_ERRORS[given]
+    assert "missing.jsonl" not in err
+
+
+@pytest.mark.parametrize("options, message", [
+    (["--root", "r/q", "--leaf", "l/q"],
+     "error: pairs: no pair of the roots and leaves given is a model of the outcomes"),
+    (["--root", "r/a", "r/a", "--leaf", "l/x"],
+     "error: pairs: roots must be a non-empty list or tuple of model IDs with no ID twice, "
+     "got ['r/a', 'r/a']"),
+    (["--root", "r/a>r/b", "--leaf", "l/x"],
+     "error: pairs: roots 'r/a>r/b' holds '>', which names a cascade (12.1 v1.538), never one "
+     "side of a pair"),
+])
+def test_a_bad_pairs_is_one_error_line_and_exit_2(capsys, tmp_path, options, message):
+    code, out, err = _cli(capsys, tmp_path, *options)
+    assert (code, out, err) == (2, "", message + "\n")
+
+
+def test_design_and_changelog_state_v1_679():
+    design = (ROOT / "DESIGN.md").read_text(encoding="utf-8")
+    cli_spec = _subsection(design, "12.4")
+    assert cli_spec.count("- v1.679 `--root MODEL [MODEL ...]` and `--leaf MODEL [MODEL ...]` "
+                          "(row DEL1f): ") == 1
+    assert "[--root MODEL [MODEL ...] --leaf MODEL [MODEL ...]] [--json]`" in cli_spec
+    for message in USAGE_ERRORS.values():
+        assert f"`{message}`" in cli_spec
+    assert ("the table in `model-routing evaluate` (row DEL1f, which v1.679 adds in 12.4); "
+            in _subsection(design, "12.1"))
+    assert "(row DEL1f);" not in design.split("\n", 3)[3]
+    assert _subsection(design, "12.5").count("- v1.679: `tests/test_evaluate_pairs.py` gains the "
+                                             "CLI contract (12.4)") == 1
+    changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    assert changelog.count("\n- v1.679 (2026-11-26): spec, code and tests (12.4, row DEL1f). ") == 1
