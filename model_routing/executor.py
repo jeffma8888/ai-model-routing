@@ -317,7 +317,9 @@ class Executor:
             if text is not None and validate is not None and not validate(text):
                 attempt, text = replace(attempt, outcome="invalid", error="validation failed"), None
             attempts.append(attempt)
-            if self.monitor is not None:  # DESIGN 8.1 v1.678: the four after slice
+            # DESIGN 8.1 v1.678: the four after slice; `attempt` counts the attempts made, which a
+            # refused pair adds none to (7 v1.681), and `final` is read from the route position
+            if self.monitor is not None:
                 self.monitor.record(self._record(
                     call_id, decision, registry, len(attempts) - 1,
                     text is not None or position == len(order) - 1, attempt, call_tags, entry=entry,

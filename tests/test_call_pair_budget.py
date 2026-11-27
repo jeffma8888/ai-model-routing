@@ -116,6 +116,51 @@ def test_a_harness_bug_or_a_bad_return_settles_at_zero_and_propagates_with_no_re
         assert monitor.records == [] and ledger.spent_usd("cap") == 0.0 and ledger.held_usd("cap") == 0.0
 
 
+def test_a_validate_or_monitor_that_raises_after_the_settle_leaves_the_cost_spent_and_no_hold():
+    # review iter-539 must-fix 3: the attempt's cost is spent with no attempt record, as in `.call`
+    ex, monitor, ledger = executor([Budget("cap", 10.0, "warn")])
+
+    def boom(text):
+        raise RuntimeError("check bug")
+
+    with pytest.raises(RuntimeError, match="check bug"):
+        ex.call_pair("t", ROOTS, LEAVES, MESSAGES, harness([]), validate=boom)
+    assert monitor.records == [] and ledger.held_usd("cap") == 0.0
+    assert ledger.spent_usd("cap") == side_cost("r/strong", "l/cheap")
+
+    class Broken(Monitor):
+        def record(self, record):
+            raise OSError("disk full")
+
+    ex.monitor = Broken()
+    with pytest.raises(OSError, match="disk full"):
+        ex.call_pair("t", ROOTS, LEAVES, MESSAGES, harness([]))
+    assert ledger.held_usd("cap") == 0.0 and ledger.spent_usd("cap") == 2 * side_cost("r/strong", "l/cheap")
+
+
+@pytest.mark.parametrize("window, expected", [("day", [1, 3]), ("total", [0, 1])])
+def test_now_is_called_once_before_each_hold_only_with_a_day_or_month_budget(window, expected):
+    # review iter-539 should-fix 1: with a day budget, one now() before each hold, then one per record
+    count = itertools.count(1)
+    seen = []
+
+    def now():
+        seen.append(next(count))
+        return TS
+
+    ex, monitor, ledger = executor([Budget("cap", 10.0, "warn", window=window)], now=now)
+    at_harness = []
+
+    def run(root, leaf, messages):
+        at_harness.append(len(seen))
+        if f"{root}+{leaf}" == FIRST:
+            raise ProviderError("outage")
+        return {"text": "answer", **SIDES}
+
+    ex.call_pair("t", ROOTS, LEAVES, MESSAGES, run)
+    assert at_harness == expected and len(seen) == expected[-1] + 1 == len(monitor.records) + (window == "day") * 2
+
+
 # --- 7 v1.681: refusal and downgrade ------------------------------------------------------------
 
 def test_a_refuse_budget_raises_before_the_harness_with_its_refused_record():
@@ -210,11 +255,16 @@ def test_a_strict_budget_that_applies_refuses_every_pair_as_unbounded(mode):
     calls = []
     with pytest.raises(BudgetExceeded) as info:
         ex.call_pair("t", ROOTS, LEAVES, MESSAGES, harness(calls))
-    assert calls == [] and info.value.unbounded is True
-    refused = monitor.records
-    assert all(r["unbounded"] is True and r["mode"] == mode for r in refused)
-    assert [r["model"] for r in refused] == ([FIRST] if mode == "refuse" else
-                                             [info.value.decision.primary, *info.value.decision.fallbacks])
+    exc = info.value
+    order = [exc.decision.primary, *exc.decision.fallbacks]
+    assert calls == [] and exc.unbounded is True and exc.attempts == () and exc.decision.primary == FIRST
+    refused = monitor.records  # review iter-539 should-fix 2: each refusal spelled out
+    assert len(refused) == (1 if mode == "refuse" else 3) and order == [FIRST, SECOND, "r/good+l/dear"]
+    assert [r["model"] for r in refused] == order[:len(refused)] and exc.model == order[len(refused) - 1]
+    for r in refused:
+        assert (r["budget_event"], r["mode"], r["unbounded"], r["estimate_usd"]) == (
+            "refused", mode, True, EST[r["model"]])
+    assert exc.estimate_usd == EST[exc.model] and ledger.held_usd("cap") == 0.0
 
 
 def test_a_strict_budget_that_does_not_apply_holds_nothing_and_a_bug_releases_the_hold():
