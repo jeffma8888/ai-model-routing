@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import threading
+from collections import deque
 from math import ceil, fsum, isfinite, sqrt
 from pathlib import Path
 from typing import Dict, Iterable, List, Mapping, Optional, Sequence, Tuple, Union
@@ -48,11 +49,18 @@ MODE_RECORD_KEYS = (
     ("ts", _S), ("call_id", _S), ("task", _S), ("flavor", _S), ("parent", _S), ("advised_mode", _S),
     ("actual_mode", _S), ("reason", _S), ("work_input_tokens", _I), ("tags", _O),
 )
+# DESIGN 8.1 v1.692 (row CACHE2a): a record with an `anomaly` key is an anomaly record, written only by a
+# `Monitor` given `tasks` (8.2 v1.692); every reader of a log drops it where it drops mode records (8.3 v1.692)
+ANOMALY_RECORD_KEYS = (
+    ("ts", _S), ("call_id", _S), ("task", _S), ("model", _S), ("anomaly", _S), ("cache_hit_rate", _N),
+    ("min_cache_hit_rate", _N), ("cache_miss_calls", _I), ("cached_input_tokens", _I),
+    ("cache_counted_input_tokens", _I),
+)
 
 
 def _logged_call(rec) -> bool:
-    """Neither a budget record (8.1 v1.598) nor a mode record (8.1 v1.687)."""
-    return "budget_event" not in rec and "advised_mode" not in rec
+    """Neither a budget record (8.1 v1.598), a mode record (8.1 v1.687) nor an anomaly record (8.1 v1.692)."""
+    return "budget_event" not in rec and "advised_mode" not in rec and "anomaly" not in rec
 
 
 class Monitor:
@@ -67,28 +75,95 @@ class Monitor:
     and leaves ``records`` the empty list it starts as, so a monitor that runs for a service's life
     holds no record in memory; read the file with ``load_records`` for ``report``. Without a path it
     would keep no record anywhere, so it raises ``ValueError``, as does a value that is not a bool.
+
+    ``tasks`` (keyword-only, DESIGN 8.2 v1.692), None or a mapping of task names to ``Task``, of which
+    ``.tasks`` holds a new dict, turns on the cache-miss check: per task with a ``min_cache_hit_rate`` and
+    model, the cached and input tokens of the last ``cache_miss_calls`` attempt records that carry a
+    ``cached_input_tokens`` count; when a full window's rate, cached over input tokens, is under the floor,
+    ``record`` writes one anomaly record right after the attempt record, once per run of misses, and then,
+    with its lock released, calls ``on_anomaly`` with a copy. An exception from it propagates.
     """
 
-    def __init__(self, path: Optional[PathLike] = None, *, keep_records: bool = True):
+    def __init__(self, path: Optional[PathLike] = None, *, keep_records: bool = True,
+                 tasks: Optional[Mapping[str, Task]] = None, on_anomaly=None):
         if not isinstance(keep_records, bool):
             raise ValueError(f"keep_records must be a bool, got {keep_records!r}")
         if not keep_records and path is None:
             raise ValueError("keep_records=False needs a path: a monitor with neither would keep no "
                              "record anywhere")
+        if tasks is not None and (not isinstance(tasks, Mapping) or not all(
+                isinstance(name, str) and isinstance(task, Task) for name, task in tasks.items())):
+            raise ValueError(f"tasks must be None or a mapping of str to Task, got {type(tasks).__name__}")
+        if on_anomaly is not None and not callable(on_anomaly):
+            raise ValueError(f"on_anomaly must be None or a callable, got {type(on_anomaly).__name__}")
+        if on_anomaly is not None and tasks is None:
+            raise ValueError("on_anomaly needs tasks: a monitor without them flags nothing")
         self.path = Path(path) if path is not None else None
         self.keep_records = keep_records
         self.records: List[dict] = []
         self._lock = threading.Lock()
+        self.tasks = None if tasks is None else dict(tasks)  # DESIGN 8.2 v1.692
+        self.on_anomaly = on_anomaly
+        self._windows: Dict[Tuple[str, str], deque] = {}
+        self._disarmed: set = set()
 
     def record(self, rec: dict) -> None:
         """Store one attempt record (unless ``keep_records`` is False) and append it to the log file
-        when set, under the lock."""
+        when set, under the lock, then any anomaly record it tips (DESIGN 8.2 v1.692)."""
+        watch = self._watched(rec)  # a bad count raises here, before the record is stored
+        anomaly = None
         with self._lock:
-            if self.keep_records:
-                self.records.append(rec)
-            if self.path is not None:
-                with self.path.open("a", encoding="utf-8") as handle:
-                    handle.write(json.dumps(rec) + "\n")
+            self._write(rec)
+            if watch is not None:
+                anomaly = self._step(rec, *watch)
+                if anomaly is not None:
+                    self._write(anomaly)
+        if anomaly is not None and self.on_anomaly is not None:  # the lock released
+            self.on_anomaly(dict(anomaly))
+
+    def _write(self, rec: dict) -> None:
+        if self.keep_records:
+            self.records.append(rec)
+        if self.path is not None:
+            with self.path.open("a", encoding="utf-8") as handle:
+                handle.write(json.dumps(rec) + "\n")
+
+    def _watched(self, rec: dict):
+        """The window key, counts and task an attempt record of a floored task adds, else None."""
+        name = rec.get("task") if self.tasks is not None and _logged_call(rec) else None
+        task = self.tasks.get(name) if isinstance(name, str) else None
+        if task is None or task.min_cache_hit_rate is None or "cached_input_tokens" not in rec:
+            return None
+        where = f"call_id {rec.get('call_id')!r}: "
+        model, size, cached = rec.get("model"), rec.get("input_tokens"), rec["cached_input_tokens"]
+        if not isinstance(model, str):
+            raise ValueError(f"{where}model must be a str, got {model!r}")
+        if isinstance(size, bool) or not isinstance(size, int) or size < 0:
+            raise ValueError(f"{where}input_tokens must be an integer >= 0, got {size!r}")
+        if isinstance(cached, bool) or not isinstance(cached, int) or not 0 <= cached <= size:
+            raise ValueError(f"{where}cached_input_tokens must be an integer from 0 to its input_tokens "
+                             f"({size}), got {cached!r}")
+        return (name, model), cached, size, task
+
+    def _step(self, rec: dict, key, cached: int, size: int, task: Task) -> Optional[dict]:
+        """Add one attempt to its window, under the lock; the anomaly record it tips, else None."""
+        window = self._windows.setdefault(key, deque(maxlen=task.cache_miss_calls))
+        window.append((cached, size))
+        hit, counted = sum(c for c, _ in window), sum(s for _, s in window)
+        if len(window) < task.cache_miss_calls or counted == 0:
+            return None
+        rate = hit / counted
+        if rate >= task.min_cache_hit_rate:
+            self._disarmed.discard(key)
+            return None
+        if key in self._disarmed:
+            return None
+        self._disarmed.add(key)
+        out = {name: rec[name] for name in ("ts", "call_id") if isinstance(rec.get(name), str)}
+        out.update(task=key[0], model=key[1], anomaly="cache_miss", cache_hit_rate=round(rate, 6),
+                   min_cache_hit_rate=task.min_cache_hit_rate, cache_miss_calls=task.cache_miss_calls,
+                   cached_input_tokens=hit, cache_counted_input_tokens=counted)
+        return out
 
 
 def load_records(path: PathLike) -> List[dict]:
@@ -601,7 +676,7 @@ def budget_report(records: Iterable[dict], budgets: Sequence[Budget]) -> List[di
         spend: Dict[Optional[str], List[float]] = {None: []} if budget.window == "total" else {}
         counts: Dict[Optional[str], Dict[str, int]] = {}
         for rec in records:
-            if "advised_mode" in rec:  # DESIGN 8.3 v1.687: a mode record is no spend and no event
+            if "advised_mode" in rec or "anomaly" in rec:  # DESIGN 8.3 v1.687 and v1.692: no spend, no event
                 continue
             if "budget_event" in rec:
                 label = rec.get("window")

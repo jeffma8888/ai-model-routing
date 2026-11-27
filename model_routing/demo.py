@@ -123,6 +123,10 @@ def _tasks_json(task: Task) -> str:
         del row["min_delegation_follow"]
     if row["max_delegation_depth"] is None:  # DESIGN 4.2 v1.691
         del row["max_delegation_depth"]
+    if row["min_cache_hit_rate"] is None:  # DESIGN 4.2 v1.692
+        del row["min_cache_hit_rate"]
+    if row["cache_miss_calls"] == 10:
+        del row["cache_miss_calls"]
     return json.dumps({"tasks": [row]}, indent=2) + "\n"
 
 

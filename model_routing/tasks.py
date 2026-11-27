@@ -128,7 +128,9 @@ class Task:
     lowest share of the task's advised hand-offs, per parent, its agent should take, under which
     ``delegation_follow`` flags a row; it routes nothing (DESIGN 4.2 and 8.3 v1.688). ``max_delegation_depth``
     is the deepest a sub-agent doing the task's work may sit in a tree of hand-offs, the root at 0, None for no
-    cap (DESIGN 4.2 and 13.5 v1.691).
+    cap (DESIGN 4.2 and 13.5 v1.691). ``min_cache_hit_rate`` is the lowest prompt-cache hit rate a route's last
+    ``cache_miss_calls`` attempts with a cached-token count may have before a ``Monitor`` given the task writes
+    an anomaly record, None for no floor; they route nothing (DESIGN 4.2 and 8.2 v1.692).
     Invalid values raise ``ValueError`` at construction.
     """
 
@@ -155,6 +157,8 @@ class Task:
     min_self_consistency: Optional[float] = None
     min_delegation_follow: Optional[float] = None
     max_delegation_depth: Optional[int] = None
+    min_cache_hit_rate: Optional[float] = None
+    cache_miss_calls: int = 10
 
     def __post_init__(self) -> None:
         if not isinstance(self.exclude_families, tuple):
@@ -230,6 +234,15 @@ class Task:
         if cap is not None and (isinstance(cap, bool) or not isinstance(cap, int) or cap < 0):
             raise ValueError(f"task {self.name!r}: max_delegation_depth must be None or an int >= 0 "
                              f"that is not a bool, got {cap!r}")
+        floor = self.min_cache_hit_rate  # DESIGN 4.2 v1.692
+        if floor is not None and (isinstance(floor, bool) or not isinstance(floor, (int, float))
+                                  or not 0.0 <= floor <= 1.0):  # NaN and the infinities fail the range
+            raise ValueError(f"task {self.name!r}: min_cache_hit_rate must be None or a finite number in "
+                             f"[0, 1] that is not a bool, got {floor!r}")
+        calls = self.cache_miss_calls
+        if isinstance(calls, bool) or not isinstance(calls, int) or calls < 1:
+            raise ValueError(f"task {self.name!r}: cache_miss_calls must be an int >= 1 that is not a bool, "
+                             f"got {calls!r}")
 
 
 _TASK_FIELDS = {f.name for f in fields(Task)}
