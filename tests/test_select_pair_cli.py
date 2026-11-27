@@ -475,8 +475,9 @@ def test_design_and_changelog_state_v1_676():
     assert design.count("- v1.676 `select-pair TASK --root MODEL [MODEL ...] --leaf MODEL [MODEL ...] ") == 1
     assert design.count("a `select-pair` command (row DEL1c, which v1.676 adds in 10);") == 2
     assert "3 `NoModelClearsBar` on `select`, `select-pair` (v1.676) and `delegate`" in design
-    last = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").rstrip("\n").split("\n")[-1]
-    assert last.startswith("- v1.676 (2026-11-26): spec, code and tests (10, row DEL1c, the third part of row DEL1). ")
+    changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    # v1.677 (row DEL1d) follows it, so the line is found by its opening, not read as the last
+    assert changelog.count("\n- v1.676 (2026-11-26): spec, code and tests (10, row DEL1c, the third part of row DEL1). ") == 1
 
 
 def test_the_note_s_orchestrator_line_states_the_command_as_shipped():
@@ -485,4 +486,5 @@ def test_the_note_s_orchestrator_line_states_the_command_as_shipped():
     line = next(l for l in lesson.split("\n") if l.startswith("- In this library:"))
     assert "from v1.676 `model-routing select-pair` prints the pair's decision from the command line" in line
     assert "a `select-pair` command and a table" not in line
-    assert line.endswith("and a table of the spread over roots and over leaves is planned.")
+    # v1.677 (row DEL1d): the table ships, so the line goes on past the command
+    assert "from the command line; and from v1.677 `evaluate(..., pairs=(roots, leaves))`" in line
