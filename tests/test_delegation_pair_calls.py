@@ -87,6 +87,8 @@ def test_sigma_scales_each_sides_rereads_of_its_own_outputs_and_nothing_else():
     assert candidate(d, "r/strong+l/cheap").list_cost == cost("r/strong", 7200, 600) + cost("l/cheap", 7200, 600)
     # side tokens: root 900 + 5400 + 3 * 0.5 * 150 = 6525 in, leaf 4500 + 3 * 0.5 * 176 = 4764 in
     assert candidate(d, "r/strong+l/mid").list_cost == cost("r/strong", 6525, 450) + cost("l/mid", 4764, 528)
+    # the side-token pair is the cheaper at its K calls: 0.085098 against 0.0909 USD
+    assert d.model == "r/strong+l/mid"
     brief, reads = parent_terms("r/weak")
     assert d.delegate_cost_usd == brief + candidate(d, d.model).list_cost + reads
 

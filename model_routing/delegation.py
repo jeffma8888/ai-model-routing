@@ -209,7 +209,7 @@ class _WorkCallsRouter(Router):
         brief; with them each side is at its mean side tokens on ``router.stats``, the brief the
         root's base context alone. Each side per call, whatever its ``items_per_call``.
         """
-        if sides is None:
+        if sides is None:  # ``task`` is the last-call copy, which ``_list_cost`` reads no size of
             return self._list_cost(task, root) + self._list_cost(task, leaf)
         k, b, share = self._work_calls, self._brief_tokens, self._share
         (root_in, root_out), (leaf_in, leaf_out) = sides
