@@ -28,8 +28,8 @@ CONSENSUS_LEAD = "A team with no human labels can make them from its reference j
 LESSON = "Choose a cheap judge by agreement with strong judges, then batch its criteria"
 ANCHOR = "research/production-lessons.md#choose-a-cheap-judge-by-agreement-with-strong-judges-then-batch-its-criteria"
 PARAGRAPH = (
-    "A judge can also be held to grading alike on reruns. A `tasks.json` row's `\"min_self_consistency\"` rules out, "
-    "whatever its bound, a route whose share of items graded alike on every rerun, of those graded on two or more, "
+    "A judge can also be held to grading alike on reruns. A `tasks.json` row's `\"min_self_consistency\"` rules out "
+    "a route, whatever its bound, whose share of items graded alike on every rerun, of those graded on two or more, "
     "is under it, reason `inconsistent`, or that has fewer such items than `min_samples`, reason "
     "`consistency_unknown`. A results row's `rerun`, 0 for an item's trial and above 0 for a rerun, with its "
     "`item`, gives `calibrate` those counts, and an inline parent is held to the minimum too, `delegate` naming "
@@ -113,7 +113,7 @@ def test_calibrate_counts_a_results_row_s_reruns(tmp_path):
 
 
 def test_the_minimum_rules_out_an_inconsistent_route_and_an_unknown_one_whatever_its_bound(tmp_path):
-    says("A `tasks.json` row's `\"min_self_consistency\"` rules out, whatever its bound, a route whose share of items "
+    says("A `tasks.json` row's `\"min_self_consistency\"` rules out a route, whatever its bound, whose share of items "
          "graded alike on every rerun, of those graded on two or more, is under it, reason `inconsistent`, or that "
          "has fewer such items than `min_samples`, reason `consistency_unknown`.")
     code, out, err = run(["select", "t", "--json", *make(tmp_path, min_self_consistency=LEAST)])
