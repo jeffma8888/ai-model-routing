@@ -18,8 +18,8 @@ from typing import List, Optional
 from . import DATA_DIR
 from .budget import BudgetExceeded, load_budgets
 from .demo import run_demo
-from .monitor import (audited_results, budget_report, drift_check, load_audits, load_logs, load_records,
-                      opportunities, pair_results, report, shadow_pairs)
+from .monitor import (audited_results, budget_report, delegation_follow, drift_check, load_audits, load_logs,
+                      load_records, opportunities, pair_results, report, shadow_pairs)
 from .priors import Priors
 from .promotion import pair_outcomes, paired_promotion
 from .registry import Registry
@@ -159,7 +159,11 @@ def _build_parser() -> argparse.ArgumentParser:
     rep.add_argument("--registry", default=None, metavar="PATH",
                      help="with --stats: the registry (default the packaged models.json)")
     rep.add_argument("--tasks", default=None, metavar="PATH",
-                     help="with --stats: the tasks file (default the packaged example_tasks.json)")
+                     help="with --stats: the tasks file (default the packaged example_tasks.json); with "
+                          "--delegation: the tasks file whose min_delegation_follow flags a row")
+    rep.add_argument("--delegation", action="store_true",
+                     help="one row per task and parent of the log's mode records: the share of advised "
+                          "hand-offs and of advised inline work the agent took")
 
     demo = sub.add_parser("demo", help="run the offline demo with fictional models")
     demo.add_argument("--out", default="model-routing-demo")
@@ -536,6 +540,15 @@ def _append_outcomes(path: Path, records) -> None:
 
 
 def _cmd_report(args) -> int:
+    if args.delegation:   # DESIGN 10 v1.689: the checks before any path is read
+        for flag, given in (("--opportunities", args.opportunities), ("--by", args.by is not None),
+                            ("--audits", args.audits is not None), ("--cache", args.cache),
+                            ("--shadow", args.shadow),
+                            ("--target-cost-per-call", args.target_cost_per_call is not None),
+                            ("--stats", args.stats is not None), ("--registry", args.registry is not None)):
+            if given:
+                raise _BadInput(f"--delegation reads mode records alone, so it takes no {flag}")
+        return _report_delegation(args)
     if args.opportunities:   # DESIGN 10 v1.645: the checks before any path is read
         for flag, given in (("--by", args.by is not None), ("--cache", args.cache), ("--shadow", args.shadow)):
             if given:
@@ -547,9 +560,12 @@ def _cmd_report(args) -> int:
         opportunities([], target_cost_per_call=args.target_cost_per_call)   # checks the target first
         return _report_opportunities(args)
     for flag, given in (("--target-cost-per-call", args.target_cost_per_call), ("--stats", args.stats),
-                        ("--registry", args.registry), ("--tasks", args.tasks)):
+                        ("--registry", args.registry)):
         if given is not None:
             raise _BadInput(f"{flag} needs --opportunities: only the savings report reads it")
+    if args.tasks is not None:   # v1.689: --delegation reads it too
+        raise _BadInput("--tasks needs --opportunities or --delegation: only the savings and delegation "
+                        "reports read it")
     args.by = "model" if args.by is None else args.by
     audits = None if args.audits is None else load_audits(args.audits)
     rows = report(load_logs(args.log), by=args.by, audits=audits, cache=args.cache,
@@ -591,6 +607,38 @@ def _cmd_report(args) -> int:
                     if args.shadow else []), table))
     return EXIT_OK
 
+
+
+_FOLLOW_KEYS = ["task", "parent", "records", "delegate_advised", "delegate_followed", "delegate_follow_share",
+                "inline_advised", "inline_followed", "inline_follow_share", "delegate_size_correlation"]
+
+
+def _report_delegation(args) -> int:
+    """DESIGN 10 v1.689: ``delegation_follow``'s rows (8.3 v1.688), one per task and parent of the logs' mode
+    records, as a table or ``--json``; ``--tasks`` is read before any log, and no registry or stats is."""
+    tasks = None if args.tasks is None else load_tasks(args.tasks)
+    rows = delegation_follow(load_logs(args.log), tasks=tasks)
+    if args.json:
+        print(json.dumps(rows, indent=2))
+        return EXIT_OK
+    flagged = ["min_delegation_follow", "below_follow"] if any("below_follow" in r for r in rows) else []
+    keys = _FOLLOW_KEYS + flagged
+
+    def cell(row, key):
+        if key not in row:   # a task with no minimum, or not in the tasks file
+            return "-"
+        value = row[key]
+        if value is None:
+            return "n/a"
+        if key == "below_follow":
+            return "true" if value else "false"
+        if key == "min_delegation_follow":
+            return repr(value)
+        if key in ("delegate_follow_share", "inline_follow_share", "delegate_size_correlation"):
+            return f"{value:.3f}"
+        return value
+    print(_table(keys, [[cell(r, key) for key in keys] for r in rows]))
+    return EXIT_OK
 
 
 def _report_opportunities(args) -> int:
