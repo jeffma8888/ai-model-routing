@@ -51,12 +51,13 @@ def model_row(model_id, expired=()):
     return row
 
 
-def write_stats(path, pairs=PAIRS, sources=None):
-    """Each pair's own counts of N and each model alone at N of N, ``sources`` a key's label sources."""
+def write_stats(path, pairs=PAIRS, sources=None, extra=None):
+    """Each pair's own counts of N and each model alone at N of N, ``sources`` a key's label sources
+    and ``extra`` a pair key's other `Stats.add` fields on task t."""
     stats = Stats()
     for (root, leaf), wins in pairs.items():
         key = f"{root}+{leaf}"
-        stats.add("t", key, wins, N, label_sources=(sources or {}).get(key))
+        stats.add("t", key, wins, N, label_sources=(sources or {}).get(key), **(extra or {}).get(key, {}))
         stats.add("r", key, wins, N)
         stats.add("u", key, wins, N)
     for model_id in ROOTS + LEAVES:
@@ -71,8 +72,8 @@ def files(tmp_path):
     return make_files(tmp_path)
 
 
-def make_files(d, expired=()):
-    (d / "models.json").write_text(json.dumps({"models": [model_row(m, expired) for m in ROOTS + LEAVES]}),
+def make_files(d, expired=(), order=ROOTS + LEAVES):
+    (d / "models.json").write_text(json.dumps({"models": [model_row(m, expired) for m in order]}),
                                    encoding="utf-8")
     common = {"bar": 0.8, "min_samples": 30, "expected_input_tokens": 1000, "expected_output_tokens": 200}
     (d / "tasks.json").write_text(json.dumps({"tasks": [
@@ -93,6 +94,12 @@ def pair(d, task="t", roots=ROOTS, leaves=LEAVES, *more, stats="stats.json"):
 
 def router(d, stats="stats.json"):
     return Router(Registry.load(d / "models.json"), load_tasks(d / "tasks.json"), Stats.load(d / stats))
+
+
+def wilson(wins, n, z=1.959963984540054):
+    """The Wilson score interval's lower end written out, z the 0.975 normal quantile."""
+    p = wins / n
+    return (p + z * z / (2 * n) - z * (p * (1 - p) / n + z * z / (4 * n * n)) ** 0.5) / (1 + z * z / n)
 
 
 def cost(model_id):
@@ -157,15 +164,17 @@ def test_cost_effective_prints_the_decision_and_one_row_per_pair_roots_major(fil
 
 
 def test_each_row_is_the_hand_computed_pair():
-    """Each row's counts are the fixture's, its bound the Wilson bound at 0.95 to 3 places, and its
-    cost the root's call plus the leaf's at 1000 input and 200 output tokens, to 6 places."""
+    """Each row's counts are the fixture's, its bound the Wilson bound at 0.95 written out here to 3
+    places, and its cost the root's call plus the leaf's at 1000 input and 200 output tokens, to 6
+    places."""
     rows = [line.split() for line in TABLE.split("\n")[2:]]
     assert [row[0] for row in rows] == [f"{r}+{l}" for r in ROOTS for l in LEAVES]
     for model_id, family, measured, bound, list_cost, routing_cost, reason in rows:
         root, leaf = model_id.split("+")
         wins = PAIRS[(root, leaf)]
         assert family == root.split("/")[1] and measured == f"{wins}/{N}"
-        assert bound == f"{wilson_lower_bound(wins, N, 0.95):.3f}"
+        assert bound == f"{wilson(wins, N):.3f}"
+        assert wilson(wins, N) == pytest.approx(wilson_lower_bound(wins, N, 0.95), rel=1e-12)
         assert list_cost == routing_cost == f"{cost(root) + cost(leaf):.6f}"
         assert reason == ("passes" if wins >= 39 else "below_bar")
     # by hand: r/strong 0.016 + l/cheap 0.00016; r/good 0.0048 + l/dear 0.016; r/weak 0.00032 + l/cheap 0.00016
@@ -231,13 +240,30 @@ def test_a_below_bar_fallback_is_marked(files):
 
 
 def test_a_retry_same_task_prints_its_policy_line(files):
+    """By hand: r/strong+l/cheap costs 0.01616 at a bound of 0.871187 for 39 of 40, so 0.018549 a
+    success; r/strong+l/mid 0.0176 at 0.912378 for 40 of 40 is 0.019290, so no `pick:` line."""
     code, out, err = pair(files, "r")
     assert (code, err) == (0, "")
-    decision = router(files).select_pair("r", ROOTS, LEAVES)
-    value = decision.expected_cost_per_success_usd
-    assert out.split("\n")[6] == (f"policy:    retry_same, expected cost per success ${value:.6f} "
-                                  "(an estimate assuming independent retries)")
-    assert out.split("\n")[2] == f"primary:   {decision.primary}"
+    assert out.split("\n")[2:9] == [
+        "primary:   r/strong+l/cheap", "fallbacks: r/strong+l/mid, r/good+l/dear", "basis:     measured",
+        "below_bar: false",
+        "policy:    retry_same, expected cost per success $0.018549 (an estimate assuming independent retries)",
+        "", TABLE.split("\n")[0]]
+    assert 0.01616 / wilson(39, N) == pytest.approx(0.018549, abs=5e-7)
+
+
+def test_a_retry_same_task_prints_pick_when_the_cheapest_per_success_pair_is_not_the_cheapest(files):
+    """By hand: r/strong+l/cheap costs 0.01616 at 0.871187 (39 of 40), 0.018549 a success, and
+    r/weak+l/dear 0.01632 at 0.912378 (40 of 40), 0.017887, so the dearer call is the primary."""
+    write_stats(files / "two.json", pairs={("r/strong", "l/cheap"): 39, ("r/weak", "l/dear"): 40})
+    code, out, err = pair(files, "r", ["r/strong", "r/weak"], ["l/cheap", "l/dear"], stats="two.json")
+    assert (code, err) == (0, "")
+    assert out.split("\n")[:9] == [
+        "task:      r", "flavor:    cost_effective", "primary:   r/weak+l/dear", "fallbacks: r/strong+l/cheap",
+        "basis:     measured", "below_bar: false",
+        "policy:    retry_same, expected cost per success $0.017887 (an estimate assuming independent retries)",
+        "pick:      cheaper_per_success", ""]
+    assert (0.01632 / wilson(40, N), 0.01616 / wilson(39, N)) == pytest.approx((0.017887, 0.018549), abs=5e-7)
 
 
 def test_the_labels_line_reads_the_primary_pair_s_key_alone(files):
@@ -299,6 +325,29 @@ def test_select_pair_s_own_checks_exit_2_with_its_message(files, task, roots, le
     assert (code, out, err) == (2, "", line + "\n")
 
 
+def test_the_registry_then_the_tasks_then_the_ids_come_first(files):
+    """A missing registry before a missing tasks file, both before an unknown ID or task; and an
+    unknown --exclude ID before an unknown task, which select_pair checks (review iter-534 should-fix 3)."""
+    gone = str(files / "gone.json")
+    code, out, err = run(["select-pair", "nope", "--root", "x/none", "--leaf", "l/cheap", "--exclude", "x/none",
+                          "--registry", gone, "--tasks", gone, "--stats", str(files / "stats.json")])
+    assert (code, out, err) == (2, "", f"error: [Errno 2] No such file or directory: {gone!r}\n")
+    code, out, err = run(["select-pair", "nope", "--root", "x/none", "--leaf", "l/cheap", "--exclude", "x/none",
+                          "--registry", str(files / "models.json"), "--tasks", gone])
+    assert (code, out, err) == (2, "", f"error: [Errno 2] No such file or directory: {gone!r}\n")
+    code, out, err = pair(files, "nope", ["x/none"], LEAVES, "--exclude", "x/other")
+    assert (code, out, err) == (2, "", "error: unknown model: 'x/other'\n")
+    code, out, err = pair(files, "nope", ["x/none"], LEAVES)
+    assert (code, out, err) == (2, "", "error: unknown task: 'nope'\n")
+
+
+def test_a_missing_stats_file_is_empty_stats(files):
+    code, out, err = pair(files, stats="none.json")
+    assert (code, out) == (3, "")
+    assert err.startswith("error: no model clears the bar 0.8 for task 't'\n")
+    assert err.count("insufficient_samples") == 12
+
+
 def test_the_id_checks_come_before_the_policy_file(files):
     code, out, err = pair(files, "t", ROOTS, LEAVES, "--exclude", "x/none", "--policy", str(files / "missing.json"))
     assert (code, out, err) == (2, "", "error: unknown model: 'x/none'\n")
@@ -324,6 +373,60 @@ def test_an_expired_side_of_an_eligible_pair_warns_in_registry_order(tmp_path):
     code, out, err = pair(d)
     assert code == 0 and out == HEAD + "\n" + TABLE + "\n"
     assert err == EXPIRED.format("r/weak") + "\n" + EXPIRED.format("l/cheap") + "\n"
+    (tmp_path / "leaves-first").mkdir()
+    leaves_first = make_files(tmp_path / "leaves-first", expired=("r/weak", "l/cheap"), order=LEAVES + ROOTS)
+    code, out, err = pair(leaves_first)   # registry file order, not roots then leaves (review iter-534 nit 2)
+    assert code == 0 and out == HEAD + "\n" + TABLE + "\n"
+    assert err == EXPIRED.format("l/cheap") + "\n" + EXPIRED.format("r/weak") + "\n"
+
+
+SLOW = {f"r/weak+{leaf}": {"latencies_ms": [2000.0] * N} for leaf in LEAVES}
+FAST = {f"{root}+{leaf}": {"latencies_ms": [100.0] * N} for root in ROOTS[:3] for leaf in LEAVES}
+SHAKY = {f"r/weak+{leaf}": {"rerun_items": N, "consistent_items": 20} for leaf in LEAVES}
+ALIKE = {f"{root}+{leaf}": {"rerun_items": N, "consistent_items": N} for root in ROOTS[:3] for leaf in LEAVES}
+
+
+@pytest.mark.parametrize("field, extra, reason", [
+    ({"max_p95_ms": 1000.0}, {**SLOW, **FAST}, "too_slow"),
+    ({"min_self_consistency": 0.9}, {**SHAKY, **ALIKE}, "inconsistent"),
+], ids=["a time bar", "a self-consistency bar"])
+def test_a_side_whose_pairs_a_bar_on_the_pair_key_rules_out_does_not_warn(tmp_path, field, extra, reason):
+    """Rules 5e to 5h read the pair's own key, so each r/weak pair is ruled out there while r/weak
+    alone is 40 of 40 and fast or alike on its own key (review iter-534 should-fix 2)."""
+    d = make_files(tmp_path, expired=("r/weak", "l/cheap"))
+    common = {"bar": 0.8, "min_samples": 30, "expected_input_tokens": 1000, "expected_output_tokens": 200}
+    (d / "bar.json").write_text(json.dumps({"tasks": [dict(common, name="t", **field)]}), encoding="utf-8")
+    write_stats(d / "bar-stats.json", extra=extra)
+    code, out, err = run(["select-pair", "t", "--root", *ROOTS, "--leaf", *LEAVES, "--registry", str(d / "models.json"),
+                          "--tasks", str(d / "bar.json"), "--stats", str(d / "bar-stats.json")])
+    assert code == 0 and out.split("\n")[2] == "primary:   r/strong+l/cheap"
+    rows = {line.split()[0]: line.split()[-1] for line in out.split("\n")[9:-1]}
+    assert [rows[f"r/weak+{leaf}"] for leaf in LEAVES] == [reason] * 3
+    assert err == EXPIRED.format("l/cheap") + "\n"
+
+
+def test_a_side_a_policy_rules_out_does_not_warn(tmp_path):
+    d = make_files(tmp_path, expired=("r/weak", "l/cheap"))
+    (d / "policy.json").write_text(json.dumps({"allowed_routes": ROOTS[:3] + LEAVES}), encoding="utf-8")
+    code, out, err = pair(d, "t", ROOTS, LEAVES, "--policy", str(d / "policy.json"))
+    assert code == 0 and out.split("\n")[2] == "primary:   r/strong+l/cheap"
+    assert err == EXPIRED.format("l/cheap") + "\n"
+
+
+def test_a_side_whose_id_holds_a_plus_warns_by_its_own_id(tmp_path):
+    """The sides come from the pair order, not from splitting the pair ID at `+` (review iter-534 nit 3)."""
+    rows = [{"id": "v/a+b", "family": "a", "price_in": 1.0, "price_out": 3.0, "context_window": 100_000,
+             "price_valid_until": "2026-01-31"},
+            {"id": "v/c", "family": "c", "price_in": 0.1, "price_out": 0.3, "context_window": 100_000}]
+    (tmp_path / "models.json").write_text(json.dumps({"models": rows}), encoding="utf-8")
+    (tmp_path / "tasks.json").write_text(json.dumps({"tasks": [{"name": "t", "bar": 0.8, "min_samples": 30}]}),
+                                         encoding="utf-8")
+    stats = Stats()
+    stats.add("t", "v/a+b+v/c", N, N)
+    stats.save(tmp_path / "stats.json")
+    code, out, err = run(["select-pair", "t", "--root", "v/a+b", "--leaf", "v/c", *base(tmp_path)])
+    assert code == 0 and out.split("\n")[2] == "primary:   v/a+b+v/c"
+    assert err == EXPIRED.format("v/a+b") + "\n"
 
 
 def test_a_side_all_of_whose_pairs_are_ruled_out_does_not_warn(tmp_path):
