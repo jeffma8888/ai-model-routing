@@ -9,6 +9,7 @@ import random as _random
 import threading
 import time
 import uuid
+from collections import OrderedDict
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
@@ -115,8 +116,8 @@ class Executor:
     ``.call`` wait for the shadow on the caller's thread (DESIGN 7 v1.617, review iter-468
     should-fix 1). ``max_sessions``, keyword-only, None for no cap or an ``int`` >= 1, bounds the
     sessions whose last attempt the executor keeps: when storing a new session's attempt would pass
-    it, the entry stored least recently is dropped, so that session's next call routes as a first
-    call does (DESIGN 7 v1.704).
+    it, the entry stored least recently is dropped, so the dropped session's next call routes as a
+    first call does (DESIGN 7 v1.704).
 
     One executor, with its router, a :class:`Monitor` and a :class:`BudgetLedger`, may serve many
     threads at once: a call keeps its state in its own locals and sets no attribute of the executor
@@ -154,7 +155,7 @@ class Executor:
         self.random = random if random is not None else _random.random  # DESIGN 7 v1.607
         self.shadow_runner = shadow_runner  # DESIGN 7 v1.617
         # DESIGN 7 v1.697: each session's last attempt, (model, clock read, read or wrote the cache, v1.699)
-        self._sessions: Dict[str, Tuple[str, float, bool]] = {}
+        self._sessions: OrderedDict[str, Tuple[str, float, bool]] = OrderedDict()  # v1.704: in store order
         self._session_lock = threading.Lock()
         self._max_sessions = max_sessions  # DESIGN 7 v1.704: None, no cap; checked above
         # DESIGN 7 v1.597: a strict budget reads each call's billing bound
@@ -293,9 +294,10 @@ class Executor:
         at = self.clock()
         with self._session_lock:
             # DESIGN 7 v1.704: a stored entry is the newest; a new one past the bound drops the oldest stored
-            known = self._sessions.pop(session_id, None) is not None
-            if not known and self._max_sessions is not None and len(self._sessions) >= self._max_sessions:
-                del self._sessions[next(iter(self._sessions))]
+            if session_id in self._sessions:
+                self._sessions.move_to_end(session_id)
+            elif self._max_sessions is not None and len(self._sessions) >= self._max_sessions:
+                self._sessions.popitem(last=False)
             self._sessions[session_id] = (attempt.model, at, touched)
 
     def call_pair(self, task_name: str, roots: Sequence[str], leaves: Sequence[str],

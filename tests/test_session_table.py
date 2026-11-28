@@ -80,6 +80,19 @@ def test_a_session_called_again_is_not_the_one_dropped():
     assert _again(run, "b") == {}
 
 
+def test_the_drop_follows_the_stores_not_a_clock_that_went_back():
+    # review iter-565 should-fix 2: a, stored first, holds the later clock read and is still the one dropped
+    run = Run(max_sessions=2)
+    run.clock.t = 5.0
+    run.warm_up("a")
+    run.clock.t = 0.0
+    run.warm_up("b")
+    run.warm_up("c")
+    run.clock.t = 6.0
+    assert _again(run, "b") == WARM_KEYS
+    assert _again(run, "a") == {}
+
+
 def test_max_sessions_1_keeps_only_the_last_session_stored():
     run = Run(max_sessions=1)
     run.warm_up("a")
@@ -114,6 +127,7 @@ def test_a_call_with_no_attempt_stores_no_entry_and_drops_none():
     run.warm_up("a")
     with pytest.raises(ValueError):
         run.ex.call("t", MESSAGES, session_id="b", slice="")  # refused by select before any attempt
+    assert len(run.monitor.records) == 1  # the warm-up's alone
     run.clock.t = 1.0
     assert _again(run, "a") == WARM_KEYS
 
@@ -137,7 +151,8 @@ def test_max_sessions_1_100_keeps_1_100_sessions_and_drops_the_oldest_at_the_nex
     run.clock.t = 10.0
     assert _again(run, "s-1") == WARM_KEYS
     assert _again(run, "s-1100") == WARM_KEYS
-    assert _again(run, "s-0") == {}
+    assert _again(run, "s-0") == {}  # stored again, dropping s-2
+    assert sum(run.ex.end_session(session) for session in names) == 1_100  # review iter-565 nit 6
 
 
 # --- unchanged without the argument -------------------------------------------------------------------------
