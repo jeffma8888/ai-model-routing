@@ -6,6 +6,10 @@ check, and whether it reported cached reads) and passes `select` that model as `
 `session_warm` True only when the attempt read cached tokens and the gap is at least 0 and below the model's
 cache life. Without a `session_id` every decision and record keeps its bytes: `V1_696_DIGEST` was computed on
 the package at 8235c66, before v1.697.
+
+v1.698 (row T35, review iter-557 should-fix 1, 2, 4 and 5, nit 2): a pinned call of a session, an exception that is
+no `ProviderError`, `.end_session` during a call, an entry kept past its life, and a digest that holds a shadow, a
+failure of every route, an `invalid` record, a slice, a policy label and budget records.
 """
 
 import dataclasses
@@ -17,7 +21,7 @@ import pytest
 
 from model_routing import (
     AllModelsFailed, Budget, BudgetExceeded, BudgetLedger, Completion, Executor, FakeProvider, Model, Monitor,
-    Procedure, ProcedureResult, ProviderError, Registry, Router, Stats, Task,
+    Policy, Procedure, ProcedureResult, ProviderError, Registry, Router, Stats, Task,
 )
 
 WARM, CHEAP = "fiction/warm", "fiction/cheap"
@@ -366,25 +370,114 @@ def test_a_session_call_reads_the_clock_once_more_per_attempt_and_once_before_se
     assert plain.clock.reads == 4
 
 
+# --- review iter-557 (v1.698) --------------------------------------------------------------------------------
+
+def test_a_pinned_call_of_a_session_gets_no_stay_warm_and_its_model_is_the_next_session_route():
+    # should-fix 5: a pin is passed the session's keywords as any call is, and its attempt is the session's last
+    run = Run()
+    run.warm_up()
+    run.clock.t = 1.0
+    kept = run.ex.call("t", MESSAGES, session_id="s", pin_route=WARM, pinned_by="ops")
+    assert run.selects[-1] == {"session_route": WARM, "session_warm": True}
+    assert (kept.model, kept.decision.basis, kept.decision.session_pricing) == (WARM, "pinned", "warm")
+    assert kept.decision.pick_reason is None
+    run.clock.t = 2.0
+    moved = run.ex.call("t", MESSAGES, session_id="s", pin_route=CHEAP, pinned_by="ops")
+    assert run.selects[-1] == {"session_route": WARM, "session_warm": True}
+    assert (moved.model, moved.decision.pick_reason) == (CHEAP, None)
+    run.clock.t = 3.0
+    run.ex.call("t", MESSAGES, session_id="s")
+    assert run.selects[-1] == {"session_route": CHEAP, "session_warm": True}
+
+
+def test_the_executor_drops_no_entry_itself():
+    # should-fix 4: no expiry once the gap passes the life and no cap; only .end_session drops an entry
+    run = Run()
+    for session in ("a", "b", "c"):
+        run.warm_up(session)
+    run.clock.t = 1_000 * TTL
+    for session in ("a", "b", "c"):
+        run.ex.call("t", MESSAGES, session_id=session)
+        assert run.selects[-1] == {"session_route": WARM, "session_warm": False}
+
+
+def test_end_session_during_a_call_of_the_session_is_undone_by_its_attempt():
+    # should-fix 4: the attempt stores an entry again once the provider returns
+    run = Run()
+    run.warm_up()
+    ended = []
+
+    def ending(messages):
+        ended.append(run.ex.end_session("s"))
+        return hit(messages)
+
+    run.provider.script[CHEAP] = ending
+    run.clock.t = 1.0
+    run.ex.call("t", MESSAGES, session_id="s", exclude_models=(WARM,))
+    assert ended == [True]
+    run.clock.t = 2.0
+    run.ex.call("t", MESSAGES, session_id="s")
+    assert run.selects[-1] == {"session_route": CHEAP, "session_warm": True}
+
+
+@pytest.mark.parametrize("where", ["provider", "validate"])
+def test_an_exception_that_is_no_provider_error_leaves_the_state(where):
+    # nit 2: it leaves .call before the attempt is logged, though the provider was called
+    def bug(value):
+        raise RuntimeError("a bug")
+
+    run = Run()
+    run.warm_up()
+    if where == "provider":
+        run.provider.script[CHEAP] = bug
+    run.clock.t = 1.0
+    with pytest.raises(RuntimeError, match="a bug"):
+        run.ex.call("t", MESSAGES, session_id="s", exclude_models=(WARM,),
+                    validate=bug if where == "validate" else None)
+    assert [m for m, _ in run.provider.calls] == [WARM, CHEAP]
+    run.clock.t = 2.0
+    run.ex.call("t", MESSAGES, session_id="s")
+    assert run.selects[-1] == {"session_route": WARM, "session_warm": True}
+
+
 # --- unchanged without a session ------------------------------------------------------------------------------
 
 def _guard():
-    """Decisions and records of calls without a session, as JSON text, on fixtures that build at 8235c66."""
+    """Decisions and records of calls without a session, as JSON text, on fixtures that build at 8235c66.
+
+    Review iter-557 should-fix 1 and 2 (v1.698): a shadow on its own route, a failure of every route, two
+    `invalid` attempts, a sliced call, a policy label and a warn budget's records are in it.
+    """
     out = []
     plain_registry = Registry([
         Model(WARM, "fam-a", 3.0, 15.0, 200_000, price_cached_in=0.3),
         Model(CHEAP, "fam-b", 1.0, 5.0, 200_000, price_cached_in=0.1),
     ])
+
+    def once(run, **kwargs):
+        try:
+            out.append(run.ex.call("t", MESSAGES, **kwargs).decision.to_dict())
+        except AllModelsFailed as exc:
+            out.append([type(exc).__name__, str(exc)])
+        out.extend(run.monitor.records)
+
+    scripts = ({WARM: hit, CHEAP: hit}, {WARM: outage, CHEAP: miss}, {WARM: unsaid, CHEAP: outage},
+               {WARM: outage, CHEAP: outage})
     for flavor in ("cost_effective", "cost_blind"):
-        for script in ({WARM: hit, CHEAP: hit}, {WARM: outage, CHEAP: miss}, {WARM: unsaid, CHEAP: outage}):
-            run = Run(router=_router(plain_registry), script=script)
-            try:
-                result = run.ex.call("t", MESSAGES, flavor=flavor)
-                out.append(result.decision.to_dict())
-            except Exception as exc:  # AllModelsFailed
-                out.append(type(exc).__name__)
-            out.extend(run.monitor.records)
-    run = Run(router=_router(plain_registry, shadow_rate=1.0), random=lambda: 0.0)
+        for script in scripts:
+            once(Run(router=_router(plain_registry), script=script), flavor=flavor)
+    once(Run(router=_router(plain_registry)), validate=lambda text: False)
+    sliced = _router(plain_registry)
+    for model_id, successes in ((WARM, 99), (CHEAP, 60)):
+        sliced.stats.add("t@s", model_id, successes, TRIALS, input_tokens=CONTEXT * TRIALS,
+                         output_tokens=OUT * TRIALS, cached_input_tokens=(CONTEXT - NEW) * TRIALS)
+    once(Run(router=sliced), slice="s")
+    once(Run(router=_router(plain_registry)), policy=Policy(allowed_families=("fam-a", "fam-b"), name="tenant-a"))
+    run = Run(router=_router(plain_registry), ledger=BudgetLedger([Budget("watch", 0.01, "warn")]))
+    for _ in range(2):
+        out.append(run.ex.call("t", MESSAGES).decision.to_dict())
+    out.extend(run.monitor.records)
+    run = Run(router=_router(plain_registry, shadow_rate=1.0, shadow_route=WARM), random=lambda: 0.0)
     out.append(run.ex.call("t", MESSAGES, tags={"team": "a"}).decision.to_dict())
     run.ex.call("t", MESSAGES, pin_route=CHEAP, pinned_by="ops")
     out.extend(run.monitor.records)
@@ -392,9 +485,21 @@ def _guard():
     return json.dumps(out, sort_keys=False, separators=(",", ":"))
 
 
-# sha256 of _guard() on the package at 8235c66 (v1.696)
-V1_696_DIGEST = "26dfc14a910d67ca882bfaee0e44285abae1b42d6acf9f614447d66b589a16a5"
+# sha256 of _guard() on the package at 8235c66 (v1.696), recomputed for the v1.698 guard
+V1_696_DIGEST = "7aaf0bbc9f3bad17878c1a29b40d3bcf992f398d0db6f2bc11d755667654a91d"
 
 
 def test_calls_without_a_session_keep_their_v1_696_bytes():
     assert hashlib.sha256(_guard().encode()).hexdigest() == V1_696_DIGEST
+
+
+def test_the_guard_holds_a_shadow_a_failure_an_invalid_answer_a_slice_a_policy_and_budget_records():
+    # review iter-557 should-fix 1 and 2: so the digest pins each of them
+    items = json.loads(_guard())
+    records = [item for item in items if isinstance(item, dict) and "outcome" in item]
+    assert {r["shadow"] for r in records if "pair_id" in r} == {False, True}
+    assert items.count(["AllModelsFailed", "all 2 routed models failed for task 't'"]) == 3
+    assert sum(r["outcome"] == "invalid" for r in records) == 2
+    assert any(r.get("slice") == "s" for r in records)
+    assert any(r.get("policy") == "tenant-a" for r in records)
+    assert any("budget_event" in item for item in items if isinstance(item, dict))
