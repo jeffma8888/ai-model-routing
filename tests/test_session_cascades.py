@@ -52,12 +52,13 @@ def _task(**fields):
     return Task("t", **values)
 
 
-def _stats(cheap=CACHED, strong=CACHED, other=None, cheap_successes=95, escalated=20):
+def _stats(cheap=CACHED, strong=CACHED, other=None, cheap_successes=95, escalated=20,
+           strong_successes=95):
     """Each model at 10,000 in and 500 out a call over 100 trials with the cache kwargs given,
     the cascade at 90 of 100 with ``escalated`` hand-ups."""
     stats = Stats()
-    for model_id, cache, successes in ((CHEAP, cheap, cheap_successes), (STRONG, strong, 95),
-                                       (OTHER, other, 95)):
+    for model_id, cache, successes in ((CHEAP, cheap, cheap_successes),
+                                       (STRONG, strong, strong_successes), (OTHER, other, 95)):
         if model_id == OTHER and other is None:
             continue
         stats.add("t", model_id, successes, 100, input_tokens=1_000_000, output_tokens=50_000,
@@ -108,7 +109,7 @@ def test_a_cascades_price_under_a_session_is_the_hand_computed_one(session, expe
 
 
 def test_cost_blind_prices_the_cold_legs_at_a_routing_cost_of_zero():
-    candidate = _by_id(_select(_stats(), "cost_blind", cascades=True,
+    candidate = _by_id(_select(_stats(), flavor="cost_blind", cascades=True,
                                session_route=CHEAP, session_warm=True))[CID]
     assert candidate.list_cost == pytest.approx(0.0117, abs=1e-12)
     assert candidate.routing_cost == 0.0
@@ -182,11 +183,11 @@ def test_a_measured_procedure_and_one_without_a_model_keep_their_cost(session):
 
 # --- stay_warm ----------------------------------------------------------------------------------
 
-def _stay_stats():
+def _stay_stats(strong_successes=95):
     """Cheap fails the bar alone (60 of 100), so the cascade, other and strong are the passing
     routes; other is first at v1.591 prices, 0.00385 against the cascade's 0.00684, and cold it
     costs (10,000 * 1.5 + 500 * 2.0) / 1e6 = 0.016."""
-    return _stats(other=CACHED, cheap_successes=60)
+    return _stats(other=CACHED, cheap_successes=60, strong_successes=strong_successes)
 
 
 def test_a_cascade_whose_cheap_leg_is_warm_stays_warm():
@@ -201,8 +202,11 @@ def test_a_cascade_whose_cheap_leg_is_warm_stays_warm():
 
 
 def test_a_cascade_whose_strong_leg_alone_is_warm_is_a_switch():
-    decision = _select(_stay_stats(), WITH_OTHER, cascades=True, session_route=STRONG,
-                       session_warm=True)
+    # strong fails the bar alone too, so its warm 0.0132 is no route; the cascade's 0.01494 beats
+    # other's cold 0.016, and other was first at v1.591 prices, yet the cascade starts cold
+    decision = _select(_stay_stats(strong_successes=60), WITH_OTHER, cascades=True,
+                       session_route=STRONG, session_warm=True)
+    assert _select(_stay_stats(strong_successes=60), WITH_OTHER, cascades=True).primary == OTHER
     assert _by_id(decision)[CID].list_cost == pytest.approx(0.01494, abs=1e-12)
     assert decision.primary == CID and decision.pick_reason is None
 
@@ -213,16 +217,15 @@ def test_a_conservative_session_on_the_cheap_leg_moves_off_the_cascade():
 
 
 def test_a_procedure_on_the_warm_model_never_stays_warm():
-    # measured at 95 of 100 with no cost, it is priced at one warm call of cheap, 0.0039: second
-    # to other's 0.00385 at v1.591 prices and first under the session, with no stay_warm
+    # measured at 95 of 100 for 0.005 a trial: second to other's 0.00385 at v1.591 prices and
+    # first under a session warm on its model, against other's cold 0.016, with no stay_warm
     stats = _stay_stats()
-    stats.add("t", ON_CHEAP.id, 95, 100)
-    blind = _select(stats, WITH_OTHER, procedures=[ON_CHEAP])
-    assert blind.primary == OTHER
-    decision = _select(stats, WITH_OTHER, procedures=[ON_CHEAP], session_route=CHEAP,
+    stats.add("t", MEASURED.id, 95, 100, cost_usd=0.5)
+    assert _select(stats, WITH_OTHER, procedures=[MEASURED]).primary == OTHER
+    decision = _select(stats, WITH_OTHER, procedures=[MEASURED], session_route=CHEAP,
                        session_warm=True)
-    assert _by_id(decision)[ON_CHEAP.id].list_cost == pytest.approx(0.0039, abs=1e-12)
-    assert decision.primary == ON_CHEAP.id and decision.pick_reason is None
+    assert _by_id(decision)[MEASURED.id].list_cost == 0.005
+    assert decision.primary == MEASURED.id and decision.pick_reason is None
 
 
 def test_a_pin_on_the_cascade_holds_its_session_price_and_no_stay_warm():
@@ -259,7 +262,7 @@ def test_a_cascades_id_is_a_plain_switch_when_the_cascade_is_not_routed():
     assert decision.session_pricing == "warm" and CID not in _by_id(decision)
 
 
-# --- unchanged without a session --------------------------------------------------------------------
+# --- unchanged without a session ----------------------------------------------------------
 
 def _guard_decisions():
     """Decisions with cascades and procedures and without a session, over this module's fixtures."""

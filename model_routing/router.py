@@ -60,18 +60,15 @@ def _check_pin(pin_route, allow_below_bar) -> None:
         raise ValueError("allow_below_bar needs a pin_route")
 
 
-def _check_session(session_route, session_warm, cascades: bool, procedures) -> None:
-    """The session keywords' checks, in the order DESIGN 5.2 v1.695 gives them."""
+def _check_session(session_route, session_warm) -> None:
+    """The session keywords' checks, in the order DESIGN 5.2 v1.695 gives them (v1.700 dropped
+    the refusal of cascades and procedures)."""
     if session_route is not None and (not isinstance(session_route, str) or not session_route):
         raise ValueError(f"session_route must be None or a non-empty str, got {session_route!r}")
     if not isinstance(session_warm, bool):
         raise ValueError(f"session_warm must be a bool, got {session_warm!r}")
     if session_warm and session_route is None:
         raise ValueError("session_warm=True needs a session_route")
-    if session_route is not None and cascades:
-        raise ValueError("a session_route cannot be priced with cascades=True in this version")
-    if session_route is not None and procedures:
-        raise ValueError("a session_route cannot be priced with procedures in this version")
 
 
 def _in_scope(patterns: Tuple[str, ...], name: str, key: Optional[str]) -> bool:
@@ -205,6 +202,16 @@ def _fit(counts: Tuple[int, int], room: int) -> Tuple[int, int]:
     cached, write = counts
     write = min(write, room)
     return min(cached, room - write), write
+
+
+def _session_counts(counts: Optional[Tuple[int, int]], model_id: str, session: bool,
+                    warm: Optional[str]) -> Optional[Tuple[int, int]]:
+    """A cascade leg's or a procedure call's fitted counts under a session (DESIGN 5.2 v1.700):
+    its cached reads moved to the input price and its writes kept, unless its model is the warm
+    session route ``warm``; the counts themselves without a session or without counts."""
+    if not session or counts is None or model_id == warm:
+        return counts
+    return 0, counts[1]
 
 
 def _call_cost(model, size_in: int, size_out: int, counts: Optional[Tuple[int, int]]) -> float:
@@ -400,14 +407,16 @@ class Router:
         route when ``session_warm`` says its cache was read inside the cache's life; the decision's
         ``session_pricing`` is then ``"warm"`` or ``"conservative"``, and its ``pick_reason``
         ``"stay_warm"`` when the warm route is first only because a switch would cost more (5.2
-        v1.695). Raises ``KeyError``
-        for an unknown task or generator, ``ValueError`` for an unknown flavor, a
+        v1.695). Each cascade leg and unmeasured procedure call is priced so too, by its model,
+        and a cascade whose cheap leg is the warm route can stay warm (5.2 v1.700). Raises
+        ``KeyError`` for an unknown task or generator, ``ValueError`` for an unknown flavor, a
         ``prompt_tokens`` that is not an integer >= 0, a ``slice`` that is not a non-empty
         string without '@', a sliced task whose name holds '@' or whose slice key is
         another task, a ``cascades`` that is not a bool, or, with ``cascades`` True, a
         registry ID equal to a cascade's ``id``, ``procedures`` that is not a list or tuple of
         ``Procedure``, two of them with one ``id`` or a registry ID equal to one's ``id``,
-        a ``policy`` that is not None or a ``Policy``, and :class:`NoModelClearsBar` when nothing
+        a ``policy`` that is not None or a ``Policy``, a ``session_route`` that is a routed
+        cascade's or a procedure's ``id``, and :class:`NoModelClearsBar` when nothing
         can be chosen under the task's ``on_no_model`` policy.
         """
         if flavor not in FLAVORS:
@@ -424,7 +433,7 @@ class Router:
         if policy is not None and not isinstance(policy, Policy):  # DESIGN 5.2 v1.622
             raise ValueError(f"policy must be None or a Policy, got {type(policy).__name__}")
         _check_pin(pin_route, allow_below_bar)  # DESIGN 5.2 v1.639
-        _check_session(session_route, session_warm, cascades, procedures)  # DESIGN 5.2 v1.695
+        _check_session(session_route, session_warm)  # DESIGN 5.2 v1.695
         if task_name not in self.tasks:
             raise KeyError(f"unknown task: {task_name!r}")
         base = self.tasks[task_name]
@@ -448,6 +457,10 @@ class Router:
             seen.add(proc.id)
             if proc.id in self.registry:
                 raise ValueError(f"registry model {proc.id!r} has the id of a procedure")
+        no_prior = {cascade.id for cascade in routed} | seen
+        if session_route in no_prior:  # DESIGN 5.2 v1.700: a prompt cache is one model's
+            raise ValueError(f"session_route {session_route!r} is the id of a cascade or procedure "
+                             f"of this call, not a model")
         excluded = set(exclude_models)
         generator_base = generator_family = None
         if generator_model is not None:
@@ -473,21 +486,31 @@ class Router:
             if pin_route is not None:  # DESIGN 5.2 v1.639: no ranking, the hard checks kept
                 return self._pinned(task, flavor, candidates, pin_route, allow_below_bar, base.name,
                                     slice)
-            return self._choose(task, flavor, candidates, base.name, slice,
-                                {cascade.id for cascade in routed} | seen)
+            return self._choose(task, flavor, candidates, base.name, slice, no_prior)
 
-        blind = candidates  # DESIGN 5.2 v1.695: a session has no cascade or procedure
-        candidates = tuple(c if session_warm and c.model_id == session_route
-                           else self._cold(task, model, c, flavor)
-                           for model, c in zip(self.registry.models, blind))
+        blind = candidates  # DESIGN 5.2 v1.695 and v1.700: the prices without the session
+        warm = session_route if session_warm else None
+        models = self.registry.models
+        candidates = tuple(c if c.model_id == warm else self._cold(task, model, c, flavor)
+                           for model, c in zip(models, blind[:len(models)]))
+        candidates += tuple(self._cascade_candidate(task, cascade, flavor, excluded,
+                                                    generator_base, generator_family, fit_input,
+                                                    names, policy, session=True, warm=warm)
+                            for cascade in routed)
+        candidates += tuple(self._procedure_candidate(task, proc, flavor, excluded,
+                                                      generator_base, generator_family, fit_input,
+                                                      names, policy, session=True, warm=warm)
+                            for proc in procedures)
         if pin_route is not None:
             decision = self._pinned(task, flavor, candidates, pin_route, allow_below_bar, base.name,
                                     slice)
         else:
-            decision = self._choose(task, flavor, candidates, base.name, slice, set())
-            if (session_warm and not decision.below_bar and decision.primary == session_route
-                    and self._choose(task, flavor, blind, base.name, slice, set()).primary
-                    != session_route):
+            decision = self._choose(task, flavor, candidates, base.name, slice, no_prior)
+            stays = {session_route} | {cascade.id for cascade in routed  # 5.2 v1.700
+                                       if cascade.cheap == session_route}
+            if (session_warm and not decision.below_bar and decision.primary in stays
+                    and self._choose(task, flavor, blind, base.name, slice, no_prior).primary
+                    != decision.primary):
                 decision = replace(decision, pick_reason=STAY_WARM)
         return replace(decision, session_pricing="warm" if session_warm else "conservative")
 
@@ -810,7 +833,8 @@ class Router:
                            generator_base: Optional[str],
                            generator_family: Optional[str], fit_input: int,
                            names: Tuple[str, Optional[str]],
-                           policy: Optional[Policy] = None) -> Candidate:
+                           policy: Optional[Policy] = None, session: bool = False,
+                           warm: Optional[str] = None) -> Candidate:
         """A cascade as one candidate (DESIGN 7 v1.532 and v1.536).
 
         ``cascade_unknown_model`` when the registry lacks either model; else rule 1 on its
@@ -820,6 +844,8 @@ class Router:
         the cheap model's output and writing that output again. Each leg is priced at its own
         model's measured cache counts, the strong model's fitted inside the hand-up read, never
         the cheap model's share, with the breakdown and unknown prices of both (5.2 v1.591).
+        With ``session`` each leg's cached reads are at its input price unless its model is
+        ``warm``, the warm session route (5.2 v1.700).
         """
         successes, trials = self.stats.get(task.name, cascade.id)
         quality_lb = wilson_lower_bound(successes, trials, task.confidence)
@@ -845,6 +871,8 @@ class Router:
         low = self._cache_counts(task, cheap)  # inside size_in, its own mean, already
         high = self._cache_counts(task, strong)
         high = None if high is None else _fit(high, read)
+        low = _session_counts(low, cheap.id, session, warm)  # DESIGN 5.2 v1.700
+        high = _session_counts(high, strong.id, session, warm)
         list_cost = (_call_cost(cheap, size_in, size_out, low)
                      + p * _call_cost(strong, read, size_out, high))
         breakdown, unknown = None, ()
@@ -877,7 +905,8 @@ class Router:
                              generator_base: Optional[str],
                              generator_family: Optional[str], fit_input: int,
                              names: Tuple[str, Optional[str]],
-                             policy: Optional[Policy] = None) -> Candidate:
+                             policy: Optional[Policy] = None, session: bool = False,
+                             warm: Optional[str] = None) -> Candidate:
         """A procedure as one candidate (DESIGN 5.2 v1.577).
 
         ``procedure_unknown_model`` when the registry lacks its named model; else rule 1 on its
@@ -885,7 +914,8 @@ class Router:
         counts. Its cost is its mean cost per trial once measured, before that one call of its
         model at the task's sizes, or 0.0 without a model. That one call is priced at its model's
         measured cache counts fitted inside the task's input, undivided, with their breakdown and
-        unknown prices (5.2 v1.591).
+        unknown prices (5.2 v1.591). With ``session`` that call's cached reads are at the input
+        price unless its model is ``warm``, the warm session route (5.2 v1.700).
         """
         successes, trials = self.stats.get(task.name, proc.id)
         quality_lb = wilson_lower_bound(successes, trials, task.confidence)
@@ -913,6 +943,7 @@ class Router:
             size_in, size_out = task.expected_input_tokens, task.expected_output_tokens
             counts = self._cache_counts(task, model)
             counts = None if counts is None else _fit(counts, size_in)  # DESIGN 5.2 v1.591
+            counts = _session_counts(counts, model.id, session, warm)  # 5.2 v1.700
             list_cost = _call_cost(model, size_in, size_out, counts)
             if counts is not None:
                 breakdown = _breakdown(model, size_in, size_out, *counts, per_item=False)
