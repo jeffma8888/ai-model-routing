@@ -342,8 +342,9 @@ def test_the_decision_names_the_slice_after_the_task(slice_registry):
                                                      .select("support")))]
     # v1.567 (row CPS1a): the three cost-per-success fields come after it
     # v1.628 (row LAT1b): the latency bar, max_p95_ms, comes after them
-    assert names[-5:] == ["slice", "failure_policy", "expected_cost_per_success_usd", "pick_reason",
-                          "max_p95_ms"]
+    # v1.695 (row CACHE3a): and session_pricing after it
+    assert names[-6:] == ["slice", "failure_policy", "expected_cost_per_success_usd", "pick_reason",
+                          "max_p95_ms", "session_pricing"]
     deep = make_router(slice_registry).select("support", slice="deep")
     assert list(deep.to_dict()) == ["task", "slice", "flavor", "primary", "fallbacks",
                                     "below_bar", "basis", "candidates"]

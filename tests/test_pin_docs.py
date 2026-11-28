@@ -78,7 +78,8 @@ SHARED = ("pin_route=ROUTE", "`pinned_by`", "`allow_below_bar`", "`NoModelClears
           "`below_bar` `true`", "no fallback and no shadow", "`AllModelsFailed`", "`downgrade`", "`basis` `pinned`",
           "`report --by basis`", "`report --by pinned_by`", "hand-up")
 # a candidate's reasons that are no hard check: rules 6 to 8 and the decision's own reason
-NOT_HARD = {PASSES, INSUFFICIENT_SAMPLES, BELOW_BAR, CHEAPER_PER_SUCCESS}
+# v1.695 (row CACHE3a): stay_warm is a decision's reason, as cheaper_per_success is, never a candidate's
+NOT_HARD = {PASSES, INSUFFICIENT_SAMPLES, BELOW_BAR, CHEAPER_PER_SUCCESS, "stay_warm"}
 
 
 def read(name):

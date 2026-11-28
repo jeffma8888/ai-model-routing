@@ -106,7 +106,9 @@ def test_the_codes_are_exported_after_latency_unknown():
     at = names.index("LATENCY_UNKNOWN")
     assert names[at + 1:at + 3] == ["INCONSISTENT", "CONSISTENCY_UNKNOWN"]
     assert [f.name for f in dataclasses.fields(model_routing.Candidate)][-1] == "p95_latency_ms"
-    assert [f.name for f in dataclasses.fields(model_routing.RouteDecision)][-1] == "max_p95_ms"
+    # v1.695 (row CACHE3a): session_pricing comes right after max_p95_ms
+    assert [f.name for f in dataclasses.fields(model_routing.RouteDecision)][-2:] == ["max_p95_ms",
+                                                                                      "session_pricing"]
 
 
 # --- 5.2 rules 5g and 5h -------------------------------------------------------------------------
