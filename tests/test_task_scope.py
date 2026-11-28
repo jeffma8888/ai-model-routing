@@ -70,7 +70,7 @@ def test_scope_tasks_is_the_last_field_and_defaults_to_every_task():
                                                                 "regions", "zero_data_retention", "cache_ttl_s"]
     plain = strong()
     assert plain.scope_tasks == ()
-    assert list(dataclasses.asdict(plain))[-5] == "scope_tasks"
+    assert list(dataclasses.asdict(plain))[-6] == "scope_tasks"
     assert dataclasses.asdict(fine_tune(("a", "b*")))["scope_tasks"] == ("a", "b*")
     assert fine_tune(("a", "a")).scope_tasks == ("a", "a")  # a repeated pattern is kept
 

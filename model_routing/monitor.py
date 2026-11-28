@@ -31,7 +31,7 @@ RECORD_KEYS = (
     ("input_tokens", _I), ("output_tokens", _I), ("cached_input_tokens", _I), ("cache_write_tokens", _I),
     ("cost_usd", _N), ("routing_cost_usd", _N), ("pricing_basis", _S), ("below_bar", _B),
     ("below_bar_fallback", _B), ("basis", _S), ("pinned_by", _S), ("policy", _S), ("tags", _O),
-    ("slice", ("string", "null")), ("pair_id", _S), ("shadow", _B), ("checked", _B), ("cascade", _S),
+    ("slice", ("string", "null")), ("session_id", _S), ("pair_id", _S), ("shadow", _B), ("checked", _B), ("cascade", _S),
     ("escalated", _B), ("procedure", _S), ("procedure_version", _S), ("model_calls", _I),
     ("tool_calls", ("integer", "null")), ("tool_cost_usd", ("number", "null")), ("root_input_tokens", _I),
     ("root_output_tokens", _I), ("leaf_input_tokens", _I), ("leaf_output_tokens", _I), ("budget_moves", ("array",)),

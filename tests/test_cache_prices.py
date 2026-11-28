@@ -53,7 +53,7 @@ def test_the_two_prices_are_the_last_fields_and_default_to_unknown():
                           "cache_ttl_s"]
     plain = Model("v/m", "v", 1.0, 2.0, 100_000)
     assert (plain.price_cached_in, plain.price_cache_write) == (None, None)
-    assert list(dataclasses.asdict(plain))[-4:-2] == ["price_cached_in", "price_cache_write"]
+    assert list(dataclasses.asdict(plain))[-5:-3] == ["price_cached_in", "price_cache_write"]
 
 
 def test_a_cache_price_is_stored_as_a_float():

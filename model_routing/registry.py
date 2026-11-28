@@ -195,6 +195,8 @@ class Model:
     ``regions`` names the regions in which the caller's calls of it are served, ``()`` none stated, and
     ``zero_data_retention`` whether the provider keeps none of their prompts or outputs, ``None`` not
     stated: what the registry's owner states, never a certification, read only by a ``Policy`` (4.1 v1.622).
+    ``cache_ttl_s`` is how many seconds the provider keeps a prompt cache of it alive after a call reads it,
+    ``None`` meaning unknown, read only by the executor's sessions (4.1 v1.697).
     """
 
     id: str
@@ -214,6 +216,7 @@ class Model:
     price_cache_write: Optional[float] = None
     regions: Tuple[str, ...] = ()
     zero_data_retention: Optional[bool] = None
+    cache_ttl_s: Optional[float] = None
 
     def __post_init__(self):
         if not isinstance(self.pricing_basis, str) or self.pricing_basis not in _PRICING_BASES:
@@ -239,6 +242,17 @@ class Model:
         retention = self.zero_data_retention
         if retention is not None and not isinstance(retention, bool):
             raise ValueError(f"zero_data_retention must be None or a bool, got {retention!r}")
+        life = self.cache_ttl_s  # DESIGN 4.1 v1.697: None, or a finite number of seconds above 0
+        if life is not None:
+            try:
+                fine = (isinstance(life, (int, float)) and not isinstance(life, bool)
+                        and math.isfinite(life) and life > 0)
+            except OverflowError:  # an int too large for a float
+                fine = False
+            if not fine:
+                raise ValueError(f"cache_ttl_s must be None or a finite number of seconds above 0, "
+                                 f"got {life!r}")
+            object.__setattr__(self, "cache_ttl_s", float(life))
         for name in _CACHE_PRICES:  # DESIGN 4.1 v1.587
             value = getattr(self, name)
             if value is None:
@@ -534,6 +548,7 @@ class Registry:
                     price_cache_write=row.get("price_cache_write"),
                     regions=_load_regions(row.get("regions")),  # DESIGN 4.1 v1.622
                     zero_data_retention=row.get("zero_data_retention"),
+                    cache_ttl_s=row.get("cache_ttl_s"),  # DESIGN 4.1 v1.697: as is, so "300" raises
                 )
                 if "@" in base.id:
                     raise ValueError("a row id must not hold '@', which joins a model and "

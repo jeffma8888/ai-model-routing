@@ -121,7 +121,7 @@ def test_a_cache_life_that_is_no_finite_number_above_0_is_refused(value):
 
 def _load(tmp_path, rows):
     path = tmp_path / "models.json"
-    path.write_text(json.dumps(rows), encoding="utf-8")
+    path.write_text(json.dumps({"models": rows}), encoding="utf-8")
     return Registry.load(path), path
 
 
@@ -139,7 +139,7 @@ def test_registry_load_refuses_a_bad_cache_life_naming_the_file(tmp_path, value)
     row = {"id": "v/m", "family": "v", "price_in": 1.0, "price_out": 2.0, "context_window": 100_000,
            "cache_ttl_s": value}
     path = tmp_path / "models.json"
-    path.write_text(json.dumps([row]), encoding="utf-8")
+    path.write_text(json.dumps({"models": [row]}), encoding="utf-8")
     with pytest.raises(ValueError, match="models.json") as info:
         Registry.load(path)
     assert "cache_ttl_s" in str(info.value)
@@ -235,12 +235,12 @@ def test_a_session_s_first_call_routes_as_a_call_without_one():
 
 
 def test_after_a_fallback_the_state_is_the_fallback_s():
-    run = Run(script={WARM: outage, CHEAP: hit})
-    run.ex.call("t", MESSAGES, session_id="s", flavor="cost_blind")  # cost_blind: both at 0, WARM is first
-    assert [m for m, _ in run.provider.calls] == [WARM, CHEAP]
+    run = Run(script={CHEAP: outage, WARM: hit})
+    run.ex.call("t", MESSAGES, session_id="s")  # CHEAP is first without a session
+    assert [m for m, _ in run.provider.calls] == [CHEAP, WARM]
     run.clock.t = 1.0
     run.ex.call("t", MESSAGES, session_id="s")
-    assert run.selects[-1] == {"session_route": CHEAP, "session_warm": True}
+    assert run.selects[-1] == {"session_route": WARM, "session_warm": True}
 
 
 def test_after_every_route_failed_the_state_is_the_last_error_and_never_warm():
@@ -277,8 +277,7 @@ def test_a_budget_refusal_before_any_attempt_leaves_the_state():
     assert run.selects[-1] == {"session_route": WARM, "session_warm": True}
     assert len(run.provider.calls) == 1
     run.clock.t = TTL + 1.0  # under 300 s after the refused call, not after the last attempt
-    with pytest.raises(BudgetExceeded):
-        run.ex.call("t", MESSAGES, session_id="s", flavor="cost_blind")
+    run.ex.call("t", MESSAGES, session_id="s")  # conservative: CHEAP first, its hold fits
     assert run.selects[-1] == {"session_route": WARM, "session_warm": False}
 
 
@@ -336,15 +335,15 @@ def test_a_session_with_signals_or_procedures_is_refused_before_any_call():
     with pytest.raises(ValueError, match="signals"):
         run.ex.call("t", MESSAGES, session_id="s", signals={"sig": lambda text: True})
     proc = Procedure("shape", "1", lambda value, call: ProcedureResult(call(value)), max_model_calls=1,
-                     model=WARM)
+                     max_tool_calls=0, model=WARM)
     with pytest.raises(ValueError, match="procedures"):
         run.ex.call("t", MESSAGES, session_id="s", procedures=(proc,))
     assert (run.selects, run.provider.calls, run.clock.reads) == ([], [], 0)
 
 
 def test_each_attempt_record_of_a_session_call_carries_session_id_right_after_slice():
-    run = Run(script={WARM: outage, CHEAP: hit})
-    run.ex.call("t", MESSAGES, session_id="s-1", flavor="cost_blind")
+    run = Run(script={CHEAP: outage, WARM: hit})
+    run.ex.call("t", MESSAGES, session_id="s-1")
     assert len(run.monitor.records) == 2
     for record in run.monitor.records:
         keys = list(record)

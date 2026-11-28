@@ -117,7 +117,7 @@ class Executor:
 
     One executor, with its router, a :class:`Monitor` and a :class:`BudgetLedger`, may serve many
     threads at once: a call keeps its state in its own locals and sets no attribute of the executor
-    or its router. The provider, an injected ``clock``, ``now``, ``id_factory`` or ``random``, a
+    or its router, except a session's last attempt, kept under a lock (DESIGN 7 v1.697). The provider, an injected ``clock``, ``now``, ``id_factory`` or ``random``, a
     ``monitor`` that is no :class:`Monitor`, ``validate``, the ``signals`` callables and a
     procedure's ``fn``, and a change to the router's registry, tasks, stats or priors while calls
     run are the caller's to guard (DESIGN 7 v1.616, review iter-467 nit 1).
@@ -146,6 +146,9 @@ class Executor:
         self.ledger = ledger
         self.random = random if random is not None else _random.random  # DESIGN 7 v1.607
         self.shadow_runner = shadow_runner  # DESIGN 7 v1.617
+        # DESIGN 7 v1.697: each session's last attempt, (model, clock read, read cached tokens)
+        self._sessions: Dict[str, Tuple[str, float, bool]] = {}
+        self._session_lock = threading.Lock()
         # DESIGN 7 v1.597: a strict budget reads each call's billing bound
         self._strict = ledger is not None and any(budget.strict for budget in ledger.budgets)
 
@@ -160,7 +163,8 @@ class Executor:
              policy: Optional[Policy] = None,
              pin_route: Optional[str] = None,
              pinned_by: Optional[str] = None,
-             allow_below_bar: bool = False) -> CallResult:
+             allow_below_bar: bool = False,
+             session_id: Optional[str] = None) -> CallResult:
         """Route and execute one call; raise :class:`AllModelsFailed` if none succeeds.
 
         ``prompt_tokens`` is the request's size in tokens; when None it is estimated with
@@ -198,6 +202,11 @@ class Executor:
         ``pin_route`` and ``allow_below_bar`` are passed to ``select`` (5.2 v1.639), and a pin needs
         ``pinned_by``, a non-empty tag, checked before any call: the call runs the pin alone, with no
         fallback and no shadow, and each attempt record carries ``pinned_by`` (DESIGN 7 v1.639).
+        ``session_id``, None or a non-empty tag naming a run of calls that share a prompt prefix,
+        keeps the session's last attempt and passes ``select`` its model as ``session_route``, with
+        ``session_warm`` True only when that attempt read cached tokens and less than its model's
+        ``cache_ttl_s`` has passed since; each attempt record carries it, and a session with
+        ``signals`` or ``procedures`` raises ``ValueError`` before any call (DESIGN 7 v1.697).
         """
         _check_pin(pin_route, allow_below_bar)  # DESIGN 7 v1.639: before select, any ID or call
         if pinned_by is not None and (not isinstance(pinned_by, str) or not pinned_by):
@@ -210,6 +219,10 @@ class Executor:
         if signals is not None and not isinstance(signals, Mapping):
             raise ValueError(f"signals must be None or a mapping, "
                              f"got {type(signals).__name__}")
+        if session_id is not None:  # DESIGN 7 v1.697: before any select, clock or ID
+            _check_session_id(session_id)
+            if signals is not None or procedures:
+                raise ValueError("a session_id cannot run with signals or procedures in this version")
         estimated = prompt_tokens is None
         size = estimate_prompt_tokens(messages) if estimated else prompt_tokens
         decision = self.router.select(task_name, flavor=flavor,
@@ -217,7 +230,8 @@ class Executor:
                                       exclude_models=exclude_models, prompt_tokens=size,
                                       slice=slice, cascades=signals is not None,
                                       procedures=procedures, policy=policy,
-                                      pin_route=pin_route, allow_below_bar=allow_below_bar)
+                                      pin_route=pin_route, allow_below_bar=allow_below_bar,
+                                      **self._session(session_id))
         cascades = {}
         if signals is not None:
             by_id = {cascade.id: cascade for cascade in self.router.tasks[task_name].cascades}
@@ -234,7 +248,36 @@ class Executor:
         shadow = None if pin_route is not None else self._shadow_route(task_name, decision, tags)
         label = None if policy is None else policy.label  # DESIGN 7 v1.642: select checked it
         return self._execute(task_name, decision, messages, dict(tags or {}), validate,
-                             (size, estimated), cascades, signals, routed, shadow, pinned_by, label)
+                             (size, estimated), cascades, signals, routed, shadow, pinned_by, label,
+                             session_id)
+
+    def end_session(self, session_id: str) -> bool:
+        """Drop a session's last attempt; True when there was one (DESIGN 7 v1.697)."""
+        _check_session_id(session_id)
+        with self._session_lock:
+            return self._sessions.pop(session_id, None) is not None
+
+    def _session(self, session_id: Optional[str]) -> dict:
+        """``select``'s session keywords: none on a call without a last attempt (DESIGN 7 v1.697)."""
+        if session_id is None:
+            return {}
+        with self._session_lock:
+            last = self._sessions.get(session_id)
+        if last is None:
+            return {}
+        route, at, read = last
+        gap = self.clock() - at
+        registry = self.router.registry
+        life = registry.get(route).cache_ttl_s if route in registry else None
+        warm = read and life is not None and 0 <= gap < life
+        return {"session_route": route, "session_warm": bool(warm)}
+
+    def _keep(self, session_id: str, attempt: Attempt) -> None:
+        """A session's last attempt is this one, timed by one clock read (DESIGN 7 v1.697)."""
+        read = attempt.cached_input_tokens is not None and attempt.cached_input_tokens > 0
+        at = self.clock()
+        with self._session_lock:
+            self._sessions[session_id] = (attempt.model, at, read)
 
     def call_pair(self, task_name: str, roots: Sequence[str], leaves: Sequence[str],
                   messages: List[dict], harness: Callable[[str, str, List[dict]], Mapping],
@@ -480,7 +523,8 @@ class Executor:
                  procedures: Optional[Dict[str, Procedure]] = None,
                  shadow: Optional[str] = None,
                  pinned_by: Optional[str] = None,
-                 policy_label: Optional[str] = None) -> CallResult:
+                 policy_label: Optional[str] = None,
+                 session_id: Optional[str] = None) -> CallResult:
         task = self.router.tasks[task_name]
         registry = self.router.registry
         call_id = self.id_factory()
@@ -511,11 +555,13 @@ class Executor:
         def log(attempt: Attempt, final: bool, entry: str, cascade=None, escalated=None,
                 keys: Optional[dict] = None, family: Optional[str] = None):
             attempts.append(attempt)
+            if session_id is not None:  # DESIGN 7 v1.697
+                self._keep(session_id, attempt)
             if self.monitor is not None:
                 self.monitor.record(self._record(call_id, decision, registry, len(attempts) - 1,
                                                  final, attempt, call_tags, size, entry,
                                                  cascade, escalated, keys, family, moves, pair,
-                                                 pinned_by, policy_label))
+                                                 pinned_by, policy_label, session_id))
 
         try:
             result = self._entries(task_name, decision, messages, validate, cascades, signals,
@@ -826,7 +872,7 @@ class Executor:
                 cascade=None, escalated: Optional[bool] = None, keys: Optional[dict] = None,
                 family: Optional[str] = None, moves: Optional[List[dict]] = None,
                 pair: Optional[dict] = None, pinned_by: Optional[str] = None,
-                policy_label: Optional[str] = None) -> dict:
+                policy_label: Optional[str] = None, session_id: Optional[str] = None) -> dict:
         model = registry.get(attempt.model) if family is None else None  # None: a closing record
         record = {
             "ts": self.now(),
@@ -862,6 +908,8 @@ class Executor:
         record.update(_policy_key(policy_label))  # DESIGN 8.1 v1.642: after any pinned_by
         record["tags"] = dict(tags)
         record["slice"] = decision.slice
+        if session_id is not None:  # DESIGN 8.1 v1.697: right after slice
+            record["session_id"] = session_id
         if pair is not None:  # DESIGN 8.1 v1.607: a shadowed call's records
             record.update(pair)
         if cascade is not None:
@@ -895,6 +943,11 @@ def _pair_run(run) -> Tuple[int, int, int, int]:
         raise ValueError(f"harness must return a mapping of a str text and {', '.join(_SIDE_TOTALS)}, "
                          f"each an int >= 0, got {run!r}")
     return tuple(run[key] for key in _SIDE_TOTALS)
+
+
+def _check_session_id(session_id) -> None:
+    if not isinstance(session_id, str) or not session_id:  # DESIGN 7 v1.697
+        raise ValueError(f"session_id must be None or a non-empty string, got {session_id!r}")
 
 
 def _policy_key(label: Optional[str]) -> dict:

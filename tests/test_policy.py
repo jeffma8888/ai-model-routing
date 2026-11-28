@@ -276,10 +276,11 @@ def test_a_procedure_without_a_model_meets_only_the_id_check():
 
 def test_the_two_fields_are_the_last_and_default_to_unstated():
     names = [f.name for f in dataclasses.fields(Model)]
-    assert names[-3:] == ["price_cache_write", "regions", "zero_data_retention"]
+    # the last two fields until v1.697 adds `cache_ttl_s` after them (DESIGN 4.1)
+    assert names[-4:] == ["price_cache_write", "regions", "zero_data_retention", "cache_ttl_s"]
     plain = Model("v/m", "v", 1.0, 2.0, 100_000)
     assert (plain.regions, plain.zero_data_retention) == ((), None)
-    assert list(dataclasses.asdict(plain))[-2:] == ["regions", "zero_data_retention"]
+    assert list(dataclasses.asdict(plain))[-3:-1] == ["regions", "zero_data_retention"]
     kept = Model("v/m", "v", 1.0, 2.0, 100_000, regions=("b", "a", "b"), zero_data_retention=False)
     assert (kept.regions, kept.zero_data_retention) == (("b", "a", "b"), False)
 
