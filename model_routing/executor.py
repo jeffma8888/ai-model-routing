@@ -146,7 +146,7 @@ class Executor:
         self.ledger = ledger
         self.random = random if random is not None else _random.random  # DESIGN 7 v1.607
         self.shadow_runner = shadow_runner  # DESIGN 7 v1.617
-        # DESIGN 7 v1.697: each session's last attempt, (model, clock read, read cached tokens)
+        # DESIGN 7 v1.697: each session's last attempt, (model, clock read, read or wrote the cache, v1.699)
         self._sessions: Dict[str, Tuple[str, float, bool]] = {}
         self._session_lock = threading.Lock()
         # DESIGN 7 v1.597: a strict budget reads each call's billing bound
@@ -204,9 +204,10 @@ class Executor:
         fallback and no shadow, and each attempt record carries ``pinned_by`` (DESIGN 7 v1.639).
         ``session_id``, None or a non-empty tag naming a run of calls that share a prompt prefix,
         keeps the session's last attempt and passes ``select`` its model as ``session_route``, with
-        ``session_warm`` True only when that attempt read cached tokens and less than its model's
-        ``cache_ttl_s`` has passed since; each attempt record carries it, and a session with
-        ``signals`` or ``procedures`` raises ``ValueError`` before any call (DESIGN 7 v1.697).
+        ``session_warm`` True only when that attempt read cached tokens or, from v1.699, wrote
+        them, and less than its model's ``cache_ttl_s`` has passed since; each attempt record
+        carries it, and a session with ``signals`` or ``procedures`` raises ``ValueError``
+        before any call (DESIGN 7 v1.697).
         """
         _check_pin(pin_route, allow_below_bar)  # DESIGN 7 v1.639: before select, any ID or call
         if pinned_by is not None and (not isinstance(pinned_by, str) or not pinned_by):
@@ -265,19 +266,23 @@ class Executor:
             last = self._sessions.get(session_id)
         if last is None:
             return {}
-        route, at, read = last
+        route, at, touched = last
         gap = self.clock() - at
         registry = self.router.registry
         life = registry.get(route).cache_ttl_s if route in registry else None
-        warm = read and life is not None and 0 <= gap < life
+        warm = touched and life is not None and 0 <= gap < life
         return {"session_route": route, "session_warm": bool(warm)}
 
     def _keep(self, session_id: str, attempt: Attempt) -> None:
-        """A session's last attempt is this one, timed by one clock read (DESIGN 7 v1.697)."""
-        read = attempt.cached_input_tokens is not None and attempt.cached_input_tokens > 0
+        """A session's last attempt is this one, timed by one clock read (DESIGN 7 v1.697).
+
+        It warms its route when it reported cached reads or, from v1.699, cache writes above 0.
+        """
+        touched = any(count is not None and count > 0
+                      for count in (attempt.cached_input_tokens, attempt.cache_write_tokens))
         at = self.clock()
         with self._session_lock:
-            self._sessions[session_id] = (attempt.model, at, read)
+            self._sessions[session_id] = (attempt.model, at, touched)
 
     def call_pair(self, task_name: str, roots: Sequence[str], leaves: Sequence[str],
                   messages: List[dict], harness: Callable[[str, str, List[dict]], Mapping],
