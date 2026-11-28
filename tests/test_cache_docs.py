@@ -261,16 +261,20 @@ def lesson_lines():
 
 
 # review iter-552 nit 1: named for what is left planned; v1.693 (row CACHE2b): the check's count in `report`
-# ships too, so only the switch is
-def test_the_cache_lessons_plan_only_the_switch():
+# ships too, so only the switch was; v1.695 (row CACHE3a): the switch ships in `select`, so none is
+def test_the_cache_lessons_plan_no_change():
     lines = lesson_lines()
     planned = {h: line.count("planned") for h, line in lines.items() if "planned" in line}
-    # v1.692 (row CACHE2a): the monitor check ships, so only the switch is planned, tests/test_cache_miss.py
-    assert planned == {"Keep the prompt prefix the same, byte for byte": 1}
+    # v1.692 (row CACHE2a): the monitor check ships, tests/test_cache_miss.py; v1.695 (row CACHE3a): the
+    # switch's price, tests/test_session_cache.py
+    assert planned == {}
     prefix = lines["Keep the prompt prefix the same, byte for byte"]
     assert ("and from v1.692 a `Monitor` given the tasks flags a task and model whose hit rate over its latest "
             "calls falls under a floor the task sets, `min_cache_hit_rate`.") in prefix
-    assert "a planned change also prices a call moved to another model mid-session" in prefix
+    assert ("Since a cache holds the prefix one model was sent, from v1.695 `select(..., session_route=..., "
+            "session_warm=...)` prices a call moved to another model mid-session at that model's uncached input "
+            "price, and keeps a pricier model, with `pick_reason` `stay_warm`, when the switch would cost "
+            "more.") in prefix
     changes = {h: line.split("The change: ", 1)[1] for h, line in lines.items() if "The change" in line}
     # v1.596 (row B1b): the budget that refuses or moves a call is shipped; v1.692 (row CACHE2a): so is the
     # check; v1.693 (row CACHE2b): so is its count in `report`, so no cache lesson names a change left
