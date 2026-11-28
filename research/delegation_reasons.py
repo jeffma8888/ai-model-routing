@@ -1,4 +1,4 @@
-"""Which 13.5 row chose each delegation cell's path, after a 13.2 condition on prices and sizes (DESIGN 13.8 v1.253)
+"""Which 13.5 row chose each delegation cell's path, after a 13.19 condition on prices and sizes (DESIGN 13.8 v1.253)
 
 Usage:
   python research/delegation_reasons.py --matrix llmrouterbench-matrix.jsonl [--root PATH]

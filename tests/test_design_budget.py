@@ -106,6 +106,11 @@ of one call and the v1.242 bullet on why the parent's own output in a shared cal
 in the same order, word for word but for the v1.242 opening and its `above` and `this section`, each now 13.2
 (COST_NOTES), a contract subsection with 13.2's cap, which raises the `## 13.` total by 16,000 to 300,000, so
 13.2 has room for the pair's delegate cost.
+More notes out of 13.2 (v1.705, row DOC52): the inline minus delegating differences of its v1.38 and v1.41 bullets,
+the v1.41 list of what is not modelled and the bullet on what its costs assume, none a cost, are 13.19's too, after
+a v1.705 bullet, in their 13.2 order, word for word, each sub-bullet under a bullet naming its 13.2 bullet, but for the
+last's `This`, now 13.2 (COST_NOTES_V1_704), so 13.2 has room for its contract with no class, cap or total raised; the
+conditions 13.8 v1.253 and the research notes work from a difference name 13.19.
 
 The section totals (v1.456, row DOC37): each total is the one last set with the subsections it counted,
 `## 12.` 300,000 at v1.390 with 12.1 to 12.22 and `## 13.` 185,000 at v1.386 with 13.1 to 13.14
@@ -1314,9 +1319,10 @@ def test_13_19_holds_the_two_13_2_items_that_state_no_cost_word_for_word_and_13_
     text = DESIGN.read_text(encoding="utf-8")
     body, contract = subsection_body(text, "13.19"), subsection_body(text, "13.2")
     assert [line for line in text.splitlines() if line.startswith("### 13.19 ")] == [COST_NOTES_HEADING]
-    # A Purpose line, the two items in their 13.2 order, then the blank line before `## 14.`.
-    assert len(body) == 4 and body[0].startswith("Purpose: ") and body[3] == ""
-    assert text.split("\n### 13.19 ", 1)[1].split("\n", 4)[4].startswith("\n## 14. ")
+    # A Purpose line, the two items in their 13.2 order, then from v1.705 (row DOC52) its seven lines (the test
+    # below), then the blank line before `## 14.`.
+    assert len(body) == 11 and body[0].startswith("Purpose: ") and body[10] == ""
+    assert text.split("\n### 13.19 ", 1)[1].split("\n", 11)[11].startswith("\n## 14. ")
     moved_dp, moved_242 = COST_NOTES_V1_682
     for old, new in COST_NOTES_CHANGES:
         assert moved_242.count(old) == 1 and moved_dp.count(old) == 0, old
@@ -1360,3 +1366,103 @@ def test_13_19_holds_the_two_13_2_items_that_state_no_cost_word_for_word_and_13_
     # v1.684 (row DEL1h) spent it on the pair delegate's cost: from then on 13.2 is within its cap.
     assert CAPS["contract"] == 16_000 and sizes["13.2"] <= CAPS["contract"]
     assert sum(line.startswith("- v1.684 a pair delegate (row DEL1h, ") for line in contract) == 1
+
+
+# --- more notes out of 13.2 (DESIGN 13 v1.705, row DOC52) -------------------------------------------
+
+# The four items as 13.2 held them at v1.704 (1d0136d), in their 13.2 order: the v1.38 difference, the v1.41
+# difference and its `Not modelled` list, then the bullet on what the costs assume.
+COST_NOTES_V1_704 = (
+    (
+    "  - With a separate call, inline minus delegating to the parent's own model is, in exact arithmetic, "
+    '`P.cost(K * C, 0) - P.cost(K * B, W) + (1 + T) * (P.cost(K * (S_in + S_out), 0) - P.cost(B '
+    '+ R, 0))`: each inline call re-reads C where each delegated one re-reads B, which is where '
+    'context isolation pays most. Folded it is `P.cost((K - 1) * C, 0) - P.cost(K * B, W) + T * '
+    'P.cost(K * (S_in + S_out), 0) - (1 + T) * P.cost(B + R, 0)`, so from K = 2 a large C can make '
+    'delegating to its own model cheaper even with T = 0'
+    ),
+    (
+    '  - In exact arithmetic rho scales the C term of each inline minus delegating difference in '
+    'the v1.38 bullet. With a separate call it is `P.cost(K * C * rho, 0) - P.cost(K * B, W) + (1 '
+    "+ T) * (P.cost(K * (S_in + S_out), 0) - P.cost(B + R, 0))`, so at rho = 0 the parent's context "
+    'no longer favours delegating to its own model, and only later calls that re-read a short brief '
+    'and result instead of the work can; folded, the C term is `P.cost((K - 1) * C * rho, 0)`'
+    ),
+    (
+    '  - Not modelled: a surcharge for writing the cache, a cache that expires between calls, a '
+    'discount on any other re-read on either path, and a cached price for the delegate. rho is one '
+    'number the caller states for the parent; the AutoBench pool (13.9) has no cached prices, so '
+    'evidence with rho < 1 states it as an assumption'
+    ),
+    (
+    "- This is still an approximation. It assumes that each of the K work calls reads its path's "
+    'base context and every earlier work call in full (each earlier S_out at sigma from v1.404), '
+    'with nothing summarised between calls (13.8), no prompt caching beyond the v1.41 ratio on the '
+    "parent's reads of C, the same parent output after the work on both paths (checking a delegate's "
+    "result may take more), and that the parent's later calls fit its context on both paths: C + "
+    'K * (S_in + S_out) is checked for inline (13.4) but C + B + R is not checked for delegate'
+    ),
+)
+# What 13.19 changes in them: the last one's opening; each sub-bullet keeps its level under a bullet of its own.
+COST_NOTES_V1_705_OPENING = ("- This is still an approximation. ", "- 13.2 is still an approximation. ")
+COST_NOTES_V1_705_PARENTS = ("- v1.38, K work calls (13.2 v1.38):", "- v1.41, cached context reads (13.2 v1.41):")
+# The references a slice before v1.705 wrote to these items or to a condition worked from a difference, by
+# pattern, so this file's own text is no match.
+COST_NOTES_V1_705_STALE = (r"condition from 13\.2(?!\d)", r"a 13\.2 condition", r"13\.2 shows delegating",
+                           r"13\.2 v1\.38: folded, inline minus")
+
+
+def test_13_19_holds_the_four_13_2_items_of_v1_705_word_for_word_and_13_2_none():
+    text = DESIGN.read_text(encoding="utf-8")
+    body, contract = subsection_body(text, "13.19"), subsection_body(text, "13.2")
+    d38, d41, not_modelled, assumes = COST_NOTES_V1_704
+    old, new = COST_NOTES_V1_705_OPENING
+    assert assumes.count(old) == 1 and assumes.startswith(old)
+    assert body[4:10] == [COST_NOTES_V1_705_PARENTS[0], d38, COST_NOTES_V1_705_PARENTS[1], d41, not_modelled,
+                          assumes.replace(old, new)]
+    assert body[3].startswith("- v1.705 (row DOC52): four more items of 13.2 that state no cost, in their 13.2 order, "
+                              "so 13.2 has room for its contract: ")
+    for words in ("the inline minus delegating differences of its v1.38 and v1.41 bullets, the v1.41 list of what is "
+                  "not modelled and the bullet on what its costs assume, word for word, each sub-bullet under a bullet "
+                  "that names its 13.2 bullet, but for the last's `This`, now 13.2.",
+                  "13.2 keeps every cost they are worked from, so a reference to a 13.2 cost stays one; a reference to "
+                  "one of these items, or to a condition worked from one of the differences, names 13.19."):
+        assert body[3].count(words) == 1, words
+    # Each sub-bullet sits under its parent, and the v1.41 one's `the v1.38 bullet` is the bullet above it here.
+    assert [line[:4] for line in body[4:10]] == ["- v1", "  - ", "- v1", "  - ", "  - ", "- 13"]
+    # 13.2 holds none of them, nor any line that opens as one did; each is in the file once, the last as 13.19's.
+    joined = "\n".join(contract)
+    for line in COST_NOTES_V1_704:
+        assert line not in contract and line[:60] not in joined, line[:60]
+    for line in (d38, d41, not_modelled, assumes.replace(old, new)):
+        assert sum(item == line for item in text.splitlines()) == 1, line[:60]
+    assert assumes not in text.splitlines() and "This is still an approximation" not in text
+    assert "inline minus delegating" not in joined and "Not modelled:" not in joined
+    # 13.2 keeps the costs the differences are worked from, each once.
+    for cost in ("- `delegate_cost_usd = P.cost(0, W) + D.cost(K * B + w_in * S_in + w_out * S_out, K * S_out) + (1 + T) "
+                 "* P.cost(B + R, 0)`",
+                 "- `inline_cost_usd = P.cost(K * C * rho + w_in * S_in + w_out * S_out, K * S_out) + (1 + T) * "
+                 "P.cost(K * (S_in + S_out), 0)` when `inline_separate_call` is True"):
+        assert sum(line.lstrip(" ").startswith(cost) for line in contract) == 1, cost
+    # The references to a difference or a condition worked from one name 13.19, and no older form is left in any
+    # script, test, note, workflow, README or DESIGN.md line (CHANGELOG.md lines are history and stay).
+    assert text.count("states, before any count, a condition from 13.19 under which a separate inline call costs "
+                      "more than delegating.") == 1
+    pays = (ROOT / "research" / "where-delegation-pays.md").read_text(encoding="utf-8")
+    assert pays.count("as a condition from 13.19 on the parent's prices") == 1
+    assert pays.count("- The condition, from 13.19 and stated before the counts. ") == 1
+    hand_off = (ROOT / "research" / "hand-off-data.md").read_text(encoding="utf-8")
+    assert hand_off.count("`DESIGN.md` 13.19 shows delegating to the parent's own model can save the re-reads") == 1
+    files = [ROOT / "DESIGN.md", ROOT / "README.md"] + sorted((ROOT / ".github" / "workflows").glob("*.yml"))
+    for folder in ("evidence", "model_routing", "research", "tests"):
+        files += sorted(path for path in (ROOT / folder).rglob("*") if path.suffix in (".py", ".md"))
+    texts = {path.relative_to(ROOT).as_posix(): path.read_text(encoding="utf-8") for path in files}
+    assert "research/delegation_reasons.py" in texts and "tests/test_work_calls.py" in texts and len(texts) > 100
+    for stale in COST_NOTES_V1_705_STALE:
+        assert not [name for name, content in texts.items() if re.search(stale, content)], stale
+    # 13.2 is at least 1,500 bytes under its cap, with no class, cap or total raised for it (a slice that spends
+    # the room restates this line, as v1.684 did DOC51's).
+    sizes = dict(measure(text)[1])
+    assert CLASS["13.19"] == CLASS["13.2"] == "contract" and CAPS["contract"] == 16_000
+    assert sizes["13.2"] <= CAPS["contract"] - 1_500 and sizes["13.19"] <= CAPS["contract"]
+    assert SECTION_CAPS["13"] == 300_000 and len(CLASS) == 51

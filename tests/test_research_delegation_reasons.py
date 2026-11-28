@@ -1,7 +1,7 @@
 """research/delegation_reasons.py and its section of research/where-delegation-pays.md (DESIGN 13.8 v1.253, row R19).
 
 The script counts each 13.9 run's cells per (flavor, point) by the 13.5 row and reason that chose
-their path, after a condition from 13.2: with inline work in a call of its own, a separate inline
+their path, after a condition from 13.19: with inline work in a call of its own, a separate inline
 call costs more than delegating at every size when `slack * p_in > B * p_out`, with
 `slack = K * (rho * C - B) - (1 + T) * (B + R)`. The tests run it on a hand-built matrix on which
 13.5 rows 1, 2, 3, 4, 5 and 7 each choose at least once (the cells are worked by hand in
@@ -280,8 +280,8 @@ def test_note_tau2_blocks_are_the_script_output(tau2_matrices, tmp_path, dataset
 # --- the section's prose (v1.254) --------------------------------------------------------------
 NUMBER = re.compile(r"(?<![\w.])\d+(?:,\d{3})*(?:\.\d+)?")
 SEPARATE_LINE = re.compile(r"^  cost_effective  point [012]  [\d,]+ cells: (.*)$")
-# DESIGN section numbers the prose cites
-CITED = {"13.2", "13.3", "13.5", "13.9", "5.3"}
+# DESIGN section numbers the prose cites (13.19 for the condition from v1.705, row DOC52)
+CITED = {"13.2", "13.3", "13.5", "13.9", "13.19", "5.3"}
 
 
 def _section():

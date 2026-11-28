@@ -217,7 +217,7 @@ def test_k_call_costs_by_hand():
 
 
 def test_from_two_calls_a_folded_parent_delegates_to_its_own_model_with_no_carry():
-    # 13.2 v1.38: folded, inline minus delegating to its own model gains (K - 1) * C
+    # 13.19 v1.38: folded, inline minus delegating to its own model gains (K - 1) * C
     router = make_router(registry_models=models()[1:2], rows={"fiction/mid": (95, 100)})
     one = decide(router, "fiction/mid", inline_separate_call=False, work_calls=1)
     two = decide(router, "fiction/mid", inline_separate_call=False, work_calls=2)
