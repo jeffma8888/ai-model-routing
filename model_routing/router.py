@@ -408,7 +408,11 @@ class Router:
         ``session_pricing`` is then ``"warm"`` or ``"conservative"``, and its ``pick_reason``
         ``"stay_warm"`` when the warm route is first only because a switch would cost more (5.2
         v1.695). Each cascade leg and unmeasured procedure call is priced so too, by its model,
-        and a cascade whose cheap leg is the warm route can stay warm (5.2 v1.700). Raises
+        and a cascade whose cheap leg is the warm route can stay warm (5.2 v1.700), when the route
+        first without the session is a switch, neither the warm route nor such a cascade (v1.701).
+        A cascade's or procedure's ``id`` is no ``session_route``: after a cascade, the next call's
+        ``session_route`` is the model of its leg that answered last, ``strong`` after a hand-up,
+        else ``cheap``, and after a procedure its ``model`` when it called one (5.2 v1.701). Raises
         ``KeyError`` for an unknown task or generator, ``ValueError`` for an unknown flavor, a
         ``prompt_tokens`` that is not an integer >= 0, a ``slice`` that is not a non-empty
         string without '@', a sliced task whose name holds '@' or whose slice key is
@@ -510,7 +514,7 @@ class Router:
                                        if cascade.cheap == session_route}
             if (session_warm and not decision.below_bar and decision.primary in stays
                     and self._choose(task, flavor, blind, base.name, slice, no_prior).primary
-                    != decision.primary):
+                    not in stays):  # 5.2 v1.701: first without the session only on a switch
                 decision = replace(decision, pick_reason=STAY_WARM)
         return replace(decision, session_pricing="warm" if session_warm else "conservative")
 
