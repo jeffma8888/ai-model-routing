@@ -401,7 +401,7 @@ def test_the_executor_drops_no_entry_itself():
         assert run.selects[-1] == {"session_route": WARM, "session_warm": False}
 
 
-def test_end_session_during_a_call_of_the_session_is_undone_by_its_attempt():
+def test_end_session_during_an_attempt_of_the_session_is_undone_by_it():
     # should-fix 4: the attempt stores an entry again once the provider returns
     run = Run()
     run.warm_up()
@@ -420,24 +420,49 @@ def test_end_session_during_a_call_of_the_session_is_undone_by_its_attempt():
     assert run.selects[-1] == {"session_route": CHEAP, "session_warm": True}
 
 
-@pytest.mark.parametrize("where", ["provider", "validate"])
-def test_an_exception_that_is_no_provider_error_leaves_the_state(where):
-    # nit 2: it leaves .call before the attempt is logged, though the provider was called
+def test_end_session_after_the_last_attempt_is_logged_is_not_undone():
+    # review iter-558 should-fix 1: ended from the shadow's provider call, once the routed attempt is kept
+    run = Run(router=_router(shadow_rate=1.0, shadow_route=WARM), random=lambda: 0.0)
+    ended = []
+
+    def ending(messages):
+        ended.append(run.ex.end_session("s"))
+        return hit(messages)
+
+    run.provider.script[WARM] = ending
+    first = run.ex.call("t", MESSAGES, session_id="s")
+    assert first.model == CHEAP and [m for m, _ in run.provider.calls] == [CHEAP, WARM]
+    assert ended == [True]
+    run.clock.t = 1.0
+    run.ex.call("t", MESSAGES, session_id="s")
+    assert run.selects[-1] == {}
+
+
+@pytest.mark.parametrize("where", ["provider", "validate", "fallback"])
+def test_the_attempt_an_exception_that_is_no_provider_error_is_raised_in_adds_no_state(where):
+    # nit 2 and review iter-558 must-fix 1: it leaves .call before that attempt is logged, though the provider
+    # was called, so the state is what the call's earlier attempts left: the warm-up's, or the fallen WARM's
     def bug(value):
         raise RuntimeError("a bug")
 
     run = Run()
     run.warm_up()
-    if where == "provider":
+    if where == "fallback":
+        run.provider.script.update({WARM: outage, CHEAP: bug})
+    elif where == "provider":
         run.provider.script[CHEAP] = bug
     run.clock.t = 1.0
     with pytest.raises(RuntimeError, match="a bug"):
-        run.ex.call("t", MESSAGES, session_id="s", exclude_models=(WARM,),
+        run.ex.call("t", MESSAGES, session_id="s", exclude_models=() if where == "fallback" else (WARM,),
                     validate=bug if where == "validate" else None)
-    assert [m for m, _ in run.provider.calls] == [WARM, CHEAP]
+    calls = [m for m, _ in run.provider.calls]
+    assert calls == ([WARM, WARM, CHEAP] if where == "fallback" else [WARM, CHEAP])
+    logged = [(r["model"], r["outcome"]) for r in run.monitor.records]
+    assert logged == ([(WARM, "ok"), (WARM, "error")] if where == "fallback" else [(WARM, "ok")])
+    run.provider.script.update({WARM: hit, CHEAP: hit})
     run.clock.t = 2.0
     run.ex.call("t", MESSAGES, session_id="s")
-    assert run.selects[-1] == {"session_route": WARM, "session_warm": True}
+    assert run.selects[-1] == {"session_route": WARM, "session_warm": where != "fallback"}
 
 
 # --- unchanged without a session ------------------------------------------------------------------------------
@@ -502,4 +527,4 @@ def test_the_guard_holds_a_shadow_a_failure_an_invalid_answer_a_slice_a_policy_a
     assert sum(r["outcome"] == "invalid" for r in records) == 2
     assert any(r.get("slice") == "s" for r in records)
     assert any(r.get("policy") == "tenant-a" for r in records)
-    assert any("budget_event" in item for item in items if isinstance(item, dict))
+    assert [item["budget_event"] for item in items if isinstance(item, dict) and "budget_event" in item] == ["warn"] * 3
