@@ -236,9 +236,12 @@ def test_the_new_section_is_the_lead_and_the_seven_paragraphs_word_for_word():
     start = 3
     # v1.605 (row GATE1d): the paragraph on `promote` and its transcripts follow the seven
     # (tests/test_promote_docs.py)
-    moved = found[start:start + 7]
+    # v1.694 (row CACHE2c): the paragraph on the cache-miss check comes right after the fifth, the one on the
+    # prompt cache, and before the sixth, the first on budgets (tests/test_cache_miss_docs.py)
+    moved = found[start:start + 5] + found[start + 6:start + 8]
     assert len(moved) == len(MOVED) == 7
-    assert found[start + 7].startswith("Judge a challenger route against the current one only on the items ")
+    assert found[start + 5].startswith("A `Monitor(path, tasks=..., on_anomaly=...)` writes a `cache_miss` anomaly record ")
+    assert found[start + 8].startswith("Judge a challenger route against the current one only on the items ")
     assert [opening for opening, _, _ in MOVED if opening in TRIMMED] == list(TRIMMED)
     for paragraph, (opening, length, digest) in zip(moved, MOVED):
         assert paragraph.startswith(opening), opening

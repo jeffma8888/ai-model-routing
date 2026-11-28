@@ -64,9 +64,11 @@ def test_the_paragraph_follows_the_scope_paragraph_and_ends_the_part():
     paragraphs = production_paragraphs()
     at = paragraphs.index(paragraph())
     # v1.600 (row B1d): the two budget paragraphs follow it; from v1.605 (row GATE1d) the part on `promote`
-    # follows them (tests/test_promote_docs.py)
-    assert paragraphs[at + 3].startswith("Judge a challenger route against the current one only on the items ")
-    assert paragraphs[at + 1].startswith("A budget tracks what the executor spends ")
+    # follows them (tests/test_promote_docs.py); from v1.694 (row CACHE2c) the paragraph on the cache-miss check
+    # comes between it and them (tests/test_cache_miss_docs.py)
+    assert paragraphs[at + 4].startswith("Judge a challenger route against the current one only on the items ")
+    assert paragraphs[at + 2].startswith("A budget tracks what the executor spends ")
+    assert paragraphs[at + 1].startswith("A `Monitor(path, tasks=..., on_anomaly=...)` writes a `cache_miss` anomaly record ")
     assert paragraphs[at - 1].startswith("A model built for some tasks can be kept to them. ")
 
 

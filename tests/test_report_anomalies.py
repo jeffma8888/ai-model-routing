@@ -14,6 +14,7 @@ import hashlib
 import inspect
 import io
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -318,10 +319,12 @@ def test_design_states_v1_693_in_8_3_and_10_and_the_changelog_the_version():
     names = [line.split(":", 1)[0].split(",")[0].split(" (")[0] for line in subs]
     assert names == ["  - Count", "  - Rows", "  - Checks", "  - Tests", "  - Not in this version"]
     for kept in ("`cache_miss_anomalies`", "the string `cache_miss`", "a `by` other than `model` or `task`",
-                 "the README sentence (row CACHE2c)"):
+                 # v1.694 (row CACHE2c) adds the README sentence, tests/test_cache_miss_docs.py
+                 "the README sentence (row CACHE2c, which v1.694 adds in 5.2)"):
         assert sum(line.count(kept) for line in [mine] + subs) >= 1, kept
+    # v1.694 (row CACHE2c) adds the README sentence, tests/test_cache_miss_docs.py
     assert ("  - Not in this version: the anomaly count in `report` and the CLI (row CACHE2b, which 8.3 and 10 "
-            "v1.693 add) and the README sentence (row CACHE2c).") in eight2
+            "v1.693 add) and the README sentence (row CACHE2c, which v1.694 adds in 5.2).") in eight2
     [cli_line] = [line for line in ten.splitlines() if line.startswith(
         "  - v1.693 `report --log PATH [--by model|task] --anomalies` (row CACHE2b, 8.3 v1.693): ")]
     ten_lines = ten.splitlines()
@@ -340,4 +343,7 @@ def test_design_states_v1_693_in_8_3_and_10_and_the_changelog_the_version():
     [entry] = [line for line in changelog if line.startswith("- v1.693 (")]
     assert entry.startswith("- v1.693 (2026-11-27): spec, code and tests (8.3, 10, row CACHE2b). ")
     assert len(entry.encode("utf-8")) <= 600
-    assert design.splitlines()[2].startswith("Status: v1.693, 2026-11-27 (v1.693, spec, code and tests: ")
+    # v1.693 or a later version tops the Status line (it pinned v1.693 until v1.694, row CACHE2c, came next)
+    status = design.splitlines()[2]
+    assert re.match(r"Status: v1\.(\d+), ", status) and int(re.match(r"Status: v1\.(\d+), ", status)[1]) >= 693
+    assert status.count("; v1.693, spec, code and tests: `report(..., anomalies=True)` ") == 1
