@@ -14,7 +14,7 @@ from math import fsum
 from typing import Iterable, List, Optional, Sequence, Tuple
 
 from .registry import _tier_prices
-from .router import FLAVORS, NoModelClearsBar, Policy, RouteDecision, Router, _policy_rule, _sizes
+from .router import FLAVORS, NoModelClearsBar, Policy, RouteDecision, Router, _call_cost, _policy_rule, _sizes
 from .router import (CONSISTENCY_UNKNOWN, INCONSISTENT, LATENCY_UNKNOWN, POLICY_EXCLUDED, REGION_UNAVAILABLE,
                      TOO_SLOW, ZDR_REQUIRED)
 from .stats import Stats, _is_cascade_key, _is_procedure_key, wilson_lower_bound
@@ -70,10 +70,12 @@ class DelegationDecision:
     route: Optional[RouteDecision]
     depth: Optional[int] = None  # DESIGN 13.6 v1.691
     inline_cache_counts: Optional[Tuple[int, int]] = None  # DESIGN 13.6 v1.706
+    delegate_cache_counts: Optional[Tuple[int, int]] = None  # DESIGN 13.6 v1.707
 
     def to_dict(self) -> dict:
-        """Return the decision as plain JSON-able types, keys in field order, ``depth`` and
-        ``inline_cache_counts`` only when set (DESIGN 13.6 v1.691, v1.706)."""
+        """Return the decision as plain JSON-able types, keys in field order, ``depth``,
+        ``inline_cache_counts`` and ``delegate_cache_counts`` only when set (DESIGN 13.6 v1.691,
+        v1.706, v1.707)."""
         data = {
             "task": self.task,
             "flavor": self.flavor,
@@ -93,6 +95,8 @@ class DelegationDecision:
             data["depth"] = self.depth
         if self.inline_cache_counts is not None:  # DESIGN 13.6 v1.706
             data["inline_cache_counts"] = list(self.inline_cache_counts)
+        if self.delegate_cache_counts is not None:  # DESIGN 13.6 v1.707
+            data["delegate_cache_counts"] = list(self.delegate_cache_counts)
         return data
 
 
@@ -164,6 +168,21 @@ def _counted_work_cost(model, k: int, base_reads: float, s_in: int, s_out: int, 
                       cached_input_tokens=k * counts[0], cache_write_tokens=k * counts[1])
 
 
+def _own_counts(router: Router, task: Task, model) -> Optional[Tuple[int, int]]:
+    """A model's measured cache counts on the task, as ``router.stats`` holds them (13.2 v1.706 and
+    v1.707): ``Router._cache_counts``, fitted inside its mean input, or None on a model with tiers."""
+    return None if model.price_tiers else router._cache_counts(task, model)
+
+
+def _delegate_work_cost(model, k: int, b: int, d_in: int, d_out: int, share: float,
+                        counts: Optional[Tuple[int, int]]) -> float:
+    """The delegate's K work calls over the brief (13.2 v1.38), at its measured counts when it has
+    any (v1.707), the brief new input: the work term of ``delegate_cost_usd`` and its ``select``."""
+    if counts is None:
+        return _work_cost(model, k, k * b, d_in, d_out, b, b, share)
+    return _counted_work_cost(model, k, k * b, d_in, d_out, share, counts)
+
+
 def _shared(parent, c: int, rho: float, added_in: int, added_out: int = 0) -> float:
     """What a parent call over C is charged for the tokens a path adds to it (13.2).
 
@@ -181,10 +200,24 @@ def _shared(parent, c: int, rho: float, added_in: int, added_out: int = 0) -> fl
 
 class _PerCallRouter(Router):
     """The delegate's ``select`` for one work call: each candidate priced per call at its 5.2
-    sizes, whatever its ``items_per_call`` (13.3 v1.573), as ``delegate_cost_usd`` prices it."""
+    sizes, whatever its ``items_per_call`` (13.3 v1.573), as ``delegate_cost_usd`` prices it, at
+    its measured counts on ``router``'s stats when it has any (13.3 v1.707)."""
+
+    def __init__(self, router: Router, task: Task, briefed: Task, stats: Stats):
+        super().__init__(router.registry, {task.name: briefed}, stats, router.priors)
+        self._router = router
+        self._task = task
 
     def _list_cost(self, task: Task, model) -> float:
-        return model.cost(*_sizes(self.stats, task, model.id))
+        return _call_cost(model, *_sizes(self.stats, task, model.id),
+                          _own_counts(self._router, self._task, model))
+
+    def _pair_cost(self, task: Task, root, leaf, sides) -> float:
+        """A pair's sides read no measured cache count (13.3 v1.707, row DEL1k)."""
+        if sides is None:
+            return (root.cost(*_sizes(self.stats, task, root.id))
+                    + leaf.cost(*_sizes(self.stats, task, leaf.id)))
+        return super()._pair_cost(task, root, leaf, sides)
 
     @staticmethod
     def _side_cost(model, tokens) -> float:
@@ -211,6 +244,7 @@ class _WorkCallsRouter(Router):
                             + work_calls * task.expected_input_tokens
                             + (work_calls - 1) * task.expected_output_tokens)
         super().__init__(router.registry, {task.name: last_call}, router.stats, router.priors)
+        self._router = router
         self._task = task
         self._brief_tokens = brief_tokens
         self._work_calls = work_calls
@@ -218,10 +252,14 @@ class _WorkCallsRouter(Router):
 
     def _list_cost(self, task: Task, model) -> float:
         # ``task`` is the last-call copy, whose expected input is only for rule 5; a model
-        # without token counts is priced at the original task's expected sizes
+        # without token counts is priced at the original task's expected sizes, and one with
+        # measured cache counts on it at them (13.3 v1.707)
+        return self._calls_cost(model, _own_counts(self._router, self._task, model))
+
+    def _calls_cost(self, model, counts: Optional[Tuple[int, int]]) -> float:
         d_in, d_out = _sizes(self.stats, self._task, model.id)
-        k, b = self._work_calls, self._brief_tokens
-        return _work_cost(model, k, k * b, d_in, d_out, b, b, self._share)
+        return _delegate_work_cost(model, self._work_calls, self._brief_tokens, d_in, d_out,
+                                   self._share, counts)
 
     def _pair_cost(self, task: Task, root, leaf, sides) -> float:
         """A pair's K calls, the root's plus the leaf's, each side a history of its own (13.2 v1.686).
@@ -230,8 +268,8 @@ class _WorkCallsRouter(Router):
         brief; with them each side is at its mean side tokens on ``router.stats``, the brief the
         root's base context alone. Each side per call, whatever its ``items_per_call``.
         """
-        if sides is None:  # ``task`` is the last-call copy, which ``_list_cost`` reads no size of
-            return self._list_cost(task, root) + self._list_cost(task, leaf)
+        if sides is None:  # ``task`` is the last-call copy; a side reads no cache count (13.3 v1.707)
+            return self._calls_cost(root, None) + self._calls_cost(leaf, None)
         k, b, share = self._work_calls, self._brief_tokens, self._share
         (root_in, root_out), (leaf_in, leaf_out) = sides
         return (_work_cost(root, k, k * b, root_in, root_out, b, b, share)
@@ -347,7 +385,7 @@ def decide_delegation(router: Router, task_name: str, parent_model: str,
     # output is sigma of it, never the output written or a context check (v1.404)
     # v1.706: on a parent without tiers, its measured cache counts on the task sit in each work
     # call's own input; rho still prices C alone
-    counts = None if parent.price_tiers else router._cache_counts(task, parent)
+    counts = _own_counts(router, task, parent)
     if counts is not None and inline_separate_call:
         inline_cost = (_counted_work_cost(parent, k, k * c * rho, p_in, p_out, sigma, counts)
                        + (1 + t) * _shared(parent, c, rho, k * (p_in + sigma * p_out)))
@@ -391,8 +429,7 @@ def decide_delegation(router: Router, task_name: str, parent_model: str,
     # side by side (v1.686)
     if k == 1:
         briefed = replace(task, expected_input_tokens=s_in + b)
-        sub = _PerCallRouter(router.registry, {task.name: briefed},
-                             _briefed_stats(router.stats, task.name, b), router.priors)
+        sub = _PerCallRouter(router, task, briefed, _briefed_stats(router.stats, task.name, b))
     else:
         sub = _WorkCallsRouter(router, task, b, k, sigma)
     route: Optional[RouteDecision] = None
@@ -408,7 +445,7 @@ def decide_delegation(router: Router, task_name: str, parent_model: str,
     except NoModelClearsBar as exc:
         failed = exc
 
-    delegate_cost = delegate_lb = None
+    delegate_cost = delegate_lb = delegate_counts = None
     if route is not None and pair:  # 13.2 v1.684, v1.686: the pair's list cost stands for D's calls
         pair_cost = next(x.list_cost for x in route.candidates if x.model_id == route.primary)
         delegate_cost = (_shared(parent, c, rho, 0, w) + pair_cost
@@ -418,8 +455,9 @@ def decide_delegation(router: Router, task_name: str, parent_model: str,
     elif route is not None:
         delegate = router.registry.get(route.primary)
         d_in, d_out = _sizes(router.stats, task, delegate.id)
+        delegate_counts = _own_counts(router, task, delegate)  # 13.2 v1.707
         delegate_cost = (_shared(parent, c, rho, 0, w)
-                         + _work_cost(delegate, k, k * b, d_in, d_out, b, b, sigma)
+                         + _delegate_work_cost(delegate, k, b, d_in, d_out, sigma, delegate_counts)
                          + (1 + t) * _shared(parent, c, rho, b + r))
         delegate_lb = next(x.quality_lb for x in route.candidates
                            if x.model_id == route.primary)
@@ -434,7 +472,8 @@ def decide_delegation(router: Router, task_name: str, parent_model: str,
             model=parent.id if mode == INLINE else route.primary, reason=reason,
             below_bar=below_bar, inline_allowed=block is None, inline_cost_usd=inline_cost,
             delegate_cost_usd=delegate_cost, parent_quality_lb=parent_lb,
-            delegate_quality_lb=delegate_lb, route=route, depth=depth, inline_cache_counts=counts)
+            delegate_quality_lb=delegate_lb, route=route, depth=depth, inline_cache_counts=counts,
+            delegate_cache_counts=delegate_counts)
 
     def refuse() -> NoModelClearsBar:
         # only reached when the delegate's select raised, so ``failed`` is set (13.5)

@@ -350,9 +350,10 @@ def test_the_production_note_says_a_cascade_and_a_procedure_pass_their_counts():
     for kept in ("A cascade is priced at each leg's own measured counts, the strong model's "
                  "re-read never at the cheap model's cached share, and a procedure not yet "
                  "measured at its model's; the delegation decision prices the parent's inline "
-                 "work at the parent's own measured counts on the task but passes none to the "
-                 "delegate's model choice yet",  # v1.706 (row CACHE4a), review iter-567 must-fix 1
+                 "work at the parent's own measured counts on the task, and the delegate's work and "
+                 "model choice at each delegate's own",  # v1.706 and v1.707 (rows CACHE4a and CACHE4b)
                  "and a cascade's legs and a procedure's model at their own models' means, as the "
-                 "Uber lesson on cache writes asks, while the delegation decision passes only the "
-                 "parent's counts, to its inline work, beside its cached-read ratio"):
+                 "Uber lesson on cache writes asks, while the delegation decision passes the parent's "
+                 "counts to its inline work and each delegate's to its own work and model choice, beside "
+                 "its cached-read ratio"):
         assert note.count(kept) == 1, kept

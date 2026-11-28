@@ -184,8 +184,9 @@ def test_the_router_is_not_modified_and_the_bounds_stay_per_call():
     assert (many.parent_quality_lb, many.delegate_quality_lb) == (one.parent_quality_lb,
                                                                   one.delegate_quality_lb)
     # v1.691 (row DEL3): a last field, `depth`, which to_dict() holds only when set, tests/test_delegation_depth.py
-    # v1.706 (row CACHE4a): a last field, `inline_cache_counts`, tests/test_delegation_cache_counts.py
-    assert [f.name for f in dataclasses.fields(many)] == FIELDS + ["depth", "inline_cache_counts"]
+    # v1.706 (row CACHE4a): `inline_cache_counts`, tests/test_delegation_cache_counts.py; v1.707 (row CACHE4b):
+    # a last field, `delegate_cache_counts`, tests/test_delegation_delegate_cache_counts.py
+    assert [f.name for f in dataclasses.fields(many)] == FIELDS + ["depth", "inline_cache_counts", "delegate_cache_counts"]
 
 
 # 13.2 cost of each path

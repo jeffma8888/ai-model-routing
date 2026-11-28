@@ -151,8 +151,9 @@ def test_measured_zero_counts_are_stated_and_cost_what_no_count_costs():
     assert d.inline_cost_usd == plain.inline_cost_usd
 
 
-def test_the_field_is_last_defaults_to_none_and_its_key_is_last_only_when_set():
-    last = dataclasses.fields(DelegationDecision)[-1]
+def test_the_field_follows_depth_defaults_to_none_and_its_key_follows_depth_only_when_set():
+    # v1.707 (row CACHE4b) adds `delegate_cache_counts` after it, tests/test_delegation_delegate_cache_counts.py
+    last = dataclasses.fields(DelegationDecision)[-2]
     assert (last.name, last.default) == ("inline_cache_counts", None)
     d = _decide(_stats(READS_90), depth=1)
     data = d.to_dict()

@@ -220,7 +220,8 @@ def test_only_the_registry_names_the_prices_and_the_counts():
     # so no delegation decision, evidence file or README transcript changes; v1.590 (row CACHE1f):
     # the report and the CLI's `report --cache` read the cached count, behind an opt-in keyword;
     # v1.597 (row B1c): `billing_bound` prices a call's input all cached or all written;
-    # v1.706 (row CACHE4a): the delegation decision prices the parent's inline work at its counts
+    # v1.706 (row CACHE4a): the delegation decision prices the parent's inline work at its counts;
+    # v1.707 (row CACHE4b): and the delegate's work and model choice at the delegate's
     naming = {path.name for path in PACKAGE.glob("*.py")
               if any(key in path.read_text(encoding="utf-8") for key in NAMES)}
     assert naming == {"registry.py", "stats.py", "router.py", "providers.py", "executor.py",
@@ -246,13 +247,14 @@ def test_the_production_note_states_registry_cache_prices_as_shipped():
     assert "Model choice now passes those counts" in line[0]
     # v1.589 (row CACHE1c): the attempt records carry the counts a provider returns; v1.591
     # (row CACHE1e): a cascade's legs and a procedure's model pass theirs; v1.706 (row CACHE4a): the
-    # delegation decision passes the parent's to its inline work
+    # delegation decision passes the parent's to its inline work; v1.707 (row CACHE4b): each delegate's
+    # to its own work and model choice
     assert ("The attempt records carry the cached and written tokens a provider returns, each attempt "
             "priced at them. A cascade is priced at each leg's own measured counts, the strong "
             "model's re-read never at the cheap model's cached share, and a procedure not yet "
             "measured at its model's; the delegation decision prices the parent's inline work at the "
-            "parent's own measured counts on the task but passes none to the delegate's model choice "
-            "yet") in line[0]
+            "parent's own measured counts on the task, and the delegate's work and model choice at each "
+            "delegate's own") in line[0]
     rate = note.split("\n### The cache hit rate is a cost number\n", 1)[1]
     rate_line = [x for x in rate.split("\n### ", 1)[0].splitlines() if x.startswith("- In this library: ")]
     assert len(rate_line) == 1
