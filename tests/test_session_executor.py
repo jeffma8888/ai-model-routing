@@ -10,6 +10,11 @@ the package at 8235c66, before v1.697.
 v1.698 (row T35, review iter-557 should-fix 1, 2, 4 and 5, nit 2): a pinned call of a session, an exception that is
 no `ProviderError`, `.end_session` during a call, an entry kept past its life, and a digest that holds a shadow, a
 failure of every route, an `invalid` record, a slice, a policy label and budget records.
+
+v1.699 (row CACHE3e, review iter-557 should-fix 3): an attempt that reported `cache_write_tokens` above 0 warms its
+route as one that reported cached reads does, inside the same life, so a session's first call, which writes the
+prefix and reads none, no longer leaves the second `conservative`; one whose two counts are each 0 or unsaid stays
+never warm.
 """
 
 import dataclasses
@@ -65,6 +70,15 @@ def unsaid(messages):
 
 def outage(messages):
     raise ProviderError("outage")
+
+
+def wrote(messages):
+    """A first call's reply: it wrote the prefix to the cache and read none (v1.699)."""
+    return Completion("ok", CONTEXT, OUT, cached_input_tokens=0, cache_write_tokens=CONTEXT - NEW)
+
+
+def wrote_read_unsaid(messages):
+    return Completion("ok", CONTEXT, OUT, cache_write_tokens=CONTEXT - NEW)
 
 
 class Clock:
@@ -528,3 +542,71 @@ def test_the_guard_holds_a_shadow_a_failure_an_invalid_answer_a_slice_a_policy_a
     assert any(r.get("slice") == "s" for r in records)
     assert any(r.get("policy") == "tenant-a" for r in records)
     assert [item["budget_event"] for item in items if isinstance(item, dict) and "budget_event" in item] == ["warn"] * 3
+
+
+# --- v1.699 (row CACHE3e): a cache write warms a session ------------------------------------------------------
+
+def test_a_cache_write_inside_the_cache_life_is_warm_and_keeps_the_session_route():
+    run = Run(script={WARM: wrote, CHEAP: hit})
+    first = run.warm_up()
+    last = first.attempts[-1]
+    assert (first.model, last.cached_input_tokens, last.cache_write_tokens) == (WARM, 0, CONTEXT - NEW)
+    run.clock.t = 10.0
+    result = run.ex.call("t", MESSAGES, session_id="s")
+    assert run.selects[-1] == {"session_route": WARM, "session_warm": True}
+    assert result.decision.session_pricing == "warm"
+    assert (result.model, result.decision.pick_reason) == (WARM, "stay_warm")
+
+
+def test_a_cache_write_past_the_cache_life_is_conservative_and_switches():
+    run = Run(script={WARM: wrote, CHEAP: hit})
+    run.warm_up()
+    run.clock.t = TTL + 1.0
+    result = run.ex.call("t", MESSAGES, session_id="s")
+    assert run.selects[-1] == {"session_route": WARM, "session_warm": False}
+    assert result.decision.session_pricing == "conservative"
+    assert result.model == CHEAP and result.decision.pick_reason != "stay_warm"
+
+
+@pytest.mark.parametrize("reply", [wrote, wrote_read_unsaid])
+@pytest.mark.parametrize("gap,warm", [(0.0, True), (299.5, True), (TTL, False), (TTL + 0.5, False)])
+def test_a_cache_write_is_warm_only_below_the_cache_life(reply, gap, warm):
+    run = Run(script={WARM: reply, CHEAP: hit})
+    run.warm_up()
+    run.clock.t = gap
+    run.ex.call("t", MESSAGES, session_id="s")
+    assert run.selects[-1] == {"session_route": WARM, "session_warm": warm}
+
+
+def test_a_cache_write_on_an_unknown_cache_life_is_never_warm():
+    run = Run(router=_router(_registry(ttl=None)), script={WARM: wrote, CHEAP: hit})
+    run.warm_up()
+    run.clock.t = 1.0
+    run.ex.call("t", MESSAGES, session_id="s")
+    assert run.selects[-1] == {"session_route": WARM, "session_warm": False}
+
+
+def test_an_invalid_write_only_attempt_is_the_session_s_last_and_warms_its_route():
+    run = Run(script={WARM: hit, CHEAP: wrote})
+    run.warm_up()
+    run.clock.t = 1.0
+    with pytest.raises(AllModelsFailed) as failed:
+        run.ex.call("t", MESSAGES, session_id="s", exclude_models=(WARM,), validate=lambda text: False)
+    assert [(a.model, a.outcome, a.cache_write_tokens) for a in failed.value.attempts] == [
+        (CHEAP, "invalid", CONTEXT - NEW)]
+    run.clock.t = 2.0
+    run.ex.call("t", MESSAGES, session_id="s")
+    assert run.selects[-1] == {"session_route": CHEAP, "session_warm": True}
+
+
+@pytest.mark.parametrize("read,write", [(0, 0), (None, 0), (0, None), (None, None)])
+def test_an_attempt_whose_two_counts_are_each_0_or_unsaid_is_never_warm(read, write):
+    def reply(messages):
+        return Completion("ok", CONTEXT, OUT, cached_input_tokens=read, cache_write_tokens=write)
+
+    run = Run(script={WARM: reply, CHEAP: hit})
+    run.warm_up()
+    run.clock.t = 1.0
+    result = run.ex.call("t", MESSAGES, session_id="s")
+    assert run.selects[-1] == {"session_route": WARM, "session_warm": False}
+    assert result.decision.session_pricing == "conservative"
