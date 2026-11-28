@@ -156,7 +156,8 @@ def test_a_pair_decision_at_the_cap_refuses_as_a_plain_one_does():
 # --- 13.6 v1.691: the field ------------------------------------------------------------------------
 
 def test_the_decision_gains_a_last_depth_field_and_to_dict_holds_it_only_when_set():
-    assert [f.name for f in dataclasses.fields(DelegationDecision)] == FIELDS + ["depth"]
+    # v1.706 (row CACHE4a) adds `inline_cache_counts` after it
+    assert [f.name for f in dataclasses.fields(DelegationDecision)] == FIELDS + ["depth", "inline_cache_counts"]
     plain = clears().decide_delegation("t", "x/big", **CHEAPER)
     assert list(plain.to_dict()) == FIELDS
     for depth in (0, 2):

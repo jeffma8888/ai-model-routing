@@ -1481,9 +1481,13 @@ def test_13_19_holds_the_four_13_2_items_of_v1_705_word_for_word_and_13_2_none()
     assert "research/delegation_reasons.py" in texts and "tests/test_work_calls.py" in texts and len(texts) > 100
     for stale in COST_NOTES_V1_705_STALE:
         assert not [name for name, content in texts.items() if re.search(stale, content)], stale
-    # 13.2 is at least 1,500 bytes under its cap, with no class, cap or total raised for it (a slice that spends
-    # the room restates this line, as v1.684 did DOC51's).
+    # 13.2 was at least 1,500 bytes under its cap, with no class, cap or total raised for it; v1.706 (row CACHE4a)
+    # spends the room, as v1.684 did DOC51's, so 13.2 is that far under without its v1.706 bullet and under its
+    # cap with it.
     sizes = dict(measure(text)[1])
     assert CLASS["13.19"] == CLASS["13.2"] == "contract" and CAPS["contract"] == 16_000
-    assert sizes["13.2"] <= CAPS["contract"] - 1_500 and sizes["13.19"] <= CAPS["contract"]
+    assert sizes["13.2"] <= CAPS["contract"] and sizes["13.19"] <= CAPS["contract"]
+    spent = [line for line in text.splitlines() if line.startswith("- v1.706 the parent's measured cache counts (row CACHE4a)")]
+    assert len(spent) == 1
+    assert dict(measure(text.replace(spent[0] + "\n", "", 1))[1])["13.2"] <= CAPS["contract"] - 1_500
     assert SECTION_CAPS["13"] == 300_000 and len(CLASS) == 51

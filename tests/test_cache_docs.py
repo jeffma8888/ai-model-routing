@@ -8,7 +8,8 @@ counts every input token of a call, its cached reads and cache writes included, 
 input count leaves the cache out (Anthropic's Messages API) is summed first. The note's six cache
 lessons already state every measured count as shipped, so the only changes their `In this library`
 lines plan are the monitor check (row CACHE2), the cold-cache switch (row CACHE3) and the budget
-(row B1), and the delegation decision still passes no measured count (row CACHE4). A docs slice:
+(row B1), and the delegation decision passes only the parent's measured count, to its inline work
+(v1.706, row CACHE4a; the delegate's is row CACHE4b). A docs slice:
 no package module changes, so these tests passed when they were written.
 """
 
@@ -299,7 +300,12 @@ def test_the_bill_lesson_says_report_cache_gives_the_hit_rate():
             "those records.") in lesson_lines()[CACHE_LESSONS[5]]
 
 
-def test_the_delegation_decision_still_passes_no_measured_count():
+def test_the_delegation_decision_passes_only_the_parents_measured_count():
+    # v1.706 (row CACHE4a): the parent's counts price its inline work; the delegate's are row CACHE4b
     lines = lesson_lines()
-    assert "the delegation decision passes none to model choice yet" in lines[CACHE_LESSONS[0]]
-    assert "while the delegation decision passes no count yet" in lines[CACHE_LESSONS[1]]
+    assert ("the delegation decision prices the parent's inline work at the parent's own measured counts on "
+            "the task but passes none to the delegate's model choice yet") in lines[CACHE_LESSONS[0]]
+    assert ("while the delegation decision passes only the parent's counts, to its inline work, beside its "
+            "cached-read ratio.") in lines[CACHE_LESSONS[1]]
+    for line in (lines[CACHE_LESSONS[0]], lines[CACHE_LESSONS[1]]):
+        assert "passes none to model choice yet" not in line and "passes no count yet" not in line

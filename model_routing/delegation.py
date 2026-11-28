@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from math import fsum
-from typing import Iterable, List, Optional, Sequence
+from typing import Iterable, List, Optional, Sequence, Tuple
 
 from .registry import _tier_prices
 from .router import FLAVORS, NoModelClearsBar, Policy, RouteDecision, Router, _policy_rule, _sizes
@@ -69,9 +69,11 @@ class DelegationDecision:
     delegate_quality_lb: Optional[float]
     route: Optional[RouteDecision]
     depth: Optional[int] = None  # DESIGN 13.6 v1.691
+    inline_cache_counts: Optional[Tuple[int, int]] = None  # DESIGN 13.6 v1.706
 
     def to_dict(self) -> dict:
-        """Return the decision as plain JSON-able types, keys in field order, ``depth`` only when set."""
+        """Return the decision as plain JSON-able types, keys in field order, ``depth`` and
+        ``inline_cache_counts`` only when set (DESIGN 13.6 v1.691, v1.706)."""
         data = {
             "task": self.task,
             "flavor": self.flavor,
@@ -89,6 +91,8 @@ class DelegationDecision:
         }
         if self.depth is not None:  # DESIGN 13.6 v1.691
             data["depth"] = self.depth
+        if self.inline_cache_counts is not None:  # DESIGN 13.6 v1.706
+            data["inline_cache_counts"] = list(self.inline_cache_counts)
         return data
 
 
@@ -146,6 +150,18 @@ def _work_cost(model, k: int, base_reads: float, s_in: int, s_out: int, context:
         return fsum(_call_costs(model, k, context, charged, s_in, s_out, share))
     w_in, w_out = k * (k + 1) // 2, k * (k - 1) // 2
     return model.base_cost(base_reads + w_in * s_in + w_out * share * s_out, k * s_out)
+
+
+def _counted_work_cost(model, k: int, base_reads: float, s_in: int, s_out: int, share: float,
+                       counts: Tuple[int, int]) -> float:
+    """K inline work calls on a parent without tiers at its measured cache counts (13.2 v1.706).
+
+    ``_work_cost``'s totals, with each call's ``counts`` (its cached reads and writes per call,
+    fitted inside ``s_in``) held in its input: one ``Model.cost`` with K times each count.
+    """
+    w_in, w_out = k * (k + 1) // 2, k * (k - 1) // 2
+    return model.cost(base_reads + w_in * s_in + w_out * share * s_out, k * s_out,
+                      cached_input_tokens=k * counts[0], cache_write_tokens=k * counts[1])
 
 
 def _shared(parent, c: int, rho: float, added_in: int, added_out: int = 0) -> float:
@@ -329,7 +345,16 @@ def decide_delegation(router: Router, task_name: str, parent_model: str,
     # the work calls' reads of C are priced at rho times the list input price (v1.41);
     # a tiered model pays each call at its own tier (v1.219); every re-read of an
     # output is sigma of it, never the output written or a context check (v1.404)
-    if inline_separate_call:
+    # v1.706: on a parent without tiers, its measured cache counts on the task sit in each work
+    # call's own input; rho still prices C alone
+    counts = None if parent.price_tiers else router._cache_counts(task, parent)
+    if counts is not None and inline_separate_call:
+        inline_cost = (_counted_work_cost(parent, k, k * c * rho, p_in, p_out, sigma, counts)
+                       + (1 + t) * _shared(parent, c, rho, k * (p_in + sigma * p_out)))
+    elif counts is not None:
+        inline_cost = (_counted_work_cost(parent, k, (k - 1) * c * rho, p_in, p_out, sigma, counts)
+                       + t * parent.base_cost(k * (p_in + sigma * p_out), 0))
+    elif inline_separate_call:
         inline_cost = (_work_cost(parent, k, k * c * rho, p_in, p_out, c, c * rho, sigma)
                        + (1 + t) * _shared(parent, c, rho, k * (p_in + sigma * p_out)))
     elif parent.price_tiers:
@@ -409,7 +434,7 @@ def decide_delegation(router: Router, task_name: str, parent_model: str,
             model=parent.id if mode == INLINE else route.primary, reason=reason,
             below_bar=below_bar, inline_allowed=block is None, inline_cost_usd=inline_cost,
             delegate_cost_usd=delegate_cost, parent_quality_lb=parent_lb,
-            delegate_quality_lb=delegate_lb, route=route, depth=depth)
+            delegate_quality_lb=delegate_lb, route=route, depth=depth, inline_cache_counts=counts)
 
     def refuse() -> NoModelClearsBar:
         # only reached when the delegate's select raised, so ``failed`` is set (13.5)

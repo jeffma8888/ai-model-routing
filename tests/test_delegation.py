@@ -102,7 +102,8 @@ def test_modes_and_reason_codes_have_the_pinned_values():
 def test_decision_is_a_frozen_dataclass_with_the_pinned_fields_and_is_exported():
     dl = load_dl()
     # v1.691 (row DEL3): a last field, `depth`, which to_dict() holds only when set, tests/test_delegation_depth.py
-    assert [f.name for f in dataclasses.fields(dl.DelegationDecision)] == FIELDS + ["depth"]
+    # v1.706 (row CACHE4a): a last field, `inline_cache_counts`, tests/test_delegation_cache_counts.py
+    assert [f.name for f in dataclasses.fields(dl.DelegationDecision)] == FIELDS + ["depth", "inline_cache_counts"]
     assert "DelegationDecision" in model_routing.__all__
     assert model_routing.DelegationDecision is dl.DelegationDecision
     decision = decide(make_router(), "fiction/best")

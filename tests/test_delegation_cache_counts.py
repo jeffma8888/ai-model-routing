@@ -118,7 +118,8 @@ def test_rho_and_the_counts_each_move_only_their_own_tokens():
 
 
 def test_the_counts_are_fitted_inside_the_mean_input_the_write_first():
-    over = {"cached_input_tokens": 8_000 * N, "cached_trials": N,
+    # reads reported on half the trials: means 8,000 and 4,000, over the 10,000 mean input together
+    over = {"cached_input_tokens": 8_000 * (N // 2), "cached_trials": N // 2,
             "cache_write_tokens": 4_000 * N, "cache_write_trials": N}
     d = _decide(_stats(over))
     assert d.inline_cache_counts == (6_000, 4_000)
