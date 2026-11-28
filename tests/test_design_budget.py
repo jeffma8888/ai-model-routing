@@ -109,8 +109,9 @@ in the same order, word for word but for the v1.242 opening and its `above` and 
 More notes out of 13.2 (v1.705, row DOC52): the inline minus delegating differences of its v1.38 and v1.41 bullets,
 the v1.41 list of what is not modelled and the bullet on what its costs assume, none a cost, are 13.19's too, after
 a v1.705 bullet, in their 13.2 order, word for word, each sub-bullet under a bullet naming its 13.2 bullet, but for the
-last's `This`, now 13.2 (COST_NOTES_V1_704), so 13.2 has room for its contract with no class, cap or total raised; the
-conditions 13.8 v1.253 and the research notes work from a difference name 13.19.
+last's `This`, now 13.2 (COST_NOTES_V1_704), so 13.2 has room for its contract with no class, cap or total raised, and
+13.2 points to them in one bullet (COST_NOTES_V1_705_POINTER); the conditions 13.8 v1.253 and the research notes work
+from a difference, 13.5 v1.31's saving, 14's list and README's three citations of the moved items name 13.19.
 
 The section totals (v1.456, row DOC37): each total is the one last set with the subsections it counted,
 `## 12.` 300,000 at v1.390 with 12.1 to 12.22 and `## 13.` 185,000 at v1.386 with 13.1 to 13.14
@@ -1406,10 +1407,17 @@ COST_NOTES_V1_704 = (
 # What 13.19 changes in them: the last one's opening; each sub-bullet keeps its level under a bullet of its own.
 COST_NOTES_V1_705_OPENING = ("- This is still an approximation. ", "- 13.2 is still an approximation. ")
 COST_NOTES_V1_705_PARENTS = ("- v1.38, K work calls (13.2 v1.38):", "- v1.41, cached context reads (13.2 v1.41):")
+# 13.2's one line pointing to them, where the last of them stood (review iter-566 should-fix 4).
+COST_NOTES_V1_705_POINTER = ("- What these costs assume and leave out, and the inline minus delegating differences: 13.19 "
+                             "(v1.705, row DOC52)")
 # The references a slice before v1.705 wrote to these items or to a condition worked from a difference, by
-# pattern, so this file's own text is no match.
+# pattern, so this file's own text is no match: the last two (review iter-566 must-fix 2 and 3, should-fix 1 to
+# 3 and 5) any of the moved items' phrases cited to 13.2 alone, or to 13.2 and 13.8, and 14's list unplaced.
 COST_NOTES_V1_705_STALE = (r"condition from 13\.2(?!\d)", r"a 13\.2 condition", r"13\.2 shows delegating",
-                           r"13\.2 v1\.38: folded, inline minus")
+                           r"13\.2 v1\.38: folded, inline minus",
+                           r"(?:not modelled|summarised between calls|re-read of C|calls together) "
+                           r"\((?:`DESIGN\.md` )?13\.2(?:\)| and 13\.8\))",
+                           r"other re-reads, and[ ]latency")
 
 
 def test_13_19_holds_the_four_13_2_items_of_v1_705_word_for_word_and_13_2_none():
@@ -1425,8 +1433,9 @@ def test_13_19_holds_the_four_13_2_items_of_v1_705_word_for_word_and_13_2_none()
     for words in ("the inline minus delegating differences of its v1.38 and v1.41 bullets, the v1.41 list of what is "
                   "not modelled and the bullet on what its costs assume, word for word, each sub-bullet under a bullet "
                   "that names its 13.2 bullet, but for the last's `This`, now 13.2.",
-                  "13.2 keeps every cost they are worked from, so a reference to a 13.2 cost stays one; a reference to "
-                  "one of these items, or to a condition worked from one of the differences, names 13.19."):
+                  "13.2 keeps every cost they are worked from and points to them, so a reference to a 13.2 cost stays "
+                  "one; a reference to one of these items, or to a condition worked from one of the differences, names "
+                  "13.19."):
         assert body[3].count(words) == 1, words
     # Each sub-bullet sits under its parent, and the v1.41 one's `the v1.38 bullet` is the bullet above it here.
     assert [line[:4] for line in body[4:10]] == ["- v1", "  - ", "- v1", "  - ", "  - ", "- 13"]
@@ -1437,7 +1446,12 @@ def test_13_19_holds_the_four_13_2_items_of_v1_705_word_for_word_and_13_2_none()
     for line in (d38, d41, not_modelled, assumes.replace(old, new)):
         assert sum(item == line for item in text.splitlines()) == 1, line[:60]
     assert assumes not in text.splitlines() and "This is still an approximation" not in text
-    assert "inline minus delegating" not in joined and "Not modelled:" not in joined
+    assert "inline minus delegating" not in joined.replace(COST_NOTES_V1_705_POINTER, "")
+    assert "Not modelled:" not in joined
+    # 13.2's pointer to them, once, where the bullet on what its costs assume stood: after v1.404, before v1.684.
+    assert sum(line == COST_NOTES_V1_705_POINTER for line in contract) == 1
+    at = contract.index(COST_NOTES_V1_705_POINTER)
+    assert contract[at - 1].startswith("- v1.404, output re-reads ") and contract[at + 1].startswith("- v1.684 a pair ")
     # 13.2 keeps the costs the differences are worked from, each once.
     for cost in ("- `delegate_cost_usd = P.cost(0, W) + D.cost(K * B + w_in * S_in + w_out * S_out, K * S_out) + (1 + T) "
                  "* P.cost(B + R, 0)`",
@@ -1453,6 +1467,13 @@ def test_13_19_holds_the_four_13_2_items_of_v1_705_word_for_word_and_13_2_none()
     assert pays.count("- The condition, from 13.19 and stated before the counts. ") == 1
     hand_off = (ROOT / "research" / "hand-off-data.md").read_text(encoding="utf-8")
     assert hand_off.count("`DESIGN.md` 13.19 shows delegating to the parent's own model can save the re-reads") == 1
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    for cited in ("and nothing is summarised between calls (`DESIGN.md` 13.2 and 13.19)\n",
+                  "Cache writes, cache expiry and discounts on other re-reads are not modelled (`DESIGN.md` 13.19)\n",
+                  "and the bar is held per call, not for the calls together (`DESIGN.md` 13.19 and 13.8). "):
+        assert readme.count(cited) == 1, cited
+    assert text.count("delegating saves the separate inline call's re-read of C (13.2, 13.19). ") == 1
+    assert text.count("cache expiry and discounts on other re-reads, listed in 13.19, and latency, ") == 1
     files = [ROOT / "DESIGN.md", ROOT / "README.md"] + sorted((ROOT / ".github" / "workflows").glob("*.yml"))
     for folder in ("evidence", "model_routing", "research", "tests"):
         files += sorted(path for path in (ROOT / folder).rglob("*") if path.suffix in (".py", ".md"))
