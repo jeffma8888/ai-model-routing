@@ -34,6 +34,7 @@ TOO_SLOW = "too_slow"  # DESIGN 5.1 v1.628, rules 5e and 5f
 LATENCY_UNKNOWN = "latency_unknown"
 INCONSISTENT = "inconsistent"  # DESIGN 5.1 v1.668, rules 5g and 5h
 CONSISTENCY_UNKNOWN = "consistency_unknown"
+STAY_WARM = "stay_warm"  # DESIGN 5.2 v1.695: a decision's reason, never a candidate's; not in __all__
 
 FLAVORS = ("cost_effective", "cost_blind")
 _BREAKDOWN_KEYS = ("uncached_input_usd", "cached_read_usd", "cache_write_usd", "output_usd")
@@ -57,6 +58,20 @@ def _check_pin(pin_route, allow_below_bar) -> None:
         raise ValueError(f"allow_below_bar must be a bool, got {allow_below_bar!r}")
     if allow_below_bar and pin_route is None:
         raise ValueError("allow_below_bar needs a pin_route")
+
+
+def _check_session(session_route, session_warm, cascades: bool, procedures) -> None:
+    """The session keywords' checks, in the order DESIGN 5.2 v1.695 gives them."""
+    if session_route is not None and (not isinstance(session_route, str) or not session_route):
+        raise ValueError(f"session_route must be None or a non-empty str, got {session_route!r}")
+    if not isinstance(session_warm, bool):
+        raise ValueError(f"session_warm must be a bool, got {session_warm!r}")
+    if session_warm and session_route is None:
+        raise ValueError("session_warm=True needs a session_route")
+    if session_route is not None and cascades:
+        raise ValueError("a session_route cannot be priced with cascades=True in this version")
+    if session_route is not None and procedures:
+        raise ValueError("a session_route cannot be priced with procedures in this version")
 
 
 def _in_scope(patterns: Tuple[str, ...], name: str, key: Optional[str]) -> bool:
@@ -263,6 +278,7 @@ class RouteDecision:
     expected_cost_per_success_usd: Optional[float] = None
     pick_reason: Optional[str] = None
     max_p95_ms: Optional[float] = None
+    session_pricing: Optional[str] = None
 
     def to_dict(self) -> dict:
         """Return the decision as plain JSON-able types.
@@ -272,7 +288,9 @@ class RouteDecision:
         ``pricing_basis`` only when it is ``"self_hosted"`` (v1.584), its ``cost_breakdown``
         only with measured cache counts and its ``cache_price_unknown`` only when that list is
         not empty (v1.588); ``max_p95_ms`` and each candidate's ``p95_latency_ms`` only when the
-        task sets a latency bar (v1.628).
+        task sets a latency bar (v1.628). Under the policy ``"none"`` a ``pick_reason`` that is not
+        None, ``"stay_warm"``, follows ``basis``, and ``session_pricing`` comes right before
+        ``candidates`` only when it is not None (v1.695).
         """
         data = {"task": self.task}
         if self.slice is not None:
@@ -290,9 +308,13 @@ class RouteDecision:
             data["expected_cost_per_success_usd"] = self.expected_cost_per_success_usd
             if self.pick_reason is not None:
                 data["pick_reason"] = self.pick_reason
+        elif self.pick_reason is not None:  # DESIGN 5.1 v1.695
+            data["pick_reason"] = self.pick_reason
         timed = self.max_p95_ms is not None  # DESIGN 5.1 v1.628
         if timed:
             data["max_p95_ms"] = self.max_p95_ms
+        if self.session_pricing is not None:  # DESIGN 5.1 v1.695
+            data["session_pricing"] = self.session_pricing
         data["candidates"] = [_candidate_dict(c, timed) for c in self.candidates]
         return data
 
@@ -345,7 +367,9 @@ class Router:
                procedures: Sequence[Procedure] = (),
                policy: Optional[Policy] = None,
                pin_route: Optional[str] = None,
-               allow_below_bar: bool = False) -> RouteDecision:
+               allow_below_bar: bool = False,
+               session_route: Optional[str] = None,
+               session_warm: bool = False) -> RouteDecision:
         """Route ``task_name`` and return a :class:`RouteDecision`.
 
         ``prompt_tokens`` is the size of the one request being routed: when given, the
@@ -371,7 +395,12 @@ class Router:
         as without it and the pin is the only entry, ``basis`` ``"pinned"``; a pin that is not
         ``eligible`` raises :class:`NoModelClearsBar`, as does one that does not pass unless
         ``allow_below_bar`` is True, and a pin that is no candidate ``ValueError`` (5.2 v1.639).
-        Raises ``KeyError``
+        A ``session_route``, the route a session's previous call ran on, prices every registry
+        candidate with measured cache counts cold, its cached reads at the input price, except that
+        route when ``session_warm`` says its cache was read inside the cache's life; the decision's
+        ``session_pricing`` is then ``"warm"`` or ``"conservative"``, and its ``pick_reason``
+        ``"stay_warm"`` when the warm route is first only because a switch would cost more (5.2
+        v1.695). Raises ``KeyError``
         for an unknown task or generator, ``ValueError`` for an unknown flavor, a
         ``prompt_tokens`` that is not an integer >= 0, a ``slice`` that is not a non-empty
         string without '@', a sliced task whose name holds '@' or whose slice key is
@@ -395,6 +424,7 @@ class Router:
         if policy is not None and not isinstance(policy, Policy):  # DESIGN 5.2 v1.622
             raise ValueError(f"policy must be None or a Policy, got {type(policy).__name__}")
         _check_pin(pin_route, allow_below_bar)  # DESIGN 5.2 v1.639
+        _check_session(session_route, session_warm, cascades, procedures)  # DESIGN 5.2 v1.695
         if task_name not in self.tasks:
             raise KeyError(f"unknown task: {task_name!r}")
         base = self.tasks[task_name]
@@ -439,11 +469,27 @@ class Router:
                                                       names, policy)
                             for proc in procedures)
 
-        if pin_route is not None:  # DESIGN 5.2 v1.639: no ranking, the hard checks kept
-            return self._pinned(task, flavor, candidates, pin_route, allow_below_bar, base.name, slice)
+        if session_route is None:
+            if pin_route is not None:  # DESIGN 5.2 v1.639: no ranking, the hard checks kept
+                return self._pinned(task, flavor, candidates, pin_route, allow_below_bar, base.name,
+                                    slice)
+            return self._choose(task, flavor, candidates, base.name, slice,
+                                {cascade.id for cascade in routed} | seen)
 
-        return self._choose(task, flavor, candidates, base.name, slice,
-                            {cascade.id for cascade in routed} | seen)
+        blind = candidates  # DESIGN 5.2 v1.695: a session has no cascade or procedure
+        candidates = tuple(c if session_warm and c.model_id == session_route
+                           else self._cold(task, model, c, flavor)
+                           for model, c in zip(self.registry.models, blind))
+        if pin_route is not None:
+            decision = self._pinned(task, flavor, candidates, pin_route, allow_below_bar, base.name,
+                                    slice)
+        else:
+            decision = self._choose(task, flavor, candidates, base.name, slice, set())
+            if (session_warm and not decision.below_bar and decision.primary == session_route
+                    and self._choose(task, flavor, blind, base.name, slice, set()).primary
+                    != session_route):
+                decision = replace(decision, pick_reason=STAY_WARM)
+        return replace(decision, session_pricing="warm" if session_warm else "conservative")
 
     def select_pair(self, task_name: str, roots: Sequence[str], leaves: Sequence[str],
                     flavor: str = "cost_effective", *, generator_model: Optional[str] = None,
@@ -886,6 +932,22 @@ class Router:
             cache_price_unknown=unknown,
             p95_latency_ms=p95,
         )
+
+    def _cold(self, task: Task, model, candidate: Candidate, flavor: str) -> Candidate:
+        """A registry model's candidate on a cold cache (DESIGN 5.2 v1.695): its measured cached
+        reads at the input price and its measured writes kept, or the candidate itself when it has
+        no measured cache counts."""
+        counts = self._cache_counts(task, model)
+        if counts is None:
+            return candidate
+        mean = self.stats.mean_tokens(task.name, model.id)
+        write = counts[1]
+        list_cost = model.cost(*mean, cached_input_tokens=0,
+                               cache_write_tokens=write) / model.items_per_call
+        return replace(candidate, list_cost=list_cost,
+                       routing_cost=list_cost if flavor == "cost_effective" else 0.0,
+                       cost_breakdown=_breakdown(model, *mean, 0, write),
+                       cache_price_unknown=_unknown_cache_prices(model, 0, write))
 
     def _cache_counts(self, task: Task, model) -> Optional[Tuple[int, int]]:
         """The measured cached reads and cache writes a route is priced at (DESIGN 5.2 v1.588).
