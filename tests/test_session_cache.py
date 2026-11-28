@@ -9,6 +9,8 @@ the warm route is first only because a switch would cost more. Without a `sessio
 decision keeps its bytes: `V1_694_DIGEST` was computed on the package at 2caa7ee, before v1.695.
 v1.696 (row T34, review iter-555 should-fix 1 and 2, nit 2): a pin gets no `stay_warm`, and the
 cold price of a sliced call, of a batch variant and of a route with no write price.
+v1.700 (row CACHE3c): a session with cascades or procedures is priced, no longer refused
+(tests/test_session_cascades.py).
 """
 
 import hashlib
@@ -18,7 +20,7 @@ import math
 import pytest
 
 from model_routing import (
-    Model, NoModelClearsBar, Procedure, ProcedureResult, Registry, Router, Stats, Task, Variant,
+    Model, NoModelClearsBar, Registry, Router, Stats, Task, Variant,
 )
 
 WARM, CHEAP, PLAIN = "fiction/warm", "fiction/cheap", "fiction/plain"
@@ -324,16 +326,6 @@ def test_session_warm_must_be_a_bool(warm):
 def test_session_warm_needs_a_session_route():
     with pytest.raises(ValueError, match="session_warm"):
         _router(_stats(30_000)).select("t", session_warm=True)
-
-
-def test_a_session_with_cascades_or_procedures_is_refused():
-    def fn(item, handle):
-        return ProcedureResult("done", tool_calls=0)
-    proc = Procedure("p", "1", fn, max_model_calls=0, max_tool_calls=0)
-    with pytest.raises(ValueError, match="cascades"):
-        _router(_stats(30_000)).select("t", cascades=True, session_route=WARM)
-    with pytest.raises(ValueError, match="procedures"):
-        _router(_stats(30_000)).select("t", procedures=[proc], session_route=WARM)
 
 
 def test_the_checks_come_before_the_task_lookup():
