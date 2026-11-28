@@ -408,11 +408,15 @@ class Router:
         ``session_pricing`` is then ``"warm"`` or ``"conservative"``, and its ``pick_reason``
         ``"stay_warm"`` when the warm route is first only because a switch would cost more (5.2
         v1.695). Each cascade leg and unmeasured procedure call is priced so too, by its model,
-        and a cascade whose cheap leg is the warm route can stay warm (5.2 v1.700), when the route
-        first without the session is a switch, neither the warm route nor such a cascade (v1.701).
-        A cascade's or procedure's ``id`` is no ``session_route``: after a cascade, the next call's
-        ``session_route`` is the model of its leg that answered last, ``strong`` after a hand-up,
-        else ``cheap``, and after a procedure its ``model`` when it called one (5.2 v1.701). Raises
+        and a cascade whose cheap leg is the warm route can stay warm (5.2 v1.700), and from v1.701
+        only when the route first without the session is a switch, that is neither the warm route
+        nor such a cascade. A cascade's or procedure's ``id`` is no ``session_route``: after a
+        cascade, the next call's ``session_route`` is the model of its leg that answered last,
+        ``strong`` after a hand-up, else ``cheap`` (5.2 v1.701), and after a procedure its
+        ``model`` when it called one, else the route before it, with ``session_warm`` True only
+        when that call's own reply showed a cache read or write, so False after a procedure that
+        called no model (5.2 v1.702); the executor passes no session with ``procedures`` (7
+        v1.697). Raises
         ``KeyError`` for an unknown task or generator, ``ValueError`` for an unknown flavor, a
         ``prompt_tokens`` that is not an integer >= 0, a ``slice`` that is not a non-empty
         string without '@', a sliced task whose name holds '@' or whose slice key is
