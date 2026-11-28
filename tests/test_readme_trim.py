@@ -527,7 +527,7 @@ LATER = [
     (PAIR_LEAD, 602),  # v1.680, row PROD1j: 587 bytes and the blank line; 600 from v1.682
     (FOLLOW_LEAD, 600),  # v1.690, row DEL2c: 598 bytes and the blank line, the section's last
     (CACHE_MISS_LEAD, 297),  # v1.694, row CACHE2c: 295 bytes and the blank line, after the prompt-cache one
-    (SESSION_LEAD, 293),  # v1.703, row CACHE3d: 291 bytes and the blank line, after the cache-miss one
+    (SESSION_LEAD, 298),  # v1.703, row CACHE3d: 296 bytes and the blank line, after the cache-miss one
 ]
 
 
@@ -2122,7 +2122,7 @@ def test_the_v1_694_paragraph_and_the_section_at_its_bytes():
     # v1.703 (row CACHE3d) appends LATER's twelfth entry, its paragraph right after this one
     assert LATER[10] == (CACHE_MISS_LEAD, ADDED_V1_694) and len(LATER) == 12
     assert len(paragraph(CACHE_MISS_LEAD).encode("utf-8")) == CACHE_MISS_BYTES_V1_694 <= CACHE_MISS_CAP_V1_694
-    # LATER's last entry, but not the section's last paragraph: it sits right after the prompt-cache one
+    # LATER's eleventh entry, not the section's last paragraph: it sits right after the prompt-cache one
     found = paragraphs(text, PRODUCTION)
     at = found.index(paragraph(CACHE_MISS_LEAD))
     assert found[at - 1].startswith(CACHE_LEAD) and found[-1].startswith(FOLLOW_LEAD)
@@ -2162,9 +2162,9 @@ def test_design_states_v1_694_and_the_changelog_the_version():
 
 # the new paragraph's own bytes, LATER's twelfth entry less its blank line; tests/test_session_cli.py checks its
 # claims, its command, its place and its pointer, and the DESIGN and changelog lines that state it
-SESSION_BYTES_V1_703, SESSION_CAP_V1_703 = 291, 300
+SESSION_BYTES_V1_703, SESSION_CAP_V1_703 = 296, 300
 ADDED_V1_703 = SESSION_BYTES_V1_703 + 2
-SECTION_V1_703 = 28_636
+SECTION_V1_703 = 28_641
 
 
 def test_the_v1_703_paragraph_and_the_section_at_its_bytes():
@@ -2178,7 +2178,7 @@ def test_the_v1_703_paragraph_and_the_section_at_its_bytes():
     assert found[-1].startswith(FOLLOW_LEAD)
     # the section is pinned to its bytes, so a later change to it restates this test (review iter-531 nit 2)
     assert size(text, PRODUCTION) == SECTION_V1_703 == SECTION_V1_694 + ADDED_V1_703 < PRODUCTION_CAP == 30_000
-    assert PRODUCTION_CAP - SECTION_V1_703 == 1_364
+    assert PRODUCTION_CAP - SECTION_V1_703 == 1_359
     # the paragraph is in LATER, so the section less LATER keeps v1.675's bytes
     assert size(without_later(text), PRODUCTION) == 20_343
     # README names no DESIGN version, so the paragraph names none either

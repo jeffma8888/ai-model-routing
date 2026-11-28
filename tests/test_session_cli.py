@@ -34,9 +34,9 @@ TASKS = (TASK, RETRY, STRICT)
 MISS_LEAD = "A `Monitor(path, tasks=..., on_anomaly=...)` writes a `cache_miss` anomaly record "
 BUDGET_LEAD = "A budget tracks what the executor spends and can warn, refuse or move a call. "
 PARAGRAPH = (
-    "A switch mid-session starts cold: `model-routing select --session-route ROUTE --session-warm` prices each "
-    "other route's cached reads at the input price, ROUTE's too without `--session-warm`, and gives `stay_warm` "
-    "when ROUTE is first only because a switch costs more (`DESIGN.md` 5.2 and 10).")
+    "A switch mid-session starts cold: `model-routing select TASK --session-route ROUTE --session-warm` prices "
+    "each other route's cached reads at the input price, ROUTE's too without `--session-warm`, and gives "
+    "`stay_warm` when ROUTE is first only because a switch costs more (`DESIGN.md` 5.2 and 10).")
 # sha256 of the text and --json outputs of `select` without the options on this fixture, each task and flavor at
 # contexts 10,999 and 11,001, taken on v1.702 (e799012), before v1.703
 V1_702_DIGEST = "5698b1374632e0adf33ec3a53649407764b1d9fd8ef9618d8f2f81521a7ba572"
@@ -259,16 +259,25 @@ def test_the_paragraph_follows_the_cache_miss_one_inside_the_cap():
     assert text.count(PARAGRAPH) == 1 and found.count(PARAGRAPH) == 1
     at = found.index(PARAGRAPH)
     assert found[at - 1].startswith(MISS_LEAD) and found[at + 1].startswith(BUDGET_LEAD)
-    assert len(PARAGRAPH.encode("utf-8")) == 291 <= 300
+    assert len(PARAGRAPH.encode("utf-8")) == 296 <= 300
     assert size(text, PRODUCTION) <= PRODUCTION_CAP == 30_000
     assert "\u2014" not in PARAGRAPH and "\u2013" not in PARAGRAPH and "```" not in PARAGRAPH
     assert "](" not in PARAGRAPH and link_problems(text) == []
 
 
 def test_its_command_is_the_parser_s():
-    command = "model-routing select --session-route ROUTE --session-warm"
+    command = "model-routing select TASK --session-route ROUTE --session-warm"
     says(f"`{command}`")
-    assert command_problems(command) == []
+    # review iter-564 should-fix 1: the real parser reads it, a fictional task and route in place of TASK and ROUTE,
+    # since tests/test_readme_walkthrough.py's command_problems reads options only
+    words = command.split()[1:]
+    args = _build_parser().parse_args([{"TASK": "t", "ROUTE": WARM}.get(w, w) for w in words])
+    assert (args.command, args.task, args.session_route, args.session_warm) == ("select", "t", WARM, True)
+    [sub] = [a for a in _build_parser()._actions if isinstance(a, argparse._SubParsersAction)]
+    options = {o: a for a in sub.choices["select"]._actions for o in a.option_strings}
+    assert options["--session-route"].metavar == words[words.index("--session-route") + 1] == "ROUTE"
+    assert [a.dest for a in sub.choices["select"]._actions if not a.option_strings] == ["task"]
+    assert command_problems(command.replace(" TASK", "")) == []
     # README named neither option before v1.703 (row CACHE3d); this paragraph names each where it says
     text = read("README.md")
     assert text.count("--session-route") == 1 and text.count("--session-warm") == 2
@@ -340,8 +349,8 @@ def test_design_5_2_states_the_paragraph_and_lifts_the_deferrals():
                                                "row CACHE3; ")]
     assert lines[lines.index(mine) - 1].startswith("- v1.694 README cache-miss check (row CACHE2c, ")
     for kept in ("right after the one on the cache-miss check (v1.694), before the first on budgets",
-                 "The new paragraph is 291 bytes, the twelfth entry of tests/test_readme_trim.py's `LATER`",
-                 "so the section is 28,636 bytes by the 12.8 measure, 1,364 under v1.629's 30,000-byte cap, "
+                 "The new paragraph is 296 bytes, the twelfth entry of tests/test_readme_trim.py's `LATER`",
+                 "so the section is 28,641 bytes by the 12.8 measure, 1,359 under v1.629's 30,000-byte cap, "
                  "which stays",
                  "the section less `LATER` stays 20,343"):
         assert mine.count(kept) == 1, kept
@@ -358,5 +367,6 @@ def test_design_5_2_states_the_paragraph_and_lifts_the_deferrals():
 def test_the_changelog_states_the_version():
     [line] = [x for x in read("CHANGELOG.md").splitlines() if x.startswith("- v1.703 (")]
     assert line.startswith("- v1.703 (2026-11-28): spec, code and tests (5.2, 7, 10, row CACHE3d). ")
-    assert line.count("so the section is 28,636 bytes, 1,364 under the 30,000-byte cap") == 1
+    assert line.count("so the section is 28,641 bytes, 1,359 under the 30,000-byte cap") == 1
+    assert line.split("). ", 1)[1].count(". ") == 1   # two sentences after the lead (review iter-564 must-fix 1)
     assert len(line.encode("utf-8")) <= 600 and "\u2014" not in line and "\u2013" not in line

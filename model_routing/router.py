@@ -404,10 +404,10 @@ class Router:
         ``allow_below_bar`` is True, and a pin that is no candidate ``ValueError`` (5.2 v1.639).
         A ``session_route``, the route a session's previous call ran on, prices every registry
         candidate with measured cache counts cold, its cached reads at the input price, except that
-        route when ``session_warm`` says its cache was read inside the cache's life; the decision's
-        ``session_pricing`` is then ``"warm"`` or ``"conservative"``, and its ``pick_reason``
-        ``"stay_warm"`` when the warm route is first only because a switch would cost more (5.2
-        v1.695). Each cascade leg and unmeasured procedure call is priced so too, by its model,
+        route when ``session_warm`` says its cache was read or written inside the cache's life; the
+        decision's ``session_pricing`` is then ``"warm"`` or ``"conservative"``, and its
+        ``pick_reason`` ``"stay_warm"`` when the warm route is first only because a switch would
+        cost more (5.2 v1.695). Each cascade leg and unmeasured procedure call is priced so too, by its model,
         and a cascade whose cheap leg is the warm route can stay warm (5.2 v1.700), and from v1.701
         only when the route first without the session is a switch, that is neither the warm route
         nor such a cascade. A cascade's or procedure's ``id`` is no ``session_route``: after a
