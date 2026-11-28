@@ -7,6 +7,8 @@ reads at the input price, except R itself when W is True, labels the decision's
 `session_pricing` `warm` or `conservative`, and gives the decision `pick_reason` `stay_warm` when
 the warm route is first only because a switch would cost more. Without a `session_route` every
 decision keeps its bytes: `V1_694_DIGEST` was computed on the package at 2caa7ee, before v1.695.
+v1.696 (row T34, review iter-555 should-fix 1 and 2, nit 2): a pin gets no `stay_warm`, and the
+cold price of a sliced call, of a batch variant and of a route with no write price.
 """
 
 import hashlib
@@ -16,7 +18,7 @@ import math
 import pytest
 
 from model_routing import (
-    Model, NoModelClearsBar, Procedure, ProcedureResult, Registry, Router, Stats, Task,
+    Model, NoModelClearsBar, Procedure, ProcedureResult, Registry, Router, Stats, Task, Variant,
 )
 
 WARM, CHEAP, PLAIN = "fiction/warm", "fiction/cheap", "fiction/plain"
@@ -186,6 +188,65 @@ def test_a_cold_route_keeps_its_measured_cache_writes():
         30_000, OUT, cached_input_tokens=0, cache_write_tokens=4_000)
 
 
+def test_a_cold_route_with_writes_and_no_write_price_names_that_price_alone():
+    # review iter-555 nit 2: the writes stay, so their unknown price stays named; the reads' goes
+    registry = Registry([REGISTRY.get(WARM), Model(PLAIN, "fam-c", 1.0, 5.0, 200_000)])
+    stats = _stats(30_000, models=(WARM,))
+    stats.add("t", PLAIN, 95, TRIALS, input_tokens=30_000 * TRIALS, output_tokens=OUT * TRIALS,
+              cached_input_tokens=20_000 * TRIALS, cache_write_tokens=4_000 * TRIALS)
+    blind = _by_id(_router(stats, registry).select("t"))
+    assert blind[PLAIN].cache_price_unknown == ("price_cached_in", "price_cache_write")
+    session = _by_id(_router(stats, registry).select("t", session_route=WARM,
+                                                       session_warm=True))
+    assert session[PLAIN].cache_price_unknown == ("price_cache_write",)
+    uncached, read, write, _ = session[PLAIN].cost_breakdown
+    assert read == 0.0
+    assert write == pytest.approx(4_000 * 1.0 / 1_000_000)  # an unknown write price reads as input
+    assert uncached == pytest.approx(26_000 * 1.0 / 1_000_000)
+    assert session[PLAIN].list_cost == registry.get(PLAIN).cost(
+        30_000, OUT, cached_input_tokens=0, cache_write_tokens=4_000)
+
+
+def test_a_sliced_call_prices_the_switch_on_its_slice_key():
+    # review iter-555 should-fix 2: the cold price reads `t@s`, never the base task's counts
+    stats = _stats(2_000)
+    for model_id in (WARM, CHEAP):
+        stats.add("t@s", model_id, 95, TRIALS, input_tokens=50_000 * TRIALS,
+                  output_tokens=OUT * TRIALS, cached_input_tokens=(50_000 - NEW) * TRIALS)
+    decision = _router(stats).select("t", slice="s", session_route=WARM, session_warm=True)
+    assert decision.slice == "s"
+    by_id = _by_id(decision)
+    assert by_id[CHEAP].list_cost == pytest.approx(_cost(C_IN, C_CACHED, C_OUT, 50_000, 0))
+    assert by_id[CHEAP].cost_breakdown[1] == 0.0
+    assert by_id[WARM].list_cost == pytest.approx(_cost(W_IN, W_CACHED, W_OUT, 50_000, 49_000))
+    assert (decision.primary, decision.pick_reason) == (WARM, "stay_warm")
+    # on the base key's 2,000-token context the switch would win
+    base = _router(stats).select("t", session_route=WARM, session_warm=True)
+    assert (base.primary, base.pick_reason) == (CHEAP, None)
+
+
+def test_a_batch_variant_prices_its_cold_route_per_item():
+    # review iter-555 should-fix 2: the cold list_cost and each part over items_per_call (v1.573)
+    batch = f"{CHEAP}@batch"
+    registry = Registry([REGISTRY.get(WARM),
+                         Model(batch, "fam-b", C_IN, C_OUT, 200_000, price_cached_in=C_CACHED,
+                               variant=Variant("batch", items_per_call=4))])
+    stats = _stats(50_000, models=(WARM, batch))
+    session = _by_id(_router(stats, registry).select("t", session_route=WARM,
+                                                       session_warm=True))
+    cold = session[batch]
+    assert cold.list_cost == pytest.approx(_cost(C_IN, C_CACHED, C_OUT, 50_000, 0) / 4,
+                                           rel=1e-12)
+    assert cold.list_cost == registry.get(batch).cost(
+        50_000, OUT, cached_input_tokens=0, cache_write_tokens=0) / 4
+    assert cold.cost_breakdown == pytest.approx((50_000 * C_IN / 1_000_000 / 4, 0.0, 0.0,
+                                                 OUT * C_OUT / 1_000_000 / 4), rel=1e-12)
+    assert math.fsum(cold.cost_breakdown) == pytest.approx(cold.list_cost, rel=1e-12)
+    blind = _by_id(_router(stats, registry).select("t"))[batch]
+    assert blind.list_cost == pytest.approx(_cost(C_IN, C_CACHED, C_OUT, 50_000, 49_000) / 4,
+                                            rel=1e-12)
+
+
 def test_cost_blind_never_stays_warm_and_still_prices_the_switch():
     decision = _router(_stats(50_000)).select("t", "cost_blind", session_route=WARM,
                                                 session_warm=True)
@@ -221,6 +282,19 @@ def test_a_pinned_call_holds_the_candidates_priced_for_the_session():
     assert decision.session_pricing == "warm"
     assert decision.pick_reason is None
     assert _by_id(decision)[CHEAP].cost_breakdown[1] == 0.0
+
+
+def test_a_pin_on_the_session_route_gets_no_stay_warm():
+    # review iter-555 should-fix 1 (v1.696): a pin is the caller's choice, not a ranking
+    stats = _stats(50_000)
+    ranked = _router(stats).select("t", session_route=WARM, session_warm=True)
+    assert (ranked.primary, ranked.pick_reason) == (WARM, "stay_warm")
+    pinned = _router(stats).select("t", pin_route=WARM, session_route=WARM, session_warm=True)
+    assert (pinned.basis, pinned.primary) == ("pinned", WARM)
+    assert pinned.pick_reason is None
+    assert pinned.session_pricing == "warm"
+    assert _by_id(pinned) == _by_id(ranked)
+    assert "pick_reason" not in pinned.to_dict()
 
 
 def test_a_refusal_holds_the_candidates_priced_for_the_session():

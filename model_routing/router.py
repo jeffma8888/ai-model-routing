@@ -288,9 +288,9 @@ class RouteDecision:
         ``pricing_basis`` only when it is ``"self_hosted"`` (v1.584), its ``cost_breakdown``
         only with measured cache counts and its ``cache_price_unknown`` only when that list is
         not empty (v1.588); ``max_p95_ms`` and each candidate's ``p95_latency_ms`` only when the
-        task sets a latency bar (v1.628). Under the policy ``"none"`` a ``pick_reason`` that is not
-        None, ``"stay_warm"``, follows ``basis``, and ``session_pricing`` comes right before
-        ``candidates`` only when it is not None (v1.695).
+        task sets a latency bar (v1.628). Under the policy ``"none"`` any ``pick_reason`` that is
+        not None, such as ``"stay_warm"``, follows ``basis``, and ``session_pricing`` comes right
+        before ``candidates`` only when it is not None (v1.695).
         """
         data = {"task": self.task}
         if self.slice is not None:

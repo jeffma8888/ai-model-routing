@@ -272,9 +272,11 @@ def test_the_cache_lessons_plan_no_change():
     assert ("and from v1.692 a `Monitor` given the tasks flags a task and model whose hit rate over its latest "
             "calls falls under a floor the task sets, `min_cache_hit_rate`.") in prefix
     assert ("Since a cache holds the prefix one model was sent, from v1.695 `select(..., session_route=..., "
-            "session_warm=...)` prices a call moved to another model mid-session at that model's uncached input "
-            "price, and keeps a pricier model, with `pick_reason` `stay_warm`, when the switch would cost "
-            "more.") in prefix
+            "session_warm=...)` prices the cached reads of a call moved to another model mid-session at that "
+            "model's input price, and keeps a pricier model, with `pick_reason` `stay_warm`, when the switch "
+            "would cost more.") in prefix
+    # review iter-555 nit 1 (v1.696, row T34): a cold route keeps its measured writes, so only the reads move
+    assert "uncached input price" not in prefix
     changes = {h: line.split("The change: ", 1)[1] for h, line in lines.items() if "The change" in line}
     # v1.596 (row B1b): the budget that refuses or moves a call is shipped; v1.692 (row CACHE2a): so is the
     # check; v1.693 (row CACHE2b): so is its count in `report`, so no cache lesson names a change left
