@@ -1482,12 +1482,14 @@ def test_13_19_holds_the_four_13_2_items_of_v1_705_word_for_word_and_13_2_none()
     for stale in COST_NOTES_V1_705_STALE:
         assert not [name for name, content in texts.items() if re.search(stale, content)], stale
     # 13.2 was at least 1,500 bytes under its cap, with no class, cap or total raised for it; v1.706 (row CACHE4a)
-    # spends the room, as v1.684 did DOC51's, so 13.2 is that far under without its v1.706 bullet and under its
-    # cap with it.
+    # and v1.707 (row CACHE4b) spend the room, as v1.684 did DOC51's, so 13.2 is that far under without their two
+    # bullets and under its cap with them.
     sizes = dict(measure(text)[1])
     assert CLASS["13.19"] == CLASS["13.2"] == "contract" and CAPS["contract"] == 16_000
     assert sizes["13.2"] <= CAPS["contract"] and sizes["13.19"] <= CAPS["contract"]
-    spent = [line for line in text.splitlines() if line.startswith("- v1.706 the parent's measured cache counts (row CACHE4a)")]
-    assert len(spent) == 1
-    assert dict(measure(text.replace(spent[0] + "\n", "", 1))[1])["13.2"] <= CAPS["contract"] - 1_500
+    spent = [line for line in text.splitlines() if line.startswith(("- v1.706 the parent's measured cache counts (row CACHE4a)",
+                                                                     "- v1.707 the delegate's measured cache counts (row CACHE4b, 13.3 v1.707)"))]
+    assert len(spent) == 2
+    unspent = text.replace(spent[0] + "\n", "", 1).replace(spent[1] + "\n", "", 1)
+    assert dict(measure(unspent)[1])["13.2"] <= CAPS["contract"] - 1_500
     assert SECTION_CAPS["13"] == 300_000 and len(CLASS) == 51
