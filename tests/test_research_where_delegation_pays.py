@@ -34,9 +34,9 @@ FILES = ["evidence/delegation/results.json", "evidence/tau2-bench-delegation/res
 BANK_RESULTS = ROOT / "evidence" / "response-bank-delegation" / "RESULTS.md"
 BANK_SCRIPT = ROOT / "evidence" / "response-bank-delegation" / "results.py"
 BANK_REGISTRY = ROOT / "evidence" / "response-bank-delegation" / "registry.json"
-# DESIGN section numbers and the two delegate_rate values of the rule: the only numbers of the
-# note's prose that are not in the script's output
-ALLOWED = {"13.2", "13.4", "13.5", "13.8", "13.9", "13.10", "1.0", "0.0"}
+# DESIGN section numbers (13.19, for the condition, from v1.705, row DOC52) and the two delegate_rate
+# values of the rule: the only numbers of the note's prose that are not in the script's output
+ALLOWED = {"13.2", "13.4", "13.5", "13.8", "13.9", "13.10", "13.19", "1.0", "0.0"}
 NUMBER = re.compile(r"(?<![\w.])\d+(?:,\d{3})*(?:\.\d+)?%?")
 
 
