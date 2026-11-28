@@ -405,7 +405,8 @@ def test_a_pinned_call_of_a_session_gets_no_stay_warm_and_its_model_is_the_next_
 
 
 def test_the_executor_drops_no_entry_itself():
-    # should-fix 4: no expiry once the gap passes the life and no cap; only .end_session drops an entry
+    # should-fix 4: no expiry once the gap passes the life and, built without max_sessions (v1.704), no cap; only
+    # .end_session drops an entry (tests/test_session_table.py keeps 1,100 sessions, past a cap of 1,024)
     run = Run()
     for session in ("a", "b", "c"):
         run.warm_up(session)

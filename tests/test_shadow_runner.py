@@ -97,8 +97,9 @@ def attempts(records):
 
 def test_shadow_runner_is_the_last_parameter_and_defaults_to_none():
     params = list(inspect.signature(Executor).parameters.values())
-    assert [p.name for p in params[-3:]] == ["ledger", "random", "shadow_runner"]
-    assert params[-1].default is None
+    # 7 v1.704: then the keyword-only max_sessions, so shadow_runner is the last positional one
+    assert [p.name for p in params[-4:-1]] == ["ledger", "random", "shadow_runner"]
+    assert params[-2].default is None and params[-1].name == "max_sessions"
 
 
 @pytest.mark.parametrize("value", [0.5, "submit", object(), [print]])

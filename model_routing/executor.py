@@ -113,7 +113,10 @@ class Executor:
     a ``concurrent.futures.ThreadPoolExecutor``'s ``submit``, lets ``.call`` return without waiting
     for the shadow's provider call or its errors, while one that runs it at once, and None, make
     ``.call`` wait for the shadow on the caller's thread (DESIGN 7 v1.617, review iter-468
-    should-fix 1).
+    should-fix 1). ``max_sessions``, keyword-only, None for no cap or an ``int`` >= 1, bounds the
+    sessions whose last attempt the executor keeps: when storing a new session's attempt would pass
+    it, the entry stored least recently is dropped, so that session's next call routes as a first
+    call does (DESIGN 7 v1.704).
 
     One executor, with its router, a :class:`Monitor` and a :class:`BudgetLedger`, may serve many
     threads at once: a call keeps its state in its own locals and sets no attribute of the executor
@@ -129,7 +132,8 @@ class Executor:
                  id_factory: Optional[Callable[[], str]] = None,
                  ledger: Optional[BudgetLedger] = None,
                  random: Optional[Callable[[], float]] = None,
-                 shadow_runner: Optional[Callable[[Callable[[], None]], object]] = None):
+                 shadow_runner: Optional[Callable[[Callable[[], None]], object]] = None, *,
+                 max_sessions: Optional[int] = None):
         if ledger is not None and not isinstance(ledger, BudgetLedger):
             raise ValueError(f"ledger must be None or a BudgetLedger, got {type(ledger).__name__}")
         if random is not None and not callable(random):
@@ -137,6 +141,9 @@ class Executor:
         if shadow_runner is not None and not callable(shadow_runner):  # DESIGN 7 v1.617
             raise ValueError(f"shadow_runner must be None or a callable, "
                              f"got {type(shadow_runner).__name__}")
+        if max_sessions is not None and (isinstance(max_sessions, bool) or not isinstance(max_sessions, int)
+                                         or max_sessions < 1):  # DESIGN 7 v1.704
+            raise ValueError(f"max_sessions must be None or an int >= 1, got {max_sessions!r}")
         self.router = router
         self.provider = provider
         self.monitor = monitor
@@ -149,6 +156,7 @@ class Executor:
         # DESIGN 7 v1.697: each session's last attempt, (model, clock read, read or wrote the cache, v1.699)
         self._sessions: Dict[str, Tuple[str, float, bool]] = {}
         self._session_lock = threading.Lock()
+        self._max_sessions = max_sessions  # DESIGN 7 v1.704: None, no cap; checked above
         # DESIGN 7 v1.597: a strict budget reads each call's billing bound
         self._strict = ledger is not None and any(budget.strict for budget in ledger.budgets)
 
@@ -276,12 +284,18 @@ class Executor:
     def _keep(self, session_id: str, attempt: Attempt) -> None:
         """A session's last attempt is this one, timed by one clock read (DESIGN 7 v1.697).
 
-        It warms its route when it reported cached reads or, from v1.699, cache writes above 0.
+        It warms its route when it reported cached reads or, from v1.699, cache writes above 0. From
+        v1.704 the stored entry is the newest, and with ``max_sessions`` a new session's entry past the
+        bound drops the one stored least recently first, under the same lock.
         """
         touched = any(count is not None and count > 0
                       for count in (attempt.cached_input_tokens, attempt.cache_write_tokens))
         at = self.clock()
         with self._session_lock:
+            # DESIGN 7 v1.704: a stored entry is the newest; a new one past the bound drops the oldest stored
+            known = self._sessions.pop(session_id, None) is not None
+            if not known and self._max_sessions is not None and len(self._sessions) >= self._max_sessions:
+                del self._sessions[next(iter(self._sessions))]
             self._sessions[session_id] = (attempt.model, at, touched)
 
     def call_pair(self, task_name: str, roots: Sequence[str], leaves: Sequence[str],

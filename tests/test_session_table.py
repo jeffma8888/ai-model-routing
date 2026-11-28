@@ -85,7 +85,7 @@ def test_max_sessions_1_keeps_only_the_last_session_stored():
     run.warm_up("a")
     run.clock.t = 1.0
     assert _again(run, "a") == WARM_KEYS
-    assert _again(run, "a") == {"session_route": CHEAP, "session_warm": True}
+    assert _again(run, "a") == WARM_KEYS  # a session's own attempts drop none
     run.warm_up("b")
     assert _again(run, "a") == {}  # dropped by b, and a is stored again, dropping b
     assert _again(run, "b") == {}
