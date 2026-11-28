@@ -13,10 +13,14 @@ DESIGN 5.2 v1.701 (row T37, review iter-561): `stay_warm` needs the route first 
 session to be a switch, so of two routed cascades on the warm cheap model neither stays warm over
 the other; the `session_route` refusal is checked after the v1.577 ID checks and before the
 generator lookup; and DESIGN and `select` say which model a caller names after a cascade.
+
+DESIGN 5.2 v1.702 (row T38, review iter-562): after a procedure `session_warm` still follows
+v1.695; the measured-procedure limit spares the warm route and a cascade leg on it; the v1.701
+rule also changes a `retry_same` decision where a cascade on the warm model was first per
+success; and the v1.577 registry-ID checks come before the `session_route` refusal.
 """
 
 import inspect
-
 import json
 from pathlib import Path
 
@@ -181,8 +185,8 @@ def test_a_cold_strong_leg_keeps_its_cache_writes_fitted_inside_the_hand_up_read
 
 
 def test_a_sliced_call_prices_its_cascade_on_the_slice_key_under_a_session():
-    # the base key has no cache counts, 0.0198 under any session; the slice key holds the
-    # v1.700 example, so the slice's cascade is priced as the parametrized case above
+    # the base key has no cache counts, so its cascade costs 0.0198 with or without a session;
+    # the slice key holds the v1.700 example, so the slice's cascade is priced as above
     stats = _stats(cheap=None, strong=None)
     for model_id in (CHEAP, STRONG):
         stats.add("t@s", model_id, 95, 100, input_tokens=1_000_000, output_tokens=50_000,
@@ -363,6 +367,16 @@ def test_two_procedures_with_one_id_are_refused_before_the_session_route():
         _select(_stats(), procedures=[ON_CHEAP, ON_CHEAP], session_route=ON_CHEAP.id)
 
 
+@pytest.mark.parametrize("kind", ["cascade", "procedure"])
+def test_the_registry_id_checks_come_before_the_session_route_refusal(kind):
+    # review iter-562 nit 4: a registry model with a routed cascade's or a procedure's id is the
+    # v1.577 error, checked before the session_route refusal (5.2 v1.700)
+    route = CID if kind == "cascade" else ON_CHEAP.id
+    registry = Registry(list(REGISTRY.models) + [Model(route, "fam-d", 1.0, 4.0, 200_000)])
+    with pytest.raises(ValueError, match=f"registry model .* has the id of a {kind}"):
+        _select(_stats(), registry, cascades=True, procedures=[ON_CHEAP], session_route=route)
+
+
 def test_select_and_design_say_what_a_session_names_after_a_cascade():
     doc = " ".join(inspect.getdoc(Router.select).split())
     assert ("after a cascade, the next call's ``session_route`` is the model of its leg that "
@@ -372,6 +386,52 @@ def test_select_and_design_say_what_a_session_names_after_a_cascade():
             "that answered last, its `strong` after a hand-up, else its `cheap`") in design
     assert ("after a hand-up both legs' caches are warm, but one `session_route` names one model, "
             "so the other leg is priced cold") in design
+    # review iter-562 should-fix 3 and 1, nits 1 and 6 (5.2 v1.702)
+    for sentence in (
+            "`stay_warm` needs the route 5.3 puts first on the same candidates at their v1.591 prices "
+            "to be a switch, neither `session_route` nor a routed cascade whose `cheap` is "
+            "`session_route`",
+            "a measured procedure keeps its mean cost per trial while every route with measured cache "
+            "counts except the warm route and a cascade leg on it is priced cold",
+            "From v1.700 a cascade whose `cheap` is `session_route` can stay warm too, and from v1.701 "
+            "the route first at those prices must be a switch (the two bullets on cascades below)",
+            "after a procedure its `model` when it called one, else the session's route before it; "
+            "`session_warm` still follows v1.695, True only when that call's own reply showed a cache "
+            "read or write, so after a procedure that called no model it is False",
+            "The executor never reaches the procedure case, since 7 v1.697 refuses a `session_id` with "
+            "`procedures`, so it is for a direct `select` caller",
+            "the rule changes a decision only for two or more routed cascades on the warm model; under "
+            "`retry_same` (5.3 v1.567) it also changes one where the warm model is first with the "
+            "session and a cascade on it was first per success without it"):
+        assert sentence in design, sentence
+    for sentence in (
+            "and from v1.701 only when the route first without the session is a switch, that is "
+            "neither the warm route nor such a cascade",
+            "and after a procedure its ``model`` when it called one, else the route before it, with "
+            "``session_warm`` True only when that call's own reply showed a cache read or write, so "
+            "False after a procedure that called no model (5.2 v1.702)"):
+        assert sentence in doc, sentence
+
+
+def test_under_retry_same_a_cascade_on_the_warm_model_is_no_switch_either():
+    # 5.2 v1.702 (review iter-562 nit 6): per success (5.3 v1.567) the cascade at 99 of 100
+    # (bound 0.945514) beats cheap at 60 of 100 (0.502003) at v1.591 prices, 0.00684 / 0.945514
+    # against 0.0039 / 0.502003; with its strong leg cold, 0.0117 / 0.945514, cheap is first, and
+    # neither is a switch, so no stay_warm (v1.700's rule gave it)
+    stats = Stats()
+    for model_id, successes in ((CHEAP, 60), (STRONG, 95)):
+        stats.add("t", model_id, successes, 100, input_tokens=1_000_000, output_tokens=50_000,
+                  **CACHED)
+    stats.add("t", CID, 99, 100, escalated=20)
+    task = _task(bar=0.5, failure_policy="retry_same")
+    blind = _select(stats, task=task, cascades=True)
+    warm = _select(stats, task=task, cascades=True, session_route=CHEAP, session_warm=True)
+    assert (blind.primary, blind.pick_reason) == (CID, "cheaper_per_success")
+    assert (warm.primary, warm.pick_reason) == (CHEAP, None)
+    by_id = _by_id(warm)
+    assert by_id[CID].list_cost == pytest.approx(0.0117, abs=1e-12)
+    assert by_id[CHEAP].quality_lb == pytest.approx(0.502003, abs=1e-6)
+    assert by_id[CID].quality_lb == pytest.approx(0.945514, abs=1e-6)
 
 
 def test_a_cascades_id_is_a_plain_switch_when_the_cascade_is_not_routed():
