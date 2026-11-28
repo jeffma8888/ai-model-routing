@@ -48,8 +48,8 @@ READS_90 = {"cached_input_tokens": 9_000 * N, "cached_trials": N}
 WRITES_90 = {"cache_write_tokens": 9_000 * N, "cache_write_trials": N}
 
 
-def _decide(stats, parent=PARENT, **kw):
-    router = Router(REGISTRY, {"t": TASK, "u": OTHER}, stats)
+def _decide(stats, parent=PARENT, task=TASK, **kw):
+    router = Router(REGISTRY, {"t": task, "u": OTHER}, stats)
     kw.setdefault("exclude_models", (parent,))  # the delegate is DELEG, never the parent's own model
     return router.decide_delegation("t", parent, context_tokens=C, brief_tokens=B, result_tokens=R, **kw)
 
@@ -88,6 +88,23 @@ def test_k_3_holds_the_counts_in_each_of_the_three_work_calls(separate):
     rereads = (1 if separate else 0) * _cost(3 * (10_000 + 500), 0)
     assert d.inline_cost_usd == pytest.approx(work + rereads, rel=1e-12)
     assert d.inline_cache_counts == (9_000, 0)
+
+
+def test_sigma_below_1_keeps_the_counts_and_scales_only_the_output_rereads():
+    # review iter-567 nit 1: K = 3 separate at sigma 0.5, X = 3 C + 6 S_in + 3 * 0.5 * S_out
+    d = _decide(_stats(READS_90), work_calls=3, output_reread_share=0.5)
+    work = _cost(3 * C + 6 * 10_000 + 3 * 0.5 * 500, 3 * 500, cached=3 * 9_000)
+    assert d.inline_cost_usd == pytest.approx(work + _cost(3 * (10_000 + 0.5 * 500), 0), rel=1e-12)
+    assert d.inline_cache_counts == (9_000, 0)
+
+
+def test_the_depth_cap_decision_states_the_counts_too():
+    # review iter-567 nit 2: the 13.5 v1.691 return builds its decision with the same helper
+    capped = dataclasses.replace(TASK, max_delegation_depth=1)
+    d = _decide(_stats(READS_90), task=capped, depth=1)
+    assert (d.mode, d.reason, d.depth) == ("inline", "depth_cap", 1)
+    assert d.inline_cache_counts == (9_000, 0)
+    assert d.to_dict()["inline_cache_counts"] == [9_000, 0]
 
 
 def test_folded_one_call_holds_the_counts_in_the_next_call():
