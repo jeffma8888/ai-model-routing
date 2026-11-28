@@ -69,17 +69,19 @@ def test_a_context_policy_is_a_mapping_of_scalars(policy):
 
 def test_model_variant_is_the_last_field_and_names_the_route():
     # the last field until v1.581 adds `pricing_basis` after it, v1.582 `deployment` and `base_model`
-    # and v1.586 `scope_tasks`, v1.587 the two cache prices and v1.622 `regions` and `zero_data_retention` (DESIGN 4.1)
-    assert [f.name for f in dataclasses.fields(Model)][-10:] == [
+    # and v1.586 `scope_tasks`, v1.587 the two cache prices, v1.622 `regions` and `zero_data_retention` and v1.697
+    # `cache_ttl_s` (DESIGN 4.1)
+    assert [f.name for f in dataclasses.fields(Model)][-11:] == [
         "price_tiers", "variant", "pricing_basis", "deployment", "base_model", "scope_tasks", "price_cached_in", "price_cache_write",
-        "regions", "zero_data_retention"]
+        "regions", "zero_data_retention", "cache_ttl_s"]
     lean = Model("v/m@lean", "v", 1.0, 2.0, 8000, variant=Variant("lean", harness="agent 2"))
     assert (lean.id, lean.base_id) == ("v/m@lean", "v/m")
     plain = Model("v/m", "v", 1.0, 2.0, 8000)
     assert (plain.variant, plain.base_id) == (None, "v/m")
-    assert list(dataclasses.asdict(plain))[-9:] == ["variant", "pricing_basis", "deployment", "base_model",
-                                                    "scope_tasks", "price_cached_in", "price_cache_write",
-                                                    "regions", "zero_data_retention"]  # v1.581, v1.582, v1.586, v1.587, v1.622
+    assert list(dataclasses.asdict(plain))[-10:] == ["variant", "pricing_basis", "deployment", "base_model",
+                                                     "scope_tasks", "price_cached_in", "price_cache_write",
+                                                     "regions", "zero_data_retention",
+                                                     "cache_ttl_s"]  # v1.581, v1.582, v1.586, v1.587, v1.622, v1.697
     assert dataclasses.asdict(plain)["variant"] is None
     assert dataclasses.asdict(lean)["variant"] == {
         "name": "lean", "reasoning_effort": None, "harness": "agent 2", "context_policy": {},

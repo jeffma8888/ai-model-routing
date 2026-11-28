@@ -64,10 +64,10 @@ def test_out_of_scope_is_exported_after_procedure_unknown_model():
 
 def test_scope_tasks_is_the_last_field_and_defaults_to_every_task():
     # the last field until v1.587 adds the two cache prices after it, and v1.622 `regions` and
-    # `zero_data_retention` (DESIGN 4.1)
-    assert [f.name for f in dataclasses.fields(Model)][-8:] == ["pricing_basis", "deployment", "base_model",
+    # `zero_data_retention`, and v1.697 `cache_ttl_s` (DESIGN 4.1)
+    assert [f.name for f in dataclasses.fields(Model)][-9:] == ["pricing_basis", "deployment", "base_model",
                                                                 "scope_tasks", "price_cached_in", "price_cache_write",
-                                                                "regions", "zero_data_retention"]
+                                                                "regions", "zero_data_retention", "cache_ttl_s"]
     plain = strong()
     assert plain.scope_tasks == ()
     assert list(dataclasses.asdict(plain))[-5] == "scope_tasks"

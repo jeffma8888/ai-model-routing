@@ -203,6 +203,12 @@ def scenarios(tmp):
     r = run(router(extra_stats=[(("x/big+x/small", 100, 100), {})]))
     r.ex.call_pair("t", ["x/big"], ["x/small"], MESSAGES, lambda root, leaf, messages: {"text": "ok", **sides})
     out["pair"] = r.records
+
+    # v1.697 (row CACHE3b): a session's attempt records, `session_id` right after slice
+    r = run(router(), {"x/small": outage, "x/mid": ok, "x/big": ok})
+    r.ex.call("t", MESSAGES, session_id="conversation-1")
+    r.ex.call("t", MESSAGES, session_id="conversation-1")
+    out["session"] = r.records
     return out
 
 
@@ -227,7 +233,7 @@ def test_each_scenario_writes_records(logs):
 @pytest.mark.parametrize("name", [
     "plain", "fallback", "below-bar fallback", "cascade", "procedure", "procedure that raised", "pinned",
     "named policy", "shadowed", "warn budget", "refused budget", "downgrade budget", "shadow's refused budget",
-    "delegated", "self-hosted", "cached", "retry_same", "pair"])
+    "delegated", "self-hosted", "cached", "retry_same", "pair", "session"])
 def test_every_record_of_the_scenario_holds_listed_keys_in_order_with_listed_types(logs, name):
     for record in logs[name]:
         assert problems(record) == [], (name, record)
@@ -253,6 +259,7 @@ def test_the_scenarios_carry_the_keys_they_exist_for(logs):
     assert (logs["cached"][0]["cached_input_tokens"], logs["cached"][0]["cache_write_tokens"]) == (800, 100)
     assert "expected_cost_per_success_usd" in keys("retry_same")
     assert {"root_input_tokens", "root_output_tokens", "leaf_input_tokens", "leaf_output_tokens"} <= keys("pair")
+    assert [r["session_id"] for r in logs["session"]] == ["conversation-1"] * 4
 
 
 def test_the_scenarios_together_carry_every_key_of_both_lists(logs):

@@ -124,11 +124,12 @@ def test_a_model_is_list_priced_by_default_and_the_field_follows_variant():
     model = Model("v/m", "v", 1.0, 2.0, 100_000)
     assert model.pricing_basis == "list"
     # the last field until v1.582 adds `deployment` and `base_model` after it, v1.586
-    # `scope_tasks`, v1.587 the two cache prices and v1.622 `regions` and `zero_data_retention` (DESIGN 4.1)
-    assert [f.name for f in dataclasses.fields(Model)][-9:] == ["variant", "pricing_basis", "deployment",
-                                                                "base_model", "scope_tasks", "price_cached_in", "price_cache_write",
-                                                                "regions", "zero_data_retention"]
-    assert list(dataclasses.asdict(model))[-8] == "pricing_basis"
+    # `scope_tasks`, v1.587 the two cache prices, v1.622 `regions` and `zero_data_retention` and v1.697
+    # `cache_ttl_s` (DESIGN 4.1)
+    assert [f.name for f in dataclasses.fields(Model)][-10:] == ["variant", "pricing_basis", "deployment",
+                                                                 "base_model", "scope_tasks", "price_cached_in", "price_cache_write",
+                                                                 "regions", "zero_data_retention", "cache_ttl_s"]
+    assert list(dataclasses.asdict(model))[-9] == "pricing_basis"
     assert dataclasses.asdict(model)["pricing_basis"] == "list"
 
 
