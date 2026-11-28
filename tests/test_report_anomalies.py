@@ -346,4 +346,5 @@ def test_design_states_v1_693_in_8_3_and_10_and_the_changelog_the_version():
     # v1.693 or a later version tops the Status line (it pinned v1.693 until v1.694, row CACHE2c, came next)
     status = design.splitlines()[2]
     assert re.match(r"Status: v1\.(\d+), ", status) and int(re.match(r"Status: v1\.(\d+), ", status)[1]) >= 693
-    assert status.count("; v1.693, spec, code and tests: `report(..., anomalies=True)` ") == 1
+    # review iter-554 should-fix 1: no pin on v1.693's clause, which leaves the Status line once four later
+    # versions top it; tests/test_design_status.py pins the five versions the parenthesis names
