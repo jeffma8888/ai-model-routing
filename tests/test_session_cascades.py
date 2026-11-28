@@ -8,9 +8,17 @@ session route. A cascade whose cheap leg is the warm route stays warm for `stay_
 strong leg alone is warm is a switch, and a procedure never gets it. A measured procedure keeps
 its mean cost per trial. Without a `session_route` every decision with cascades and procedures
 keeps its bytes: `V1_699_DIGEST` was computed on the package at 3682050, before v1.700.
+
+DESIGN 5.2 v1.701 (row T37, review iter-561): `stay_warm` needs the route first without the
+session to be a switch, so of two routed cascades on the warm cheap model neither stays warm over
+the other; the `session_route` refusal is checked after the v1.577 ID checks and before the
+generator lookup; and DESIGN and `select` say which model a caller names after a cascade.
 """
 
+import inspect
+
 import json
+from pathlib import Path
 
 import pytest
 
@@ -29,6 +37,8 @@ WITH_OTHER = Registry(list(REGISTRY.models)
                       + [Model(OTHER, "fam-c", 1.5, 2.0, 200_000, price_cached_in=0.15)])
 CASCADE = Cascade(CHEAP, STRONG, "sig")
 CID = CASCADE.id
+TO_OTHER = Cascade(CHEAP, OTHER, "sig")  # a second cascade on the cheap model (5.2 v1.701)
+DESIGN = Path(__file__).resolve().parents[1] / "DESIGN.md"
 CACHED = {"cached_input_tokens": 900_000}  # 9,000 of each call's 10,000 input tokens
 
 
@@ -153,6 +163,40 @@ def test_a_leg_without_measured_cache_counts_keeps_its_price():
     assert plain.cost_breakdown is None and cold.cost_breakdown is None
 
 
+WRITES = {"cached_input_tokens": 800_000, "cache_write_tokens": 100_000}  # 8,000 read, 1,000 written
+
+
+def test_a_cold_strong_leg_keeps_its_cache_writes_fitted_inside_the_hand_up_read():
+    # strong's 8,000 cached and 1,000 written fit inside the 10,500 read; cold, it pays 9,500 at
+    # 3.0, the write at 3.75 and 500 out at 15.0: 0.03975; cheap has no counts, 0.012 either way
+    stats = _stats(cheap=None, strong=WRITES)
+    warm = _by_id(_select(stats, cascades=True))[CID]
+    cold = _by_id(_select(stats, cascades=True, session_route=CHEAP, session_warm=True))[CID]
+    # v1.591: 0.012 + 0.2 * (1,500 * 3.0 + 8,000 * 0.3 + 1,000 * 3.75 + 7,500) / 1e6
+    assert warm.list_cost == pytest.approx(0.012 + 0.2 * 0.01815, abs=1e-12)
+    assert cold.list_cost == pytest.approx(0.012 + 0.2 * 0.03975, abs=1e-12)
+    assert cold.cost_breakdown == pytest.approx(
+        (0.010 + 0.2 * 0.0285, 0.0, 0.2 * 0.00375, 0.002 + 0.2 * 0.0075), abs=1e-15)
+    assert cold.cache_price_unknown == ()
+
+
+def test_a_sliced_call_prices_its_cascade_on_the_slice_key_under_a_session():
+    # the base key has no cache counts, 0.0198 under any session; the slice key holds the
+    # v1.700 example, so the slice's cascade is priced as the parametrized case above
+    stats = _stats(cheap=None, strong=None)
+    for model_id in (CHEAP, STRONG):
+        stats.add("t@s", model_id, 95, 100, input_tokens=1_000_000, output_tokens=50_000,
+                  **CACHED)
+    stats.add("t@s", CID, 90, 100, escalated=20)
+    task = _task(slices={"s": {"bar": 0.7}})
+    for session, expected in (({}, 0.00684), ({"session_route": CHEAP, "session_warm": True}, 0.0117),
+                              ({"session_route": CHEAP}, 0.0198)):
+        sliced = _by_id(_select(stats, task=task, cascades=True, slice="s", **session))[CID]
+        base = _by_id(_select(stats, task=task, cascades=True, **session))[CID]
+        assert sliced.list_cost == pytest.approx(expected, abs=1e-12), session
+        assert base.list_cost == pytest.approx(0.0198, abs=1e-12), session
+
+
 # --- a procedure's model ------------------------------------------------------------------------
 
 @pytest.mark.parametrize("session, expected", [
@@ -169,6 +213,16 @@ def test_an_unmeasured_procedures_call_is_priced_cold_unless_its_model_is_warm(s
 def test_a_cold_procedure_call_has_the_cold_breakdown():
     candidate = _by_id(_select(_stats(), procedures=[ON_CHEAP], session_route=STRONG))[ON_CHEAP.id]
     assert candidate.cost_breakdown == pytest.approx((0.01, 0.0, 0.0, 0.002), abs=1e-15)
+
+
+def test_a_cold_procedure_call_keeps_its_cache_writes():
+    # cheap's 8,000 cached and 1,000 written inside the task's 10,000 in; cold, 9,000 at 1.0, the
+    # write at 1.25 and 500 out at 4.0: (9,000 + 1,250 + 2,000) / 1e6
+    candidate = _by_id(_select(_stats(cheap=WRITES), procedures=[ON_CHEAP], session_route=STRONG,
+                               session_warm=True))[ON_CHEAP.id]
+    assert candidate.list_cost == pytest.approx(0.01225, abs=1e-12)
+    assert candidate.cost_breakdown == pytest.approx((0.009, 0.0, 0.00125, 0.002), abs=1e-15)
+    assert candidate.cache_price_unknown == ()
 
 
 @pytest.mark.parametrize("session", [{}, {"session_route": CHEAP},
@@ -208,6 +262,45 @@ def test_a_cascade_whose_strong_leg_alone_is_warm_is_a_switch():
                        session_route=STRONG, session_warm=True)
     assert _select(_stay_stats(strong_successes=60), WITH_OTHER, cascades=True).primary == OTHER
     assert _by_id(decision)[CID].list_cost == pytest.approx(0.01494, abs=1e-12)
+    assert decision.primary == CID and decision.pick_reason is None
+
+
+def test_a_plain_session_route_still_stays_warm_with_cascades_routed():
+    # warm on strong: strong keeps 0.0132, other is cold at 0.016 and the cascade 0.01494, so
+    # strong is first where other was at v1.591 prices, the v1.695 case with a cascade beside it
+    assert _select(_stay_stats(), WITH_OTHER, cascades=True).primary == OTHER
+    decision = _select(_stay_stats(), WITH_OTHER, cascades=True, session_route=STRONG,
+                       session_warm=True)
+    assert _by_id(decision)[STRONG].list_cost == pytest.approx(0.0132, abs=1e-12)
+    assert decision.primary == STRONG and decision.pick_reason == "stay_warm"
+
+
+def _two_cascades():
+    """Cheap and other fail the bar alone; the cascade to strong hands up 10 of 100 trials and the
+    one to other 25, every model at the v1.700 example's 10,000 in, 9,000 cached, and 500 out."""
+    stats = Stats()
+    for model_id, successes in ((CHEAP, 60), (STRONG, 95), (OTHER, 60)):
+        stats.add("t", model_id, successes, 100, input_tokens=1_000_000, output_tokens=50_000,
+                  **CACHED)
+    stats.add("t", CID, 90, 100, escalated=10)
+    stats.add("t", TO_OTHER.id, 90, 100, escalated=25)
+    return stats, _task(cascades=(CASCADE, TO_OTHER))
+
+
+def test_of_two_cascades_on_the_warm_cheap_model_neither_stays_warm_over_the_other():
+    stats, task = _two_cascades()
+    blind = _select(stats, WITH_OTHER, task=task, cascades=True)
+    by_id = _by_id(blind)
+    # other's hand-up read: (1,500 * 1.5 + 9,000 * 0.15 + 500 * 2.0) / 1e6 = 0.0046
+    assert by_id[TO_OTHER.id].list_cost == pytest.approx(0.0039 + 0.25 * 0.0046, abs=1e-12)
+    assert by_id[CID].list_cost == pytest.approx(0.0039 + 0.1 * 0.0147, abs=1e-12)
+    assert blind.primary == TO_OTHER.id
+    decision = _select(stats, WITH_OTHER, task=task, cascades=True, session_route=CHEAP,
+                       session_warm=True)
+    by_id = _by_id(decision)
+    # cold, other reads 10,500 at 1.5 and writes 500 out at 2.0: 0.01675
+    assert by_id[TO_OTHER.id].list_cost == pytest.approx(0.0039 + 0.25 * 0.01675, abs=1e-12)
+    assert by_id[CID].list_cost == pytest.approx(0.0039 + 0.1 * 0.039, abs=1e-12)
     assert decision.primary == CID and decision.pick_reason is None
 
 
@@ -255,6 +348,30 @@ def test_a_session_route_that_is_a_routed_cascades_id_is_refused():
 def test_a_session_route_that_is_a_procedures_id_is_refused():
     with pytest.raises(ValueError, match="session_route .* is the id of a cascade or procedure"):
         _select(_stats(), procedures=[ON_CHEAP], session_route=ON_CHEAP.id)
+
+
+@pytest.mark.parametrize("route", [CID, ON_CHEAP.id])
+def test_the_session_route_refusal_comes_before_the_generator_lookup(route):
+    # an unknown generator is a KeyError, but the refusal is checked first (5.2 v1.700)
+    with pytest.raises(ValueError, match="session_route .* is the id of a cascade or procedure"):
+        _select(_stats(), cascades=True, procedures=[ON_CHEAP], session_route=route,
+                generator_model="fiction/none")
+
+
+def test_two_procedures_with_one_id_are_refused_before_the_session_route():
+    with pytest.raises(ValueError, match="two procedures have the id"):
+        _select(_stats(), procedures=[ON_CHEAP, ON_CHEAP], session_route=ON_CHEAP.id)
+
+
+def test_select_and_design_say_what_a_session_names_after_a_cascade():
+    doc = " ".join(inspect.getdoc(Router.select).split())
+    assert ("after a cascade, the next call's ``session_route`` is the model of its leg that "
+            "answered last, ``strong`` after a hand-up, else ``cheap``") in doc
+    design = DESIGN.read_text(encoding="utf-8")
+    assert ("after a cascade answered the caller's next `session_route` is the model of the leg "
+            "that answered last, its `strong` after a hand-up, else its `cheap`") in design
+    assert ("after a hand-up both legs' caches are warm, but one `session_route` names one model, "
+            "so the other leg is priced cold") in design
 
 
 def test_a_cascades_id_is_a_plain_switch_when_the_cascade_is_not_routed():
