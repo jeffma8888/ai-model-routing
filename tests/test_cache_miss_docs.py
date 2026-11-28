@@ -26,6 +26,7 @@ from model_routing.cli import _build_parser
 ROOT = Path(__file__).resolve().parents[1]
 CACHE_LEAD = "A prompt cache changes what a call costs, so a route is priced at the cache hits it measured. "
 BUDGET_LEAD = "A budget tracks what the executor spends and can warn, refuse or move a call. "
+SESSION_LEAD = "A switch mid-session starts cold: "
 PARAGRAPH = (
     "A `Monitor(path, tasks=..., on_anomaly=...)` writes a `cache_miss` anomaly record and calls `on_anomaly` "
     "when a model's hit rate over its last `cache_miss_calls` counted attempts on a task falls under the task's "
@@ -63,7 +64,10 @@ def test_the_paragraph_follows_the_prompt_cache_one_inside_the_cap():
     # placed by its neighbours (v1.655, row T30); tests/test_readme_trim.py names the section's last paragraph
     assert text.count(PARAGRAPH) == 1 and found.count(PARAGRAPH) == 1
     at = found.index(PARAGRAPH)
-    assert found[at - 1].startswith(CACHE_LEAD) and found[at + 1].startswith(BUDGET_LEAD)
+    # v1.703 (row CACHE3d): the paragraph on a session's switch comes between this one and the first on budgets
+    # (tests/test_session_cli.py)
+    assert found[at - 1].startswith(CACHE_LEAD) and found[at + 1].startswith(SESSION_LEAD)
+    assert found[at + 2].startswith(BUDGET_LEAD)
     assert len(PARAGRAPH.encode("utf-8")) == 295 <= 300
     assert size(text, PRODUCTION) <= PRODUCTION_CAP == 30_000
     assert "\u2014" not in PARAGRAPH and "\u2013" not in PARAGRAPH and "```" not in PARAGRAPH

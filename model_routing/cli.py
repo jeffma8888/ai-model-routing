@@ -73,6 +73,13 @@ def _slice_name(text: str) -> str:
     return text
 
 
+def _session_route(text: str) -> str:
+    """``select --session-route ROUTE`` (DESIGN 10 v1.703): a non-empty route ID, else a usage error."""
+    if not text:
+        raise argparse.ArgumentTypeError(f"must be a non-empty route ID, got {text!r}")
+    return text
+
+
 _WINDOW = re.compile(r"[0-9]+d")
 
 
@@ -118,6 +125,12 @@ def _build_parser() -> argparse.ArgumentParser:
     select.add_argument("--policy", default=None, metavar="FILE",
                         help="a tenant's Policy as a JSON object of allowed_routes, "
                         "allowed_families, region, require_zdr and name")
+    select.add_argument("--session-route", type=_session_route, default=None, metavar="ROUTE",
+                        help="the route a session's previous call ran on; a switch from it is "
+                             "priced with a cold prompt cache")
+    select.add_argument("--session-warm", action="store_true",
+                        help="with --session-route: that route's cache was read or written on the "
+                             "session's latest call inside the cache's life")
     select.add_argument("--registry", default=str(DATA_DIR / "models.json"))
     select.add_argument("--tasks", default=str(DATA_DIR / "example_tasks.json"))
     select.add_argument("--stats", default="stats.json")
@@ -408,6 +421,9 @@ def _cmd_select(args) -> int:
                         "audited calls")
     if args.window is None and (args.log is not None or args.audits is not None):
         raise _BadInput("--log and --audits need --window: select reads them only for a window's stats")
+    if args.session_warm and args.session_route is None:  # DESIGN 10 v1.703: before any file is read
+        raise _BadInput("--session-warm needs --session-route: only the route a session's last call ran on "
+                        "can be warm")
     bounds = None if args.window is None else _window_bounds(args.today, args.window)
     registry = Registry.load(args.registry)
     tasks = load_tasks(args.tasks)
@@ -425,7 +441,9 @@ def _cmd_select(args) -> int:
         decision = router.select(args.task, flavor=args.flavor,
                                  generator_model=args.generator,
                                  exclude_models=tuple(args.exclude),
-                                 prompt_tokens=args.prompt_tokens, slice=args.slice, policy=policy)
+                                 prompt_tokens=args.prompt_tokens, slice=args.slice, policy=policy,
+                                 session_route=args.session_route,
+                                 session_warm=args.session_warm)  # DESIGN 10 v1.703
     except NoModelClearsBar as exc:
         return _no_model(exc, registry, args.today, _eligible(exc.candidates))
     return _print_decision(args, decision, stats, registry, _eligible(decision.candidates))
@@ -464,6 +482,8 @@ def _print_decision(args, decision, stats: Stats, registry: Registry, used) -> i
     print(f"fallbacks: {', '.join(marked) or '(none)'}")
     print(f"basis:     {decision.basis}")
     print(f"below_bar: {str(decision.below_bar).lower()}")
+    if decision.session_pricing is not None:  # DESIGN 10 v1.703: only `select --session-route` sets it
+        print(f"session:   {args.session_route}, {decision.session_pricing}")
     if decision.failure_policy != "none":  # DESIGN 10 v1.567
         value = decision.expected_cost_per_success_usd
         shown = "n/a" if value is None else f"${value:.6f}"
@@ -471,6 +491,8 @@ def _print_decision(args, decision, stats: Stats, registry: Registry, used) -> i
               "(an estimate assuming independent retries)")
         if decision.pick_reason is not None:
             print(f"pick:      {decision.pick_reason}")
+    elif decision.pick_reason is not None:  # DESIGN 10 v1.703: `stay_warm` under the policy none
+        print(f"pick:      {decision.pick_reason}")
     if sources:  # DESIGN 10 v1.663: where the primary's labels came from
         named = ", ".join(f"{source} {count}" for source, count in sources.items())
         print(f"labels:    {named} of {stats.get(key, decision.primary)[1]} trials")

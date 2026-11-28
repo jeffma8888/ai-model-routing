@@ -514,6 +514,7 @@ CONSISTENCY_LEAD = "A judge can also be held to grading alike on reruns. "
 PAIR_LEAD = "A delegating harness's root and sub-agent models can be routed as a pair: "
 FOLLOW_LEAD = "An agent's hand-offs can be checked against the advice: "
 CACHE_MISS_LEAD = "A `Monitor(path, tasks=..., on_anomaly=...)` writes a `cache_miss` anomaly record "
+SESSION_LEAD = "A switch mid-session starts cold: "
 LATER = [
     (SAVINGS_LEAD, 714),  # v1.654, row OPP1c: 712 bytes and the blank line
     (MONITOR_LEAD, 370),  # v1.656, row PROD1b: 368 bytes and the blank line
@@ -526,6 +527,7 @@ LATER = [
     (PAIR_LEAD, 602),  # v1.680, row PROD1j: 587 bytes and the blank line; 600 from v1.682
     (FOLLOW_LEAD, 600),  # v1.690, row DEL2c: 598 bytes and the blank line, the section's last
     (CACHE_MISS_LEAD, 297),  # v1.694, row CACHE2c: 295 bytes and the blank line, after the prompt-cache one
+    (SESSION_LEAD, 293),  # v1.703, row CACHE3d: 291 bytes and the blank line, after the cache-miss one
 ]
 
 
@@ -1610,8 +1612,10 @@ def test_the_v1_673_two_are_pointer_paragraphs_and_the_section_under_its_cap():
     # v1.680 (row PROD1j) adds its paragraph in the room v1.673 and v1.674 made, so the section less it is at most
     # v1.673's bytes; v1.682 (row PROD1k) grows it, so the section less it subtracts the growth too, and v1.690
     # (row DEL2c) adds its paragraph after it, so the section less both, and v1.694 (row CACHE2c) adds its
-    # paragraph after the v1.673 prompt-cache one, so the section less that too
+    # paragraph after the v1.673 prompt-cache one, so the section less that too, and v1.703 (row CACHE3d) its
+    # paragraph after v1.694's, so the section less that as well
     assert (size(read("README.md"), PRODUCTION) - ADDED_V1_680 - GROWN_V1_682 - ADDED_V1_690 - ADDED_V1_694
+            - ADDED_V1_703
             <= SECTION_V1_673
             < PRODUCTION_CAP == 30_000)
     for lead, (first, names, pointer) in POINTERS_V1_673.items():
@@ -1791,7 +1795,7 @@ def test_the_v1_674_one_is_a_pointer_paragraph_and_the_section_at_most_26000_byt
     assert SECTION_V1_675 + ADDED_V1_680 == SECTION_V1_680
     assert SECTION_V1_680 + GROWN_V1_682 == SECTION_V1_682
     assert SECTION_V1_682 + ADDED_V1_690 == SECTION_V1_690
-    assert size(read("README.md"), PRODUCTION) == SECTION_V1_690 + ADDED_V1_694 == SECTION_V1_694
+    assert size(read("README.md"), PRODUCTION) == SECTION_V1_690 + ADDED_V1_694 + ADDED_V1_703 == SECTION_V1_703
 
 
 def test_the_v1_674_one_keeps_its_lead_its_names_and_its_pointer():
@@ -1924,7 +1928,7 @@ def test_the_v1_675_paragraph_and_clause_and_the_section_at_its_bytes():
     assert PRODUCTION_CAP - SECTION_V1_675 == 3_156
     assert SECTION_V1_675 + ADDED_V1_680 + GROWN_V1_682 == SECTION_V1_682
     assert SECTION_V1_682 + ADDED_V1_690 == SECTION_V1_690
-    assert size(text, PRODUCTION) == SECTION_V1_690 + ADDED_V1_694 == SECTION_V1_694
+    assert size(text, PRODUCTION) == SECTION_V1_690 + ADDED_V1_694 + ADDED_V1_703 == SECTION_V1_703
     assert size(without_later(text), PRODUCTION) == 20_343
 
 
@@ -1961,15 +1965,16 @@ SECTION_V1_680 = 27_433
 def test_the_v1_680_paragraph_and_the_section_at_its_bytes():
     text = read("README.md")
     # v1.682 (row PROD1k) grows the paragraph by its budgets clause, so LATER's ninth entry and the section add it;
-    # v1.690 (row DEL2c) appends the tenth entry, the section's last, and v1.694 (row CACHE2c) the eleventh
-    assert LATER[8] == (PAIR_LEAD, ADDED_V1_680 + GROWN_V1_682) and len(LATER) == 11
+    # v1.690 (row DEL2c) appends the tenth entry, the section's last, v1.694 (row CACHE2c) the eleventh and
+    # v1.703 (row CACHE3d) the twelfth
+    assert LATER[8] == (PAIR_LEAD, ADDED_V1_680 + GROWN_V1_682) and len(LATER) == 12
     assert len(paragraph(PAIR_LEAD).encode("utf-8")) == PAIR_BYTES_V1_680 + GROWN_V1_682 <= PAIR_CAP_V1_680
     # the section is pinned to its bytes, so a later change to it restates this test (review iter-531 nit 2)
     assert SECTION_V1_680 == SECTION_V1_675 + ADDED_V1_680 < PRODUCTION_CAP == 30_000
     assert PRODUCTION_CAP - SECTION_V1_680 == 2_567
     assert SECTION_V1_680 + GROWN_V1_682 == SECTION_V1_682
     assert SECTION_V1_682 + ADDED_V1_690 == SECTION_V1_690
-    assert size(text, PRODUCTION) == SECTION_V1_690 + ADDED_V1_694 == SECTION_V1_694
+    assert size(text, PRODUCTION) == SECTION_V1_690 + ADDED_V1_694 + ADDED_V1_703 == SECTION_V1_703
     # the paragraph is in LATER, so the section less LATER keeps v1.675's bytes
     assert size(without_later(text), PRODUCTION) == 20_343
 
@@ -2020,7 +2025,7 @@ def test_the_v1_682_paragraph_and_the_section_at_its_bytes():
     assert SECTION_V1_682 == SECTION_V1_680 + GROWN_V1_682 < PRODUCTION_CAP == 30_000
     assert PRODUCTION_CAP - SECTION_V1_682 == 2_554
     assert SECTION_V1_682 + ADDED_V1_690 == SECTION_V1_690
-    assert size(text, PRODUCTION) == SECTION_V1_690 + ADDED_V1_694 == SECTION_V1_694
+    assert size(text, PRODUCTION) == SECTION_V1_690 + ADDED_V1_694 + ADDED_V1_703 == SECTION_V1_703
     # the paragraph is in LATER, so the section less LATER keeps v1.675's bytes
     assert size(without_later(text), PRODUCTION) == 20_343
     # README names no DESIGN version, so the clause names none either
@@ -2065,14 +2070,15 @@ SECTION_V1_690 = 28_046
 
 def test_the_v1_690_paragraph_and_the_section_at_its_bytes():
     text = read("README.md")
-    # v1.694 (row CACHE2c) appends the eleventh entry, a paragraph after the prompt-cache one, so this one stays
-    # the section's last (test_the_section_ends_with_the_record_format_sentence)
-    assert LATER[9] == (FOLLOW_LEAD, ADDED_V1_690) and len(LATER) == 11
+    # v1.694 (row CACHE2c) appends the eleventh entry, a paragraph after the prompt-cache one, and v1.703
+    # (row CACHE3d) the twelfth, one after that, so this one stays the section's last
+    # (test_the_section_ends_with_the_record_format_sentence)
+    assert LATER[9] == (FOLLOW_LEAD, ADDED_V1_690) and len(LATER) == 12
     assert len(paragraph(FOLLOW_LEAD).encode("utf-8")) == FOLLOW_BYTES_V1_690 <= FOLLOW_CAP_V1_690
     # the section is pinned to its bytes, so a later change to it restates this test (review iter-531 nit 2):
     # v1.694 (row CACHE2c) adds its paragraph after the prompt-cache one
     assert SECTION_V1_690 == SECTION_V1_682 + ADDED_V1_690 < PRODUCTION_CAP == 30_000
-    assert size(text, PRODUCTION) == SECTION_V1_690 + ADDED_V1_694 == SECTION_V1_694
+    assert size(text, PRODUCTION) == SECTION_V1_690 + ADDED_V1_694 + ADDED_V1_703 == SECTION_V1_703
     assert PRODUCTION_CAP - SECTION_V1_690 == 1_954
     # the paragraph is in LATER, so the section less LATER keeps v1.675's bytes
     assert size(without_later(text), PRODUCTION) == 20_343
@@ -2113,14 +2119,16 @@ SECTION_V1_694 = 28_343
 
 def test_the_v1_694_paragraph_and_the_section_at_its_bytes():
     text = read("README.md")
-    assert LATER[10] == LATER[-1] == (CACHE_MISS_LEAD, ADDED_V1_694) and len(LATER) == 11
+    # v1.703 (row CACHE3d) appends LATER's twelfth entry, its paragraph right after this one
+    assert LATER[10] == (CACHE_MISS_LEAD, ADDED_V1_694) and len(LATER) == 12
     assert len(paragraph(CACHE_MISS_LEAD).encode("utf-8")) == CACHE_MISS_BYTES_V1_694 <= CACHE_MISS_CAP_V1_694
     # LATER's last entry, but not the section's last paragraph: it sits right after the prompt-cache one
     found = paragraphs(text, PRODUCTION)
     at = found.index(paragraph(CACHE_MISS_LEAD))
     assert found[at - 1].startswith(CACHE_LEAD) and found[-1].startswith(FOLLOW_LEAD)
-    # the section is pinned to its bytes, so a later change to it restates this test (review iter-531 nit 2)
-    assert size(text, PRODUCTION) == SECTION_V1_694 == SECTION_V1_690 + ADDED_V1_694 < PRODUCTION_CAP == 30_000
+    # the section is pinned to its bytes, so a later change to it restates this test (review iter-531 nit 2):
+    # v1.703 (row CACHE3d) adds its paragraph after this one
+    assert size(text, PRODUCTION) - ADDED_V1_703 == SECTION_V1_694 == SECTION_V1_690 + ADDED_V1_694 < PRODUCTION_CAP
     assert PRODUCTION_CAP - SECTION_V1_694 == 1_657
     # the paragraph is in LATER, so the section less LATER keeps v1.675's bytes
     assert size(without_later(text), PRODUCTION) == 20_343
@@ -2148,3 +2156,30 @@ def test_design_states_v1_694_and_the_changelog_the_version():
     assert line.count(", so the section is 28,343 bytes, 1,657 under the 30,000-byte cap. ") == 1
     assert line.endswith(" README.md transcripts and every evidence file keep their bytes.")
     assert len(line.encode("utf-8")) <= 600
+
+
+# --- v1.703 (row CACHE3d, the remainder of row CACHE3): a session's switch ------------------------------------
+
+# the new paragraph's own bytes, LATER's twelfth entry less its blank line; tests/test_session_cli.py checks its
+# claims, its command, its place and its pointer, and the DESIGN and changelog lines that state it
+SESSION_BYTES_V1_703, SESSION_CAP_V1_703 = 291, 300
+ADDED_V1_703 = SESSION_BYTES_V1_703 + 2
+SECTION_V1_703 = 28_636
+
+
+def test_the_v1_703_paragraph_and_the_section_at_its_bytes():
+    text = read("README.md")
+    assert LATER[11] == LATER[-1] == (SESSION_LEAD, ADDED_V1_703) and len(LATER) == 12
+    assert len(paragraph(SESSION_LEAD).encode("utf-8")) == SESSION_BYTES_V1_703 <= SESSION_CAP_V1_703
+    # LATER's last entry, but not the section's last paragraph: it sits right after the cache-miss one
+    found = paragraphs(text, PRODUCTION)
+    at = found.index(paragraph(SESSION_LEAD))
+    assert found[at - 1].startswith(CACHE_MISS_LEAD) and found[at + 1].startswith(BUDGET_LEAD)
+    assert found[-1].startswith(FOLLOW_LEAD)
+    # the section is pinned to its bytes, so a later change to it restates this test (review iter-531 nit 2)
+    assert size(text, PRODUCTION) == SECTION_V1_703 == SECTION_V1_694 + ADDED_V1_703 < PRODUCTION_CAP == 30_000
+    assert PRODUCTION_CAP - SECTION_V1_703 == 1_364
+    # the paragraph is in LATER, so the section less LATER keeps v1.675's bytes
+    assert size(without_later(text), PRODUCTION) == 20_343
+    # README names no DESIGN version, so the paragraph names none either
+    assert "v1." not in text

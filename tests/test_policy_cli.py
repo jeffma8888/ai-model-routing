@@ -363,7 +363,8 @@ def test_design_and_the_changelog_state_v1_625():
     design = read("DESIGN.md")
     ten = design.split("\n## 10. ", 1)[1].split("\n## 11. ", 1)[0]
     [synopsis] = [x for x in ten.splitlines() if x.startswith("- `select TASK ")]
-    assert "[--slice S] [--policy FILE] [--registry PATH]" in synopsis
+    # v1.703 (row CACHE3d) names its two session options right after `[--policy FILE]` (tests/test_session_cli.py)
+    assert "[--slice S] [--policy FILE] [--session-route ROUTE [--session-warm]] [--registry PATH]" in synopsis
     assert ten.count("\n- v1.625 `select ... [--policy FILE]` (row POL1d): reads FILE as UTF-8 JSON, ") == 1
     assert ten.count("\n  - Tests (tests/test_policy_cli.py): ") == 1
     cli = design.split("\n### 13.7 CLI\n", 1)[1].split("\n### 13.8 ", 1)[0]

@@ -72,9 +72,11 @@ def test_the_paragraphs_follow_the_cache_paragraph_and_end_the_part():
     # v1.605 (row GATE1d): the paragraph on `promote` follows them (tests/test_promote_docs.py)
     assert paragraphs[at + 2].startswith("Judge a challenger route against the current one only on the items ")
     # v1.694 (row CACHE2c): the paragraph on the cache-miss check comes between the prompt-cache paragraph
-    # and this one (tests/test_cache_miss_docs.py)
-    assert paragraphs[at - 1].startswith("A `Monitor(path, tasks=..., on_anomaly=...)` writes a `cache_miss` anomaly record ")
-    assert paragraphs[at - 2].startswith("A prompt cache changes what a call costs")
+    # and this one (tests/test_cache_miss_docs.py), and from v1.703 (row CACHE3d) the one on a session's switch
+    # between it and this one (tests/test_session_cli.py)
+    assert paragraphs[at - 1].startswith("A switch mid-session starts cold: ")
+    assert paragraphs[at - 2].startswith("A `Monitor(path, tasks=..., on_anomaly=...)` writes a `cache_miss` anomaly record ")
+    assert paragraphs[at - 3].startswith("A prompt cache changes what a call costs")
     # review iter-448 must-fix 2: a `warn` budget caps nothing, so the opener says what each mode does
     assert "A budget caps" not in first
 
